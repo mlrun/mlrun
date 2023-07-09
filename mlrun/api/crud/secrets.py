@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ import json
 import typing
 import uuid
 
+import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
@@ -103,9 +105,24 @@ class Secrets(
                 mlrun.utils.vault.store_vault_project_secrets(project, secrets_to_store)
         elif secrets.provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if mlrun.api.utils.singletons.k8s.get_k8s_helper():
-                mlrun.api.utils.singletons.k8s.get_k8s_helper().store_project_secrets(
+                (
+                    secret_name,
+                    created,
+                ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_project_secrets(
                     project, secrets_to_store
                 )
+                secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
+
+                events_client = events_factory.EventsFactory().get_events_client()
+                event = events_client.generate_project_secret_event(
+                    project=project,
+                    secret_name=secret_name,
+                    secret_keys=secret_keys,
+                    action=mlrun.common.schemas.SecretEventActions.created
+                    if created
+                    else mlrun.common.schemas.SecretEventActions.updated,
+                )
+                events_client.emit(event)
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
@@ -142,9 +159,24 @@ class Secrets(
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
-        return mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
+        (
+            auth_secret_name,
+            created,
+        ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
             secret.username, secret.access_key
         )
+
+        events_client = events_factory.EventsFactory().get_events_client()
+        event = events_client.generate_auth_secret_event(
+            username=secret.username,
+            secret_name=auth_secret_name,
+            action=mlrun.common.schemas.SecretEventActions.created
+            if created
+            else mlrun.common.schemas.SecretEventActions.updated,
+        )
+        events_client.emit(event)
+
+        return auth_secret_name
 
     def delete_auth_secret(
         self,
@@ -192,9 +224,24 @@ class Secrets(
             )
         elif provider == mlrun.common.schemas.SecretProviderName.kubernetes:
             if mlrun.api.utils.singletons.k8s.get_k8s_helper():
-                mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
+                (
+                    secret_name,
+                    deleted,
+                ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                     project, secrets
                 )
+
+                events_client = events_factory.EventsFactory().get_events_client()
+                event = events_client.generate_project_secret_event(
+                    project=project,
+                    secret_name=secret_name,
+                    secret_keys=secrets,
+                    action=mlrun.common.schemas.SecretEventActions.deleted
+                    if deleted
+                    else mlrun.common.schemas.SecretEventActions.updated,
+                )
+                events_client.emit(event)
+
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"

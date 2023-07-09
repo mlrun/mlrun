@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,13 @@
 #
 from datetime import datetime
 from typing import Any, List, Optional, Union
+
+# TODO: When we remove support for python 3.7, we can use Literal from the typing package.
+#       Remove the following try/except block with import from typing_extensions.
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 from pydantic import BaseModel
 
@@ -136,3 +143,8 @@ class ScheduleOutput(ScheduleRecord):
 
 class SchedulesOutput(BaseModel):
     schedules: List[ScheduleOutput]
+
+
+class ScheduleIdentifier(BaseModel):
+    kind: Literal["schedule"] = "schedule"
+    name: str

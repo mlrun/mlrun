@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,13 +33,15 @@ def run_merge_job(
     engine_args: dict,
     spark_service: str = None,
     entity_rows=None,
-    timestamp_column=None,
+    entity_timestamp_column=None,
     run_config=None,
     drop_columns=None,
     with_indexes=None,
     query=None,
-    join_type="inner",
     order_by=None,
+    start_time=None,
+    end_time=None,
+    timestamp_for_filtering=None,
 ):
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
@@ -93,18 +95,24 @@ def run_merge_job(
         set_default_resources(
             function.spec.executor_resources, function.with_executor_requests
         )
+    if start_time and not isinstance(start_time, str):
+        start_time = start_time.isoformat()
+    if end_time and not isinstance(end_time, str):
+        end_time = end_time.isoformat()
 
     task = new_task(
         name=name,
         params={
             "vector_uri": vector.uri,
             "target": target.to_dict(),
-            "timestamp_column": timestamp_column,
+            "entity_timestamp_column": entity_timestamp_column,
             "drop_columns": drop_columns,
             "with_indexes": with_indexes,
             "query": query,
-            "join_type": join_type,
             "order_by": order_by,
+            "start_time": start_time,
+            "end_time": end_time,
+            "timestamp_for_filtering": timestamp_for_filtering,
             "engine_args": engine_args,
         },
         inputs={"entity_rows": entity_rows} if entity_rows is not None else {},
@@ -122,15 +130,16 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(vector, run)
+    return RemoteVectorResponse(vector, run, with_indexes)
 
 
 class RemoteVectorResponse:
     """get_offline_features response object"""
 
-    def __init__(self, vector, run):
+    def __init__(self, vector, run, with_indexes=False):
         self.run = run
         self.vector = vector
+        self.with_indexes = with_indexes or self.vector.spec.with_indexes
 
     @property
     def status(self):
@@ -156,7 +165,7 @@ class RemoteVectorResponse:
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )
-        if self.vector.spec.with_indexes:
+        if self.with_indexes:
             df.set_index(
                 list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
             )
@@ -174,18 +183,18 @@ import mlrun
 import mlrun.feature_store.retrieval
 from mlrun.datastore.targets import get_target_driver
 def merge_handler(context, vector_uri, target, entity_rows=None, 
-                  timestamp_column=None, drop_columns=None, with_indexes=None, query=None, join_type='inner', 
-                  engine_args=None, order_by=None):
+                  entity_timestamp_column=None, drop_columns=None, with_indexes=None, query=None,
+                  engine_args=None, order_by=None, start_time=None, end_time=None, timestamp_for_filtering=None):
     vector = context.get_store_resource(vector_uri)
     store_target = get_target_driver(target, vector)
-    entity_timestamp_column = timestamp_column or vector.spec.timestamp_field
     if entity_rows:
         entity_rows = entity_rows.as_df()
 
     context.logger.info(f"starting vector merge task to {vector.uri}")
     merger = mlrun.feature_store.retrieval.{{{engine}}}(vector, **(engine_args or {}))
     merger.start(entity_rows, entity_timestamp_column, store_target, drop_columns, with_indexes=with_indexes, 
-                 query=query, join_type=join_type, order_by=order_by)
+                 query=query, order_by=order_by, start_time=start_time, end_time=end_time,
+                 timestamp_for_filtering=timestamp_for_filtering)
 
     target = vector.status.targets[store_target.name].to_dict()
     context.log_result('feature_vector', vector.uri)

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,12 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class
-from .utils import store_path_to_spark
+from .utils import (
+    _generate_sql_query_with_time_filter,
+    filter_df_start_end_time,
+    select_columns_from_df,
+    store_path_to_spark,
+)
 
 
 def get_source_from_dict(source):
@@ -73,31 +78,47 @@ class BaseSourceDriver(DataSource):
         """get storey Table object"""
         return None
 
-    def to_dataframe(self):
-        return mlrun.store_manager.object(url=self.path).as_df()
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
+        """return the source data as dataframe"""
+        return mlrun.store_manager.object(url=self.path).as_df(
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_field or self.time_field,
+        )
 
-    def filter_df_start_end_time(self, df, time_field):
-        # give priority to source time_field over the feature set's timestamp_key
-        if self.time_field:
-            time_field = self.time_field
-
-        if self.start_time or self.end_time:
-            self.start_time = (
-                datetime.min if self.start_time is None else self.start_time
-            )
-            self.end_time = datetime.max if self.end_time is None else self.end_time
-            df = df.filter(
-                (df[time_field] > self.start_time) & (df[time_field] <= self.end_time)
-            )
-        return df
-
-    def to_spark_df(self, session, named_view=False, time_field=None):
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         if self.support_spark:
             df = session.read.load(**self.get_spark_options())
             if named_view:
                 df.createOrReplaceTempView(self.name)
-            return df
+            return self._filter_spark_df(df, time_field, columns)
         raise NotImplementedError()
+
+    def _filter_spark_df(self, df, time_field=None, columns=None):
+        if not (columns or time_field):
+            return df
+
+        from pyspark.sql.functions import col
+
+        if time_field:
+            if self.start_time:
+                df = df.filter(col(time_field) > self.start_time)
+            if self.end_time:
+                df = df.filter(col(time_field) <= self.end_time)
+
+        if columns:
+            df = df.select([col(name) for name in columns])
+        return df
 
     def get_spark_options(self):
         # options used in spark.read.load(**options)
@@ -186,7 +207,7 @@ class CSVSource(BaseSourceDriver):
             "inferSchema": "true",
         }
 
-    def to_spark_df(self, session, named_view=False, time_field=None):
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         import pyspark.sql.functions as funcs
 
         df = session.read.load(**self.get_spark_options())
@@ -200,15 +221,28 @@ class CSVSource(BaseSourceDriver):
                 df = df.withColumn(col_name, funcs.col(col_name).cast("timestamp"))
         if named_view:
             df.createOrReplaceTempView(self.name)
-        return df
+        return self._filter_spark_df(df, time_field, columns)
 
-    def to_dataframe(self):
-        kwargs = self.attributes.get("reader_args", {})
-        chunksize = self.attributes.get("chunksize")
-        if chunksize:
-            kwargs["chunksize"] = chunksize
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
+        reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
-            parse_dates=self._parse_dates, **kwargs
+            columns=columns,
+            df_module=df_module,
+            format="csv",
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_field or self.time_field,
+            parse_dates=self._parse_dates,
+            chunksize=self.attributes.get("chunksize"),
+            **reader_args,
         )
 
     def is_iterator(self):
@@ -315,10 +349,24 @@ class ParquetSource(BaseSourceDriver):
             "format": "parquet",
         }
 
-    def to_dataframe(self):
-        kwargs = self.attributes.get("reader_args", {})
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
+        reader_args = self.attributes.get("reader_args", {})
         return mlrun.store_manager.object(url=self.path).as_df(
-            format="parquet", **kwargs
+            columns=columns,
+            df_module=df_module,
+            start_time=start_time or self.start_time,
+            end_time=end_time or self.end_time,
+            time_column=time_field or self.time_field,
+            format="parquet",
+            **reader_args,
         )
 
 
@@ -379,6 +427,7 @@ class BigQuerySource(BaseSourceDriver):
         end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
+        **kwargs,
     ):
         if query and table:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -411,6 +460,7 @@ class BigQuerySource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def _get_credentials_string(self):
@@ -433,7 +483,15 @@ class BigQuerySource(BaseSourceDriver):
             return credentials, gcp_project or gcp_cred_dict["project_id"]
         return None, gcp_project
 
-    def to_dataframe(self):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
         from google.cloud import bigquery
         from google.cloud.bigquery_storage_v1 import BigQueryReadClient
 
@@ -470,16 +528,27 @@ class BigQuerySource(BaseSourceDriver):
         dtypes = schema_to_dtypes(rows_iterator.schema)
         if chunksize:
             # passing bqstorage_client greatly improves performance
-            return rows_iterator.to_dataframe_iterable(
+            df = rows_iterator.to_dataframe_iterable(
                 bqstorage_client=BigQueryReadClient(), dtypes=dtypes
             )
         else:
-            return rows_iterator.to_dataframe(dtypes=dtypes)
+            df = rows_iterator.to_dataframe(dtypes=dtypes)
+
+        # TODO : filter as part of the query
+        return select_columns_from_df(
+            filter_df_start_end_time(
+                df,
+                time_column=time_field or self.time_field,
+                start_time=start_time or self.start_time,
+                end_time=end_time or self.end_time,
+            ),
+            columns=columns,
+        )
 
     def is_iterator(self):
         return bool(self.attributes.get("chunksize"))
 
-    def to_spark_df(self, session, named_view=False, time_field=None):
+    def to_spark_df(self, session, named_view=False, time_field=None, columns=None):
         options = copy(self.attributes.get("spark_options", {}))
         credentials, gcp_project = self._get_credentials_string()
         if credentials:
@@ -509,7 +578,7 @@ class BigQuerySource(BaseSourceDriver):
         df = session.read.format("bigquery").load(**options)
         if named_view:
             df.createOrReplaceTempView(self.name)
-        return df
+        return self._filter_spark_df(df, time_field, columns)
 
 
 class SnowflakeSource(BaseSourceDriver):
@@ -564,6 +633,7 @@ class SnowflakeSource(BaseSourceDriver):
         database: str = None,
         schema: str = None,
         warehouse: str = None,
+        **kwargs,
     ):
         attrs = {
             "query": query,
@@ -582,6 +652,7 @@ class SnowflakeSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def _get_password(self):
@@ -673,7 +744,7 @@ class DataFrameSource:
             context=self.context or context,
         )
 
-    def to_dataframe(self):
+    def to_dataframe(self, **kwargs):
         return self._df
 
     def is_iterator(self):
@@ -848,7 +919,15 @@ class KafkaSource(OnlineSource):
             attributes["sasl"] = sasl
         super().__init__(attributes=attributes, **kwargs)
 
-    def to_dataframe(self):
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
         raise mlrun.MLRunInvalidArgumentError(
             "KafkaSource does not support batch processing"
         )
@@ -889,13 +968,15 @@ class SQLSource(BaseSourceDriver):
         table_name: str = None,
         spark_options: dict = None,
         time_fields: List[str] = None,
+        parse_dates: List[str] = None,
+        **kwargs,
     ):
         """
         Reads SqlDB as input source for a flow.
         example::
-            db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
+            db_url = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
             source = SQLSource(
-                collection_name='source_name', db_path=self.db, key_field='key'
+                table_name='source_name', db_url=db_url, key_field='key'
             )
         :param name:            source name
         :param chunksize:       number of rows per chunk (default large single chunk)
@@ -912,19 +993,32 @@ class SQLSource(BaseSourceDriver):
                                 from the current database
         :param spark_options:   additional spark read options
         :param time_fields :    all the field to be parsed as timestamp.
+        :param parse_dates :    all the field to be parsed as timestamp.
         """
-
+        if time_fields:
+            warnings.warn(
+                "'time_fields' is deprecated, use 'parse_dates' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
+            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot specify without db_path arg or secret MLRUN_SQL__URL"
             )
+        if time_field:
+            if parse_dates:
+                time_fields.append(time_field)
+            else:
+                parse_dates = [time_field]
         attrs = {
             "chunksize": chunksize,
             "spark_options": spark_options,
             "table_name": table_name,
             "db_path": db_url,
-            "time_fields": time_fields,
+            "parse_dates": parse_dates,
         }
         attrs = {key: value for key, value in attrs.items() if value is not None}
         super().__init__(
@@ -935,27 +1029,43 @@ class SQLSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
-    def to_dataframe(self):
-        import sqlalchemy as db
+    def to_dataframe(
+        self,
+        columns=None,
+        df_module=None,
+        entities=None,
+        start_time=None,
+        end_time=None,
+        time_field=None,
+    ):
+        import sqlalchemy as sqlalchemy
 
-        query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
-        params = None
-        if not query:
-            query = "SELECT * FROM %(table)s"
-            params = {"table": table_name}
+        parse_dates = self.attributes.get("parse_dates")
+        time_field = time_field or self.time_field
+        start_time = start_time or self.start_time
+        end_time = end_time or self.end_time
         if table_name and db_path:
-            engine = db.create_engine(db_path)
+            engine = sqlalchemy.create_engine(db_path)
+            query, parse_dates = _generate_sql_query_with_time_filter(
+                table_name=table_name,
+                engine=engine,
+                time_column=time_field,
+                parse_dates=parse_dates,
+                start_time=start_time,
+                end_time=end_time,
+            )
             with engine.connect() as con:
                 return pd.read_sql(
                     query,
                     con=con,
-                    params=params,
                     chunksize=self.attributes.get("chunksize"),
-                    parse_dates=self.attributes.get("time_fields"),
+                    parse_dates=parse_dates,
+                    columns=columns,
                 )
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(

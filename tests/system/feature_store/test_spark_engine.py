@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
-from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -822,9 +821,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector("my-vec", features)
-        resp = fstore.get_offline_features(
-            vector, entity_timestamp_column="time", with_indexes=True
-        )
+        resp = fstore.get_offline_features(vector, with_indexes=True)
 
         # We can't count on the order when reading the results back
         result_records = (
@@ -1399,20 +1396,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        self.set_targets(measurements)
+        if not passthrough:
+            self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        if not self.run_local:
+        if passthrough:
+            assert len(measurements.status.targets) == 0
+        elif not self.run_local:
             assert measurements.status.targets[0].run_id is not None
-
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        if passthrough and not self.run_local:
-            assert len(measurements.status.targets) == 1
-            assert isinstance(measurements.status.targets["nosql"], DataTarget)
 
         fv_name = "measurements-fv"
         features = [
@@ -1730,8 +1725,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         self.read_parquet_and_assert(out_path_spark, out_path_storey)
 
     @pytest.mark.parametrize("with_indexes", [True, False])
-    @pytest.mark.parametrize("join_type", ["inner", "outer"])
-    def test_relation_join(self, join_type, with_indexes):
+    def test_relation_join(self, with_indexes):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
@@ -1775,7 +1769,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_department = pd.merge(
             employees_with_department,
             departments,
-            how=join_type,
             left_on=["department_id"],
             right_on=["d_id"],
             suffixes=("_employees", "_departments"),
@@ -1784,7 +1777,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            how=join_type,
             left_on=["manager_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
@@ -1793,7 +1785,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_employee_sets = pd.merge(
             employees_with_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_employees", "_e_mini"),
@@ -1802,7 +1793,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         _merge_step = pd.merge(
             join_employee_department,
             employees_with_class,
-            how=join_type,
             left_on=["id"],
             right_on=["id"],
             suffixes=("_", "_e_mini"),
@@ -1811,7 +1801,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         join_all = pd.merge(
             _merge_step,
             classes,
-            how=join_type,
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
@@ -1932,7 +1921,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="name",
         )
         if with_indexes:
@@ -1962,7 +1950,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
@@ -1988,7 +1975,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by=["n"],
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
@@ -2010,7 +1996,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
@@ -2037,7 +2022,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             engine="spark",
             spark_service=self.spark_service,
-            join_type=join_type,
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
@@ -2128,7 +2112,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             resp_1.to_dataframe().sort_index(axis=1),
         )
 
-    def test_as_of_join_result(self):
+    @pytest.mark.parametrize("ts_r", ["ts", "ts_r"])
+    def test_as_of_join_result(self, ts_r):
         test_base_time = datetime.fromisoformat("2020-07-21T12:00:00+00:00")
 
         df_left = pd.DataFrame(
@@ -2142,7 +2127,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         df_right = pd.DataFrame(
             {
                 "ent": ["a", "a", "a", "b"],
-                "ts": [
+                ts_r: [
                     test_base_time - pd.Timedelta(minutes=1),
                     test_base_time - pd.Timedelta(minutes=2),
                     test_base_time - pd.Timedelta(minutes=3),
@@ -2152,6 +2137,12 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
+        expected_df = pd.DataFrame(
+            {
+                "f1": ["a-val", "b-val"],
+                "f2": ["newest", "only-value"],
+            }
+        )
         base_path = self.test_output_subdir_path(url=False)
         left_path = f"{base_path}/df_left.parquet"
         right_path = f"{base_path}/df_right.parquet"
@@ -2165,7 +2156,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
         self.set_targets(fset1, also_in_remote=True)
-        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key="ts")
+        fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key=ts_r)
         self.set_targets(fset2, also_in_remote=True)
 
         base_url = self.test_output_subdir_path()
@@ -2177,21 +2168,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         fstore.ingest(fset1, source_left)
         fstore.ingest(fset2, source_right)
-
-        self._logger.info(
-            f"fset1 BEFORE LOCAL engine merger:\n  {fset1.to_dataframe()}"
-        )
-        self._logger.info(
-            f"fset2 BEFORE LOCAL engine merger:\n  {fset2.to_dataframe()}"
-        )
-
-        vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
-
-        resp = fstore.get_offline_features(vec, engine="local")
-        local_engine_res = resp.to_dataframe().sort_index(axis=1)
-
-        self._logger.info(f"fset1 AFTER LOCAL engine merger:\n  {fset1.to_dataframe()}")
-        self._logger.info(f"fset2 AFTER LOCAL engine merger:\n  {fset2.to_dataframe()}")
 
         vec_for_spark = fstore.FeatureVector(
             "vec1-spark", ["fs1-as-of.*", "fs2-as-of.*"]
@@ -2208,8 +2184,100 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         spark_engine_res = resp.to_dataframe().sort_index(axis=1)
 
-        self._logger.info(f"result of LOCAL engine merger:\n  {local_engine_res}")
-        self._logger.info(f"result of SPARK engine merger:\n  {spark_engine_res}")
+        assert_frame_equal(expected_df, spark_engine_res)
 
-        assert spark_engine_res.shape == (2, 2)
-        assert local_engine_res.equals(spark_engine_res)
+    @pytest.mark.parametrize(
+        "timestamp_for_filtering",
+        [None, "other_ts", "bad_ts", {"fs1": "other_ts"}, {"fs1": "bad_ts"}],
+    )
+    @pytest.mark.parametrize("passthrough", [True, False])
+    def test_time_filter(self, timestamp_for_filtering, passthrough):
+        test_base_time = datetime.fromisoformat("2020-07-21T12:00:00")
+
+        df = pd.DataFrame(
+            {
+                "ent": ["a", "b", "c", "d"],
+                "ts_key": [
+                    test_base_time - pd.Timedelta(minutes=1),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=4),
+                ],
+                "other_ts": [
+                    test_base_time - pd.Timedelta(minutes=4),
+                    test_base_time - pd.Timedelta(minutes=3),
+                    test_base_time - pd.Timedelta(minutes=2),
+                    test_base_time - pd.Timedelta(minutes=1),
+                ],
+                "val": [1, 2, 3, 4],
+            }
+        )
+
+        base_path = self.test_output_subdir_path(url=False)
+        path = f"{base_path}/df_for_filter.parquet"
+
+        fsys = fsspec.filesystem(
+            "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
+        )
+        fsys.makedirs(base_path, exist_ok=True)
+        df.to_parquet(path=path, filesystem=fsys)
+        source = ParquetSource("pq1", path=path)
+
+        fset1 = fstore.FeatureSet(
+            "fs1", entities=["ent"], timestamp_key="ts_key", passthrough=passthrough
+        )
+        self.set_targets(fset1, also_in_remote=True)
+
+        fstore.ingest(fset1, source)
+
+        vec = fstore.FeatureVector("vec1", ["fs1.val"])
+
+        target = ParquetTarget(
+            "mytarget", path=f"{self.output_dir()}-get_offline_features"
+        )
+
+        if isinstance(timestamp_for_filtering, dict):
+            timestamp_for_filtering_str = timestamp_for_filtering["fs1"]
+        else:
+            timestamp_for_filtering_str = timestamp_for_filtering
+        if timestamp_for_filtering_str != "bad_ts":
+            resp = fstore.get_offline_features(
+                feature_vector=vec,
+                start_time=test_base_time - pd.Timedelta(minutes=3),
+                end_time=test_base_time,
+                timestamp_for_filtering=timestamp_for_filtering,
+                engine="spark",
+                run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
+                spark_service=self.spark_service,
+                target=target,
+            )
+            res_df = resp.to_dataframe().sort_index(axis=1)
+
+            if not timestamp_for_filtering_str:
+                assert res_df["val"].tolist() == [1, 2]
+            elif timestamp_for_filtering_str == "other_ts":
+                assert res_df["val"].tolist() == [3, 4]
+
+            assert res_df.columns == ["val"]
+        else:
+            err = (
+                mlrun.errors.MLRunInvalidArgumentError
+                if self.run_local
+                else mlrun.runtimes.utils.RunError
+            )
+            with pytest.raises(
+                err,
+                match="Feature set `fs1` does not have a column named `bad_ts` to filter on.",
+            ):
+                fstore.get_offline_features(
+                    feature_vector=vec,
+                    start_time=test_base_time - pd.Timedelta(minutes=3),
+                    end_time=test_base_time,
+                    timestamp_for_filtering=timestamp_for_filtering,
+                    engine="spark",
+                    run_config=fstore.RunConfig(
+                        local=self.run_local, kind="remote-spark"
+                    ),
+                    spark_service=self.spark_service,
+                    target=target,
+                )

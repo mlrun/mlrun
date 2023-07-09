@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -263,15 +263,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Check License Lines
-        uses: kt3k/license_checker@v1.0.6
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+      - name: Check
+        run: |
+          deno run --allow-read https://deno.land/x/license_checker@v3.2.3/main.ts
       - name: Instructions For Adding Copyright
         if: ${{ failure() }}
         run: |
           echo "
           Please add the following lines to the top of your code:
           
-          # Copyright 2018 Iguazio
+          # Copyright 2023 Iguazio
           #
           # Licensed under the Apache License, Version 2.0 (the "License");
           # you may not use this file except in compliance with the License.

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ class GitNotification(NotificationBase):
     ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
+        git_merge_request = self.params.get("merge_request", None)
         token = (
             self.params.get("token", None)
             or self.params.get("GIT_TOKEN", None)
@@ -52,6 +53,7 @@ class GitNotification(NotificationBase):
             self._get_html(message, severity, runs, custom_html),
             git_repo,
             git_issue,
+            merge_request=git_merge_request,
             token=token,
             server=server,
             gitlab=gitlab,
@@ -62,6 +64,7 @@ class GitNotification(NotificationBase):
         message: str,
         repo: str = None,
         issue: int = None,
+        merge_request: int = None,
         token: str = None,
         server: str = None,
         gitlab: bool = False,
@@ -89,12 +92,19 @@ class GitNotification(NotificationBase):
             headers = {"PRIVATE-TOKEN": token}
             repo = repo or os.environ.get("CI_PROJECT_ID")
             # auto detect GitLab pr id from the environment
-            issue = issue or os.environ.get("CI_MERGE_REQUEST_IID")
+            issue = issue or os.environ.get("CI_ISSUE_IID")
+            merge_request = merge_request or os.environ.get("CI_MERGE_REQUEST_IID")
             # replace slash with url encoded slash for GitLab to accept a repo name with slash
             repo = repo.replace("/", "%2F")
-            url = (
-                f"https://{server}/api/v4/projects/{repo}/merge_requests/{issue}/notes"
-            )
+
+            if merge_request:
+                url = f"https://{server}/api/v4/projects/{repo}/merge_requests/{merge_request}/notes"
+            elif issue:
+                url = f"https://{server}/api/v4/projects/{repo}/issues/{issue}/notes"
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "GitLab issue or merge request id not specified"
+                )
         else:
             server = server or "api.github.com"
             repo = repo or os.environ.get("GITHUB_REPOSITORY")
@@ -104,11 +114,11 @@ class GitNotification(NotificationBase):
                 with open(os.environ["GITHUB_EVENT_PATH"]) as fp:
                     data = fp.read()
                     event = json.loads(data)
-                    if "issue" not in event:
+                    if "number" not in event:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"issue not found in github actions event\ndata={data}"
                         )
-                    issue = event["issue"].get("number")
+                    issue = event["number"]
             headers = {
                 "Accept": "application/vnd.github.v3+json",
                 "Authorization": f"token {token}",

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ RUN GOOS=linux \
 
 FROM alpine:latest as install-health-probe
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.18
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.19
 
 RUN mkdir /app
 WORKDIR /app
@@ -44,7 +44,7 @@ RUN wget -qO/app/grpc_health_probe \
     https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/${GRPC_HEALTH_PROBE_VERSION}/grpc_health_probe-linux-amd64 && \
     chmod +x /app/grpc_health_probe
 
-FROM gcr.io/iguazio/alpine:3.17
+FROM gcr.io/iguazio/alpine:3.18
 COPY --from=build-binary /app/main /main
 COPY --from=install-health-probe /app/grpc_health_probe /grpc_health_probe
 

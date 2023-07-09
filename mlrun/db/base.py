@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
@@ -49,7 +50,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         pass
 
     @abstractmethod
@@ -610,5 +611,13 @@ class RunDBInterface(ABC):
         logs: bool = True,
         last_log_timestamp: float = 0.0,
         verbose: bool = False,
+    ):
+        pass
+
+    def set_run_notifications(
+        self,
+        project: str,
+        runs: typing.List[mlrun.model.RunObject],
+        notifications: typing.List[mlrun.model.Notification],
     ):
         pass

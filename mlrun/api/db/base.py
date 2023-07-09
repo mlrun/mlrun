@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -611,5 +611,15 @@ class DBInterface(ABC):
         run_uid: str = None,
         project: str = None,
         commit: bool = True,
+    ):
+        pass
+
+    def set_run_notifications(
+        self,
+        session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
+        **kwargs,
     ):
         pass

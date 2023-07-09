@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,23 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+
+    @classmethod
+    def get_function_state_from_pod_state(cls, pod_state: str):
+        if pod_state == "succeeded":
+            return cls.ready
+        if pod_state in ["failed", "error"]:
+            return cls.error
+        if pod_state in ["running", "pending"]:
+            return getattr(cls, pod_state)
+        return cls.unknown
+
+    @classmethod
+    def terminal_states(cls):
+        return [
+            cls.ready,
+            cls.error,
+        ]
 
 
 class PreemptionModes(mlrun.common.types.StrEnum):

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -186,7 +186,8 @@ class FeatureSetSpec(ModelObj):
     @engine.setter
     def engine(self, engine: str):
         engine_list = ["pandas", "spark", "storey"]
-        if engine and engine not in engine_list:
+        engine = engine if engine else "storey"
+        if engine not in engine_list:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"engine must be one of {','.join(engine_list)}"
             )
@@ -476,7 +477,7 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             self.spec.with_default_targets = True
-            targets.extend(get_default_targets())
+            targets.extend(get_default_targets(offline_only=self.spec.passthrough))
         else:
             self.spec.with_default_targets = False
 
@@ -941,7 +942,14 @@ class FeatureSet(ModelObj):
                 raise mlrun.errors.MLRunNotFoundError(
                     "passthrough feature set {self.metadata.name} with no source"
                 )
-            df = self.spec.source.to_dataframe()
+            df = self.spec.source.to_dataframe(
+                columns=columns,
+                start_time=start_time
+                or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
+                end_time=end_time or pd.Timestamp.max,
+                time_field=time_column,
+                **kwargs,
+            )
             # to_dataframe() can sometimes return an iterator of dataframes instead of one dataframe
             if not isinstance(df, pd.DataFrame):
                 df = pd.concat(df)

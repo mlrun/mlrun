@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,10 @@ from datetime import datetime
 from os import environ
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import pydantic.error_wrappers
+
 import mlrun
+import mlrun.common.schemas.notification
 
 from .utils import (
     dict_to_json,
@@ -59,7 +62,11 @@ class ModelObj:
         return param
 
     def to_dict(self, fields=None, exclude=None):
-        """convert the object to a python dictionary"""
+        """convert the object to a python dictionary
+
+        :param fields:  list of fields to include in the dict
+        :param exclude: list of fields to exclude from the dict
+        """
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
@@ -102,13 +109,19 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self) -> str:
-        """convert the object to yaml"""
-        return dict_to_yaml(self.to_dict())
+    def to_yaml(self, exclude=None) -> str:
+        """convert the object to yaml
 
-    def to_json(self):
-        """convert the object to json"""
-        return dict_to_json(self.to_dict())
+        :param exclude: list of fields to exclude from the yaml
+        """
+        return dict_to_yaml(self.to_dict(exclude=exclude))
+
+    def to_json(self, exclude=None):
+        """convert the object to json
+
+        :param exclude: list of fields to exclude from the json
+        """
+        return dict_to_json(self.to_dict(exclude=exclude))
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -536,15 +549,36 @@ class Notification(ModelObj):
         status=None,
         sent_time=None,
     ):
-        self.kind = kind
-        self.name = name
-        self.message = message
-        self.severity = severity
-        self.when = when
-        self.condition = condition
+        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.name = name or ""
+        self.message = message or ""
+        self.severity = (
+            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
+        )
+        self.when = when or ["completed"]
+        self.condition = condition or ""
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+
+        self.validate_notification()
+
+    def validate_notification(self):
+        try:
+            mlrun.common.schemas.notification.Notification(**self.to_dict())
+        except pydantic.error_wrappers.ValidationError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid notification object"
+            ) from exc
+
+    @staticmethod
+    def validate_notification_uniqueness(notifications: List["Notification"]):
+        """Validate that all notifications in the list are unique by name"""
+        names = [notification.name for notification in notifications]
+        if len(names) != len(set(names)):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification names must be unique"
+            )
 
 
 class RunMetadata(ModelObj):
@@ -781,6 +815,9 @@ class RunSpec(ModelObj):
 
         :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
         """
+        # This import is located in the method due to circular imports error.
+        from mlrun.package.utils import LogHintUtils
+
         if returns is None:
             self._returns = None
             return
@@ -788,7 +825,7 @@ class RunSpec(ModelObj):
 
         # Validate:
         for log_hint in returns:
-            mlrun.run._parse_log_hint(log_hint=log_hint)
+            LogHintUtils.parse_log_hint(log_hint=log_hint)
 
         # Store the results:
         self._returns = returns
@@ -1161,6 +1198,20 @@ class RunObject(RunTemplate):
     def status(self, status):
         self._status = self._verify_dict(status, "status", RunStatus)
 
+    @property
+    def error(self) -> str:
+        """error string if failed"""
+        if self.status:
+            if self.status.state != "error":
+                return f"Run state ({self.status.state}) is not in error state"
+            return (
+                self.status.error
+                or self.status.reason
+                or self.status.status_text
+                or "Unknown error"
+            )
+        return ""
+
     def output(self, key):
         """return the value of a specific result or artifact by key"""
         self._outputs_wait_for_completion()
@@ -1332,7 +1383,6 @@ class RunObject(RunTemplate):
                 )
         if logs_enabled and not logs_interval:
             self.logs(watch=False)
-
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
                 f"task {self.metadata.name} did not complete (state={state})"

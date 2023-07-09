@@ -21,6 +21,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
+   concepts/notifications
     
 .. toctree::
    :maxdepth: 1
@@ -30,6 +31,7 @@ Table of Contents
    development/index
    deployment/index
    monitoring/index
+   projects/ci-cd-automate
      
 .. toctree::
    :maxdepth: 1

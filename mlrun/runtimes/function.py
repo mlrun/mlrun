@@ -861,7 +861,7 @@ class RemoteRuntime(KubeResource):
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
         :param http_client_kwargs:   allow the user to pass any parameter supported in requests.request method
-                                     see this link for help:
+                                     see this link for more information:
                                      https://requests.readthedocs.io/en/latest/api/#requests.request
         """
         if not method:

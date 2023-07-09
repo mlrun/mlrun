@@ -688,14 +688,17 @@ def _migrate_artifacts_batch(
         if labels:
             artifacts_labels_to_migrate.append((new_artifact, labels))
 
-    # commit the new artifacts to the db
-    db._upsert(db_session, new_artifacts, ignore=True)
+    # add the new artifacts to the db session
+    db_session.add_all(new_artifacts)
 
     # migrate artifact labels to the new table ("artifact_v2_labels")
     _migrate_artifact_labels(db, db_session, artifacts_labels_to_migrate)
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
     _migrate_artifact_tags(db, db_session, artifacts_tags_to_migrate)
+
+    # commit the changes
+    db_session.commit()
 
     return last_migrated_artifact_id
 
@@ -717,7 +720,7 @@ def _migrate_artifact_labels(
             )
             labels.append(new_label)
     if labels:
-        db._upsert(db_session, labels)
+        db_session.add_all(labels)
 
 
 def _migrate_artifact_tags(
@@ -738,7 +741,7 @@ def _migrate_artifact_tags(
             )
             tags.append(new_tag)
     if tags:
-        db._upsert(db_session, tags)
+        db_session.add_all(tags)
 
 
 def _add_default_hub_source_if_needed(

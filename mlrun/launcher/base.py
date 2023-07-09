@@ -38,41 +38,6 @@ class BaseLauncher(abc.ABC):
     Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
 
-    def save_function(
-        self,
-        runtime: "mlrun.runtimes.BaseRuntime",
-        tag: str = "",
-        versioned: bool = False,
-        refresh: bool = False,
-    ) -> str:
-        """
-        store the function to the db
-        :param runtime:     runtime object
-        :param tag:         function tag to store
-        :param versioned:   whether we want to version this function object so that it will queryable by its hash key
-        :param refresh:     refresh function metadata
-
-        :return:            function uri
-        """
-        db = runtime._get_db()
-        if not db:
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Database connection is not configured"
-            )
-
-        if refresh:
-            self._refresh_function_metadata(runtime)
-
-        tag = tag or runtime.metadata.tag
-
-        obj = runtime.to_dict()
-        logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
-        hash_key = db.store_function(
-            obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
-        )
-        hash_key = hash_key if versioned else None
-        return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
-
     @abc.abstractmethod
     def launch(
         self,
@@ -112,6 +77,48 @@ class BaseLauncher(abc.ABC):
         project_name: Optional[str] = "",
     ):
         pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def _store_function(
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        pass
+
+    def save_function(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        tag: str = "",
+        versioned: bool = False,
+        refresh: bool = False,
+    ) -> str:
+        """
+        store the function to the db
+        :param runtime:     runtime object
+        :param tag:         function tag to store
+        :param versioned:   whether we want to version this function object so that it will queryable by its hash key
+        :param refresh:     refresh function metadata
+
+        :return:            function uri
+        """
+        db = runtime._get_db()
+        if not db:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Database connection is not configured"
+            )
+
+        if refresh:
+            self._refresh_function_metadata(runtime)
+
+        tag = tag or runtime.metadata.tag
+
+        obj = runtime.to_dict()
+        logger.debug("Saving function", runtime_name=runtime.metadata.name, tag=tag)
+        hash_key = db.store_function(
+            obj, runtime.metadata.name, runtime.metadata.project, tag, versioned
+        )
+        hash_key = hash_key if versioned else None
+        return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
@@ -203,6 +210,7 @@ class BaseLauncher(abc.ABC):
         # task is already a RunObject
         return task
 
+    @staticmethod
     def _enrich_run(
         self,
         runtime,
@@ -390,13 +398,6 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
-        pass
-
-    @staticmethod
-    @abc.abstractmethod
-    def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
         pass
 
     @staticmethod

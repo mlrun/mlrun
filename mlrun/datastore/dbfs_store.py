@@ -23,7 +23,8 @@ from .base import DataStore, FileStats
 
 
 class DatabricksFileBugFixed(DatabricksFile):
-"""Overrides DatabricksFile to add the following fix: https://github.com/fsspec/filesystem_spec/pull/1278"""
+    """Overrides DatabricksFile to add the following fix: https://github.com/fsspec/filesystem_spec/pull/1278"""
+
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""
         self.buffer.seek(0)

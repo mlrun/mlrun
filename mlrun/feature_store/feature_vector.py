@@ -389,6 +389,7 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
+        all_fs_entities: List[str] = None,
         impute_policy: dict = None,
         requested_columns: List[str] = None,
     ):
@@ -397,6 +398,7 @@ class OnlineVectorService:
 
         self._controller = graph.controller
         self._index_columns = index_columns
+        self._all_fs_entities = all_fs_entities
         self._impute_values = {}
         self._requested_columns = requested_columns
 
@@ -525,7 +527,7 @@ class OnlineVectorService:
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
-                    for name in list(self.vector.spec.entity_fields.keys()):
+                    for name in self._all_fs_entities:
                         data.pop(name, None)
                 if not any(data.values()):
                     data = None

@@ -10,6 +10,7 @@ source_modules=
     mlrun.common
 
 forbidden_modules=
+    mlrun.api
     mlrun.artifacts
     mlrun.data_types
     mlrun.datastore

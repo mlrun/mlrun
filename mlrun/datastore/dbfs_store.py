@@ -22,6 +22,7 @@ import mlrun.errors
 from .base import DataStore, FileStats
 
 
+# custom class with fix of https://github.com/fsspec/filesystem_spec/pull/1278.
 class DatabricksFileBugFixed(DatabricksFile):
     def _upload_chunk(self, final=False):
         """Internal function to add a chunk of data to a started upload"""

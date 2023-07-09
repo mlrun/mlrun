@@ -86,7 +86,7 @@ class TestDBFSStore:
             self.workspace.dbfs.delete(path, recursive=True)
 
     def _get_data_item(self, secrets={}):
-        object_path = f"{self.test_root_dir}/file_{str(uuid.uuid4())}.txt"
+        object_path = f"{self.test_root_dir}/file_{uuid.uuid4()}.txt"
         object_url = f"{self._dbfs_url}{object_path}"
         return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
 

@@ -317,6 +317,18 @@ serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
 serve.add_trigger("cron_schedule", spec=nuclio.CronTrigger(schedule="0 9 * * *"))
 ```
 
+### Set amount of workers (for serving/nuclio http trigger)
+
+```python
+# setup 4 workers
+fn.with_http(workers=4)
+```
+
+```{admonition} Note
+The worker uses separate worker scope. This means that each worker has a copy of the variable, 
+and all changes are kept within the worker (change by worker x, do not affect worker y).
+```
+
 ### Building Docker images
 Docs: [Build function image](./runtimes/image-build.html), [Images and their usage in MLRun](./runtimes/images.html#images-usage)
 

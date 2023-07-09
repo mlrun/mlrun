@@ -300,8 +300,8 @@ Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/developmen
 import nuclio
 serve = mlrun.import_function('hub://v2_model_server')
 
-# HTTP trigger
-serve.with_http(workers=8, port=31010, worker_timeout=10)
+#Set amount of workers 
+serve.with_http(workers=8, worker_timeout=10)
 
 # V3IO stream trigger
 serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', name='stream', group='serving', seek_to='earliest', shards=1)
@@ -315,13 +315,6 @@ serve.add_trigger(
 # Cron trigger
 serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
 serve.add_trigger("cron_schedule", spec=nuclio.CronTrigger(schedule="0 9 * * *"))
-```
-
-### Set amount of workers (for serving/nuclio http trigger)
-
-```python
-# setup 4 workers
-fn.with_http(workers=4)
 ```
 
 ```{admonition} Note

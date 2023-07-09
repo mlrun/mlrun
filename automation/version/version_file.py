@@ -199,6 +199,8 @@ def resolve_next_version(
         # make current version align with base version
         suffix = ""
         if mode == "rc":
+
+            # index 0 because we increment rc later on
             suffix += "-rc0"
         current_version = packaging.version.Version(base_version.base_version + suffix)
 

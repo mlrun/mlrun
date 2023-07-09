@@ -210,7 +210,6 @@ class BaseLauncher(abc.ABC):
         # task is already a RunObject
         return task
 
-    @staticmethod
     def _enrich_run(
         self,
         runtime,

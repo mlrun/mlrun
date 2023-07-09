@@ -46,10 +46,13 @@ def parse_url(url):
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
+
+
 def get_url_by_schema(endpoint, schema, url):
     if endpoint and schema == "dbfs":
         url = url.replace(endpoint, "", 1)
     return url
+
 
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)

@@ -154,9 +154,7 @@ class TestDBFSStore:
     )
     def test_as_df(self, file_extension: str, local_file_path: str, reader: callable):
         source = reader(local_file_path)
-        upload_file_path = (
-            f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
-        )
+        upload_file_path = f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
         upload_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_file_path,
         )
@@ -180,9 +178,7 @@ class TestDBFSStore:
         self, file_extension: str, local_file_path: str, reader: callable
     ):
         source = reader(local_file_path)
-        upload_file_path = (
-            f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
-        )
+        upload_file_path = f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
         upload_data_item = mlrun.run.get_dataitem(
             self._dbfs_url + upload_file_path,
         )

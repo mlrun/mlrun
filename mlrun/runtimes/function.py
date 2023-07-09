@@ -824,6 +824,7 @@ class RemoteRuntime(KubeResource):
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: bool = None,
+        **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -839,6 +840,9 @@ class RemoteRuntime(KubeResource):
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
+        :param http_client_kwargs:   allow the user to pass any parameter supported in requests.request method
+                                     see this link for more information:
+                                     https://requests.readthedocs.io/en/latest/api/#requests.request
         """
         if not method:
             method = "POST" if body else "GET"
@@ -870,15 +874,16 @@ class RemoteRuntime(KubeResource):
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
         headers.setdefault("x-nuclio-target", full_function_name)
-        kwargs = {}
+        if not http_client_kwargs:
+            http_client_kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):
-                kwargs["data"] = body
+                http_client_kwargs["data"] = body
             else:
-                kwargs["json"] = body
+                http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **kwargs)
+            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

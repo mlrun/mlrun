@@ -548,6 +548,11 @@ class SystemTestPreparer:
                 "--force",
                 "mlrun",
                 mlrun_archive,
+                # enable audit events - will be ignored by provctl if mlrun version does not support it
+                # TODO: remove when setup is upgraded to iguazio version >= 3.5.4 since audit events
+                #  are enabled by default
+                "--feature-gates",
+                "mlrun.auditevents=enabled",
             ],
             detach=True,
         )

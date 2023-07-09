@@ -46,7 +46,10 @@ def parse_url(url):
     if parsed_url.port:
         endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url
-
+def get_url_by_schema(endpoint, schema, url):
+    if endpoint and schema == "dbfs":
+        url = url.replace(endpoint, "", 1)
+    return url
 
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
@@ -180,8 +183,7 @@ class StoreManager:
 
         store, subpath = self.get_or_create_store(url, secrets=secrets)
         schema, endpoint, parsed_url = parse_url(url)
-        if endpoint and schema == "dbfs":
-            url = url.replace(endpoint, "",1)
+        url = get_url_by_schema(endpoint, schema, url)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
     def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):

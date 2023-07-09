@@ -75,6 +75,7 @@ def main():
         next_version = resolve_next_version(
             args.mode,
             packaging.version.Version(current_version),
+            base_version,
             get_feature_branch_feature_name(),
         )
         print(next_version)
@@ -187,8 +188,20 @@ def get_current_version(
 def resolve_next_version(
     mode: str,
     current_version: packaging.version.Version,
+    base_version: packaging.version.Version,
     feature_name: typing.Optional[str] = None,
 ):
+    if (
+        base_version.major > current_version.major
+        or base_version.minor > current_version.minor
+    ):
+        # the current version is lower, can be because base version was not tagged yet
+        # make current version align with base version
+        suffix = ""
+        if mode == "rc":
+            suffix += "-rc0"
+        current_version = packaging.version.Version(base_version.base_version + suffix)
+
     rc = None
     if current_version.pre and current_version.pre[0] == "rc":
         rc = int(current_version.pre[1])

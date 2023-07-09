@@ -146,6 +146,7 @@ class StoreyFeatureMerger(BaseMerger):
         server = create_graph_server(graph=graph, parameters={})
 
         cache = ResourceCache()
+        all_fs_entities = []
         for featureset in feature_set_objects.values():
             driver = get_online_target(featureset)
             if not driver:
@@ -153,20 +154,18 @@ class StoreyFeatureMerger(BaseMerger):
                     f"resource {featureset.uri} does not have an online data target"
                 )
             cache.cache_table(featureset.uri, driver.get_table_object())
+
             for key in featureset.spec.entities.keys():
-                if (
-                    not self.vector.spec.with_indexes
-                    and key not in self.vector.spec.entity_fields.keys()
-                ):
-                    self.vector.spec.entity_fields[key] = Feature(name=key)
+                if key not in all_fs_entities:
+                    all_fs_entities.append(key)
         server.init_states(context=None, namespace=None, resource_cache=cache)
         server.init_object(None)
-        self.vector.save()
 
         service = OnlineVectorService(
             self.vector,
             graph,
             entity_keys,
+            all_fs_entities=all_fs_entities,
             impute_policy=self.impute_policy,
             requested_columns=requested_columns,
         )

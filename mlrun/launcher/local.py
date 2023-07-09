@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.errors
-import mlrun.launcher.client
+import mlrun.launcher.client as launcher
 import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
@@ -25,7 +25,7 @@ import mlrun.utils.notifications
 from mlrun.utils import logger
 
 
-class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
+class ClientLocalLauncher(launcher.ClientBaseLauncher):
     """
     ClientLocalLauncher is a launcher that runs the job locally.
     Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).
@@ -119,14 +119,14 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             notifications=notifications,
         )
         self._validate_runtime(runtime, run)
-        result = self.execute(
+        result = self._execute(
             runtime=runtime,
             run=run,
         )
 
         return result
 
-    def execute(
+    def _execute(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,

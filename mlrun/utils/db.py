@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@ import pickle
 from datetime import datetime
 
 from sqlalchemy.orm import class_mapper
-
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 class BaseModel:

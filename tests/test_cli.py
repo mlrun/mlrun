@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,8 @@
 # limitations under the License.
 import pathlib
 
-from sqlalchemy.orm import Session
-
 import mlrun.projects
 from mlrun.__main__ import load_notification
-from mlrun.api.db.base import DBInterface
-from mlrun.artifacts.plots import ChartArtifact
 
 
 def test_add_notification_to_cli_from_file():
@@ -50,41 +46,3 @@ def test_add_notification_to_cli_from_dict():
         project._notifiers._sync_notifications["ipython"].params.get("webhook")
         == "1234"
     )
-
-
-def test_cli_get_artifacts_with_uri(db: DBInterface, db_session: Session):
-    artifact_key = "artifact_test"
-    artifact_uid = "artifact_uid"
-    artifact_kind = ChartArtifact.kind
-    artifact = generate_artifact(artifact_key, kind=artifact_kind)
-
-    db.store_artifact(
-        db_session,
-        artifact_key,
-        artifact,
-        artifact_uid,
-    )
-
-    artifacts = db.list_artifacts(db_session)
-    assert len(artifacts) == 1
-
-    # this is the function called when executing the get artifacts cli command
-    df = artifacts.to_df()
-
-    # check that the uri is returned
-    assert "uri" in df
-
-
-def generate_artifact(name, uid=None, kind=None):
-    artifact = {
-        "metadata": {"name": name},
-        "spec": {"src_path": "/some/path"},
-        "kind": kind,
-        "status": {"bla": "blabla"},
-    }
-    if kind:
-        artifact["kind"] = kind
-    if uid:
-        artifact["metadata"]["uid"] = uid
-
-    return artifact

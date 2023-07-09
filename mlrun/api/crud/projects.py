@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
@@ -159,11 +158,6 @@ class Projects(
             label_selector=f"mlrun/project={name}",
             force=True,
         )
-        if mlrun.mlconf.resolve_kfp_url():
-            logger.debug("Removing KFP pipelines runs for project", project=name)
-            mlrun.api.crud.pipelines.Pipelines().delete_pipelines_runs(
-                db_session=session, project=name
-            )
 
         # log collector service will delete the logs, so we don't need to do it here
         if (
@@ -182,20 +176,8 @@ class Projects(
 
         # delete project secrets - passing None will delete all secrets
         if mlrun.mlconf.is_api_running_on_k8s():
-            secrets = None
-            (
-                secret_name,
-                _,
-            ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
-                name, secrets
-            )
-            events_client = events_factory.EventsFactory().get_events_client()
-            events_client.emit(
-                events_client.generate_project_secret_event(
-                    name,
-                    secret_name,
-                    action=mlrun.common.schemas.SecretEventActions.deleted,
-                )
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
+                name, None
             )
 
     def get_project(

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,12 +31,6 @@ from ..feature_vector import OfflineVectorResponse
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
 
-    # In order to be an online merger, the merger should implement `init_online_vector_service` function.
-    support_online = False
-
-    # In order to be an offline merger, the merger should implement
-    # `_order_by`, `_filter`, `_drop_columns_from_result`, `_rename_columns_and_select`, `_get_engine_df` functions.
-    support_offline = False
     engine = None
 
     def __init__(self, vector, **engine_args):
@@ -51,7 +45,6 @@ class BaseMerger(abc.ABC):
         self._target = None
         self._alias = dict()
         self._origin_alias = dict()
-        self._entity_rows_node_name = "__mlrun__$entity_rows$"
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -109,9 +102,6 @@ class BaseMerger(abc.ABC):
             # update the feature vector objects with refreshed stats
             self.vector.save()
 
-        if self._drop_indexes and entity_timestamp_column:
-            self._append_drop_column(entity_timestamp_column)
-
         for feature_set in feature_set_objects.values():
             if self._drop_indexes:
                 self._append_drop_column(feature_set.spec.timestamp_key)
@@ -124,7 +114,7 @@ class BaseMerger(abc.ABC):
             # if end_time is not specified set it to now()
             end_time = pd.Timestamp.now()
 
-        return self._generate_offline_vector(
+        return self._generate_vector(
             entity_rows,
             entity_timestamp_column,
             feature_set_objects=feature_set_objects,
@@ -136,7 +126,8 @@ class BaseMerger(abc.ABC):
             order_by=order_by,
         )
 
-    def _write_to_offline_target(self):
+    def _write_to_target(self):
+        self.vector.spec.with_indexes = not self._drop_indexes
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -149,7 +140,7 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
-        if not self._drop_indexes:
+        if self.vector.spec.with_indexes:
             self.vector.spec.entity_fields = [
                 Feature(name=feature, value_type=self._result_df[feature].dtype)
                 if self._result_df[feature].dtype.name != "object"
@@ -175,7 +166,7 @@ class BaseMerger(abc.ABC):
         else:
             df.reset_index(drop=True, inplace=True)
 
-    def _generate_offline_vector(
+    def _generate_vector(
         self,
         entity_rows,
         entity_timestamp_column,
@@ -212,9 +203,8 @@ class BaseMerger(abc.ABC):
 
             for column in node.data["save_cols"]:
                 if column not in column_names:
+                    self._append_drop_column(column)
                     column_names.append(column)
-                    if column not in self._index_columns:
-                        self._append_drop_column(column)
 
             if isinstance(timestamp_for_filtering, dict):
                 time_column = timestamp_for_filtering.get(
@@ -233,8 +223,6 @@ class BaseMerger(abc.ABC):
                     f"does not have a column named `{time_column}` to filter on."
                 )
 
-            if self._drop_indexes:
-                self._append_drop_column(time_column)
             if (start_time or end_time) and time_column:
                 filtered = True
 
@@ -293,7 +281,7 @@ class BaseMerger(abc.ABC):
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
-        # convert pandas entity_rows to spark\dask DF if needed
+        # convert pandas entity_rows to spark DF if needed
         if (
             entity_rows is not None
             and not hasattr(entity_rows, "rdd")
@@ -362,24 +350,8 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_offline_target()
+        self._write_to_target()
         return OfflineVectorResponse(self)
-
-    def init_online_vector_service(
-        self, entity_keys, fixed_window_type, update_stats=False
-    ):
-        """
-        initialize the `OnlineVectorService`
-
-        :param entity_keys:         list of the feature_vector indexes.
-        :param fixed_window_type:   determines how to query the fixed window values which were previously
-                                    inserted by ingest
-        :param update_stats:        update features statistics from the requested feature sets on the vector.
-                                    Default: False.
-
-        :return:                    `OnlineVectorService`
-        """
-        raise NotImplementedError
 
     def _unpersist_df(self, df):
         pass
@@ -437,6 +409,7 @@ class BaseMerger(abc.ABC):
         self._result_df = merged_df
         return entity_timestamp_column
 
+    @abc.abstractmethod
     def _asof_join(
         self,
         entity_df,
@@ -448,6 +421,7 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
+    @abc.abstractmethod
     def _join(
         self,
         entity_df,
@@ -578,11 +552,10 @@ class BaseMerger(abc.ABC):
                         self.add_last(other_node)
                     node = other_node
 
-    def _create_linked_relation_list(
-        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
-    ):
+    @staticmethod
+    def _create_linked_relation_list(feature_set_objects, feature_set_fields):
         feature_set_names = list(feature_set_fields.keys())
-        if len(feature_set_names) == 1 and not entity_rows_keys:
+        if len(feature_set_names) == 1:
             return BaseMerger._LinkedList(
                 head=BaseMerger._Node(
                     name=feature_set_names[0],
@@ -681,42 +654,8 @@ class BaseMerger(abc.ABC):
                 linked_list_relation.head.data["save_index"] = keys
             return linked_list_relation
 
-        def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-            feature_set_entity_list = feature_set_entity_list_dict[fs_name]
-            feature_set_entity_list_names = list(feature_set_entity_list.keys())
-
-            if all([ent in entity_rows_keys for ent in feature_set_entity_list_names]):
-                # add to the link list feature set according to indexes match,
-                # only if all entities in the feature set exist in the entity rows
-                keys = feature_set_entity_list_names
-                entity_rows_relation.add_last(
-                    BaseMerger._Node(
-                        fs_name,
-                        data={
-                            "left_keys": keys,
-                            "right_keys": keys,
-                            "save_cols": [],
-                            "save_index": keys,
-                        },
-                        order=fs_order,
-                    )
-                )
-                entity_rows_relation.head.data["save_index"] = keys
-
-        if entity_rows_keys is not None:
-            entity_rows_linked_relation = _create_relation(
-                self._entity_rows_node_name, -1
-            )
-            relation_linked_lists.append(entity_rows_linked_relation)
-            linked_list_len_goal = len(feature_set_objects) + 1
-        else:
-            entity_rows_linked_relation = None
-            linked_list_len_goal = len(feature_set_objects)
-
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)
-            if entity_rows_linked_relation is not None:
-                _build_entity_rows_relation(entity_rows_linked_relation, name, i)
             for j, name_in in enumerate(feature_set_names):
                 if name != name_in:
                     linked_relation = _build_relation(name_in, j, linked_relation, i)
@@ -727,23 +666,26 @@ class BaseMerger(abc.ABC):
             return_relation = relation_linked_lists[i].__copy__()
             for relation_list in relation_linked_lists:
                 return_relation.concat(relation_list)
-            if return_relation.len == linked_list_len_goal:
+            if return_relation.len == len(feature_set_objects):
                 return return_relation
 
         raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
+    @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 
     def _reset_index(self, _result_df):
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _create_engine_env(self):
         """
         initialize engine env if needed
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _get_engine_df(
         self,
         feature_set: FeatureSet,
@@ -767,6 +709,7 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _rename_columns_and_select(
         self,
         df,
@@ -784,12 +727,14 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _drop_columns_from_result(self):
         """
         drop `self._drop_columns` from `self._result_df`
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _filter(self, query: str):
         """
         filter `self._result_df` by `query`
@@ -798,6 +743,7 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def _order_by(self, order_by_active: typing.List[str]):
         """
         Order by `order_by_active` along all axis.

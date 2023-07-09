@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,12 +82,11 @@ def default_target_names():
     return [target.strip() for target in targets.split(",")]
 
 
-def get_default_targets(offline_only=False):
+def get_default_targets():
     """initialize the default feature set targets list"""
     return [
         DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
         for target in default_target_names()
-        if not offline_only or not target == "nosql"
     ]
 
 

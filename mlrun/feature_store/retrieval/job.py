@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -130,16 +130,15 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(vector, run, with_indexes)
+    return RemoteVectorResponse(vector, run)
 
 
 class RemoteVectorResponse:
     """get_offline_features response object"""
 
-    def __init__(self, vector, run, with_indexes=False):
+    def __init__(self, vector, run):
         self.run = run
         self.vector = vector
-        self.with_indexes = with_indexes or self.vector.spec.with_indexes
 
     @property
     def status(self):
@@ -165,7 +164,7 @@ class RemoteVectorResponse:
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )
-        if self.with_indexes:
+        if self.vector.spec.with_indexes:
             df.set_index(
                 list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
             )

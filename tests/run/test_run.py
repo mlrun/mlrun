@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ def test_invalid_name():
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
     assert (
-        "Field 'run.metadata.name' is malformed. asd/asd does not match required pattern"
+        "Field 'run.metadata.name' is malformed. Does not match required pattern"
         in str(excinfo.value)
     )
 

@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2018 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,12 +34,9 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
                 await function(*args, **kwargs)
             else:
                 await run_in_threadpool(function, *args, **kwargs)
-        except Exception as exc:
+        except Exception:
             logger.warning(
-                "Failed during periodic function execution",
-                func_name=function.__name__,
-                exc=mlrun.errors.err_to_str(exc),
-                tb=traceback.format_exc(),
+                f"Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}"
             )
         await asyncio.sleep(interval)
 

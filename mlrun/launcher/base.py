@@ -105,6 +105,19 @@ class BaseLauncher(abc.ABC):
         """run the function from the server/client[local/remote]"""
         pass
 
+    @staticmethod
+    @abc.abstractmethod
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
+    ):
+        pass
+
+    @staticmethod
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
+        pass
+
     def _validate_runtime(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
@@ -377,19 +390,6 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
-        pass
-
-    @staticmethod
-    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
-        """Check if the runtime requires to build the image and updates the spec accordingly"""
-        pass
-
-    @staticmethod
-    @abc.abstractmethod
-    def enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
-    ):
         pass
 
     @staticmethod

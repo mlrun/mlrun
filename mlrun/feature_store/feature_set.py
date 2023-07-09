@@ -318,7 +318,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
     return struct
 
 
-class FeatureSet(ModelObj, JoinOperand):
+class FeatureSet(JoinOperand):
     """Feature set object, defines a set of features and their data pipeline"""
 
     kind = mlrun.common.schemas.ObjectKind.feature_set.value
@@ -355,6 +355,7 @@ class FeatureSet(ModelObj, JoinOperand):
         :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
                               directly from source
         """
+        super().__init__(name)
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None
@@ -381,8 +382,6 @@ class FeatureSet(ModelObj, JoinOperand):
         self._last_state = ""
         self._aggregations = {}
         self.set_targets()
-
-        super.__init__(name)
 
     @property
     def spec(self) -> FeatureSetSpec:

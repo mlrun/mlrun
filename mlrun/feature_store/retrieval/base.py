@@ -480,8 +480,13 @@ class BaseMerger(abc.ABC):
         size = CSVTarget(path=target_path).write_dataframe(self._result_df, **kw)
         return size
 
-    def _extract_join_graph_and_fs_ll(self, feature_set_objects, feature_set_fields, entity_rows_keys=None):
-        # if self.vector.
+    def _extract_join_graph_and_fs_ll(
+        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
+    ):
+        if not self.vector.graph:
+            fs_link_list = self._create_linked_relation_list(
+                feature_set_objects, feature_set_fields
+            )
         pass
 
     class _Node:

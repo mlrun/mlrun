@@ -37,6 +37,7 @@ from ..model import (
     ModelObj,
     ObjectList,
     VersionedObjMetadata,
+    ObjectDict,
 )
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
@@ -56,17 +57,24 @@ class FeatureVectorSpec(ModelObj):
         with_indexes=None,
         function=None,
         analysis=None,
+        relations=None,
+        join_graph=None,
     ):
         self._graph: RootFlowStep = None
         self._entity_fields: ObjectList = None
         self._entity_source: DataSource = None
         self._function: FunctionReference = None
+        self._relations: typing.Dict[str, ObjectDict] = None
 
         self.description = description
         self.features: List[str] = features or []
         self.entity_source = entity_source
         self.entity_fields = entity_fields or []
         self.graph = graph
+        self.join_graph = join_graph
+        self.relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = (
+            relations or {}
+        )
         self.timestamp_field = timestamp_field
         self.label_feature = label_feature
         self.with_indexes = with_indexes
@@ -109,6 +117,24 @@ class FeatureVectorSpec(ModelObj):
     @function.setter
     def function(self, function):
         self._function = self._verify_dict(function, "function", FunctionReference)
+
+    @property
+    def relations(self) -> typing.Dict[str, ObjectDict]:
+        """feature set relations dict"""
+        return self._relations
+
+    @relations.setter
+    def relations(
+        self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
+    ):
+        self._relations = {}
+        for fs_name, relation in relations.items():
+            for col, ent in relation.items():
+                if isinstance(ent, str):
+                    relation[col] = Entity(ent)
+            self._relations[fs_name] = ObjectDict.from_dict(
+                {"entity": Entity}, relation, "entity"
+            )
 
 
 class FeatureVectorStatus(ModelObj):
@@ -157,6 +183,275 @@ class FeatureVectorStatus(ModelObj):
         self._features = ObjectList.from_list(Feature, features)
 
 
+class JoinOperand(ModelObj):
+    # can be the feature set class himself
+    def __init__(
+        self,
+        name: str,
+    ):
+        """
+
+        :param name:
+        """
+        self.name = name
+        self._steps: ObjectList = None
+        self._feature_sets = None
+
+    def _join_operands(self, other_operand, join_type, asof_join=False):
+        first_key_num = len(self._steps.keys()) if self._steps else 0
+        left_last_step_name, left_all_feature_sets = (
+            self.last_step_name,
+            self.all_feature_sets_names,
+        )
+        if other_operand.steps:
+            # append all the other operand steps to the current operand steps.
+            all_new_key_names = [
+                f"step_{i}"
+                for i in range(
+                    first_key_num, first_key_num + len(other_operand.steps.keys())
+                )
+            ]
+            if self.steps:
+                rename_dict = dict(zip(other_operand.steps.keys(), all_new_key_names))
+                for key, step in other_operand.steps.items():
+                    step.rename_mentioned_steps(rename_dict)
+                    self.steps.update(step)
+                    first_key_num += 1
+            else:
+                self.steps = list(other_operand.steps._children.values())
+
+        if join_type == "start" and other_operand.steps is None:
+            join_type = "get"
+        elif join_type == "start":
+            # no need to add a new step because
+            # we're just connecting all the existing steps to the graph.
+            return self
+        elif self.name == "join_graph" and self.steps is None:
+            # used inner/outer/.. instanced of start
+            if other_operand.steps is None:
+                join_type = "get"
+            else:
+                return self
+
+        # create_new_step
+        new_step = _JoinStep(
+            f"step_{first_key_num}",
+            left_last_step_name if join_type != "get" else "",
+            other_operand.last_step_name,
+            left_all_feature_sets if join_type != "get" else [],
+            other_operand.all_feature_sets_names,
+            join_type,
+        )
+
+        if self.steps is not None:
+            self.steps.update(new_step)
+        else:
+            self.steps = [new_step]
+        return self
+
+    def inner(self, other_operand=None):
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "inner")
+
+    def outer(self, other_operand=None):
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "outer")
+
+    def left(self, other_operand=None, asof_join=False):
+        """
+
+        :param asof_join:
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "left")
+
+    def right(self, other_operand=None, asof_join=False):
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "right")
+
+    @property
+    def all_feature_sets_names(self):
+        """
+
+        :return:
+        """
+        if self._steps:
+            return (
+                self._steps[-1].left_feature_set_names
+                + self._steps[-1].right_feature_set_names
+            )
+        else:
+            return self.name
+
+    @property
+    def last_step_name(self):
+        """
+
+        :return:
+        """
+        if self._steps:
+            return self._steps[-1].name
+        else:
+            return self.name
+
+    @property
+    def steps(self):
+        """
+
+        :return:
+        """
+        """child (workflow) steps"""
+        return self._steps
+
+    @steps.setter
+    def steps(self, steps):
+        """
+
+        :param steps:
+        :return:
+        """
+        self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
+
+
+class JoinGraph(JoinOperand):
+    def __init__(self, name: str = None, entity_row_flag: bool = False):
+        """
+
+        :param name:
+        :param entity_row_flag:
+        """
+        super().__init__(name or "$_join_graph_$")
+        self.entity_row_flag = entity_row_flag
+        if entity_row_flag:
+            self.start(JoinOperand("$__entity_rows__$"))
+
+    def start(self, other_operand=None):
+        """
+
+        :param other_operand:
+        :return:
+        """
+        return self._join_operands(other_operand, "start")
+
+
+class _JoinStep(ModelObj):
+    def __init__(
+        self,
+        name: str,
+        left_step_name: str,
+        right_step_name: str,
+        left_feature_set_names: Union[str, List[str]],
+        right_feature_set_names: Union[str, List[str]],
+        join_type: str = "inner",
+        asof_join: bool = False,
+    ):
+        """
+
+        :param name:
+        :param left_step_name:
+        :param right_step_name:
+        :param left_feature_set_names:
+        :param right_feature_set_names:
+        :param join_type:
+        :param asof_join
+        """
+        self.name = name
+        self.left_step_name = left_step_name
+        self.right_step_name = right_step_name
+        self.left_feature_set_names = (
+            left_feature_set_names
+            if isinstance(left_feature_set_names, list)
+            else [left_feature_set_names]
+        )
+        self.right_feature_set_names = (
+            right_feature_set_names
+            if isinstance(right_feature_set_names, list)
+            else [right_feature_set_names]
+        )
+        self.join_type = join_type
+        self.asof_join = asof_join
+
+        self.left_keys = []
+        self.right_keys = []
+
+    def init_join_keys(
+        self,
+        all_relations: typing.Dict[str, typing.Dict[str, Union[str, Entity]]],
+        all_entities: typing.Dict[str, List[Entity]],
+        feature_set_objects: ObjectList,
+    ):
+        """
+
+        :param all_relations:
+        :param all_entities:
+        :param feature_set_objects:
+        :return:
+        """
+        self.left_keys = []
+        self.right_keys = []
+
+        for left_fset in self.left_feature_set_names:
+            for right_fset in self.right_feature_set_names:
+                left_keys, right_keys = self._check_relation(
+                    all_relations[left_fset],
+                    all_entities[left_fset],
+                    feature_set_objects[right_fset],
+                )
+                self.left_keys.extend(left_keys)
+                self.right_keys.extend(right_keys)
+
+        if not self.left_keys:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{self.name} can't be preform due to undefined relation between {self.left_keys} to {self.right_keys}"
+            )
+
+    @staticmethod
+    def _check_relation(
+        relation: typing.Dict[str, Union[str, Entity]],
+        entities: List[Entity],
+        right_fset_fields,
+    ):
+        right_feature_set_entity_list = right_fset_fields.spec.entities
+
+        if all(ent in entities for ent in right_feature_set_entity_list) and len(
+            right_feature_set_entity_list
+        ) == len(entities):
+            # entities wise
+            return list(right_feature_set_entity_list.keys()), list(
+                right_feature_set_entity_list.keys()
+            )
+        elif all(ent in list(relation.values()) for ent in entities):
+            # relation wise
+            return list(relation.values()), list(right_feature_set_entity_list.keys())
+
+        return [], []
+
+    def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
+        """
+
+        :param rename_dict:
+        :return:
+        """
+        self.name = rename_dict.get(self.name)
+        self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
+        self.right_step_name = rename_dict.get(
+            self.right_step_name, self.right_step_name
+        )
+
+
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
@@ -170,6 +465,9 @@ class FeatureVector(ModelObj):
         label_feature=None,
         description=None,
         with_indexes=None,
+        join_graph: JoinGraph = None,
+        relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = None,
+        update_relation: bool = False,  # for future use
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -192,6 +490,9 @@ class FeatureVector(ModelObj):
         :param label_feature:  feature name to be used as label data
         :param description:    text description of the vector
         :param with_indexes:   whether to keep the entity and timestamp columns in the response
+        :param join_graph
+        :param relations:
+        :param update_relation: for future use
         """
         self._spec: FeatureVectorSpec = None
         self._metadata = None
@@ -202,6 +503,8 @@ class FeatureVector(ModelObj):
             features=features,
             label_feature=label_feature,
             with_indexes=with_indexes,
+            relations=relations,
+            graph=join_graph,
         )
         self.metadata = VersionedObjMetadata(name=name)
         self.status = None
@@ -385,273 +688,6 @@ class FeatureVector(ModelObj):
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
-
-
-class JoinOperand:
-    # can be the feature set class himself
-    def __init__(
-        self,
-        name: str,
-    ):
-        """
-
-        :param name:
-        """
-        self.name = name
-        self._steps: ObjectList = None
-        self._feature_sets = None
-
-    def _join_operands(self, other_operand, join_type):
-        first_key_num = len(self._steps.keys()) if self._steps else 0
-        left_last_step_name, left_all_feature_sets = (
-            self.last_step_name,
-            self.all_feature_sets_names,
-        )
-        if other_operand.steps:
-            # append all the other operand steps to the current operand steps.
-            all_new_key_names = [
-                f"step_{i}"
-                for i in range(
-                    first_key_num, first_key_num + len(other_operand.steps.keys())
-                )
-            ]
-            if self.steps:
-                rename_dict = dict(
-                    zip(other_operand.steps.keys(), all_new_key_names)
-                )
-                for key, step in other_operand.steps.items():
-                    step.rename_mentioned_steps(rename_dict)
-                    self.steps.update(step)
-                    first_key_num += 1
-            else:
-                self.steps = list(other_operand.steps._children.values())
-
-        if join_type == "start" and other_operand.steps is None:
-            join_type = "get"
-        elif join_type == "start":
-            # no need to add a new step because
-            # we're just connecting all the existing steps to the graph.
-            return self
-        elif self.name == "join_graph" and self.steps is None:
-            # used inner/outer/.. instanced of start
-            if other_operand.steps is None:
-                join_type = "get"
-            else:
-                return self
-
-        # create_new_step
-        new_step = _JoinStep(
-            f"step_{first_key_num}",
-            left_last_step_name if join_type != "get" else "",
-            other_operand.last_step_name,
-            left_all_feature_sets if join_type != "get" else [],
-            other_operand.all_feature_sets_names,
-            join_type,
-        )
-
-        if self.steps is not None:
-            self.steps.update(new_step)
-        else:
-            self.steps = [new_step]
-        return self
-
-    def inner(self, other_operand=None):
-        """
-
-        :param other_operand:
-        :return:
-        """
-        return self._join_operands(other_operand, "inner")
-
-    def outer(self, other_operand=None):
-        """
-
-        :param other_operand:
-        :return:
-        """
-        return self._join_operands(other_operand, "outer")
-
-    def left(self, other_operand=None):
-        """
-
-        :param other_operand:
-        :return:
-        """
-        return self._join_operands(other_operand, "left")
-
-    def right(self, other_operand=None):
-        """
-
-        :param other_operand:
-        :return:
-        """
-        return self._join_operands(other_operand, "right")
-
-    @property
-    def all_feature_sets_names(self):
-        """
-
-        :return:
-        """
-        if self._steps:
-            return (
-                self._steps[-1].left_feature_set_names
-                + self._steps[-1].right_feature_set_names
-            )
-        else:
-            return self.name
-
-    @property
-    def last_step_name(self):
-        """
-
-        :return:
-        """
-        if self._steps:
-            return self._steps[-1].name
-        else:
-            return self.name
-
-    @property
-    def steps(self):
-        """
-
-        :return:
-        """
-        """child (workflow) steps"""
-        return self._steps
-
-    @steps.setter
-    def steps(self, steps):
-        """
-
-        :param steps:
-        :return:
-        """
-        self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
-
-
-class JoinGraph(JoinOperand):
-    def __init__(self, name: str = None, entity_row_flag: bool = False):
-        """
-
-        :param name:
-        :param entity_row_flag:
-        """
-        super().__init__(name or "$_join_graph_$")
-        self.entity_row_flag = entity_row_flag
-        if entity_row_flag:
-            self.start(JoinOperand("$__entity_rows__$"))
-
-    def start(self, other_operand=None):
-        """
-
-        :param other_operand:
-        :return:
-        """
-        return self._join_operands(other_operand, "start")
-
-
-class _JoinStep(ModelObj):
-    def __init__(
-        self,
-        name: str,
-        left_step_name: str,
-        right_step_name: str,
-        left_feature_set_names: Union[str, List[str]],
-        right_feature_set_names: Union[str, List[str]],
-        join_type: str = "inner",
-    ):
-        """
-
-        :param name:
-        :param left_step_name:
-        :param right_step_name:
-        :param left_feature_set_names:
-        :param right_feature_set_names:
-        :param join_type:
-        """
-        self.name = name
-        self.left_step_name = left_step_name
-        self.right_step_name = right_step_name
-        self.left_feature_set_names = (
-            left_feature_set_names
-            if isinstance(left_feature_set_names, list)
-            else [left_feature_set_names]
-        )
-        self.right_feature_set_names = (
-            right_feature_set_names
-            if isinstance(right_feature_set_names, list)
-            else [right_feature_set_names]
-        )
-        self.join_type = join_type
-
-        self.left_keys = []
-        self.right_keys = []
-
-    def init_join_keys(
-        self,
-        all_relations: typing.Dict[str, typing.Dict[str, Union[str, Entity]]],
-        all_entities: typing.Dict[str, List[Entity]],
-        feature_set_objects: ObjectList,
-    ):
-        """
-
-        :param all_relations:
-        :param all_entities:
-        :param feature_set_objects:
-        :return:
-        """
-        self.left_keys = []
-        self.right_keys = []
-
-        for left_fset in self.left_feature_set_names:
-            for right_fset in self.right_feature_set_names:
-                left_keys, right_keys = self._check_relation(
-                    all_relations[left_fset],
-                    all_entities[left_fset],
-                    feature_set_objects[right_fset],
-                )
-                self.left_keys.extend(left_keys)
-                self.right_keys.extend(right_keys)
-
-        if not self.left_keys:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"{self.name} can't be preform due to undefined relation between {self.left_keys} to {self.right_keys}"
-            )
-
-    @staticmethod
-    def _check_relation(
-        relation: typing.Dict[str, Union[str, Entity]],
-        entities: List[Entity],
-        right_fset_fields,
-    ):
-        right_feature_set_entity_list = right_fset_fields.spec.entities
-
-        if all(ent in entities for ent in right_feature_set_entity_list) and len(
-            right_feature_set_entity_list
-        ) == len(entities):
-            # entities wise
-            return list(right_feature_set_entity_list.keys()), list(
-                right_feature_set_entity_list.keys()
-            )
-        elif all(ent in list(relation.values()) for ent in entities):
-            # relation wise
-            return list(relation.values()), list(right_feature_set_entity_list.keys())
-
-        return [], []
-
-    def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
-        """
-
-        :param rename_dict:
-        :return:
-        """
-        self.name = rename_dict.get(self.name)
-        self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
-        self.right_step_name = rename_dict.get(
-            self.right_step_name, self.right_step_name
-        )
 
 
 class OnlineVectorService:

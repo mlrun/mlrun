@@ -185,18 +185,26 @@ class Projects(
             secrets = None
             (
                 secret_name,
-                _,
+                action,
             ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                 name, secrets
             )
-            events_client = events_factory.EventsFactory().get_events_client()
-            events_client.emit(
-                events_client.generate_project_secret_event(
-                    name,
-                    secret_name,
-                    action=mlrun.common.schemas.SecretEventActions.deleted,
+            if action:
+                events_client = events_factory.EventsFactory().get_events_client()
+                events_client.emit(
+                    events_client.generate_project_secret_event(
+                        name,
+                        secret_name,
+                        action=action,
+                    )
                 )
-            )
+
+            else:
+                logger.debug(
+                    "No project secrets to delete",
+                    action=action,
+                    secret_name=secret_name,
+                )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

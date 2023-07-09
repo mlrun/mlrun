@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import typing
+
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.leader
 import mlrun.api.utils.projects.member
 import mlrun.config
 
 # TODO: something nicer
-project_member: mlrun.api.utils.projects.member.Member = None
+project_member: typing.Optional[mlrun.api.utils.projects.member.Member] = None
 
 
 def initialize_project_member():

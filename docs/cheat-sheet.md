@@ -268,7 +268,7 @@ fn.with_limits(mem="2G", cpu=2, gpus=1)
 # Nuclio/serving scaling
 fn.spec.replicas = 2
 fn.spec.min_replicas = 1
-fn.spec.min_replicas = 4
+fn.spec.max_replicas = 4
 ```
 
 #### Mount persistent storage
@@ -445,11 +445,16 @@ run_id = project.run(
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html)
 
 ```python
-context.logger.debug(message="Debugging info")
-context.logger.info(message="Something happened")
-context.logger.warning(message="Something might go wrong")
-context.logger.error(message="Something went wrong")
+context.logger.debug(message="Debugging info")              # logging all (debug, info, warning, error)
+context.logger.info(message="Something happened")           # logging info, warning and error
+context.logger.warning(message="Something might go wrong")  # logging warning and error
+context.logger.error(message="Something went wrong")        # logging only error
 ```
+
+```{admonition} Note
+The real-time (nuclio) function uses default logger level `debug` (logging all)
+```
+
 
 ## Experiment tracking
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Automated experiment tracking](./concepts/auto-logging-mlops.html), [Decorators and auto-logging](./concepts/decorators-and-auto-logging.html)

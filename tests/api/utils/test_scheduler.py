@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -935,10 +935,8 @@ async def test_schedule_access_key_reference_handling(
     username = "some-user-name"
     access_key = "some-access-key"
 
-    secret_ref = (
-        mlrun.model.Credentials.secret_reference_prefix
-        + k8s_secrets_mock.store_auth_secret(username, access_key)
-    )
+    mocked_secret_ref, _ = k8s_secrets_mock.store_auth_secret(username, access_key)
+    secret_ref = mlrun.model.Credentials.secret_reference_prefix + mocked_secret_ref
     auth_info = mlrun.common.schemas.AuthInfo()
     auth_info.access_key = secret_ref
 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,22 +27,32 @@ tasks: typing.Dict = {}
 # This module is different from mlrun.db.periodic in that this module's functions aren't supposed to persist
 # also this module supports asyncio while the other currently not
 # TODO: merge the modules
-async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
+async def _periodic_function_wrapper(
+    interval: typing.Union[int, float], function, *args, **kwargs
+):
     while True:
         try:
             if asyncio.iscoroutinefunction(function):
                 await function(*args, **kwargs)
             else:
                 await run_in_threadpool(function, *args, **kwargs)
-        except Exception:
+        except Exception as exc:
             logger.warning(
-                f"Failed during periodic function execution: {function.__name__}, exc: {traceback.format_exc()}"
+                "Failed during periodic function execution",
+                func_name=function.__name__,
+                exc=mlrun.errors.err_to_str(exc),
+                tb=traceback.format_exc(),
             )
         await asyncio.sleep(interval)
 
 
 def run_function_periodically(
-    interval: int, name: str, replace: bool, function, *args, **kwargs
+    interval: typing.Union[float, int],
+    name: str,
+    replace: bool,
+    function,
+    *args,
+    **kwargs
 ):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)

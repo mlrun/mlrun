@@ -1,5 +1,5 @@
 (ci-integration)=
-# CI/CD integration
+# Run pipelines with Github Actions, GitLab
 
 You can run your ML Pipelines using CI frameworks like Github Actions, GitLab CI/CD, etc. MLRun supports a simple and native integration 
 with the CI systems. 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
@@ -245,14 +246,43 @@ def mask_notification_params_with_secret(
     return notification_object
 
 
-def unmask_notification_params_secret_on_task(run):
+def unmask_notification_params_secret_on_task(
+    db: mlrun.api.db.base.DBInterface,
+    db_session: Session,
+    run: typing.Union[dict, mlrun.model.RunObject],
+):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
 
-    run.spec.notifications = [
-        unmask_notification_params_secret(run.metadata.project, notification)
-        for notification in run.spec.notifications
-    ]
+    notifications = []
+    for notification in run.spec.notifications:
+        invalid_notifications = []
+        try:
+            notifications.append(
+                unmask_notification_params_secret(run.metadata.project, notification)
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to unmask notification params, notification will not be sent",
+                project=run.metadata.project,
+                run_uid=run.metadata.uid,
+                notification=notification.name,
+                exc=err_to_str(exc),
+            )
+            # set error status in order to later save the db
+            notification.status = mlrun.common.schemas.NotificationStatus.ERROR
+            invalid_notifications.append(notification)
+
+        if invalid_notifications:
+            db.store_run_notifications(
+                db_session,
+                invalid_notifications,
+                run.metadata.uid,
+                run.metadata.project,
+            )
+
+    run.spec.notifications = notifications
+
     return run
 
 

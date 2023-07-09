@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import typing
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-import mlrun.api.schemas
+import mlrun.common.schemas
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
@@ -298,9 +298,12 @@ class K8sHelper:
     def _hash_access_key(access_key: str):
         return hashlib.sha224(access_key.encode()).hexdigest()
 
-    def store_project_secrets(self, project, secrets, namespace=""):
+    def store_project_secrets(
+        self, project, secrets, namespace=""
+    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         secret_name = self.get_project_secret_name(project)
-        self.store_secrets(secret_name, secrets, namespace)
+        action = self.store_secrets(secret_name, secrets, namespace)
+        return secret_name, action
 
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
         namespace = self.resolve_namespace(namespace)
@@ -330,30 +333,38 @@ class K8sHelper:
                 return None
 
         username = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("username")
         )
         access_key = _get_secret_value(
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("access_key")
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key")
         )
 
         return username, access_key
 
-    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+    def store_auth_secret(
+        self, username: str, access_key: str, namespace=""
+    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
+        """
+        Store the given access key as a secret in the cluster. The secret name is generated from the access key
+        :return: returns the secret name and the action taken against the secret
+        """
         secret_name = self.get_auth_secret_name(access_key)
         secret_data = {
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key("username"): username,
-            mlrun.api.schemas.AuthSecretData.get_field_secret_key(
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "access_key"
             ): access_key,
         }
-        self.store_secrets(
+        action = self.store_secrets(
             secret_name,
             secret_data,
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels={"mlrun/username": username},
         )
-        return secret_name
+        return secret_name, action
 
     def store_secrets(
         self,
@@ -362,7 +373,16 @@ class K8sHelper:
         namespace="",
         type_=SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
-    ):
+    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        """
+        Store secrets in a kubernetes secret object
+        :param secret_name: the project secret name
+        :param secrets:     the secrets to delete
+        :param namespace:   k8s namespace
+        :param type_:       k8s secret type
+        :param labels:      k8s labels for the secret
+        :return: returns the action if the secret was created or updated, None if nothing changed
+        """
         namespace = self.resolve_namespace(namespace)
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
@@ -379,7 +399,7 @@ class K8sHelper:
             )
             k8s_secret.string_data = secrets
             self.v1api.create_namespaced_secret(namespace, k8s_secret)
-            return
+            return mlrun.common.schemas.SecretEventActions.created
 
         secret_data = k8s_secret.data.copy()
         for key, value in secrets.items():
@@ -387,6 +407,7 @@ class K8sHelper:
 
         k8s_secret.data = secret_data
         self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+        return mlrun.common.schemas.SecretEventActions.updated
 
     def load_secret(self, secret_name, namespace=""):
         namespace = namespace or self.resolve_namespace(namespace)
@@ -398,40 +419,60 @@ class K8sHelper:
 
         return k8s_secret.data
 
-    def delete_project_secrets(self, project, secrets, namespace=""):
+    def delete_project_secrets(
+        self, project, secrets, namespace=""
+    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
+        """
+        Delete secrets from a kubernetes secret object
+        :return: returns the secret name and the action taken against the secret
+        """
         secret_name = self.get_project_secret_name(project)
-        self.delete_secrets(secret_name, secrets, namespace)
+        action = self.delete_secrets(secret_name, secrets, namespace)
+        return secret_name, action
 
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         self.delete_secrets(secret_ref, {}, namespace)
 
-    def delete_secrets(self, secret_name, secrets, namespace=""):
+    def delete_secrets(
+        self, secret_name, secrets, namespace=""
+    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        """
+        Delete secrets from a kubernetes secret object
+        :param secret_name: the project secret name
+        :param secrets:     the secrets to delete
+        :param namespace:   k8s namespace
+        :return: returns the action if the secret was deleted or updated, None if nothing changed
+        """
         namespace = self.resolve_namespace(namespace)
 
         try:
             k8s_secret = self.v1api.read_namespaced_secret(secret_name, namespace)
         except ApiException as exc:
-            # If secret does not exist, return as if the deletion was successfully
             if exc.status == 404:
-                return
+                logger.info(
+                    "Project secret does not exist, nothing to delete.",
+                    secret_name=secret_name,
+                )
+                return None
             else:
                 logger.error(
                     f"failed to retrieve k8s secret: {mlrun.errors.err_to_str(exc)}"
                 )
                 raise exc
 
-        if not secrets:
-            secret_data = {}
-        else:
+        secret_data = {}
+        if secrets:
             secret_data = k8s_secret.data.copy()
             for secret in secrets:
                 secret_data.pop(secret, None)
 
-        if not secret_data:
-            self.v1api.delete_namespaced_secret(secret_name, namespace)
-        else:
+        if secret_data:
             k8s_secret.data = secret_data
             self.v1api.replace_namespaced_secret(secret_name, namespace, k8s_secret)
+            return mlrun.common.schemas.SecretEventActions.updated
+
+        self.v1api.delete_namespaced_secret(secret_name, namespace)
+        return mlrun.common.schemas.SecretEventActions.deleted
 
     def _get_project_secrets_raw_data(self, project, namespace=""):
         secret_name = self.get_project_secret_name(project)

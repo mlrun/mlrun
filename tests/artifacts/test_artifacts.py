@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import pathlib
 import typing
 import unittest.mock
+import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+import yaml
 
 import mlrun
 import mlrun.artifacts
@@ -88,55 +91,61 @@ class FakeProducer:
         self.name = name
 
 
-def test_generate_target_path():
-    Artifact = mlrun.artifacts.Artifact
-    Model = mlrun.artifacts.ModelArtifact
-    cases = [
-        # artifact_path, artifact, src_path, iter, producer, expected
-        ("x", Artifact("k1"), None, FakeProducer("j1"), "x/j1/0/k1"),
+@pytest.mark.parametrize(
+    "artifact_path,artifact,iter,producer,expected",
+    [
+        ("x", mlrun.artifacts.Artifact("k1"), None, FakeProducer("j1"), "x/j1/0/k1"),
         (
             None,
-            Artifact("k2", format="html"),
+            mlrun.artifacts.Artifact("k2", format="html"),
             1,
             FakeProducer("j1"),
             "j1/1/k2.html",
         ),
         (
             "",
-            Artifact("k3", src_path="model.pkl"),
+            mlrun.artifacts.Artifact("k3", src_path="model.pkl"),
             0,
             FakeProducer("j1"),
             "j1/0/k3.pkl",
         ),
         (
             "x",
-            Artifact("k4", src_path="a.b"),
+            mlrun.artifacts.Artifact("k4", src_path="a.b"),
             None,
             FakeProducer(kind="project"),
             "x/k4.b",
         ),
         (
             "",
-            Model("k5", model_dir="y", model_file="model.pkl"),
+            mlrun.artifacts.ModelArtifact("k5", model_dir="y", model_file="model.pkl"),
             0,
             FakeProducer("j1"),
             "j1/0/k5/",
         ),
         (
             "x",
-            Model("k6", model_file="a.b"),
+            mlrun.artifacts.ModelArtifact("k6", model_file="a.b"),
             None,
             FakeProducer(kind="project"),
             "x/k6/",
         ),
-    ]
-    for artifact_path, artifact, iter, producer, expected in cases:
-        artifact.iter = iter
-        target = mlrun.artifacts.base.generate_target_path(
-            artifact, artifact_path, producer
-        )
-        print(f"\ntarget:   {target}\nexpected: {expected}")
-        assert target == expected
+        (
+            "",
+            mlrun.artifacts.Artifact("k7", src_path="a.tar.gz"),
+            None,
+            FakeProducer(kind="project"),
+            "k7.tar.gz",
+        ),
+    ],
+)
+def test_generate_target_path(artifact_path, artifact, iter, producer, expected):
+    artifact.iter = iter
+    target = mlrun.artifacts.base.generate_target_path(
+        artifact, artifact_path, producer
+    )
+    print(f"\ntarget:   {target}\nexpected: {expected}")
+    assert target == expected
 
 
 def assets_path():
@@ -484,3 +493,52 @@ def test_inline_body():
     )
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+
+
+def test_tag_not_in_model_spec():
+    model_name = "my-model"
+    tag = "some-tag"
+    project_name = "model-spec-test"
+    artifact_path = results_dir / project_name
+
+    # create a project and log a model
+    project = mlrun.new_project(project_name, save=False)
+    project.log_model(
+        model_name,
+        body="model body",
+        model_file="trained_model.pkl",
+        tag=tag,
+        artifact_path=artifact_path,
+        upload=True,
+    )
+
+    # list the artifact path dir and verify the model spec file exists
+    model_path = artifact_path / model_name
+    files = os.listdir(model_path)
+    assert mlrun.artifacts.model.model_spec_filename in files
+
+    # open the model spec file and verify the tag is not there
+    with open(model_path / mlrun.artifacts.model.model_spec_filename) as f:
+        model_spec = yaml.load(f, Loader=yaml.FullLoader)
+
+    assert "tag" not in model_spec, "tag should not be in model spec"
+    assert "tag" not in model_spec["metadata"], "tag should not be in metadata"
+
+
+def test_register_artifacts(rundb_mock):
+    project_name = "my-projects"
+    project = mlrun.new_project(project_name)
+    artifact_key = "my-art"
+    artifact_tag = "v1"
+    project.set_artifact(
+        artifact_key,
+        artifact=mlrun.artifacts.Artifact(key=artifact_key, body=b"x=1"),
+        tag=artifact_tag,
+    )
+
+    expected_tree = "my_uuid"
+    with unittest.mock.patch.object(uuid, "uuid4", return_value=expected_tree):
+        project.register_artifacts()
+
+    artifact = project.get_artifact(artifact_key)
+    assert artifact.tree == expected_tree

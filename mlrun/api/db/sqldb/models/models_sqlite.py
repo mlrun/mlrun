@@ -1,4 +1,4 @@
-# Copyright 2019 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def make_label(table):

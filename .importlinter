@@ -3,8 +3,8 @@ root_package=mlrun
 include_external_packages=True
 
 
-[importlinter:contract:1]
-name=common modules shouldn't import other mlrun utilities
+[importlinter:contract:mlrun-common]
+name=Common modules shouldn't import other mlrun utilities
 type=forbidden
 source_modules=
     mlrun.common
@@ -17,16 +17,88 @@ forbidden_modules=
     mlrun.db
     mlrun.feature_store
     mlrun.frameworks
+    mlrun.launcher
     mlrun.mlutils
     mlrun.model_monitoring
+    mlrun.package
+    mlrun.platforms
+    mlrun.projects
+    mlrun.runtimes
+    mlrun.serving
+    mlrun.execution
+    mlrun.features
+    mlrun.k8s_utils
+    mlrun.kfpops
+    mlrun.lists
+    mlrun.model
+    mlrun.render
+    mlrun.run
+    mlrun.secrets
+
+ignore_imports =
+    mlrun.config -> mlrun.db
+    mlrun.utils.clones -> mlrun
+    mlrun.utils.helpers -> mlrun
+
+[importlinter:contract:mlrun-api]
+name=MLRun modules shouldn't import MLRun API
+type=forbidden
+source_modules=
+    mlrun.artifacts
+    mlrun.common
+    mlrun.data_types
+    mlrun.datastore
+    mlrun.db
+    mlrun.feature_store
+    mlrun.frameworks
+    mlrun.launcher
+    mlrun.mlutils
+    mlrun.model_monitoring
+    mlrun.package
     mlrun.platforms
     mlrun.projects
     mlrun.runtimes
     mlrun.serving
     mlrun.utils
-    mlrun.builder
     mlrun.config
     mlrun.errors
+    mlrun.execution
+    mlrun.features
+    mlrun.k8s_utils
+    mlrun.kfpops
     mlrun.lists
     mlrun.model
+    mlrun.render
     mlrun.run
+    mlrun.secrets
+
+forbidden_modules=
+    mlrun.api
+
+ignore_imports =
+    mlrun.utils.model_monitoring -> mlrun.api.crud.secrets
+    mlrun.feature_store.feature_set -> mlrun.api.api.utils
+    mlrun.feature_store.ingestion -> mlrun.api.api.utils
+    mlrun.db.sqldb -> mlrun.api.db.sqldb.session
+    mlrun.db.sqldb -> mlrun.api.crud
+    mlrun.db.sqldb -> mlrun.api.db.sqldb.db
+    mlrun.db.sqldb -> mlrun.api.db.base
+    mlrun.utils.notifications.notification_pusher -> mlrun.api.db.session
+    mlrun.utils.notifications.notification_pusher -> mlrun.api.db.base
+    mlrun.runtimes.base -> mlrun.api.crud
+    mlrun.runtimes.base -> mlrun.api.constants
+    mlrun.runtimes.base -> mlrun.api.db.base
+    mlrun.runtimes.daskjob -> mlrun.api.utils.singletons.k8s
+    mlrun.runtimes.daskjob -> mlrun.api.db.base
+    mlrun.runtimes.mpijob.v1 -> mlrun.api.db.base
+    mlrun.runtimes.mpijob.v1alpha1 -> mlrun.api.db.base
+    mlrun.runtimes.sparkjob.abstract -> mlrun.api.db.base
+    mlrun.launcher.factory -> mlrun.api.launcher
+    mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s
+    mlrun.model_monitoring.helpers -> mlrun.api.api.utils
+    mlrun.model_monitoring.helpers -> mlrun.api.api.deps
+    mlrun.model_monitoring.helpers -> mlrun.api.utils.singletons.k8s
+    mlrun.model_monitoring.helpers -> mlrun.api.utils.singletons.db
+    mlrun.model_monitoring.helpers -> mlrun.api.crud.secrets
+    mlrun.model_monitoring.stores.sql_model_endpoint_store -> mlrun.api.db.sqldb.session
+

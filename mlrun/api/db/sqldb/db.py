@@ -3850,19 +3850,24 @@ class SQLDB(DBInterface):
         :param table_name: table name
         :param raise_on_not_exists: raise an error if the table does not exist
         """
-        if self._is_table_exists(session, table_name):
-            truncate_statement = sqlalchemy.text(f"DELETE FROM {table_name}")
+
+        # sanitize table name to prevent SQL injection, by removing all non-alphanumeric characters or underscores
+        sanitized_table_name = re.sub(r"[^a-zA-Z0-9_]", "", table_name)
+
+        # checking if the table exists can also help prevent SQL injection
+        if self._is_table_exists(session, sanitized_table_name):
+            truncate_statement = sqlalchemy.text(f"DELETE FROM {sanitized_table_name}")
             session.execute(truncate_statement)
             session.commit()
             return
 
         if raise_on_not_exists:
             raise mlrun.errors.MLRunNotFoundError(
-                "Table not found: {}".format(table_name)
+                f"Table not found: {sanitized_table_name}"
             )
         logger.warning(
             "Table not found, skipping delete",
-            table_name=table_name,
+            table_name=sanitized_table_name,
         )
 
     @staticmethod

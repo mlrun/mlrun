@@ -100,7 +100,7 @@ Build and connect the graph (DAG) using the custom function and classes and plot
 Add steps using the `step.to()` method (adds a new step after the current one), or using the 
 `graph.add_step()` method.
 
-{{ errorhandling }}
+Use the graph `error_handler` if you want an error from the graph or a step to be fed into a specific state (catcher). See the full description in {ref}`pipelines-error-handling`.
 
 Specify which step is the responder (returns the HTTP response) using the `step.respond()` method. 
 If the responder is not specified, the graph is non-blocking.

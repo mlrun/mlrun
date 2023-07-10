@@ -86,10 +86,11 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
 | ML-3631 | MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927). |
-| ML-3652 | V3IO_API is now inferred from the DBPATH.  [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
+| ML-3652 | V3IO_API is now inferred from the DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
 | ML-3654 | Serving functions (in a graph) now recover after an `error_handler` error.  [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
 | ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812). |
+| ML-3470 | Secrets changes are now audited. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |

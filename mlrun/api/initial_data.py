@@ -14,6 +14,7 @@
 #
 import collections
 import datetime
+import json
 import os
 import pathlib
 import typing
@@ -32,12 +33,13 @@ import mlrun.api.utils.db.backup
 import mlrun.api.utils.db.mysql
 import mlrun.api.utils.db.sqlite_migration
 import mlrun.artifacts
+import mlrun.artifacts.base
 import mlrun.common.schemas
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.utils import fill_object_hash, is_legacy_artifact, logger
 
 
 def init_data(
@@ -123,7 +125,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 3
+latest_data_version = 4
 
 
 def _resolve_needed_operations(
@@ -230,6 +232,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_2_data_migrations(db, db_session)
             if current_data_version < 3:
                 _perform_version_3_data_migrations(db, db_session)
+            if current_data_version < 4:
+                _perform_version_4_data_migrations(db, db_session)
 
             db.create_data_version(db_session, str(latest_data_version))
 
@@ -239,6 +243,84 @@ def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = mlrun.api.db.sqldb.db.SQLDB("")
     _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)
+
+
+def _perform_version_1_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _enrich_project_state(db, db_session)
+    _fix_artifact_tags_duplications(db, db_session)
+    _fix_datasets_large_previews(db, db_session)
+
+
+def _enrich_project_state(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Enriching projects state")
+    projects = db.list_projects(db_session)
+    for project in projects.projects:
+        changed = False
+        if not project.spec.desired_state:
+            changed = True
+            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
+        if not project.status.state:
+            changed = True
+            project.status.state = project.spec.desired_state
+        if changed:
+            logger.debug(
+                "Found project without state data. Enriching",
+                name=project.metadata.name,
+            )
+            db.store_project(db_session, project.metadata.name, project)
+
+
+def _fix_artifact_tags_duplications(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    logger.info("Fixing artifact tags duplications")
+    # get all artifacts
+    artifacts = db._find_artifacts(db_session, None, "*")
+    # get all artifact tags
+    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
+    # artifact record id -> artifact
+    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
+    tags_to_delete = []
+    projects = {artifact.project for artifact in artifacts}
+    for project in projects:
+        artifact_keys = {
+            artifact.key for artifact in artifacts if artifact.project == project
+        }
+        for artifact_key in artifact_keys:
+            artifact_key_tags = []
+            for tag in tags:
+                # sanity
+                if tag.obj_id not in artifact_record_id_map:
+                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
+                if artifact_record_id_map[tag.obj_id].key == artifact_key:
+                    artifact_key_tags.append(tag)
+            tag_name_tags_map = collections.defaultdict(list)
+            for tag in artifact_key_tags:
+                tag_name_tags_map[tag.name].append(tag)
+            for tag_name, _tags in tag_name_tags_map.items():
+                if len(_tags) == 1:
+                    continue
+                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
+                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
+                for tag in _tags:
+                    if tag.obj_id != last_updated_artifact.id:
+                        tags_to_delete.append(tag)
+    if tags_to_delete:
+        logger.info(
+            "Found duplicated artifact tags. Removing duplications",
+            tags_to_delete=[
+                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
+            ],
+            tags=[tag.to_dict() for tag in tags],
+            artifacts=[artifact.to_dict() for artifact in artifacts],
+        )
+        for tag in tags_to_delete:
+            db_session.delete(tag)
+        db_session.commit()
 
 
 def _fix_datasets_large_previews(
@@ -353,55 +435,6 @@ def _fix_datasets_large_previews(
             )
 
 
-def _fix_artifact_tags_duplications(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Fixing artifact tags duplications")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    # get all artifact tags
-    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
-    # artifact record id -> artifact
-    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
-    tags_to_delete = []
-    projects = {artifact.project for artifact in artifacts}
-    for project in projects:
-        artifact_keys = {
-            artifact.key for artifact in artifacts if artifact.project == project
-        }
-        for artifact_key in artifact_keys:
-            artifact_key_tags = []
-            for tag in tags:
-                # sanity
-                if tag.obj_id not in artifact_record_id_map:
-                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
-                if artifact_record_id_map[tag.obj_id].key == artifact_key:
-                    artifact_key_tags.append(tag)
-            tag_name_tags_map = collections.defaultdict(list)
-            for tag in artifact_key_tags:
-                tag_name_tags_map[tag.name].append(tag)
-            for tag_name, _tags in tag_name_tags_map.items():
-                if len(_tags) == 1:
-                    continue
-                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
-                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
-                for tag in _tags:
-                    if tag.obj_id != last_updated_artifact.id:
-                        tags_to_delete.append(tag)
-    if tags_to_delete:
-        logger.info(
-            "Found duplicated artifact tags. Removing duplications",
-            tags_to_delete=[
-                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
-            ],
-            tags=[tag.to_dict() for tag in tags],
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        for tag in tags_to_delete:
-            db_session.delete(tag)
-        db_session.commit()
-
-
 def _find_last_updated_artifact(
     artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact],
 ):
@@ -455,8 +488,8 @@ def _align_runs_table(
         run.start_time = (
             mlrun.api.db.sqldb.helpers.run_start_time(run_dict) or run.start_time
         )
-        # in case no start time was in the body, we took the time from thecolumn, let's make sure the body will have it
-        # as well
+        # in case no start time was in the body, we took the time from the column, let's make sure the body will have
+        # it as well
         run_dict.setdefault("status", {})["start_time"] = (
             db._add_utc_timezone(run.start_time).isoformat() if run.start_time else None
         )
@@ -508,33 +541,207 @@ def _rename_marketplace_kind_to_hub(
         db._upsert(db_session, [hub], ignore=True)
 
 
-def _perform_version_1_data_migrations(
+def _perform_version_4_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    _enrich_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
+    _migrate_artifacts_table_v2(db, db_session)
 
 
-def _enrich_project_state(
+def _migrate_artifacts_table_v2(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    logger.info("Enriching projects state")
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        changed = False
-        if not project.spec.desired_state:
-            changed = True
-            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
-        if not project.status.state:
-            changed = True
-            project.status.state = project.spec.desired_state
-        if changed:
-            logger.debug(
-                "Found project without state data. Enriching",
-                name=project.metadata.name,
+    """
+    Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
+    The migration is done in batches, to not overload the db. A state file is used to keep track of the migration
+    progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
+    Delete the old artifacts table when done.
+    """
+    logger.info("Migrating artifacts to artifacts_v2 table")
+
+    # count the total number of artifacts to migrate
+    total_artifacts_count = db._query(
+        db_session, mlrun.api.db.sqldb.models.Artifact
+    ).count()
+    batch_size = config.artifacts.artifact_migration_batch_size
+
+    # get the id of the last migrated artifact
+    last_migrated_artifact_id = _get_last_migrated_artifact_id()
+
+    while True:
+        logger.debug(
+            "Migrating artifacts batch",
+            batch_size=batch_size,
+            total_artifacts_count=total_artifacts_count,
+        )
+        # migrate the next batch
+        last_migrated_artifact_id = _migrate_artifacts_batch(
+            db, db_session, last_migrated_artifact_id, batch_size
+        )
+        if last_migrated_artifact_id is None:
+            # we're done
+            break
+        _update_last_migrated_artifact_id(last_migrated_artifact_id)
+
+    # delete the state file
+    _delete_state_file()
+
+    # drop the old artifacts table, including their labels and tags tables
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
+    )
+    db.delete_table_records(
+        db_session, mlrun.api.db.sqldb.models.Artifact, raise_on_not_exists=False
+    )
+
+
+def _migrate_artifacts_batch(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    last_migrated_artifact_id: int,
+    batch_size: int,
+):
+    new_artifacts = []
+    artifacts_tags_to_migrate = []
+    artifacts_labels_to_migrate = []
+
+    # get artifacts from the db, sorted by id
+    query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
+    if last_migrated_artifact_id > 0:
+        # skip the artifacts that were already migrated
+        query = query.filter(
+            mlrun.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
+        )
+
+    query = query.order_by(mlrun.api.db.sqldb.models.Artifact.id).limit(batch_size)
+
+    artifacts = query.all()
+
+    if len(artifacts) == 0:
+        # we're done
+        return None
+
+    for artifact in artifacts:
+        new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
+
+        artifact_dict = artifact.struct
+        if is_legacy_artifact(artifact_dict):
+            # convert the legacy artifact to the new format, by setting a metadata field and spec field
+            # and copying the old fields to the spec
+            artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact_dict
+            ).to_dict()
+
+        artifact_metadata = artifact_dict.get("metadata", None)
+
+        # producer_id - the current uid value
+        # uid can be in the metadata or in the artifact itself, or in the tree field
+        old_uid = artifact_metadata.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_dict.get("uid", None)
+        if not old_uid:
+            old_uid = artifact_metadata.get("tree", None)
+        new_artifact.producer_id = old_uid
+
+        # uid - calculate as the hash of the artifact object
+        tag = artifact_metadata.get("tag", "")
+        uid = fill_object_hash(artifact_dict, "uid", tag)
+        new_artifact.uid = uid
+
+        # project - copy as is
+        new_artifact.project = artifact_metadata.get("project", None)
+
+        # key - the artifact's key, without iteration if it is attached to it
+        key = artifact_metadata.get("key", "")
+        new_artifact.key = key
+
+        # iteration - the artifact's iteration
+        iteration = artifact_metadata.get("iter", None)
+        if iteration is not None:
+            new_artifact.iter = int(iteration)
+
+        # kind - doesn't exist in v1, will be set to "artifact" by default
+        new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
+
+        # updated - the artifact's updated time
+        updated = artifact_metadata.get("updated", datetime.datetime.now())
+        new_artifact.updated = updated
+
+        # created - the artifact's created time
+        # since this is a new field, we just take the updated time
+        new_artifact.created = updated
+
+        # full_object - the artifact dict
+        new_artifact.full_object = artifact_dict
+
+        # save the new object to the db
+        new_artifacts.append(new_artifact)
+
+        last_migrated_artifact_id = artifact.id
+
+        # save the artifact's tags and labels to migrate them later
+        if tag:
+            artifacts_tags_to_migrate.append((new_artifact, tag))
+        labels = artifact_metadata.get("labels", {})
+        if labels:
+            artifacts_labels_to_migrate.append((new_artifact, labels))
+
+    # add the new artifacts to the db session
+    db_session.add_all(new_artifacts)
+
+    # migrate artifact labels to the new table ("artifact_v2_labels")
+    new_labels = _migrate_artifact_labels(db_session, artifacts_labels_to_migrate)
+
+    # migrate artifact tags to the new table ("artifact_v2_tags")
+    new_tags = _migrate_artifact_tags(db_session, artifacts_tags_to_migrate)
+
+    # commit the changes
+    db._commit(db_session, new_artifacts + new_labels + new_tags)
+
+    return last_migrated_artifact_id
+
+
+def _migrate_artifact_labels(
+    db_session: sqlalchemy.orm.Session,
+    artifacts_labels_to_migrate: list,
+):
+    # iterate over all the artifacts, and create labels for each one
+    logger.info("Aligning artifact labels")
+    labels = []
+    for artifact, artifacts_labels in artifacts_labels_to_migrate:
+        for name, value in artifacts_labels.items():
+            new_label = artifact.Label(
+                name=name,
+                value=value,
+                parent=artifact.id,
             )
-            db.store_project(db_session, project.metadata.name, project)
+            labels.append(new_label)
+    if labels:
+        db_session.add_all(labels)
+    return labels
+
+
+def _migrate_artifact_tags(
+    db_session: sqlalchemy.orm.Session,
+    artifacts_tags_to_migrate: list,
+):
+    # iterate over all the artifacts, and create a new tag for each one
+    logger.info("Aligning artifact tags")
+    tags = []
+    for artifact, tag in artifacts_tags_to_migrate:
+        if tag:
+            new_tag = artifact.Tag(
+                project=artifact.project,
+                name=tag,
+                obj_name=artifact.key,
+                obj_id=artifact.id,
+            )
+            tags.append(new_tag)
+    if tags:
+        db_session.add_all(tags)
+    return tags
 
 
 def _add_default_hub_source_if_needed(
@@ -641,6 +848,45 @@ def _resolve_current_data_version(
             return data_version_prior_to_table_addition
 
         raise exc
+
+
+def _get_last_migrated_artifact_id():
+    """
+    Get the id of the last migrated artifact from the state file.
+    If the state file does not exist, return 0.
+    """
+    try:
+        with open(
+            config.artifacts.artifact_migration_state_file_path, "r"
+        ) as state_file:
+            state = json.load(state_file)
+            return state.get("last_migrated_id", 0)
+    except FileNotFoundError:
+        return 0
+
+
+def _update_last_migrated_artifact_id(last_migrated_id: int):
+    """Create or update the state file with the given batch index.
+
+    :param last_migrated_id: The id of the last migrated artifact.
+    """
+    state_file_path = config.artifacts.artifact_migration_state_file_path
+    state_file_dir = os.path.dirname(state_file_path)
+    if not os.path.exists(state_file_dir):
+        os.makedirs(state_file_dir)
+    with open(state_file_path, "w") as state_file:
+        state = {
+            "last_migrated_id": last_migrated_id,
+        }
+        json.dump(state, state_file)
+
+
+def _delete_state_file():
+    """Delete the state file."""
+    try:
+        os.remove(config.artifacts.artifact_migration_state_file_path)
+    except FileNotFoundError:
+        pass
 
 
 def main() -> None:

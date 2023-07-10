@@ -84,10 +84,7 @@ def make_tag_v2(table):
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
-        obj_name = Column(
-            String(255, collation=SQLCollationUtil.collation()),
-            ForeignKey(f"{table}.name"),
-        )
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
     return Tag
 
@@ -136,6 +133,10 @@ def make_notification(table):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
+    # deprecated, use ArtifactV2 instead
+    # TODO: remove in 1.7.0. Note that removing it will require upgrading mlrun in at least 2 steps:
+    #  1. upgrade to 1.6.x which will create the new table
+    #  2. upgrade to 1.7.x which will remove the old table
     class Artifact(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "artifacts"
         __table_args__ = (
@@ -153,6 +154,41 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         labels = relationship(Label)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.key}/{self.uid}"
+
+    class ArtifactV2(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "artifacts_v2"
+        __table_args__ = (
+            UniqueConstraint("uid", "project", "key", name="_artifacts_uc"),
+        )
+
+        Label = make_label(__tablename__)
+        Tag = make_tag_v2(__tablename__)
+
+        id = Column(Integer, primary_key=True)
+        key = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
+        iter = Column(Integer)
+        uid = Column(String(255, collation=SQLCollationUtil.collation()))
+        created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        _full_object = Column("object", BLOB)
+
+        labels = relationship(Label, cascade="all, delete-orphan")
+        tags = relationship(Tag, cascade="all, delete-orphan")
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return pickle.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = pickle.dumps(value)
 
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.key}/{self.uid}"

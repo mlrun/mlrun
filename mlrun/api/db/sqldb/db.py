@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
+import sqlalchemy
 from sqlalchemy import and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
@@ -48,6 +49,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    Base,
     DataVersion,
     Entity,
     Feature,
@@ -3817,3 +3819,64 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    def delete_table_records(
+        self,
+        session: Session,
+        table: typing.Type[Base],
+        raise_on_not_exists=True,
+    ):
+        """Delete all records from a table
+
+        :param session: SQLAlchemy session
+        :param table: the table class
+        :param raise_on_not_exists: raise an error if the table does not exist
+        """
+        return self.delete_table_records_by_name(
+            session, table.__tablename__, raise_on_not_exists
+        )
+
+    def delete_table_records_by_name(
+        self,
+        session: Session,
+        table_name: str,
+        raise_on_not_exists=True,
+    ):
+        """
+        Delete a table by its name
+
+        :param session: SQLAlchemy session
+        :param table_name: table name
+        :param raise_on_not_exists: raise an error if the table does not exist
+        """
+
+        # sanitize table name to prevent SQL injection, by removing all non-alphanumeric characters or underscores
+        sanitized_table_name = re.sub(r"[^a-zA-Z0-9_]", "", table_name)
+
+        # checking if the table exists can also help prevent SQL injection
+        if self._is_table_exists(session, sanitized_table_name):
+            truncate_statement = sqlalchemy.text(f"DELETE FROM {sanitized_table_name}")
+            session.execute(truncate_statement)
+            session.commit()
+            return
+
+        if raise_on_not_exists:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Table not found: {sanitized_table_name}"
+            )
+        logger.warning(
+            "Table not found, skipping delete",
+            table_name=sanitized_table_name,
+        )
+
+    @staticmethod
+    def _is_table_exists(session: Session, table_name: str) -> bool:
+        """
+        Check if a table exists
+
+        :param table_name: table name
+        :return: True if the table exists, False otherwise
+        """
+        metadata = sqlalchemy.MetaData(bind=session.bind)
+        metadata.reflect()
+        return table_name in metadata.tables.keys()

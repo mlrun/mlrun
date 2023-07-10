@@ -45,6 +45,12 @@ class BaseTrackerExample(BaseTracker):
     def log_model(self, model_uri, context):
         return True
 
+    def log_dataset(self, dataset_path, context):
+        return True
+
+    def log_artifact(self, context, full_path, artifact):
+        return True
+
 
 # see that the manager adds each tracker by themselves and then all together
 @pytest.mark.parametrize(

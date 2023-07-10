@@ -160,3 +160,6 @@ class MLFlowTracker(BaseTracker):
     def post_run(self, context: Union[MLClientCtx, dict]):
         experiment = "mlflow_experiment"
         self._apply_post_run_tasks(context=context, experiment=experiment)
+
+    def log_dataset(self, dataset_path, context):
+        pass

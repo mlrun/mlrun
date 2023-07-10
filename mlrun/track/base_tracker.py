@@ -25,8 +25,7 @@ class BaseTracker(Tracker):
 
     def __init__(self):
         super().__init__()
-        if BaseTracker.is_enabled():
-            self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
+        self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
         self._run_track_kwargs = {}
         self._artifacts = {}
 

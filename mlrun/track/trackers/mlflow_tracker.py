@@ -41,7 +41,6 @@ class MLFlowTracker(BaseTracker):
 
     def pre_run(self, context: MLClientCtx) -> dict:
         env = {}
-        self._run_track_kwargs = {}
         experiment = self._tracked_platform.get_experiment_by_name(context.name)
         if experiment:  # check if exists, if not create
             experiment_id = experiment.experiment_id

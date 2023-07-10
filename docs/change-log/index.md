@@ -20,17 +20,18 @@
 | --- | ----------------------------------------------------------------- |
 | ML-1248 | The engine type now displays in the **Feature Set Overview** tab.  |
 | ML-2083 | The **Run on spot** value now displays on the **Jobs Overview** tab. |
+| ML-3176 | The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously sipported by SDK. 
 | ML-3549 | The new **Resource monitoring** button in the **Jobs Details** view opens the **Grafana** dashboard. |
-| ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. [View in Git](https://github.com/mlrun/ui/pull/1742). |
+| ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. |
 
-###  APIs
+####  APIs
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
 |  | The `error_handler` was updated. See {ref}`pipelines-error-handling` |
 
 
-###  Documentation
+####  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |

@@ -82,6 +82,10 @@ def test_perform_data_migrations_from_zero_version():
         mlrun.api.initial_data._perform_version_3_data_migrations
     )
     mlrun.api.initial_data._perform_version_3_data_migrations = unittest.mock.Mock()
+    original_perform_version_4_data_migrations = (
+        mlrun.api.initial_data._perform_version_4_data_migrations
+    )
+    mlrun.api.initial_data._perform_version_4_data_migrations = unittest.mock.Mock()
 
     # perform migrations
     mlrun.api.initial_data._perform_data_migrations(db_session)
@@ -92,6 +96,7 @@ def test_perform_data_migrations_from_zero_version():
     mlrun.api.initial_data._perform_version_1_data_migrations.assert_called_once()
     mlrun.api.initial_data._perform_version_2_data_migrations.assert_called_once()
     mlrun.api.initial_data._perform_version_3_data_migrations.assert_called_once()
+    mlrun.api.initial_data._perform_version_4_data_migrations.assert_called_once()
 
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == str(
         mlrun.api.initial_data.latest_data_version
@@ -106,6 +111,9 @@ def test_perform_data_migrations_from_zero_version():
     )
     mlrun.api.initial_data._perform_version_3_data_migrations = (
         original_perform_version_3_data_migrations
+    )
+    mlrun.api.initial_data._perform_version_4_data_migrations = (
+        original_perform_version_4_data_migrations
     )
 
 

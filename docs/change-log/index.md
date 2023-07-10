@@ -19,7 +19,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-1248 | The engine type now displays in the **Feature Set Overview** tab.  |
-| ML-2083 | The **Run on spot** value now displays on the **Jobs Overview** tab. |
+| ML-2083 | The **Run on spot** value now displays in the **Jobs Overview** tab. |
 | ML-3176 | The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously sipported by SDK. 
 | ML-3549 | The new **Resource monitoring** button in the **Jobs Details** view opens the **Grafana** dashboard. |
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. |
@@ -82,7 +82,7 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3420 | Fix artifacts corruption due to overflowing size. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
-| ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
+| ML-3470 | Changes in secrets are now recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
 | ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
@@ -91,7 +91,6 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-3654 | Serving functions (in a graph) now recover after an `error_handler` error.  [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
 | ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812). |
-| ML-3470 | Secrets changes are now audited. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
@@ -640,9 +639,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the 
-old dashboards won't be supported in v1.5.0. |
-
+| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported in v1.5.0. |
+| ML-4171 | In v1.4.1 Redi targets will have one key per record. This will not be backwards-compatible. |
 
 
 

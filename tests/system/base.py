@@ -17,6 +17,7 @@ import pathlib
 import sys
 import typing
 
+import igz_mgmt
 import pytest
 import yaml
 from deepdiff import DeepDiff
@@ -42,6 +43,7 @@ class TestMLRunSystem:
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
+        "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
@@ -58,6 +60,13 @@ class TestMLRunSystem:
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
+        cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+
+        if "MLRUN_IGUAZIO_API_URL" in env:
+            cls._igz_mgmt_client = igz_mgmt.Client(
+                endpoint=env["MLRUN_IGUAZIO_API_URL"],
+                access_key=env["V3IO_ACCESS_KEY"],
+            )
 
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure

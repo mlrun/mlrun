@@ -44,6 +44,11 @@ def main():
         "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
     )
 
+    is_stable_parser = subparsers.add_parser(
+        "is-stable", help="check if the version is stable"
+    )
+    is_stable_parser.add_argument("version", type=str)
+
     subparsers.add_parser("current-version", help="get the current version")
     next_version_parser = subparsers.add_parser("next-version", help="get next version")
 
@@ -67,16 +72,10 @@ def main():
     elif args.command == "next-version":
         base_version = read_unstable_version_prefix()
         current_version = get_current_version(base_version)
-
-        # if current version is not determined, fallback to base version
-        current_version = (
-            packaging.version.Version(current_version)
-            if current_version
-            else base_version
-        )
-
         next_version = resolve_next_version(
-            args.mode, current_version, get_feature_branch_feature_name()
+            args.mode,
+            packaging.version.Version(current_version),
+            get_feature_branch_feature_name(),
         )
         print(next_version)
 
@@ -89,10 +88,14 @@ def main():
         )
         create_or_update_version_file(args.mlrun_version, version_file_path)
 
+    elif args.command == "is-stable":
+        is_stable = is_stable_version(args.version)
+        print(str(is_stable).lower())
+
 
 def get_current_version(
     base_version: packaging.version.Version,
-) -> typing.Optional[str]:
+) -> str:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
     ).strip()
@@ -102,8 +105,8 @@ def get_current_version(
         else ""
     )
 
-    # get last 100 commits, to avoid going over all commits
-    commits = _run_command("git", args=["log", "-100", "--pretty=format:'%H'"]).strip()
+    # get last 200 commits, to avoid going over all commits
+    commits = _run_command("git", args=["log", "-200", "--pretty=format:'%H'"]).strip()
     found_tag = None
 
     # most_recent_version is the most recent tag before base version
@@ -176,7 +179,7 @@ def get_current_version(
         if most_recent_version:
             return version_to_mlrun_version(most_recent_version)
 
-        return None
+        return version_to_mlrun_version(base_version)
 
     return version_to_mlrun_version(found_tag)
 
@@ -322,6 +325,10 @@ def get_feature_branch_feature_name() -> typing.Optional[str]:
         if current_branch.startswith("feature/")
         else ""
     )
+
+
+def is_stable_version(mlrun_version: str) -> bool:
+    return re.match(r"^\d+\.\d+\.\d+$", mlrun_version) is not None
 
 
 def _run_command(command, args=None):

@@ -12,10 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-from mlrun.api.db.sqldb.models import Base
-from mlrun.api.db.sqldb.session import get_engine
-
-
-def init_db() -> None:
-    Base.metadata.create_all(bind=get_engine())

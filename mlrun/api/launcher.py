@@ -18,7 +18,7 @@ import mlrun.api.db.sqldb.session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -26,7 +26,7 @@ import mlrun.utils
 import mlrun.utils.regex
 
 
-class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+class ServerSideLauncher(launcher.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,

@@ -142,7 +142,7 @@ myst_all_links_external = True
 myst_substitutions = {
     "version": "version",
     "ceversion": "v1.2.1",
-    "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",    
+    "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
 }
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.

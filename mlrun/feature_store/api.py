@@ -881,7 +881,7 @@ def _ingest_with_spark(
             spark = (
                 pyspark.sql.SparkSession.builder.appName(session_name)
                 .config("spark.sql.session.timeZone", "UTC")
-            .getOrCreate()
+                .getOrCreate()
             )
             created_spark_context = True
 

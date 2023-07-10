@@ -143,9 +143,9 @@ myst_substitutions = {
     "version": "version",
     "ceversion": "v1.2.1",
     "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
-    "errorhandling": "Use the graph `error_handler` if you want an error from the graph "
-    + "or a step to be fed into a specific state (catcher). See the full description "
-    + "in [Error handling](../serving/pipelines-error-handling.html).",
+    "errorhandling": "Use the graph `error_handler` if you want an error from the graph "\
+                     "or a step to be fed into a specific state (catcher). See the full description "\
+                     "in [Error handling](../serving/pipelines-error-handling.html).",
 }
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.

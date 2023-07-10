@@ -27,7 +27,6 @@ import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects

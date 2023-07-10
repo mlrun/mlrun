@@ -107,22 +107,22 @@ class Secrets(
             if mlrun.api.utils.singletons.k8s.get_k8s_helper():
                 (
                     secret_name,
-                    created,
+                    action,
                 ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_project_secrets(
                     project, secrets_to_store
                 )
                 secret_keys = [secret_name for secret_name in secrets_to_store.keys()]
 
-                events_client = events_factory.EventsFactory().get_events_client()
-                event = events_client.generate_project_secret_event(
-                    project=project,
-                    secret_name=secret_name,
-                    secret_keys=secret_keys,
-                    action=mlrun.common.schemas.SecretEventActions.created
-                    if created
-                    else mlrun.common.schemas.SecretEventActions.updated,
-                )
-                events_client.emit(event)
+                if action:
+                    events_client = events_factory.EventsFactory().get_events_client()
+                    event = events_client.generate_project_secret_event(
+                        project=project,
+                        secret_name=secret_name,
+                        secret_keys=secret_keys,
+                        action=action,
+                    )
+                    events_client.emit(event)
+
             else:
                 raise mlrun.errors.MLRunInternalServerError(
                     "K8s provider cannot be initialized"
@@ -161,20 +161,19 @@ class Secrets(
             )
         (
             auth_secret_name,
-            created,
+            action,
         ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
             secret.username, secret.access_key
         )
 
-        events_client = events_factory.EventsFactory().get_events_client()
-        event = events_client.generate_project_auth_secret_event(
-            username=secret.username,
-            secret_name=auth_secret_name,
-            action=mlrun.common.schemas.SecretEventActions.created
-            if created
-            else mlrun.common.schemas.SecretEventActions.updated,
-        )
-        events_client.emit(event)
+        if action:
+            events_client = events_factory.EventsFactory().get_events_client()
+            event = events_client.generate_auth_secret_event(
+                username=secret.username,
+                secret_name=auth_secret_name,
+                action=action,
+            )
+            events_client.emit(event)
 
         return auth_secret_name
 
@@ -226,21 +225,20 @@ class Secrets(
             if mlrun.api.utils.singletons.k8s.get_k8s_helper():
                 (
                     secret_name,
-                    deleted,
+                    action,
                 ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                     project, secrets
                 )
 
-                events_client = events_factory.EventsFactory().get_events_client()
-                event = events_client.generate_project_secret_event(
-                    project=project,
-                    secret_name=secret_name,
-                    secret_keys=secrets,
-                    action=mlrun.common.schemas.SecretEventActions.deleted
-                    if deleted
-                    else mlrun.common.schemas.SecretEventActions.updated,
-                )
-                events_client.emit(event)
+                if action:
+                    events_client = events_factory.EventsFactory().get_events_client()
+                    event = events_client.generate_project_secret_event(
+                        project=project,
+                        secret_name=secret_name,
+                        secret_keys=secrets,
+                        action=action,
+                    )
+                    events_client.emit(event)
 
             else:
                 raise mlrun.errors.MLRunInternalServerError(

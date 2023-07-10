@@ -29,8 +29,6 @@ from kubernetes.client.rest import ApiException
 from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
-import mlrun.api.db.sqldb.session
-import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory

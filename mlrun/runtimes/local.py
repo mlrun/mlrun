@@ -254,9 +254,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             os.chdir(execution._old_workdir)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        # we define a tmp file for mlrun to log its run, for easy access  later
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
-        # TODO: add comment why we do it
         environ["MLRUN_META_TMPFILE"] = tmp
         if self.spec.rundb:
             environ["MLRUN_DBPATH"] = self.spec.rundb

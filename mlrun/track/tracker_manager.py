@@ -27,7 +27,7 @@ class TrackerManager:
     def add_tracker(self, tracker: Tracker):
         """
         adds a Tracker to tracking list
-        :param tracker: class that inherits from tracker to add an instance of to trackers list
+        :param tracker: The tracker class to add
         """
         self._trackers.append(tracker())
 

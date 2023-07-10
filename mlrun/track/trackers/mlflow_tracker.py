@@ -13,13 +13,14 @@
 # limitations under the License.
 
 import os
+import pathlib
 import tempfile
 from typing import Union
 
 from mlrun.execution import MLClientCtx
 from mlrun.track.base_tracker import BaseTracker
 from mlrun.track.utils import (
-    get_convert_np_dtype_to_value_type,
+    convert_np_dtype_to_value_type,
     schema_to_feature,
     zip_folder,
 )
@@ -102,12 +103,12 @@ class MLFlowTracker(BaseTracker):
                     full_path
                 )  # this is the model folder, we log it after logging all artifacts
             else:
-                self._log_artifact(context, full_path, artifact)
+                self.log_artifact(context, full_path, artifact)
         if model_path:
             for path in model_path:
-                self._log_model(path, context)
+                self.log_model(path, context)
 
-    def _log_model(
+    def log_model(
         self,
         model_uri: str,
         context: Union[MLClientCtx, dict],
@@ -123,11 +124,11 @@ class MLFlowTracker(BaseTracker):
         if model_info.signature is not None:
             if model_info.signature.inputs is not None:
                 inputs = schema_to_feature(
-                    model_info.signature.inputs, get_convert_np_dtype_to_value_type()
+                    model_info.signature.inputs, convert_np_dtype_to_value_type()
                 )
             if model_info.signature.outputs is not None:
                 outputs = schema_to_feature(
-                    model_info.signature.outputs, get_convert_np_dtype_to_value_type()
+                    model_info.signature.outputs, convert_np_dtype_to_value_type()
                 )
         try:
             context.log_model(
@@ -148,6 +149,13 @@ class MLFlowTracker(BaseTracker):
             tmp_dir.cleanup()
         except Exception:
             tmp_dir.cleanup()
+
+    def log_artifact(self, context, full_path, artifact):
+        artifact = context.log_artifact(
+            item=pathlib.Path(artifact.path).name.replace(".", "_"),
+            local_path=full_path,
+        )
+        self._artifacts[artifact.key] = artifact
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         experiment = "mlflow_experiment"

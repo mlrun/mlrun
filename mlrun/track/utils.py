@@ -18,7 +18,7 @@ import zipfile
 from mlrun.features import Feature
 
 
-def get_convert_np_dtype_to_value_type():
+def convert_np_dtype_to_value_type():
     """
     needed to avoid import issues later
     :return: CommonUtils.convert_np_dtype_to_value_type

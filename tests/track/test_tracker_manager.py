@@ -21,7 +21,7 @@ from mlrun.track.tracker_manager import TrackerManager
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
 
-class TestTracker(Tracker):
+class TrackerExample(Tracker):
     # just some random module
     TRACKED_MODULE_NAME = "os"
 
@@ -32,7 +32,7 @@ class TestTracker(Tracker):
         return True
 
 
-class TestBaseTracker(BaseTracker):
+class BaseTrackerExample(BaseTracker):
     # just some random module
     TRACKED_MODULE_NAME = "os"
 
@@ -42,7 +42,7 @@ class TestBaseTracker(BaseTracker):
     def post_run(self, context):
         return True
 
-    def _log_model(self, model_uri, context):
+    def log_model(self, model_uri, context):
         return True
 
 
@@ -50,10 +50,10 @@ class TestBaseTracker(BaseTracker):
 @pytest.mark.parametrize(
     "tracker_list",
     [
-        [MLFlowTracker, TestTracker, TestBaseTracker],
+        [MLFlowTracker, TrackerExample, BaseTrackerExample],
         [MLFlowTracker],
-        [TestTracker],
-        [TestBaseTracker],
+        [TrackerExample],
+        [BaseTrackerExample],
     ],
 )
 def test_add_tracker(rundb_mock, tracker_list):

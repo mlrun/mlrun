@@ -21,12 +21,20 @@ from .trackers import MLFlowTracker
 
 def get_trackers_manager():
     """
-    initiates an TrackerManager, looks for all relevant trackers and adds them
+    Initialize a `TrackerManager`, looking for all relevant trackers and adds them to it.
     :return: instance of TrackerManager with all relevant trackers
     """
+    # Add a tracker to this list for it to be added into the global trackers manager:
+    _AVAILABLE_TRACKERS = [MLFlowTracker]
+
+    # Initialize a new trackers manager:
     trackers_manager = TrackerManager()
-    if MLFlowTracker.is_enabled():  # if mlflow is in env and enabled
-        trackers_manager.add_tracker(MLFlowTracker)
+
+    # Go over the available trackers list and add them to the manager:
+    for tracker in _AVAILABLE_TRACKERS:
+        if tracker.is_enabled():
+            trackers_manager.add_tracker(tracker)
+
     return trackers_manager
 
 

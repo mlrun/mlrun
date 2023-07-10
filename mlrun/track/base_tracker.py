@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import importlib
-import pathlib
 from abc import abstractmethod
 
 from mlrun.config import config as mlconf
@@ -26,7 +25,8 @@ class BaseTracker(Tracker):
 
     def __init__(self):
         super().__init__()
-        self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
+        if BaseTracker.is_enabled():
+            self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
         self._run_track_kwargs = {}
         self._artifacts = {}
 
@@ -46,7 +46,7 @@ class BaseTracker(Tracker):
         )
 
     @abstractmethod
-    def _log_model(self, model_uri, context):
+    def log_model(self, model_uri, context):
         """
         zips model dir and logs it and all artifacts
         :param model_uri: uri of model to log
@@ -54,15 +54,21 @@ class BaseTracker(Tracker):
         """
         pass
 
-    def _log_artifact(self, context, full_path, artifact):
+    @abstractmethod
+    def log_artifact(self, context, full_path, artifact):
         """
         logs 3rd party artifacts, turns into mlrun artifacts and then stores them in list
         :param context: run context in which we log the model
         :param full_path:
         :param artifact:
         """
-        artifact = context.log_artifact(
-            item=pathlib.Path(artifact.path).name.replace(".", "_"),
-            local_path=full_path,
-        )
-        self._artifacts[artifact.key] = artifact
+        pass
+
+    @abstractmethod
+    def log_dataset(self, dataset_path, context):
+        """
+        zips model dir and logs it and all artifacts
+        :param model_uri: uri of model to log
+        :param context: run context in which we log the model
+        """
+        pass

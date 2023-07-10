@@ -11,17 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional, Type
+
 import mlrun.config
 import mlrun.errors
 import mlrun.launcher.base
 import mlrun.launcher.local
 import mlrun.launcher.remote
+import mlrun.utils.singleton
 
 
-class LauncherFactory(object):
-    @staticmethod
+class LauncherFactory(
+    metaclass=mlrun.utils.singleton.AbstractSingleton,
+):
+    def __init__(self):
+        self._launcher_cls: Optional[Type[mlrun.launcher.base.BaseLauncher]] = None
+
     def create_launcher(
-        is_remote: bool, local: bool = False
+        self, is_remote: bool, **kwargs
     ) -> mlrun.launcher.base.BaseLauncher:
         """
         Creates the appropriate launcher for the specified run.
@@ -34,17 +41,15 @@ class LauncherFactory(object):
 
         :return:            The appropriate launcher for the specified run.
         """
-        if mlrun.config.is_running_as_api():
-            if local:
-                raise mlrun.errors.MLRunInternalServerError(
-                    "Launch of local run inside the server is not allowed"
-                )
+        if self._launcher_cls:
+            return self._launcher_cls(**kwargs)
 
-            from mlrun.api.launcher import ServerSideLauncher
-
-            return ServerSideLauncher()
-
+        local = kwargs.get("local", False)
         if is_remote and not local:
-            return mlrun.launcher.remote.ClientRemoteLauncher()
+            return mlrun.launcher.remote.ClientRemoteLauncher(**kwargs)
 
-        return mlrun.launcher.local.ClientLocalLauncher(local)
+        return mlrun.launcher.local.ClientLocalLauncher(**kwargs)
+
+    def set_launcher(self, launcher_cls: Type[mlrun.launcher.base.BaseLauncher]):
+        """Launcher setter for injection of a custom launcher"""
+        self._launcher_cls = launcher_cls

@@ -25,6 +25,7 @@ import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
+import mlrun.utils.regex
 from mlrun.utils import logger
 
 run_modes = ["pass"]
@@ -37,6 +38,9 @@ class BaseLauncher(abc.ABC):
     i.e. running a function locally, remotely or in a server
     Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
+
+    def __init__(self, **kwargs):
+        pass
 
     @abc.abstractmethod
     def launch(

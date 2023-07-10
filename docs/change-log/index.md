@@ -33,10 +33,7 @@
 ###  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3373 | feature vector complex join **<add link>** |
 | ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
-
-
 | ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
  
 
@@ -50,7 +47,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
-| ML=3474 | Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From 1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. |
+| ML-3474 | Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From 1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. |
 
 ```
  # Set 2 functions:
@@ -82,8 +79,7 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
 | ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3373 | **Is it in rel?** You can now define a Feature Vector with multiple FS and a "complex" join between them. **Also in docs and deprecations** [View in Git](https://github.com/mlrun/mlrun/pull/). |
-| ML-3420 | **needs better explanation** MLRun Database now raises exception when blob size is greater than 16,777,215 bytes. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
+| ML-3420 | Fix artifacts corruption due to overflowing size. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
 | ML-3470 | Changes in secrets are not recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
@@ -94,14 +90,13 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 | ML-3654 | Serving functions (in a graph) now recover after an `error_handler` error.  [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
 | ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812). |
-| ML-3743 | **???** Fix pushing to ECR [View in Git](https://github.com/mlrun/mlrun/pull/3407). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
 | ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
 | ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446). |
 | ML-3847 | `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810). |
 | ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687). 
-
+| ML-4129 | Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).
 
 
 ## v1.3.3
@@ -146,31 +141,7 @@ The MLRun server is now based on Python 3.9. It's recommended to move the client
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-MLRun is pre-installed in CE Jupyter.
-
-To install on a **Python 3.9** environment, run:<br>
-```
-./align_mlrun.sh
-```
-
-To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
-  
-1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
-2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
-
-```
-$CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y 'pip>=22.0'
-```
-3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
-```
-conda create -n python39 python=3.9 ipykernel -y
-conda activate python39
-```
-4. Install mlrun:
-```
-./align_mlrun.sh
-```
+See installation instructions in {ref}`install-remote`.
     
 ### New and updated features
 
@@ -615,24 +586,24 @@ with a drill-down to view the steps and their details. [Tech Preview]
     
 ## Limitations
 
-
 | ID   | Description                                                    | Workaround                           | Opened in | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
 | ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
-
- 
+| ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |
+| ML-3743 | Setting AWS credentials as project secret cause a build failure on EKS configured with ECR. | When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, 
+as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
 
 ## Deprecations
 
     
-| In   | ID |Description                                                          |
+| In   | ID |Description                                  ]]                        |
 |------ | ---- | --------------------------------------------------------------------|
 | v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 |  NA | See [Deprecated APIs](#api-130).|
-| v1.4.0|     | FeatureSet(relations) is replaced by JoinSpec. See **ref to docs**
+| v1.4.0|  NA  | The paradigm for creating a feature vector over several feature sets with different entities is now based on feature vectors (and not feature sets). See **ref to docs**
 
 ### Deprecated APIs, removed from v1.3.0 code
 These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:

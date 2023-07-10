@@ -881,7 +881,7 @@ def _ingest_with_spark(
             spark = (
                 pyspark.sql.SparkSession.builder.appName(session_name)
                 .config("spark.sql.session.timeZone", "UTC")
-                .getOrCreate()
+            .getOrCreate()
             )
             created_spark_context = True
 
@@ -895,6 +895,8 @@ def _ingest_with_spark(
             df = source.to_spark_df(spark, time_field=timestamp_key)
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
+
+        df.persist()
 
         if isinstance(df, Response) and df.status_code != 0:
             mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])

@@ -53,7 +53,6 @@ def test_add_notification_to_cli_from_dict():
     )
 
 
-# def test_cli_get_artifacts_with_uri(db: DBInterface, db_session: Session):
 def test_cli_get_artifacts_with_uri():
     artifacts = []
     for i in range(5):

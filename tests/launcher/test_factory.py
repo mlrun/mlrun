@@ -14,7 +14,6 @@
 #
 
 import typing
-from contextlib import nullcontext as does_not_raise
 
 import pytest
 
@@ -58,34 +57,17 @@ def test_create_client_launcher(
     is_remote: bool,
     local: bool,
     expected_instance: typing.Union[
-        mlrun.launcher.remote.ClientRemoteLauncher,
+        mlrun.launcher.base.BaseLauncher,
         mlrun.launcher.local.ClientLocalLauncher,
     ],
 ):
-    launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(is_remote, local)
-    assert isinstance(launcher, expected_instance)
+    launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+        is_remote, local=local
+    )
+    assert type(launcher) is expected_instance
 
     if local:
         assert launcher._is_run_local
 
     elif not is_remote:
         assert not launcher._is_run_local
-
-
-@pytest.mark.parametrize(
-    "is_remote, local, expectation",
-    [
-        (True, False, does_not_raise()),
-        (False, False, does_not_raise()),
-        # local run is not allowed when running as API
-        (True, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
-        (False, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
-    ],
-)
-def test_create_server_side_launcher(running_as_api, is_remote, local, expectation):
-    """Test that the server side launcher is created when we are running as API"""
-    with expectation:
-        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
-            is_remote, local
-        )
-        assert isinstance(launcher, mlrun.api.launcher.ServerSideLauncher)

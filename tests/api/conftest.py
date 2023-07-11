@@ -23,6 +23,7 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.launcher
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -49,6 +50,8 @@ def api_config_test():
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+
+    mlrun.api.launcher.initialize_launcher()
 
 
 @pytest.fixture()

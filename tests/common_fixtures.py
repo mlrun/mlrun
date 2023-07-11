@@ -110,14 +110,6 @@ def ensure_default_project() -> mlrun.projects.project.MlrunProject:
 
 
 @pytest.fixture()
-def running_as_api():
-    old_is_running_as_api = mlrun.config.is_running_as_api
-    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
-    yield
-    mlrun.config.is_running_as_api = old_is_running_as_api
-
-
-@pytest.fixture()
 def chdir_to_test_location(request):
     """
     Fixture to change the working directory for tests,

@@ -1659,8 +1659,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        error_type = (
+            mlrun.errors.MLRunBadRequestError
+            if self.run_local
+            else mlrun.runtimes.utils.RunError
+        )
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
+            error_type,
             match="^MapValues - mapping that changes column type must change all values accordingly,"
             " which is not the case for column 'hr_is_error'$",
         ):

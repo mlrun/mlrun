@@ -11,3 +11,4 @@ nbclassic>=0.2.8
 # added to tackle security vulnerabilities
 notebook~=6.4
 Pillow~=9.0
+jupyterlab-git~=0.41.0

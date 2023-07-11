@@ -131,7 +131,7 @@ def chdir_to_test_location(request):
     """
     original_working_dir = os.getcwd()
     test_file_path = os.path.dirname(inspect.getfile(request.function))
-    os.chdir(os.path.dirname(test_file_path))
+    os.chdir(test_file_path)
 
     yield
 

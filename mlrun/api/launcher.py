@@ -28,6 +28,7 @@ import mlrun.utils.regex
 
 
 def initialize_launcher():
+    """Set the factory custom launcher to the server side launcher"""
     mlrun.launcher.factory.LauncherFactory().set_launcher(ServerSideLauncher)
 
 

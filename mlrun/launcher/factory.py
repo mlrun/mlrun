@@ -37,7 +37,6 @@ class LauncherFactory(
         ClientLocalLauncher - if the run is not remote or local was specified.
 
         :param is_remote:   Whether the runtime requires remote execution.
-        :param local:       Run the function locally vs on the Runtime/Cluster
 
         :return:            The appropriate launcher for the specified run.
         """
@@ -51,5 +50,9 @@ class LauncherFactory(
         return mlrun.launcher.local.ClientLocalLauncher(**kwargs)
 
     def set_launcher(self, launcher_cls: Type[mlrun.launcher.base.BaseLauncher]):
-        """Launcher setter for injection of a custom launcher"""
+        """
+        Launcher setter for injection of a custom launcher.
+        This allows us to override the launcher from external packages without having to import them.
+        :param launcher_cls:    The launcher class to use.
+        """
         self._launcher_cls = launcher_cls

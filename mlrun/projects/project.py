@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ import datetime
 import getpass
 import glob
 import http
+import importlib.util as imputil
 import json
 import os.path
 import pathlib
@@ -113,6 +114,7 @@ def new_project(
     subpath: str = None,
     save: bool = True,
     overwrite: bool = False,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
@@ -151,6 +153,7 @@ def new_project(
     :param save:         whether to save the created project in the DB
     :param overwrite:    overwrite project using 'cascade' deletion strategy (deletes project resources)
                          if project with name exists
+    :param parameters:   key/value pairs to add to the project.spec.params
 
     :returns: project object
     """
@@ -192,12 +195,18 @@ def new_project(
         project.spec.origin_url = url
     if description:
         project.spec.description = description
+    if parameters:
+        # Enable setting project parameters at load time, can be used to customize the project_setup
+        for key, val in parameters.items():
+            project.spec.params[key] = val
 
     _set_as_current_default_project(project)
 
     if save and mlrun.mlconf.dbpath:
         if overwrite:
-            logger.info(f"Deleting project {name} from MLRun DB due to overwrite")
+            logger.info(
+                "Overwriting project (by deleting and then creating)", name=name
+            )
             _delete_project_from_db(
                 name, secrets, mlrun.common.schemas.DeletionStrategy.cascade
             )
@@ -210,12 +219,18 @@ def new_project(
                 "Use overwrite=True to overwrite the existing project."
             ) from exc
         logger.info(
-            f"Created and saved project {name}",
+            "Created and saved project",
+            name=name,
             from_template=from_template,
             overwrite=overwrite,
             context=context,
             save=save,
         )
+        if from_template:
+            # Hook for initializing the project using a project_setup script
+            setup_file_path = path.join(context, "project_setup.py")
+            project = _run_project_setup(project, setup_file_path, save)
+
     return project
 
 
@@ -230,6 +245,7 @@ def load_project(
     user_project: bool = False,
     save: bool = True,
     sync_functions: bool = False,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
@@ -256,6 +272,7 @@ def load_project(
     :param user_project:    add the current user name to the project name (for db:// prefixes)
     :param save:            whether to save the created project and artifact in the DB
     :param sync_functions:  sync the project's functions into the project object (will be saved to the DB if save=True)
+    :param parameters:      key/value pairs to add to the project.spec.params
 
     :returns: project object
     """
@@ -281,13 +298,18 @@ def load_project(
             clone_tgz(url, context, secrets, clone)
         elif url.endswith(".zip"):
             clone_zip(url, context, secrets, clone)
-        else:
+        elif url.startswith("db://") or "://" not in url:
             project = _load_project_from_db(url, secrets, user_project)
             project.spec.context = context
             if not path.isdir(context):
                 makedirs(context)
             project.spec.subpath = subpath or project.spec.subpath
             from_db = True
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unsupported url scheme, supported schemes are: git://, db:// or "
+                ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB"
+            )
 
     if not repo:
         repo, url = init_repo(context, url, init_git)
@@ -297,6 +319,12 @@ def load_project(
 
     if not project.metadata.name:
         raise ValueError("project name must be specified")
+
+    if parameters:
+        # Enable setting project parameters at load time, can be used to customize the project_setup
+        for key, val in parameters.items():
+            project.spec.params[key] = val
+
     if not from_db:
         project.spec.source = url or project.spec.source
         project.spec.origin_url = url or project.spec.origin_url
@@ -311,14 +339,19 @@ def load_project(
         except Exception:
             pass
 
-    if save and mlrun.mlconf.dbpath:
+    to_save = save and mlrun.mlconf.dbpath
+    if to_save:
         project.save()
-        project.register_artifacts()
-        if sync_functions:
-            project.sync_functions(names=project.get_function_names(), save=True)
 
-    elif sync_functions:
-        project.sync_functions(names=project.get_function_names(), save=False)
+    # Hook for initializing the project using a project_setup script
+    setup_file_path = path.join(context, project.spec.subpath or "", "project_setup.py")
+    project = _run_project_setup(project, setup_file_path, to_save)
+
+    if to_save:
+        project.register_artifacts()
+
+    if sync_functions:
+        project.sync_functions(save=to_save)
 
     _set_as_current_default_project(project)
 
@@ -336,6 +369,7 @@ def get_or_create_project(
     user_project: bool = False,
     from_template: str = None,
     save: bool = True,
+    parameters: dict = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
@@ -352,15 +386,19 @@ def get_or_create_project(
                          git://github.com/mlrun/demo-xgb-project.git
                          http://mysite/archived-project.zip
     :param secrets:      key:secret dict or SecretsStore used to download sources
-    :param init_git:     if True, will excute `git init` on the context dir
+    :param init_git:     if True, will execute `git init` on the context dir
     :param subpath:      project subpath (within the archive/context)
     :param clone:        if True, always clone (delete any existing content)
     :param user_project: add the current username to the project name (for db:// prefixes)
     :param from_template:     path to project YAML file that will be used as from_template (for new projects)
     :param save:         whether to save the created project in the DB
+    :param parameters:   key/value pairs to add to the project.spec.params
+
     :returns: project object
     """
     context = context or "./"
+    spec_path = path.join(context, subpath or "", "project.yaml")
+    load_from_path = url or path.isfile(spec_path)
     try:
         # load project from the DB.
         # use `name` as `url` as we load the project from the DB
@@ -375,51 +413,107 @@ def get_or_create_project(
             user_project=user_project,
             # only loading project from db so no need to save it
             save=False,
+            parameters=parameters,
         )
-        logger.info(f"loaded project {name} from MLRun DB")
+        logger.info("Project loaded successfully", project_name=name)
         return project
 
     except mlrun.errors.MLRunNotFoundError:
-        spec_path = path.join(context, subpath or "", "project.yaml")
-        if url or path.isfile(spec_path):
-            # load project from archive or local project.yaml
-            project = load_project(
-                context,
-                url,
-                name,
-                secrets=secrets,
-                init_git=init_git,
-                subpath=subpath,
-                clone=clone,
-                user_project=user_project,
-                save=save,
-            )
-            message = f"loaded project {name} from {url or context}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
-        else:
-            # create a new project
-            project = new_project(
-                name,
-                context,
-                init_git=init_git,
-                user_project=user_project,
-                from_template=from_template,
-                secrets=secrets,
-                subpath=subpath,
-                save=save,
-            )
-            message = f"created project {name}"
-            if save:
-                message = f"{message} and saved in MLRun DB"
-            logger.info(message)
+        logger.debug("Project not found in db", project_name=name)
+
+    # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
+    if load_from_path:
+        # loads a project from archive or local project.yaml
+        logger.info("Loading project from path", project_name=name, path=url or context)
+        project = load_project(
+            context,
+            url,
+            name,
+            secrets=secrets,
+            init_git=init_git,
+            subpath=subpath,
+            clone=clone,
+            user_project=user_project,
+            save=save,
+            parameters=parameters,
+        )
+
+        logger.info(
+            "Project loaded successfully",
+            project_name=name,
+            path=url or context,
+            stored_in_db=save,
+        )
         return project
+
+    # create a new project
+    project = new_project(
+        name,
+        context,
+        init_git=init_git,
+        user_project=user_project,
+        from_template=from_template,
+        secrets=secrets,
+        subpath=subpath,
+        save=save,
+        parameters=parameters,
+    )
+    logger.info("Project created successfully", project_name=name, stored_in_db=save)
+    return project
+
+
+def _run_project_setup(
+    project: "MlrunProject", setup_file_path: str, save: bool = False
+):
+    """Run the project setup file if found
+
+    When loading a project MLRun will look for a project_setup.py file, if it is found
+    it will execute the setup(project) handler, which can enrich the project with additional
+    objects, functions, artifacts, etc.
+
+    Example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
+    """
+    if not path.exists(setup_file_path):
+        return project
+    spec = imputil.spec_from_file_location("workflow", setup_file_path)
+    if spec is None:
+        raise ImportError(f"cannot import project setup file in {setup_file_path}")
+    mod = imputil.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    if hasattr(mod, "setup"):
+        try:
+            project = getattr(mod, "setup")(project)
+        except Exception as exc:
+            logger.error(
+                "Failed to run project_setup script",
+                setup_file_path=setup_file_path,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise exc
+        if save:
+            project.save()
+    else:
+        logger.warn("skipping setup, setup() handler was not found in project_setup.py")
+    return project
 
 
 def _load_project_dir(context, name="", subpath=""):
     subpath_str = subpath or ""
     fpath = path.join(context, subpath_str, "project.yaml")
+    setup_file_path = path.join(context, subpath_str, "project_setup.py")
     if path.isfile(fpath):
         with open(fpath) as fp:
             data = fp.read()
@@ -439,6 +533,9 @@ def _load_project_dir(context, name="", subpath=""):
                 },
             }
         )
+    elif path.exists(setup_file_path):
+        # If there is a setup script do not force having project.yaml file
+        project = MlrunProject()
     else:
         raise mlrun.errors.MLRunNotFoundError(
             "project or function YAML not found in path"
@@ -548,6 +645,7 @@ class ProjectSpec(ModelObj):
         workdir=None,
         default_image=None,
         build=None,
+        custom_packagers: typing.List[typing.Tuple[str, bool]] = None,
     ):
         self.repo = None
 
@@ -582,6 +680,11 @@ class ProjectSpec(ModelObj):
         self.default_image = default_image
 
         self.build = build
+
+        # A list of custom packagers to include when running the functions of the project. A custom packager is stored
+        # in a tuple where the first index is the packager module's path (str) and the second is a flag (bool) for
+        # whether it is mandatory for a run (raise exception on collection error) or not.
+        self.custom_packagers = custom_packagers or []
 
     @property
     def source(self) -> str:
@@ -747,6 +850,54 @@ class ProjectSpec(ModelObj):
         if key in self._artifacts:
             del self._artifacts[key]
 
+    @property
+    def build(self) -> ImageBuilder:
+        return self._build
+
+    @build.setter
+    def build(self, build):
+        self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        # TODO: enable importing packagers from the hub.
+        if packager in [
+            custom_packager[0] for custom_packager in self.custom_packagers
+        ]:
+            logger.warn(
+                f"The packager's module path '{packager}' is already registered in the project."
+            )
+            return
+        self.custom_packagers.append((packager, is_mandatory))
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        # Look for the packager tuple in the list to remove it:
+        packager_tuple: typing.Tuple[str, bool] = None
+        for custom_packager in self.custom_packagers:
+            if custom_packager[0] == packager:
+                packager_tuple = custom_packager
+
+        # If not found, raise an error, otherwise remove:
+        if packager_tuple is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"The packager module path '{packager}' is not registered in the project, hence it cannot be removed."
+            )
+        self.custom_packagers.remove(packager_tuple)
+
     def _source_repo(self):
         src = self.source
         if src:
@@ -758,14 +909,6 @@ class ProjectSpec(ModelObj):
             if f.spec.build.source in [".", "./"]:
                 return True
         return False
-
-    @property
-    def build(self) -> ImageBuilder:
-        return self._build
-
-    @build.setter
-    def build(self, build):
-        self._build = self._verify_dict(build, "build", ImageBuilder)
 
     def get_code_path(self):
         """Get the path to the code root/workdir"""
@@ -946,20 +1089,23 @@ class MlrunProject(ModelObj):
         self.sync_functions()
 
     def get_artifact_uri(
-        self, key: str, category: str = "artifact", tag: str = None
+        self, key: str, category: str = "artifact", tag: str = None, iter: int = None
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         example::
 
-            uri = project.get_artifact_uri("my_model", category="model", tag="prod")
+            uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
 
         :param key:  artifact key/name
         :param category:  artifact category (artifact, model, feature-vector, ..)
         :param tag:  artifact version tag, default to latest version
+        :param iter:  iteration number, default to no iteration
         """
         uri = f"store://{category}s/{self.metadata.name}/{key}"
-        if tag:
+        if iter is not None:
+            uri = f"{uri}#{iter}"
+        if tag is not None:
             uri = f"{uri}:{tag}"
         return uri
 
@@ -1062,8 +1208,15 @@ class MlrunProject(ModelObj):
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
-        if not workflow_path:
-            raise ValueError("valid workflow_path must be specified")
+
+        # validate the provided workflow_path
+        if mlrun.utils.helpers.is_file_path_invalid(
+            self.spec.get_code_path(), workflow_path
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
+            )
+
         if embed:
             if (
                 self.context
@@ -1147,11 +1300,13 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
+        # TODO: To correctly maintain the list of artifacts from an exported project,
+        #  we need to maintain the different trees that generated them
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
@@ -1544,6 +1699,7 @@ class MlrunProject(ModelObj):
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """update or add a function object to the project
 
@@ -1571,16 +1727,20 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:      function object or spec/code url, None refers to current Notebook
-        :param name:      name of the function (under the project)
-        :param kind:      runtime kind e.g. job, nuclio, spark, dask, mpijob
-                          default: job
-        :param image:     docker image to be used, can also be specified in
-                          the function object/yaml
-        :param handler:   default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo: add (clone) the current repo to the build source
-        :param tag:       function version tag (none for 'latest', can only be set with .py/.ipynb files)
-        :param requirements:    list of python packages or pip requirements file path
+        :param func:                function object or spec/code url, None refers to current Notebook
+        :param name:                name of the function (under the project), can be specified with a tag to support
+                                    versions (e.g. myfunc:v1)
+        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    default: job
+        :param image:               docker image to be used, can also be specified in
+                                    the function object/yaml
+        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           add (clone) the current repo to the build source
+        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                    if tag is specified and name is empty, the function key (under the project)
+                                    will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param requirements:        a list of python packages
+        :param requirements_file:   path to a python requirements file
 
         :returns: project object
         """
@@ -1615,10 +1775,14 @@ class MlrunProject(ModelObj):
                 "requirements": requirements,
             }
             func = {k: v for k, v in function_dict.items() if v}
-            name, function_object = _init_function_from_dict(func, self)
-            func["name"] = name
+            resolved_function_name, function_object = _init_function_from_dict(
+                func, self
+            )
+            func["name"] = resolved_function_name
         elif hasattr(func, "to_dict"):
-            name, function_object = _init_function_from_obj(func, self, name=name)
+            resolved_function_name, function_object = _init_function_from_obj(
+                func, self, name=name
+            )
             if handler:
                 raise ValueError(
                     "default handler cannot be set for existing function object"
@@ -1629,13 +1793,20 @@ class MlrunProject(ModelObj):
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
             if requirements:
-                function_object.with_requirements(requirements)
-            if not name:
+                function_object.with_requirements(
+                    requirements, requirements_file=requirements_file
+                )
+            if not resolved_function_name:
                 raise ValueError("function name must be specified")
         else:
             raise ValueError("func must be a function url or object")
 
-        self.spec.set_function(name, function_object, func)
+        # if function name was not explicitly provided,
+        # we use the resolved name (from the function object) and add the tag
+        if tag and not name and ":" not in resolved_function_name:
+            resolved_function_name = f"{resolved_function_name}:{tag}"
+
+        self.spec.set_function(resolved_function_name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -1652,17 +1823,22 @@ class MlrunProject(ModelObj):
         enrich=False,
         ignore_cache=False,
         copy_function=True,
+        tag: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """get function object by name
 
-        :param key:   name of key for search
-        :param sync:  will reload/reinit the function from the project spec
-        :param enrich: add project info/config/source info to the function object
-        :param ignore_cache: read the function object from the DB (ignore the local cache)
-        :param copy_function: return a copy of the function object
+        :param key:             name of key for search
+        :param sync:            will reload/reinit the function from the project spec
+        :param enrich:          add project info/config/source info to the function object
+        :param ignore_cache:    read the function object from the DB (ignore the local cache)
+        :param copy_function:   return a copy of the function object
+        :param tag:             provide if the function key is tagged under the project (function was set with a tag)
 
         :returns: function object
         """
+        if tag and ":" not in key:
+            key = f"{key}:{tag}"
+
         function, err = self._get_function(
             mlrun.utils.normalize_name(key), sync, ignore_cache
         )
@@ -1705,7 +1881,7 @@ class MlrunProject(ModelObj):
 
         return function, None
 
-    def get_function_objects(self) -> typing.Dict[str, mlrun.runtimes.BaseRuntime]:
+    def get_function_objects(self) -> FunctionsDict:
         """ "get a virtual dict with all the project functions ready for use in a pipeline"""
         self.sync_functions()
         return FunctionsDict(self)
@@ -2035,7 +2211,10 @@ class MlrunProject(ModelObj):
 
         self.sync_functions(always=sync)
         if not self.spec._function_objects:
-            raise ValueError("no functions in the project")
+            raise ValueError(
+                "There are no functions in the project."
+                " Make sure you've set your functions with project.set_function()."
+            )
 
         if not name and not workflow_path and not workflow_handler:
             if self.spec.workflows:
@@ -2617,8 +2796,9 @@ class MlrunProject(ModelObj):
             # check different artifact versions for a specific artifact, return as objects list
             result_versions = project.list_artifacts('results', tag='*').to_objects()
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
@@ -2664,8 +2844,9 @@ class MlrunProject(ModelObj):
             latest_models = project.list_models('', tag='latest')
 
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
@@ -2776,13 +2957,53 @@ class MlrunProject(ModelObj):
             **kwargs,
         )
 
+    def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:
+        """
+        Get the custom packagers registered in the project.
+
+        :return: A list of the custom packagers module paths.
+        """
+        # Return a copy so the user won't be able to edit the list by the reference returned (no need for deep copy as
+        # tuples do not support item assignment):
+        return self.spec.custom_packagers.copy()
+
+    def add_custom_packager(self, packager: str, is_mandatory: bool):
+        """
+        Add a custom packager from the custom packagers list. All project's custom packagers are added to each project
+        function.
+
+        **Notice** that in order to run a function with the custom packagers included, you must set a source for the
+        project (using the `project.set_source` method) with the parameter `pull_at_runtime=True` so the source code of
+        the packagers will be able to be imported.
+
+        :param packager:     The packager module path to add. For example, if a packager `MyPackager` is in the
+                             project's source at my_module.py, then the module path is: "my_module.MyPackager".
+        :param is_mandatory: Whether this packager must be collected during a run. If False, failing to collect it won't
+                             raise an error during the packagers collection phase.
+        """
+        self.spec.add_custom_packager(packager=packager, is_mandatory=is_mandatory)
+
+    def remove_custom_packager(self, packager: str):
+        """
+        Remove a custom packager from the custom packagers list.
+
+        :param packager: The packager module path to remove.
+
+        :raise MLRunInvalidArgumentError: In case the packager was not in the list.
+        """
+        self.spec.remove_custom_packager(packager=packager)
+
 
 def _set_as_current_default_project(project: MlrunProject):
     mlrun.mlconf.default_project = project.metadata.name
     pipeline_context.set(project)
 
 
-def _init_function_from_dict(f, project, name=None):
+def _init_function_from_dict(
+    f: dict,
+    project: MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     name = name or f.get("name", "")
     url = f.get("url", "")
     kind = f.get("kind", "")
@@ -2856,7 +3077,11 @@ def _init_function_from_dict(f, project, name=None):
     return _init_function_from_obj(func, project, name)
 
 
-def _init_function_from_obj(func, project, name=None):
+def _init_function_from_obj(
+    func: mlrun.runtimes.BaseRuntime,
+    project: MlrunProject,
+    name: typing.Optional[str] = None,
+) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime]:
     build = func.spec.build
     if project.spec.origin_url:
         origin = project.spec.origin_url

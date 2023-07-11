@@ -1,6 +1,6 @@
 //go:build test_unit
 
-// Copyright 2018 Iguazio
+// Copyright 2023 Iguazio
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -254,6 +254,86 @@ func (suite *LogCollectorTestSuite) TestStartLogBestEffort() {
 	response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to start log")
 	suite.Require().True(response.Success, "Failed to start log")
+}
+
+func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
+	selector := "app=some-app"
+	projectName := "some-project"
+	var runUidIndex int
+
+	// remove project from in-progress cache when test is done
+	defer func() {
+		err := suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		suite.Require().NoError(err, "Failed to remove project from state manifest")
+	}()
+
+	for _, testCase := range []struct {
+		name            string
+		podPhase        v1.PodPhase
+		expectedFailure bool
+	}{
+		{
+			name:            "pod is running",
+			podPhase:        v1.PodRunning,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is succeeded",
+			podPhase:        v1.PodSucceeded,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is failed",
+			podPhase:        v1.PodFailed,
+			expectedFailure: false,
+		},
+		{
+			name:            "pod is pending",
+			podPhase:        v1.PodPending,
+			expectedFailure: true,
+		},
+	} {
+		// not using suite.Run because when the test cases run in parallel the fake client set is shared between them
+		// and it causes conflicts
+		suite.logger.InfoWith("Running test case", "testName", testCase.name)
+
+		runUidIndex++
+
+		fakePod := v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("test-pod-%d", runUidIndex),
+				Labels: map[string]string{
+					"app": "some-app",
+				},
+			},
+			Status: v1.PodStatus{
+				Phase: testCase.podPhase,
+			},
+		}
+
+		pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
+		suite.Require().NoError(err, "Failed to create pod")
+
+		// call start log
+		request := &log_collector.StartLogRequest{
+			RunUID:      fmt.Sprintf("run-id-%d", runUidIndex),
+			ProjectName: projectName,
+			Selector:    selector,
+		}
+
+		response, err := suite.logCollectorServer.StartLog(suite.ctx, request)
+		if testCase.expectedFailure {
+			suite.Require().Error(err, "Start log should have failed")
+			suite.Require().False(response.Success, "Start log should not have succeeded")
+		} else {
+			suite.Require().NoError(err, "Start log should not have failed")
+			suite.Require().True(response.Success, "Start log should have succeeded")
+		}
+
+		// delete pod when test is done
+		err = suite.kubeClientSet.CoreV1().Pods(suite.namespace).Delete(suite.ctx, pod.Name, metav1.DeleteOptions{})
+		suite.Require().NoError(err, "Failed to delete pod")
+	}
 }
 
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {

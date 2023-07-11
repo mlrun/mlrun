@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,19 +45,15 @@ class EventStreamProcessor:
         parquet_target: str,
         sample_window: int = 10,
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
-        aggregate_count_windows: typing.Optional[typing.List[str]] = None,
-        aggregate_count_period: str = "30s",
-        aggregate_avg_windows: typing.Optional[typing.List[str]] = None,
-        aggregate_avg_period: str = "30s",
+        aggregate_windows: typing.Optional[typing.List[str]] = None,
+        aggregate_period: str = "30s",
         model_monitoring_access_key: str = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
         self.sample_window = sample_window
-        self.aggregate_count_windows = aggregate_count_windows or ["5m", "1h"]
-        self.aggregate_count_period = aggregate_count_period
-        self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
-        self.aggregate_avg_period = aggregate_avg_period
+        self.aggregate_windows = aggregate_windows or ["5m", "1h"]
+        self.aggregate_period = aggregate_period
 
         # Parquet path and configurations
         self.parquet_path = parquet_target
@@ -201,38 +197,34 @@ class EventStreamProcessor:
 
         # Step 5 - Calculate number of predictions and average latency
         def apply_storey_aggregations():
-            # Step 5.1 - Calculate number of predictions for each window (5 min and 1 hour by default)
-            graph.add_step(
-                class_name="storey.AggregateByKey",
-                aggregates=[
-                    {
-                        "name": EventFieldType.PREDICTIONS,
-                        "column": EventFieldType.ENDPOINT_ID,
-                        "operations": ["count"],
-                        "windows": self.aggregate_count_windows,
-                        "period": self.aggregate_count_period,
-                    }
-                ],
-                name=EventFieldType.PREDICTIONS,
-                after="MapFeatureNames",
-                step_name="Aggregates",
-                table=".",
-            )
-            # Step 5.2 - Calculate average latency time for each window (5 min and 1 hour by default)
+            # Step 5.1 - Calculate number of predictions and average latency for each window (5 min and 1 hour)
             graph.add_step(
                 class_name="storey.AggregateByKey",
                 aggregates=[
                     {
                         "name": EventFieldType.LATENCY,
                         "column": EventFieldType.LATENCY,
-                        "operations": ["avg"],
-                        "windows": self.aggregate_avg_windows,
-                        "period": self.aggregate_avg_period,
+                        "operations": ["count", "avg"],
+                        "windows": self.aggregate_windows,
+                        "period": self.aggregate_period,
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after=EventFieldType.PREDICTIONS,
+                after="MapFeatureNames",
+                step_name="Aggregates",
                 table=".",
+                key_field=EventFieldType.ENDPOINT_ID,
+            )
+
+            # Step 5.2 - Rename the latency counter field to prediction counter
+            graph.add_step(
+                class_name="storey.Rename",
+                mapping={
+                    "latency_count_5m": EventLiveStats.PREDICTIONS_COUNT_5M,
+                    "latency_count_1h": EventLiveStats.PREDICTIONS_COUNT_1H,
+                },
+                name="Rename",
+                after=EventFieldType.LATENCY,
             )
 
         apply_storey_aggregations()
@@ -242,7 +234,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "storey.steps.SampleWindow",
                 name="sample",
-                after=EventFieldType.LATENCY,
+                after="Rename",
                 window_size=self.sample_window,
                 key=EventFieldType.ENDPOINT_ID,
             )
@@ -324,6 +316,7 @@ class EventStreamProcessor:
                     index_cols=[
                         EventFieldType.ENDPOINT_ID,
                         EventFieldType.RECORD_TYPE,
+                        EventFieldType.ENDPOINT_TYPE,
                     ],
                     max_events=self.tsdb_batching_max_events,
                     flush_after_seconds=self.tsdb_batching_timeout_secs,
@@ -470,6 +463,7 @@ class ProcessBeforeTSDB(mlrun.feature_store.steps.MapClass):
         base_fields = [
             EventFieldType.TIMESTAMP,
             EventFieldType.ENDPOINT_ID,
+            EventFieldType.ENDPOINT_TYPE,
         ]
 
         # Getting event timestamp and endpoint_id
@@ -872,6 +866,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         self.feature_names = {}
         self.label_columns = {}
 
+        # Dictionary to manage the model endpoint types - important for the V3IO TSDB
+        self.endpoint_type = {}
+
     def _infer_feature_names_from_data(self, event):
         for endpoint_id in self.feature_names:
             if len(self.feature_names[endpoint_id]) >= len(
@@ -903,7 +900,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
             label_columns = json.loads(label_columns) if label_columns else None
 
-            # Ff feature names were not found,
+            # If feature names were not found,
             # try to retrieve them from the previous events of the current process
             if not feature_names and self._infer_columns_from_data:
                 feature_names = self._infer_feature_names_from_data(event)
@@ -955,6 +952,10 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 "Feature names", endpoint_id=endpoint_id, feature_names=feature_names
             )
 
+            # Update the endpoint type within the endpoint types dictionary
+            endpoint_type = int(endpoint_record.get(EventFieldType.ENDPOINT_TYPE))
+            self.endpoint_type[endpoint_id] = endpoint_type
+
         # Add feature_name:value pairs along with a mapping dictionary of all of these pairs
         feature_names = self.feature_names[endpoint_id]
         feature_values = event[EventFieldType.FEATURES]
@@ -974,6 +975,9 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             values_iters=label_values,
             mapping_dictionary=EventFieldType.NAMED_PREDICTIONS,
         )
+
+        # Add endpoint type to the event
+        event[EventFieldType.ENDPOINT_TYPE] = self.endpoint_type[endpoint_id]
 
         logger.info("Mapped event", event=event)
         return event

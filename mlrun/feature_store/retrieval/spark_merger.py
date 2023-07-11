@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from .base import BaseMerger
 
 class SparkFeatureMerger(BaseMerger):
     engine = "spark"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
@@ -67,7 +68,7 @@ class SparkFeatureMerger(BaseMerger):
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         rename_right_keys = {}
-        for key in right_keys + [entity_timestamp_column]:
+        for key in right_keys + [featureset.spec.timestamp_key]:
             if key in entity_df.columns:
                 rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
@@ -77,13 +78,14 @@ class SparkFeatureMerger(BaseMerger):
         ]
 
         aliased_featureset_df = featureset_df.select(projection)
+        right_timestamp = rename_right_keys.get(
+            featureset.spec.timestamp_key, featureset.spec.timestamp_key
+        )
 
         # set join conditions
         join_cond = (
             entity_with_id[entity_timestamp_column]
-            >= aliased_featureset_df[
-                rename_right_keys.get(entity_timestamp_column, entity_timestamp_column)
-            ]
+            >= aliased_featureset_df[right_timestamp]
         )
 
         # join based on entities
@@ -98,13 +100,13 @@ class SparkFeatureMerger(BaseMerger):
         )
 
         window = Window.partitionBy("_row_nr").orderBy(
-            col(f"ft__{entity_timestamp_column}").desc(),
+            col(right_timestamp).desc(),
         )
         filter_most_recent_feature_timestamp = conditional_join.withColumn(
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
 
-        for key in right_keys + [entity_timestamp_column]:
+        for key in right_keys + [featureset.spec.timestamp_key]:
             if key in entity_df.columns + [entity_timestamp_column]:
                 filter_most_recent_feature_timestamp = (
                     filter_most_recent_feature_timestamp.drop(
@@ -194,8 +196,9 @@ class SparkFeatureMerger(BaseMerger):
         column_names=None,
         start_time=None,
         end_time=None,
-        entity_timestamp_column=None,
+        time_column=None,
     ):
+        source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
@@ -203,6 +206,7 @@ class SparkFeatureMerger(BaseMerger):
                 )
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
+            source_kwargs.update(feature_set.spec.source.attributes)
         else:
             target = get_offline_target(feature_set)
             if not target:
@@ -215,31 +219,28 @@ class SparkFeatureMerger(BaseMerger):
         # handling case where there are multiple feature sets and user creates vector where
         # entity_timestamp_column is from a specific feature set (can't be entity timestamp)
         source_driver = mlrun.datastore.sources.source_kind_to_driver[source_kind]
-        if (
-            entity_timestamp_column in column_names
-            or feature_set.spec.timestamp_key == entity_timestamp_column
-        ):
-            source = source_driver(
-                name=self.vector.metadata.name,
-                path=source_path,
-                time_field=entity_timestamp_column,
-                start_time=start_time,
-                end_time=end_time,
-            )
-        else:
-            source = source_driver(
-                name=self.vector.metadata.name,
-                path=source_path,
-                time_field=entity_timestamp_column,
-            )
 
-        if not entity_timestamp_column:
-            entity_timestamp_column = feature_set.spec.timestamp_key
-        # add the index/key to selected columns
-        timestamp_key = feature_set.spec.timestamp_key
+        source = source_driver(
+            name=self.vector.metadata.name,
+            path=source_path,
+            time_field=time_column,
+            start_time=start_time,
+            end_time=end_time,
+            **source_kwargs,
+        )
+
+        columns = column_names + [ent.name for ent in feature_set.spec.entities]
+        if (
+            feature_set.spec.timestamp_key
+            and feature_set.spec.timestamp_key not in columns
+        ):
+            columns.append(feature_set.spec.timestamp_key)
 
         return source.to_spark_df(
-            self.spark, named_view=self.named_view, time_field=timestamp_key
+            self.spark,
+            named_view=self.named_view,
+            time_field=time_column,
+            columns=columns,
         )
 
     def _rename_columns_and_select(

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,6 +35,9 @@ class FeatureStore(
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned: bool = True,
     ) -> str:
+        if not feature_set.spec.engine:
+            feature_set.spec.engine = "storey"
+
         return self._create_object(
             db_session,
             project,
@@ -52,6 +55,9 @@ class FeatureStore(
         uid: typing.Optional[str] = None,
         versioned: bool = True,
     ) -> str:
+        if not feature_set.spec.engine:
+            feature_set.spec.engine = "storey"
+
         return self._store_object(
             db_session,
             project,

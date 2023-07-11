@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.crud.runtimes.nuclio.helpers
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.function
@@ -981,7 +982,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
-        mlrun.runtimes.utils.cached_nuclio_version = "1.5.13"
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = "1.5.13"
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
             match=r"(.*)Nuclio version does not support(.*)",
@@ -1002,7 +1003,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         logger.info("Function runtime is python, but nuclio is >=1.8.0 - do nothing")
         self._reset_mock()
-        mlrun.runtimes.utils.cached_nuclio_version = "1.8.5"
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = "1.8.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1015,7 +1016,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, but already has the env var set - do nothing"
         )
         self._reset_mock()
-        mlrun.runtimes.utils.cached_nuclio_version = "1.7.5"
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         function.set_env(decode_event_strings_env_var_name, "false")
         self.execute_function(function)
@@ -1029,7 +1030,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             "Function runtime is python, nuclio version in range, env var not set - add it"
         )
         self._reset_mock()
-        mlrun.runtimes.utils.cached_nuclio_version = "1.7.5"
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.5"
         function = self._generate_runtime(self.runtime_kind)
         self.execute_function(function)
         self._assert_deploy_called_basic_config(
@@ -1039,7 +1040,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_is_nuclio_version_in_range(self):
-        mlrun.runtimes.utils.cached_nuclio_version = "1.7.2"
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = "1.7.2"
 
         assert not mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.6.11", "1.7.2"
@@ -1067,7 +1068,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
         # best effort - assumes compatibility
-        mlrun.runtimes.utils.cached_nuclio_version = ""
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = ""
         assert mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
             "1.5.5", "2.3.4"
         )
@@ -1571,6 +1572,20 @@ class TestNuclioRuntime(TestRuntimeBase):
                 )
             )
             assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
+
+    def test_deploy_with_readiness_timeout_params(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.readiness_timeout = 501
+        function.spec.readiness_timeout_before_failure = True
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["readinessTimeoutSeconds"] == 501
+        assert deploy_spec["waitReadinessTimeoutBeforeFailure"]
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

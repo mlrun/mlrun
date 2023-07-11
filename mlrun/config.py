@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,7 +78,6 @@ default_config = {
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-3",  # the version of the spark operator in use
-    "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     # template for project default image name. Parameter {name} will be replaced with project name
@@ -371,9 +370,12 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.13.1",
+            "kaniko_init_container_image": "alpine:3.18",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
+            # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
+            # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
+            "kaniko_image_fs_extraction_retries": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -540,6 +542,27 @@ default_config = {
         },
         # interval for stopping log collection for runs which are in a terminal state
         "stop_logs_interval": 3600,
+    },
+    # Configurations for the `mlrun.package` sub-package involving packagers - logging returned outputs and parsing
+    # inputs data items:
+    "packagers": {
+        # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
+        # using packagers.
+        "enabled": True,
+        # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
+        # returned values will be packaged together as the tuple they are returned in. Default is False to enable
+        # logging multiple returned items.
+        "pack_tuples": False,
+    },
+    # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
+    "events": {
+        # supported modes "enabled", "disabled".
+        # "enabled" - events are emitted.
+        # "disabled" - a nop client is used (aka doing nothing).
+        "mode": "disabled",
+        "verbose": False,
+        # used for igz client when emitting events
+        "access_key": "",
     },
 }
 

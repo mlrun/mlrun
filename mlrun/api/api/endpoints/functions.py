@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
+import mlrun.api.launcher
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
@@ -165,15 +166,18 @@ async def delete_function(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-
     #  If the requested function has a schedule, we must delete it before deleting the function
-    schedule = await run_in_threadpool(
-        get_scheduler().get_schedule,
-        db_session,
-        project,
-        name,
-    )
-    if schedule:
+    try:
+        function_schedule = await run_in_threadpool(
+            get_scheduler().get_schedule,
+            db_session,
+            project,
+            name,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        function_schedule = None
+
+    if function_schedule:
         # when deleting a function, we should also delete its schedules if exists
         # schedules are only supposed to be run by the chief, therefore, if the function has a schedule,
         # and we are running in worker, we send the request to the chief client
@@ -447,21 +451,21 @@ async def build_status(
 
 
 def _handle_job_deploy_status(
-    db_session,
-    fn,
-    name,
-    project,
-    tag,
-    offset,
-    logs,
+    db_session: Session,
+    fn: dict,
+    name: str,
+    project: str,
+    tag: str,
+    offset: int,
+    logs: bool,
 ):
     # job deploy status
-    state = get_in(fn, "status.state", "")
+    function_state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == mlrun.common.schemas.FunctionState.ready:
+        if function_state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -473,17 +477,19 @@ def _handle_job_deploy_status(
             content=out,
             media_type="text/plain",
             headers={
-                "function_status": state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
         )
 
     # read from log file
-    terminal_states = ["failed", "error", "ready"]
     log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
-    if state in terminal_states and log_file.exists():
-        if state == mlrun.common.schemas.FunctionState.ready:
+    if (
+        function_state in mlrun.common.schemas.FunctionState.terminal_states()
+        and log_file.exists()
+    ):
+        if function_state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -499,40 +505,65 @@ def _handle_job_deploy_status(
             content=out,
             media_type="text/plain",
             headers={
-                "x-mlrun-function-status": state,
-                "function_status": state,
+                "x-mlrun-function-status": function_state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
         )
 
-    # TODO: change state to pod_status
-    state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
-        pod
+    build_pod_state = mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=False
+    ).get_pod_status(pod)
+    logger.debug(
+        "Resolved pod status",
+        function_name=name,
+        pod_status=build_pod_state,
+        pod_name=pod,
     )
-    logger.info("Resolved pod status", pod_status=state, pod_name=pod)
 
-    if state == "succeeded":
-        logger.info("Build completed successfully")
-        state = mlrun.common.schemas.FunctionState.ready
-    if state in ["failed", "error"]:
-        logger.error("Build failed", pod_name=pod, pod_status=state)
-        state = mlrun.common.schemas.FunctionState.error
+    normalized_pod_function_state = (
+        mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
+            build_pod_state
+        )
+    )
+    if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
+        logger.info(
+            "Build completed successfully",
+            function_name=name,
+            pod=pod,
+            pod_state=build_pod_state,
+        )
+    elif normalized_pod_function_state == mlrun.common.schemas.FunctionState.error:
+        logger.error(
+            "Build failed", function_name=name, pod_name=pod, pod_status=build_pod_state
+        )
 
-    if (logs and state != "pending") or state in terminal_states:
+    if (
+        (
+            logs
+            and normalized_pod_function_state
+            != mlrun.common.schemas.FunctionState.pending
+        )
+        or normalized_pod_function_state
+        in mlrun.common.schemas.FunctionState.terminal_states()
+    ):
         try:
             resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         except ApiException as exc:
             logger.warning(
                 "Failed to get build logs",
                 function_name=name,
-                function_state=state,
+                function_state=normalized_pod_function_state,
                 pod=pod,
                 exc_info=exc,
             )
             resp = ""
 
-        if state in terminal_states:
+        if (
+            normalized_pod_function_state
+            in mlrun.common.schemas.FunctionState.terminal_states()
+        ):
             # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -542,28 +573,31 @@ def _handle_job_deploy_status(
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
-    update_in(fn, "status.state", state)
-    if state == mlrun.common.schemas.FunctionState.ready:
-        update_in(fn, "spec.image", image)
+    # check if the previous function state is different from the current build pod state, if that is the case then
+    # update the function and store to the database
+    if function_state != normalized_pod_function_state:
+        update_in(fn, "status.state", normalized_pod_function_state)
 
-    versioned = False
-    if state == mlrun.common.schemas.FunctionState.ready:
-        versioned = True
-    mlrun.api.crud.Functions().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
-    )
+        versioned = False
+        if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
+            update_in(fn, "spec.image", image)
+            versioned = True
+
+        mlrun.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
 
     return Response(
         content=out,
         media_type="text/plain",
         headers={
-            "x-mlrun-function-status": state,
-            "function_status": state,
+            "x-mlrun-function-status": normalized_pod_function_state,
+            "function_status": normalized_pod_function_state,
             "function_image": image,
             "builder_pod": pod,
         },
@@ -674,6 +708,7 @@ def _build_function(
     try:
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
+        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(

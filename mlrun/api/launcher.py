@@ -18,7 +18,7 @@ import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -26,7 +26,7 @@ import mlrun.utils
 import mlrun.utils.regex
 
 
-class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+class ServerSideLauncher(launcher.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
@@ -55,7 +55,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        self._enrich_runtime(runtime, project)
+        self.enrich_runtime(runtime, project)
 
         run = self._create_run_object(task)
 
@@ -146,8 +146,8 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
     @staticmethod
-    def _enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -156,7 +156,9 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         """
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
-            project or runtime.metadata.project or mlrun.config.config.default_project
+            project_name
+            or runtime.metadata.project
+            or mlrun.config.config.default_project
         )
         project = runtime._get_db().get_project(runtime.metadata.project)
         # this is mainly for tests with nop db

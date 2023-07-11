@@ -21,6 +21,7 @@ git-best-practices
 load-project
 run-build-deploy
 build-run-workflows-pipelines
+ci-cd-automate
 ci-integration
 ../secrets
 ```

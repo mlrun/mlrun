@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -291,11 +291,12 @@ class BaseStep(ModelObj):
     ):
         """add a step right after this step and return the new step
 
-        example, a 4 step pipeline ending with a stream:
-        graph.to('URLDownloader')\
-             .to('ToParagraphs')\
-             .to(name='to_json', handler='json.dumps')\
-             .to('>>', 'to_v3io', path=stream_path)\
+        example:
+            a 4-step pipeline ending with a stream:
+            graph.to('URLDownloader')\
+                 .to('ToParagraphs')\
+                 .to(name='to_json', handler='json.dumps')\
+                 .to('>>', 'to_v3io', path=stream_path)\
 
         :param class_name:  class name or step object to build the step from
                             for router steps the class name should start with '*'
@@ -306,7 +307,7 @@ class BaseStep(ModelObj):
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
         :param input_path:  selects the key/path in the event to use as input to the step
-                            this require that the event body will behave like a dict, example:
+                            this requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
         :param result_path: selects the key/path in the event to write the results to

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ class TestKubejobRuntime(TestRuntimeBase):
     def _generate_runtime(self) -> mlrun.runtimes.KubejobRuntime:
         runtime = mlrun.runtimes.KubejobRuntime()
         runtime.spec.image = self.image_name
+        runtime.metadata.project = self.project
         return runtime
 
     def test_run_without_runspec(self, db: Session, client: TestClient):
@@ -948,7 +949,7 @@ def my_func(context):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as e:
             runtime.with_source_archive(source, pull_at_runtime=False)
         assert (
-            f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False"
+            f"Source '{source}' must be a valid URL or absolute path when 'pull_at_runtime' is False "
             "set 'source' to a remote URL to clone/copy the source to the base image, "
             "or set 'pull_at_runtime' to True to pull the source at runtime."
             in str(e.value)

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,22 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import sys
 import tempfile
 import urllib.parse
 from base64 import b64encode
 from os import path, remove
+from typing import Optional, Union
 
 import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
+import pyarrow
+import pytz
 import requests
 import urllib3
 
 import mlrun.errors
 from mlrun.errors import err_to_str
-from mlrun.utils import is_ipython, logger
+from mlrun.utils import StorePrefix, is_ipython, logger
+
+from .store_resources import is_store_uri, parse_store_uri
+from .utils import filter_df_start_end_time, select_columns_from_df
 
 verify_ssl = False
 if not verify_ssl:
@@ -65,6 +70,17 @@ class DataStore:
         return True
 
     @staticmethod
+    def _sanitize_url(url):
+        """
+        Extract only the schema, netloc, and path from an input URL if they exist,
+        excluding parameters, query, or fragments.
+        """
+        parsed_url = urllib.parse.urlparse(url)
+        scheme = f"{parsed_url.scheme}:" if parsed_url.scheme else ""
+        netloc = f"//{parsed_url.netloc}" if parsed_url.netloc else "//"
+        return f"{scheme}{netloc}{parsed_url.path}"
+
+    @staticmethod
     def uri_to_kfp(endpoint, subpath):
         raise ValueError("data store doesnt support KFP URLs")
 
@@ -72,7 +88,7 @@ class DataStore:
     def uri_to_ipython(endpoint, subpath):
         return ""
 
-    def get_filesystem(self, silent=True):
+    def get_filesystem(self, silent=True) -> Optional[fsspec.AbstractFileSystem]:
         """return fsspec file system object, if supported"""
         return None
 
@@ -136,6 +152,64 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
+    @staticmethod
+    def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
+        from storey.utils import find_filters, find_partitions
+
+        def set_filters(
+            partitions_time_attributes, start_time_inner, end_time_inner, kwargs
+        ):
+            filters = []
+            find_filters(
+                partitions_time_attributes,
+                start_time_inner,
+                end_time_inner,
+                filters,
+                time_column,
+            )
+            kwargs["filters"] = filters
+
+        def reader(*args, **kwargs):
+            if start_time or end_time:
+                if time_column is None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "When providing start_time or end_time, must provide time_column"
+                    )
+
+                partitions_time_attributes = find_partitions(url, file_system)
+                set_filters(
+                    partitions_time_attributes,
+                    start_time,
+                    end_time,
+                    kwargs,
+                )
+                try:
+                    return df_module.read_parquet(*args, **kwargs)
+                except pyarrow.lib.ArrowInvalid as ex:
+                    if not str(ex).startswith(
+                        "Cannot compare timestamp with timezone to timestamp without timezone"
+                    ):
+                        raise ex
+
+                    if start_time.tzinfo:
+                        start_time_inner = start_time.replace(tzinfo=None)
+                        end_time_inner = end_time.replace(tzinfo=None)
+                    else:
+                        start_time_inner = start_time.replace(tzinfo=pytz.utc)
+                        end_time_inner = end_time.replace(tzinfo=pytz.utc)
+
+                    set_filters(
+                        partitions_time_attributes,
+                        start_time_inner,
+                        end_time_inner,
+                        kwargs,
+                    )
+                    return df_module.read_parquet(*args, **kwargs)
+            else:
+                return df_module.read_parquet(*args, **kwargs)
+
+        return reader
+
     def as_df(
         self,
         url,
@@ -149,19 +223,29 @@ class DataStore:
         **kwargs,
     ):
         df_module = df_module or pd
-        parsed_url = urllib.parse.urlparse(url)
-        filepath = parsed_url.path
-        if filepath.endswith(".csv") or format == "csv":
+        file_url = self._sanitize_url(url)
+        is_csv, is_json, drop_time_column = False, False, False
+        file_system = self.get_filesystem()
+        if file_url.endswith(".csv") or format == "csv":
+            is_csv = True
+            drop_time_column = False
             if columns:
+                if (
+                    time_column
+                    and (start_time or end_time)
+                    and time_column not in columns
+                ):
+                    columns.append(time_column)
+                    drop_time_column = True
                 kwargs["usecols"] = columns
+
             reader = df_module.read_csv
-            filesystem = self.get_filesystem()
-            if filesystem:
-                if filesystem.isdir(filepath):
+            if file_system:
+                if file_system.isdir(file_url):
 
                     def reader(*args, **kwargs):
                         base_path = args[0]
-                        file_entries = filesystem.listdir(base_path)
+                        file_entries = file_system.listdir(base_path)
                         filenames = []
                         for file_entry in file_entries:
                             if (
@@ -177,57 +261,33 @@ class DataStore:
                             updated_args = [f"{base_path}/{filename}"]
                             updated_args.extend(args[1:])
                             dfs.append(df_module.read_csv(*updated_args, **kwargs))
-                        return pd.concat(dfs)
+                        return df_module.concat(dfs)
 
         elif (
-            filepath.endswith(".parquet")
-            or filepath.endswith(".pq")
+            file_url.endswith(".parquet")
+            or file_url.endswith(".pq")
             or format == "parquet"
         ):
             if columns:
                 kwargs["columns"] = columns
 
-            def reader(*args, **kwargs):
-                if start_time or end_time:
-                    if sys.version_info < (3, 7):
-                        raise ValueError(
-                            f"feature not supported for python version {sys.version_info}"
-                        )
+            reader = self._parquet_reader(
+                df_module, url, file_system, time_column, start_time, end_time
+            )
 
-                    if time_column is None:
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            "When providing start_time or end_time, must provide time_column"
-                        )
-
-                    from storey.utils import find_filters, find_partitions
-
-                    filters = []
-                    partitions_time_attributes = find_partitions(url, file_system)
-
-                    find_filters(
-                        partitions_time_attributes,
-                        start_time,
-                        end_time,
-                        filters,
-                        time_column,
-                    )
-                    kwargs["filters"] = filters
-
-                return df_module.read_parquet(*args, **kwargs)
-
-        elif filepath.endswith(".json") or format == "json":
+        elif file_url.endswith(".json") or format == "json":
+            is_json = True
             reader = df_module.read_json
 
         else:
             raise Exception(f"file type unhandled {url}")
 
-        file_system = self.get_filesystem()
         if file_system:
-            if self.supports_isdir() and file_system.isdir(url) or df_module == dd:
+            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
                 if storage_options:
                     kwargs["storage_options"] = storage_options
-                return reader(url, **kwargs)
+                df = reader(url, **kwargs)
             else:
 
                 file = url
@@ -237,12 +297,26 @@ class DataStore:
                     # support the storage_options parameter.
                     file = file_system.open(url)
 
-                return reader(file, **kwargs)
+                df = reader(file, **kwargs)
+        else:
+            temp_file = tempfile.NamedTemporaryFile(delete=False)
+            self.download(self._join(subpath), temp_file.name)
+            df = reader(temp_file.name, **kwargs)
+            remove(temp_file.name)
 
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        self.download(self._join(subpath), temp_file.name)
-        df = reader(temp_file.name, **kwargs)
-        remove(temp_file.name)
+        if is_json or is_csv:
+            # for parquet file the time filtering is executed in `reader`
+            df = filter_df_start_end_time(
+                df,
+                time_column=time_column,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            if drop_time_column:
+                df.drop(columns=[time_column], inplace=True)
+        if is_json:
+            # for csv and parquet files the columns select is executed in `reader`.
+            df = select_columns_from_df(df, columns=columns)
         return df
 
     def to_dict(self):
@@ -418,22 +492,33 @@ class DataItem:
         columns=None,
         df_module=None,
         format="",
+        time_column=None,
+        start_time=None,
+        end_time=None,
         **kwargs,
     ):
         """return a dataframe object (generated from the dataitem).
 
-        :param columns:   optional, list of columns to select
-        :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
-        :param format:    file format, if not specified it will be deducted from the suffix
+        :param columns:     optional, list of columns to select
+        :param df_module:   optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
+        :param format:      file format, if not specified it will be deducted from the suffix
+        :param start_time:  filters out data before this time
+        :param end_time:    filters out data after this time
+        :param time_column: Store timestamp_key will be used if None.
+                            The results will be filtered by this column and start_time & end_time.
         """
-        return self._store.as_df(
+        df = self._store.as_df(
             self._url,
             self._path,
             columns=columns,
             df_module=df_module,
             format=format,
+            time_column=time_column,
+            start_time=start_time,
+            end_time=end_time,
             **kwargs,
         )
+        return df
 
     def show(self, format=None):
         """show the data object content in Jupyter
@@ -466,6 +551,19 @@ class DataItem:
             display.display(display.Markdown(self.get(encoding="utf-8")))
         else:
             logger.error(f"unsupported show() format {suffix} for {self.url}")
+
+    def get_artifact_type(self) -> Union[str, None]:
+        """
+        Check if the data item represents an Artifact (one of Artifact, DatasetArtifact and ModelArtifact). If it does
+        it return the store uri prefix (artifacts, datasets or models), otherwise None.
+
+        :return: The store prefix of the artifact if it is an artifact data item and None if not.
+        """
+        if self.artifact_url and is_store_uri(url=self.artifact_url):
+            store_uri_prefix = parse_store_uri(self.artifact_url)[0]
+            if StorePrefix.is_artifact(prefix=store_uri_prefix):
+                return store_uri_prefix
+        return None
 
     def __str__(self):
         return self.url

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,11 +20,19 @@ ENV PIP_NO_CACHE_DIR=1
 LABEL maintainer="yaronh@iguazio.com"
 LABEL org="iguazio.com"
 
+# Install docker
+RUN apt-get update -qq >/dev/null \
+    && apt-get install --no-install-recommends -y curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://get.docker.com -o get-docker.sh \
+    && sh ./get-docker.sh
+
+# Install other dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
         apt-transport-https \
         ca-certificates \
-        curl \
         g++ \
+        git \
         git-core \
         gnupg2 \
         graphviz \
@@ -32,12 +40,10 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
-RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
-
-RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
-
-RUN apt update && apt-get install -y docker-ce-cli \
-    && rm -rf /var/lib/apt/lists/*
+# set initial git config
+RUN git config --global user.email "test@mlrun.org" \
+     && git config --global user.name "MLRun Test" \
+     && git config --global init.defaultBranch "main"
 
 ARG MLRUN_PIP_VERSION=22.3.0
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ def captured_output():
 
 
 def test_noparams(db):
+    mlrun.get_or_create_project("default")
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
         params={"input_name": str(input_file_path)}, handler=my_func
@@ -96,12 +97,13 @@ def test_invalid_name():
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
     assert (
-        "Field 'run.metadata.name' is malformed. Does not match required pattern"
+        "Field 'run.metadata.name' is malformed. asd/asd does not match required pattern"
         in str(excinfo.value)
     )
 
 
-def test_with_params():
+def test_with_params(db):
+    mlrun.get_or_create_project("default")
     spec = tag_test(base_spec, "test_with_params")
     result = new_function().run(spec, handler=my_func)
 
@@ -150,7 +152,9 @@ def test_local_runtime_failure_before_executing_the_function_code(db):
         ("func_with_default", {}, {"y": 3, "z": 4}, {"y": 3, "z": 4}),
     ],
 )
-def test_local_runtime_with_kwargs(db, handler_name, params, kwargs, expected_kwargs):
+def test_local_runtime_with_kwargs(
+    rundb_mock, handler_name, params, kwargs, expected_kwargs
+):
     params.update(kwargs)
     function = new_function(command=f"{assets_path}/kwargs.py")
     result = function.run(local=True, params=params, handler=handler_name)
@@ -159,6 +163,7 @@ def test_local_runtime_with_kwargs(db, handler_name, params, kwargs, expected_kw
 
 
 def test_local_runtime_with_kwargs_with_code_to_function(db):
+    mlrun.get_or_create_project("default")
     function = mlrun.code_to_function(
         "kwarg",
         filename=f"{assets_path}/kwargs.py",

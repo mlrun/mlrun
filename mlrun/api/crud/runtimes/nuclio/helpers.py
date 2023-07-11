@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ import urllib.parse
 import semver
 
 import mlrun
+import mlrun.api.utils.clients.nuclio
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.k8s
 import mlrun.runtimes
 from mlrun.utils import logger
@@ -190,7 +192,9 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     try:
         parsed_min_version = semver.VersionInfo.parse(min_version)
         parsed_max_version = semver.VersionInfo.parse(max_version)
-        resolved_nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
+        resolved_nuclio_version = (
+            mlrun.api.utils.runtimes.nuclio.resolve_nuclio_version()
+        )
         parsed_current_version = semver.VersionInfo.parse(resolved_nuclio_version)
     except ValueError:
         logger.warning(

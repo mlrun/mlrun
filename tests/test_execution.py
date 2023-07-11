@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ def test_local_context(rundb_mock):
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
     db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+    assert run["status"]["state"] == "running", "run status not updated in db"
 
     # calls __exit__ and commits the context
     with context:
@@ -48,7 +48,6 @@ def test_local_context(rundb_mock):
     assert context._state == "completed", "task did not complete"
 
     run = db.read_run(context._uid, project=project_name)
-    run = run["struct"]
 
     # run state should not be updated by the context
     assert run["status"]["state"] == "running", "run status was updated in db"
@@ -126,7 +125,7 @@ def test_context_set_state(rundb_mock, state, error, expected_state):
     context = mlrun.get_or_create_ctx("xx", project=project_name, upload_artifacts=True)
     db = mlrun.get_run_db()
     run = db.read_run(context._uid, project=project_name)
-    assert run["struct"]["status"]["state"] == "running", "run status not updated in db"
+    assert run["status"]["state"] == "running", "run status not updated in db"
 
     # calls __exit__ and commits the context
     with context:

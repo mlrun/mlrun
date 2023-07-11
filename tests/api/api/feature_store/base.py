@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,11 +83,17 @@ def _patch_object(
 
 # There will be fields added (uid for example), but we don't allow any other changes
 def _assert_diff_as_expected_except_for_specific_metadata(
-    expected_object, actual_object, allowed_metadata_fields, expected_diff={}
+    expected_object,
+    actual_object,
+    allowed_metadata_fields,
+    expected_diff={},
+    allowed_spec_fields=[],
 ):
     exclude_paths = []
     for field in allowed_metadata_fields:
         exclude_paths.append(f"root['metadata']['{field}']")
+    for field in allowed_spec_fields:
+        exclude_paths.append(f"root['spec']['{field}']")
     diff = DeepDiff(
         expected_object,
         actual_object,

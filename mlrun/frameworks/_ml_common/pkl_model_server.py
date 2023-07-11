@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Any, Dict
+
 import numpy as np
 import pandas as pd
 from cloudpickle import load
@@ -56,3 +58,13 @@ class PickleModelServer(V2ModelServer):
         y_pred: np.ndarray = self.model.predict(x)
 
         return y_pred.tolist()
+
+    def explain(self, request: Dict[str, Any]) -> str:
+        """
+        Returns a string listing the model that is being served in this serving function and the function name.
+
+        :param request: A given request.
+
+        :return: Explanation string.
+        """
+        return f"A model server named '{self.name}'"

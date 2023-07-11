@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -233,7 +233,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
 
-        simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
 
@@ -278,13 +277,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Simulating valid requests
         iris_data = iris["data"].tolist()
-        t_end = monotonic() + simulation_time
-        while monotonic() < t_end:
+
+        for i in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
             )
-            sleep(uniform(0.2, 1.1))
+            sleep(choice([0.01, 0.04]))
 
         # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
@@ -294,6 +293,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
         assert len(endpoint.status.metrics) > 0
+
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"

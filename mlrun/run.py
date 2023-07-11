@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,25 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import functools
-import importlib
 import importlib.util as imputil
-import inspect
 import json
 import os
 import pathlib
-import re
 import socket
 import tempfile
 import time
 import uuid
 import warnings
 from base64 import b64decode
-from collections import OrderedDict
 from copy import deepcopy
 from os import environ, makedirs, path
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import nuclio
 import yaml
@@ -45,6 +40,7 @@ from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
+from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
@@ -62,7 +58,6 @@ from .runtimes import (
     get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
-from .runtimes.package.context_handler import ArtifactType, ContextHandler
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
 from .utils import (
@@ -111,6 +106,12 @@ class RunStatuses(object):
         ]
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.4.0",
+    reason="'run_local' will be removed in 1.6.0, use 'function.run(local=True)' instead",
+    category=FutureWarning,
+)
 def run_local(
     task=None,
     command="",
@@ -162,6 +163,7 @@ def run_local(
                                     (allows to have function which don't depend on having targets,
                                     e.g a function which accepts a feature vector uri and generate
                                      the offline vector e.g. parquet_ for it if it doesn't exist)
+    :param notifications:   list of notifications to push when the run is completed
     :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
                      results). The list's length must be equal to the amount of returning objects. A configuration may
                      be given as:
@@ -550,6 +552,7 @@ def new_function(
     source: str = None,
     requirements: Union[str, List[str]] = None,
     kfp=None,
+    requirements_file: str = "",
 ):
     """Create a new ML function from base properties
 
@@ -590,7 +593,8 @@ def new_function(
                      `http://some/url/file.zip`
                      note path source must exist on the image or exist locally when run is local
                      (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
-    :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param requirements:        a list of python packages, defaults to None
+    :param requirements_file:   path to a python requirements file
     :param kfp:      reserved, flag indicating running within kubeflow pipeline
 
     :return: function object
@@ -646,7 +650,7 @@ def new_function(
         runner.spec.build.source = source
     if handler:
         if kind == RuntimeKinds.serving:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise MLRunInvalidArgumentError(
                 "cannot set the handler for serving runtime"
             )
         elif kind in RuntimeKinds.nuclio_runtimes():
@@ -655,7 +659,11 @@ def new_function(
             runner.spec.default_handler = handler
 
     if requirements:
-        runner.with_requirements(requirements, prepare_image_for_deploy=False)
+        runner.with_requirements(
+            requirements,
+            requirements_file=requirements_file,
+            prepare_image_for_deploy=False,
+        )
 
     runner.prepare_image_for_deploy()
     return runner
@@ -697,6 +705,7 @@ def code_to_function(
     labels: Dict[str, str] = None,
     with_doc: bool = True,
     ignored_tags=None,
+    requirements_file: str = "",
 ) -> Union[
     MpiRuntimeV1Alpha1,
     MpiRuntimeV1,
@@ -750,6 +759,8 @@ def code_to_function(
                          defaults to True
     :param description:  short function description, defaults to ''
     :param requirements: list of python packages or pip requirements file path, defaults to None
+    :param requirements: a list of python packages
+    :param requirements_file: path to a python requirements file
     :param categories:   list of categories for mlrun Function Hub, defaults to None
     :param labels:       immutable name/value pairs to tag the function with useful metadata, defaults to None
     :param with_doc:     indicates whether to document the function parameters, defaults to True
@@ -802,7 +813,7 @@ def code_to_function(
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
 
         if requirements:
-            fn.with_requirements(requirements)
+            fn.with_requirements(requirements, requirements_file=requirements_file)
 
         if embed_code:
             fn.spec.build.functionSourceCode = get_in(
@@ -1337,291 +1348,7 @@ def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
         if timeout and total_time > timeout:
             if silent:
                 break
-            raise mlrun.errors.MLRunTimeoutError(
-                "some runs did not reach terminal state on time"
-            )
+            raise MLRunTimeoutError("some runs did not reach terminal state on time")
         runs = running
 
     return completed
-
-
-def _parse_type_hint(type_hint: Union[Type, str]) -> Type:
-    """
-    Parse a given type hint from string to its actual hinted type class object. The string must be one of the following:
-
-    * Python builtin type - one of ``tuple``, ``list``, ``set``, ``dict`` and ``bytearray``.
-    * Full module import path. An alias is not allowed (if ``import pandas as pd`` is used, the type hint cannot be
-      ``pd.DataFrame`` but ``pandas.DataFrame``).
-
-    The type class on its own (like `DataFrame`) cannot be used as the scope of the decorator is not the same as the
-    handler itself, hence modules and objects that were imported in the handler's scope are not available. This is the
-    same reason import aliases cannot be used as well.
-
-    If the provided type hint is not a string, it will simply be returned as is.
-
-    **Notice**: This method should only run on client side as it dependent on user requirements.
-
-    :param type_hint: The type hint to parse.
-
-    :return: The hinted type.
-
-    :raise MLRunInvalidArgumentError: In case the type hint is not following the 2 options mentioned above.
-    """
-    if not isinstance(type_hint, str):
-        return type_hint
-
-    # TODO: Remove once Packager is implemented (it will support typing hints)
-    # If a typing hint is provided, we return a dummy Union type so the parser will skip the data item:
-    if type_hint.startswith("typing."):
-        return Union[int, str]
-
-    # Validate the type hint is a valid module path:
-    if not bool(
-        re.fullmatch(r"([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*", type_hint)
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Invalid type hint. An input type hint must be a valid python class name or its module import path. For "
-            f"example: 'list', 'pandas.DataFrame', 'numpy.ndarray', 'sklearn.linear_model.LinearRegression'. Type hint "
-            f"given: '{type_hint}'."
-        )
-
-    # Look for a builtin type (rest of the builtin types like `int`, `str`, `float` should be treated as results, hence
-    # not given as an input to an MLRun function, but as a parameter):
-    builtin_types = {
-        tuple.__name__: tuple,
-        list.__name__: list,
-        set.__name__: set,
-        dict.__name__: dict,
-        bytearray.__name__: bytearray,
-    }
-    if type_hint in builtin_types:
-        return builtin_types[type_hint]
-
-    # If it's not a builtin, its should have a full module path:
-    if "." not in type_hint:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun tried to get the type hint '{type_hint}' but it can't as it is not a valid builtin Python type "
-            f"(one of {', '.join(list(builtin_types.keys()))}). Pay attention using only the type as string is not "
-            f"allowed as the handler's scope is different then MLRun's. To properly give a type hint, please specify "
-            f"the full module path. For example: do not use `DataFrame`, use `pandas.DataFrame`."
-        )
-
-    # Import the module to receive the hinted type:
-    try:
-        # Get the module path and the type class (If we'll wish to support inner classes, the `rsplit` won't work):
-        module_path, type_hint = type_hint.rsplit(".", 1)
-        # Replace alias if needed (alias assumed to be imported already, hence we look in globals):
-        # For example:
-        # If in handler scope there was `import A.B.C as abc` and user gave a type hint "abc.Something" then:
-        # `module_path[0]` will be equal to "abc". Then, because it is an alias, it will appear in the globals, so we'll
-        # replace the alias with the full module name in order to import the module.
-        module_path = module_path.split(".")
-        if module_path[0] in globals():
-            module_path[0] = globals()[module_path[0]].__name__
-        module_path = ".".join(module_path)
-        # Import the module:
-        module = importlib.import_module(module_path)
-        # Get the class type from the module:
-        type_hint = getattr(module, type_hint)
-    except ModuleNotFoundError as module_not_found_error:
-        # May be raised from `importlib.import_module` in case the module does not exist.
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun tried to get the type hint '{type_hint}' but the module '{module_path}' cannot be imported. "
-            f"Keep in mind that using alias in the module path (meaning: import module as alias) is not allowed. "
-            f"If the module path is correct, please make sure the module package is installed in the python "
-            f"interpreter."
-        ) from module_not_found_error
-    except AttributeError as attribute_error:
-        # May be raised from `getattr(module, type_hint)` in case the class type cannot be imported directly from the
-        # imported module.
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"MLRun tried to get the type hint '{type_hint}' from the module '{module.__name__}' but it seems it "
-            f"doesn't exist. Make sure the class can be imported from the module with the exact module path you "
-            f"passed. Notice inner classes (a class inside of a class) are not supported."
-        ) from attribute_error
-
-    return type_hint
-
-
-def _parse_log_hint(
-    log_hint: Union[Dict[str, str], str, None]
-) -> Union[Dict[str, str], None]:
-    """
-    Parse a given log hint from string to a logging configuration dictionary. The string will be read as the artifact
-    key ('key' in the dictionary) and if the string have a single colon, the following structure is assumed:
-    "<artifact_key> : <artifact_type>". The artifact type must be on of the values of `ArtifactType`'s enum.
-
-    If a logging configuration dictionary is received, it will be validated to have a key field and valid artifact type
-    value.
-
-    None will be returned as None.
-
-    :param log_hint: The log hint to parse.
-
-    :return: The hinted logging configuration.
-
-    :raise MLRunInvalidArgumentError: In case the log hint is not following the string structure, the artifact type is
-                                      not valid or the dictionary is missing the key field.
-    """
-    # Check for None value:
-    if log_hint is None:
-        return None
-
-    # If the log hint was provided as a string, construct a dictionary out of it:
-    if isinstance(log_hint, str):
-        # Check if only key is given:
-        if ":" not in log_hint:
-            log_hint = {"key": log_hint}
-        # Check for valid "<key> : <artifact type>" pattern:
-        else:
-            if log_hint.count(":") > 1:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Incorrect log hint pattern. Output keys can have only a single ':' in them to specify the "
-                    f"desired artifact type the returned value will be logged as: '<artifact_key> : <artifact_type>', "
-                    f"but given: {log_hint}"
-                )
-            # Split into key and type:
-            key, artifact_type = log_hint.replace(" ", "").split(":")
-            log_hint = {"key": key, "artifact_type": artifact_type}
-
-    # TODO: Replace with constants keys once mlrun.package is implemented.
-    # Validate the log hint dictionary has the mandatory key:
-    if "key" not in log_hint:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"An output log hint dictionary must include the 'key' - the artifact key (it's name). The following "
-            f"log hint is missing the key: {log_hint}."
-        )
-
-    # Validate the artifact type is valid:
-    if "artifact_type" in log_hint:
-        valid_artifact_types = [t.value for t in ArtifactType.__members__.values()]
-        if log_hint["artifact_type"] not in valid_artifact_types:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"The following artifact type '{log_hint['artifact_type']}' is not a valid `ArtifactType`. "
-                f"Please select one of the following: {','.join(valid_artifact_types)}"
-            )
-
-    return log_hint
-
-
-def handler(
-    labels: Dict[str, str] = None,
-    outputs: List[Union[str, Dict[str, str]]] = None,
-    inputs: Union[bool, Dict[str, Union[str, Type]]] = True,
-):
-    """
-    MLRun's handler is a decorator to wrap a function and enable setting labels, automatic `mlrun.DataItem` parsing and
-    outputs logging.
-
-    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
-    :param outputs: Logging configurations for the function's returned values. Expecting a list of tuples and None
-                    values:
-
-                    * str - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it will
-                      indicate the key and the artifact type will be according to the returned value type. The artifact
-                      types can be one of: "dataset", "directory", "file", "object", "plot" and "result".
-
-                    * Dict[str, str] - A dictionary of logging configuration. the key 'key' is mandatory for the logged
-                      artifact key.
-
-                    * None - Do not log the output.
-
-                    The list length must be equal to the total amount of returned values from the function. Default is
-                    None - meaning no outputs will be logged.
-
-    :param inputs: Parsing configurations for the arguments passed as inputs via the `run` method of an MLRun function.
-                   Can be passed as a boolean value or a dictionary:
-
-                   * True - Parse all found inputs to the assigned type hint in the function's signature. If there is no
-                     type hint assigned, the value will remain an `mlrun.DataItem`.
-                   * False - Do not parse inputs, leaving the inputs as `mlrun.DataItem`.
-                   * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
-                     the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
-
-                   **Notice**: Type hints from the `typing` module (e.g. `typing.Optional`, `typing.Union`,
-                   `typing.List` etc.) are currently not supported but will be in the future.
-
-                   Default: True.
-
-    Example::
-
-            import mlrun
-
-            @mlrun.handler(outputs=["my_array", None, "my_multiplier"])
-            def my_handler(array: np.ndarray, m: int):
-                array = array * m
-                m += 1
-                return array, "I won't be logged", m
-
-            >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
-            >>> run_object = mlrun_function.run(
-            ...     handler="my_handler",
-            ...     inputs={"array": "store://my_array_Artifact"},
-            ...     params={"m": 2}
-            ... )
-            >>> run_object.outputs
-            {'my_multiplier': 3, 'my_array': 'store://...'}
-    """
-
-    def decorator(func: Callable):
-        def wrapper(*args: tuple, **kwargs: dict):
-            nonlocal labels
-            nonlocal outputs
-            nonlocal inputs
-
-            # Set default `inputs` - inspect the full signature and add the user's input on top of it:
-            if inputs:
-                # Get the available parameters type hints from the function's signature:
-                func_signature = inspect.signature(func)
-                parameters = OrderedDict(
-                    {
-                        parameter.name: parameter.annotation
-                        for parameter in func_signature.parameters.values()
-                    }
-                )
-                # If user input is given, add it on top of the collected defaults (from signature), strings type hints
-                # will be parsed to their actual types:
-                if isinstance(inputs, dict):
-                    parameters.update(
-                        {
-                            parameter_name: _parse_type_hint(type_hint=type_hint)
-                            for parameter_name, type_hint in inputs.items()
-                        }
-                    )
-                inputs = parameters
-
-            # Create a context handler and look for a context:
-            context_handler = ContextHandler()
-            context_handler.look_for_context(args=args, kwargs=kwargs)
-
-            # If an MLRun context is found, parse arguments pre-run (kwargs are parsed inplace):
-            if context_handler.is_context_available() and inputs:
-                args = context_handler.parse_inputs(
-                    args=args, kwargs=kwargs, type_hints=inputs
-                )
-
-            # Call the original function and get the returning values:
-            func_outputs = func(*args, **kwargs)
-
-            # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
-            if context_handler.is_context_available():
-                if labels:
-                    context_handler.set_labels(labels=labels)
-                if outputs:
-                    context_handler.log_outputs(
-                        outputs=func_outputs
-                        if isinstance(func_outputs, tuple)
-                        else [func_outputs],
-                        log_hints=[
-                            _parse_log_hint(log_hint=log_hint) for log_hint in outputs
-                        ],
-                    )
-                    return  # Do not return any values as the returning values were logged to MLRun.
-            return func_outputs
-
-        # Make sure to pass the wrapped function's signature (argument list, type hints and doc strings) to the wrapper:
-        wrapper = functools.wraps(func)(wrapper)
-
-        return wrapper
-
-    return decorator

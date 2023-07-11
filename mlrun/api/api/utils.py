@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
@@ -224,12 +225,12 @@ def mask_notification_params_on_task(task):
 
 
 def mask_notification_params_with_secret(
-    project: str, run_uid: str, notification_object: mlrun.model.Notification
+    project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
     if notification_object.params and "secret" not in notification_object.params:
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
-            run_uid,
+            parent,
             notification_object.name,
         )
         mlrun.api.crud.Secrets().store_project_secrets(
@@ -245,14 +246,43 @@ def mask_notification_params_with_secret(
     return notification_object
 
 
-def unmask_notification_params_secret_on_task(run):
+def unmask_notification_params_secret_on_task(
+    db: mlrun.api.db.base.DBInterface,
+    db_session: Session,
+    run: typing.Union[dict, mlrun.model.RunObject],
+):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
 
-    run.spec.notifications = [
-        unmask_notification_params_secret(run.metadata.project, notification)
-        for notification in run.spec.notifications
-    ]
+    notifications = []
+    for notification in run.spec.notifications:
+        invalid_notifications = []
+        try:
+            notifications.append(
+                unmask_notification_params_secret(run.metadata.project, notification)
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to unmask notification params, notification will not be sent",
+                project=run.metadata.project,
+                run_uid=run.metadata.uid,
+                notification=notification.name,
+                exc=err_to_str(exc),
+            )
+            # set error status in order to later save the db
+            notification.status = mlrun.common.schemas.NotificationStatus.ERROR
+            invalid_notifications.append(notification)
+
+        if invalid_notifications:
+            db.store_run_notifications(
+                db_session,
+                invalid_notifications,
+                run.metadata.uid,
+                run.metadata.project,
+            )
+
+    run.spec.notifications = notifications
+
     return run
 
 
@@ -304,6 +334,51 @@ def delete_notification_params_secret(
         allow_internal_secrets=True,
         allow_secrets_from_k8s=True,
     )
+
+
+def validate_and_mask_notification_list(
+    notifications: typing.List[
+        typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
+    ],
+    parent: str,
+    project: str,
+) -> typing.List[mlrun.model.Notification]:
+    """
+    Validates notification schema, uniqueness and masks notification params with secret if needed.
+    If at least one of the validation steps fails, the function will raise an exception and cause the API to return
+    an error response.
+    :param notifications: list of notification objects
+    :param parent: parent identifier
+    :param project: project name
+    :return: list of validated and masked notification objects
+    """
+    notification_objects = []
+
+    for notification in notifications:
+        if isinstance(notification, dict):
+            notification_object = mlrun.model.Notification.from_dict(notification)
+        elif isinstance(notification, mlrun.common.schemas.Notification):
+            notification_object = mlrun.model.Notification.from_dict(
+                notification.dict()
+            )
+        elif isinstance(notification, mlrun.model.Notification):
+            notification_object = notification
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "notification must be a dict or a Notification object"
+            )
+
+        # validate notification schema
+        mlrun.common.schemas.Notification(**notification_object.to_dict())
+
+        notification_objects.append(notification_object)
+
+    mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
+
+    return [
+        mask_notification_params_with_secret(project, parent, notification_object)
+        for notification_object in notification_objects
+    ]
 
 
 def apply_enrichment_and_validation_on_function(

@@ -1,4 +1,4 @@
-# Copyright 2022 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,12 +99,12 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             engine.dispose()
 
     @pytest.mark.parametrize(
-        "source_name, key, time_fields",
+        "source_name, key, parse_dates",
         [("stocks", "ticker", None), ("trades", "ind", ["time"])],
     )
     @pytest.mark.parametrize("fset_engine", ["pandas", "storey"])
     def test_sql_source_basic(
-        self, source_name: str, key: str, time_fields: List[str], fset_engine: str
+        self, source_name: str, key: str, parse_dates: List[str], fset_engine: str
     ):
         from sqlalchemy_utils import create_database, database_exists
 
@@ -123,7 +123,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         source = SQLSource(
             table_name=source_name,
             key_field=key,
-            time_fields=time_fields,
+            parse_dates=parse_dates,
         )
 
         feature_set = fs.FeatureSet(
@@ -162,7 +162,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         source = SQLSource(
             table_name=source_name,
             key_field=key,
-            time_fields=["time"] if source_name == "quotes" else None,
+            parse_dates=["time"] if source_name == "quotes" else None,
         )
         feature_set = fs.FeatureSet(
             f"fs-{source_name}", entities=[fs.Entity(key)], engine=fset_engine
@@ -206,7 +206,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             )
 
         # test source
-        source = SQLSource(table_name=source_name, key_field=key, time_fields=["time"])
+        source = SQLSource(table_name=source_name, key_field=key, parse_dates=["time"])
         feature_set = fs.FeatureSet(f"fs-{source_name}", entities=[fs.Entity(key)])
         feature_set.add_aggregation(
             aggr_col, ["sum", "max"], "1h", "10m", name=f"{aggr_col}1"
@@ -238,7 +238,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
-            time_fields=["time"],
+            parse_dates=["time"],
         )
         feature_set = fs.FeatureSet(
             f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
@@ -271,7 +271,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             table_name=target_name,
             create_table=False,
             primary_key_column=key,
-            time_fields=["time"] if target_name == "trades" else None,
+            parse_dates=["time"] if target_name == "trades" else None,
         )
         feature_set = fs.FeatureSet(
             f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
@@ -299,7 +299,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
-            time_fields=["time"],
+            parse_dates=["time"],
         )
         feature_set = fs.FeatureSet(
             f"fs-{target_name}-tr", entities=[fs.Entity(key)], engine=fset_engine
@@ -349,7 +349,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         source = SQLSource(
             table_name=table_name,
             key_field=key,
-            time_fields=["time"] if name == "trades" else None,
+            parse_dates=["time"] if name == "trades" else None,
         )
 
         target = SQLTarget(
@@ -357,7 +357,7 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
             create_table=True,
             schema=schema,
             primary_key_column=key,
-            time_fields=["time"] if name == "trades" else None,
+            parse_dates=["time"] if name == "trades" else None,
         )
 
         targets = [target]

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,6 +118,74 @@ async def create_pipeline(
     return response
 
 
+@router.get("/{run_id}")
+async def get_pipeline(
+    run_id: str,
+    project: str,
+    namespace: str = Query(config.namespace),
+    format_: mlrun.common.schemas.PipelinesFormat = Query(
+        mlrun.common.schemas.PipelinesFormat.summary, alias="format"
+    ),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+):
+    pipeline = await run_in_threadpool(
+        mlrun.api.crud.Pipelines().get_pipeline,
+        db_session,
+        run_id,
+        project,
+        namespace,
+        format_,
+    )
+    if project == "*":
+        # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for
+        # backwards compatibility reasons), so the client will just send * in the project, in that case we use the
+        # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
+        # we don't use the return value from this function since the user may have asked for a different format than
+        # summary which is the one used inside
+        await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
+    else:
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+            project,
+            run_id,
+            mlrun.common.schemas.AuthorizationAction.read,
+            auth_info,
+        )
+    return pipeline
+
+
+async def _get_pipeline_without_project(
+    db_session: Session,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    run_id: str,
+    namespace: str,
+):
+    """
+    This function is for when we receive a get pipeline request without the client specifying the project
+    So we first get the pipeline, resolve the project out of it, and now that we know the project, we can verify
+    permissions
+    """
+    run = await run_in_threadpool(
+        mlrun.api.crud.Pipelines().get_pipeline,
+        db_session,
+        run_id,
+        namespace=namespace,
+        # minimal format that includes the project
+        format_=mlrun.common.schemas.PipelinesFormat.summary,
+    )
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
+        run["run"]["project"],
+        run["run"]["id"],
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    return run
+
+
 async def _create_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo,
     request: Request,
@@ -196,66 +264,3 @@ def _try_resolve_project_from_body(
     return mlrun.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         workflow_manifest
     )
-
-
-@router.get("/{run_id}")
-async def get_pipeline(
-    run_id: str,
-    project: str,
-    namespace: str = Query(config.namespace),
-    format_: mlrun.common.schemas.PipelinesFormat = Query(
-        mlrun.common.schemas.PipelinesFormat.summary, alias="format"
-    ),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    pipeline = mlrun.api.crud.Pipelines().get_pipeline(
-        db_session, run_id, project, namespace, format_
-    )
-    if project == "*":
-        # In some flows the user may use SDK functions that won't require them to specify the pipeline's project (for
-        # backwards compatibility reasons), so the client will just send * in the project, in that case we use the
-        # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
-        # we don't use the return value from this function since the user may have asked for a different format than
-        # summary which is the one used inside
-        await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
-    else:
-        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-            project,
-            run_id,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-    return pipeline
-
-
-async def _get_pipeline_without_project(
-    db_session: Session,
-    auth_info: mlrun.common.schemas.AuthInfo,
-    run_id: str,
-    namespace: str,
-):
-    """
-    This function is for when we receive a get pipeline request without the client specifying the project
-    So we first get the pipeline, resolve the project out of it, and now that we know the project, we can verify
-    permissions
-    """
-    run = await run_in_threadpool(
-        mlrun.api.crud.Pipelines().get_pipeline,
-        db_session,
-        run_id,
-        namespace=namespace,
-        # minimal format that includes the project
-        format_=mlrun.common.schemas.PipelinesFormat.summary,
-    )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
-        run["run"]["project"],
-        run["run"]["id"],
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-    return run

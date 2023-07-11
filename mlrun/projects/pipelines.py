@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -831,8 +831,11 @@ class _RemoteRunner(_PipelineRunner):
         )
         if "://" not in current_source:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"remote workflows can only be performed by a project with remote source,"
-                f" the given source '{current_source}' is not remote"
+                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
+                f" but the specified source '{current_source}' is not remote. "
+                f"Either put your code in Git, or archive it and then set a source to it."
+                f" For more details, read"
+                f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
             )
 
         # Creating the load project and workflow running function:
@@ -934,7 +937,11 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     if not handler and hasattr(mod, "pipeline"):
         handler = "pipeline"
     if not handler or not hasattr(mod, handler):
-        raise ValueError(f"pipeline function ({handler or 'pipeline'}) not found")
+        raise ValueError(
+            f"'workflow_handler' is not defined. "
+            f"Either provide it as set_workflow argument, or include a function named"
+            f" '{handler or 'pipeline'}' in your workflow .py file."
+        )
 
     return getattr(mod, handler)
 

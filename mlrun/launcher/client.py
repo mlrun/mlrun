@@ -19,21 +19,21 @@ from typing import Optional
 import IPython
 
 import mlrun.errors
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
 from mlrun.utils import logger
 
 
-class ClientBaseLauncher(mlrun.launcher.base.BaseLauncher, abc.ABC):
+class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     """
     Abstract class for common code between client launchers
     """
 
     @staticmethod
-    def _enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project: Optional[str] = ""
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()

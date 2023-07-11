@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     path_with_query_string = uvicorn.protocols.utils.get_path_with_query_string(
         request.scope
     )
+    request.state.request_id = request_id
     start_time = time.perf_counter_ns()
     if not any(
         silent_logging_path in path_with_query_string

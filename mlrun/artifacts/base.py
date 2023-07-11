@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -83,6 +83,7 @@ class ArtifactSpec(ModelObj):
         "size",
         "db_key",
         "extra_data",
+        "unpackaging_instructions",
     ]
 
     _extra_fields = ["annotations", "producer", "sources", "license", "encoding"]
@@ -98,6 +99,7 @@ class ArtifactSpec(ModelObj):
         db_key=None,
         extra_data=None,
         body=None,
+        unpackaging_instructions: dict = None,
     ):
         self.src_path = src_path
         self.target_path = target_path
@@ -107,6 +109,7 @@ class ArtifactSpec(ModelObj):
         self.size = size
         self.db_key = db_key
         self.extra_data = extra_data or {}
+        self.unpackaging_instructions = unpackaging_instructions
 
         self._body = body
         self.encoding = None
@@ -1024,7 +1027,10 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
     suffix = "/"
     if not item.is_dir:
-        suffix = os.path.splitext(item.src_path or "")[1]
+
+        # suffixes yields a list of suffixes, e.g. ['.tar', '.gz']
+        # join them together to get the full suffix, e.g. '.tar.gz'
+        suffix = "".join(pathlib.Path(item.src_path or "").suffixes)
         if not suffix and item.format:
             suffix = f".{item.format}"
 

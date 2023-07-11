@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -866,6 +866,85 @@ def test_builder_source(monkeypatch, source, expectation):
             expected_line_index = 2
 
         assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
+
+
+@pytest.mark.parametrize(
+    "requirements, commands, with_mlrun, mlrun_version_specifier, client_version, expected_commands, "
+    "expected_requirements_list, expected_requirements_path",
+    [
+        ([], [], False, None, None, [], [], ""),
+        (
+            [],
+            [],
+            True,
+            None,
+            None,
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"],
+            "/empty/requirements.txt",
+        ),
+        (
+            [],
+            ["some command"],
+            True,
+            "mlrun~=1.4",
+            None,
+            [
+                "some command",
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}",
+            ],
+            ["mlrun~=1.4"],
+            "/empty/requirements.txt",
+        ),
+        (
+            [],
+            [],
+            True,
+            "",
+            "1.4.0",
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete]==1.4.0"],
+            "/empty/requirements.txt",
+        ),
+        (
+            ["pandas"],
+            [],
+            True,
+            "",
+            "1.4.0",
+            [
+                f"python -m pip install --upgrade pip{mlrun.config.config.httpdb.builder.pip_version}"
+            ],
+            ["mlrun[complete]==1.4.0", "pandas"],
+            "/empty/requirements.txt",
+        ),
+        (["pandas"], [], False, "", "1.4.0", [], ["pandas"], "/empty/requirements.txt"),
+    ],
+)
+def test_resolve_build_requirements(
+    requirements,
+    commands,
+    with_mlrun,
+    mlrun_version_specifier,
+    client_version,
+    expected_commands,
+    expected_requirements_list,
+    expected_requirements_path,
+):
+    (
+        commands,
+        requirements_list,
+        requirements_path,
+    ) = mlrun.api.utils.builder._resolve_build_requirements(
+        requirements, commands, with_mlrun, mlrun_version_specifier, client_version
+    )
+    assert commands == expected_commands
+    assert requirements_list == expected_requirements_list
+    assert requirements_path == expected_requirements_path
 
 
 def _get_target_image_from_create_pod_mock():

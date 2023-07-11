@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
@@ -500,16 +499,16 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project="", iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
@@ -518,6 +517,7 @@ class HTTPRunDB(RunDBInterface):
             uid,
             project,
             iter,
+            timeout,
         )
 
     def read_run(self, uid, project="", iter=0):
@@ -736,8 +736,9 @@ class HTTPRunDB(RunDBInterface):
             # Show artifacts with label filters - both uploaded and of binary type
             result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
@@ -1473,21 +1474,17 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        try:
-            params = {}
-            if namespace:
-                params["namespace"] = namespace
-            params["format"] = format_
-            project_path = project if project else "*"
-            resp = self.api_call(
-                "GET",
-                f"projects/{project_path}/pipelines/{run_id}",
-                params=params,
-                timeout=timeout,
-            )
-        except OSError as err:
-            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+        params["format"] = format_
+        project_path = project if project else "*"
+        resp = self.api_call(
+            "GET",
+            f"projects/{project_path}/pipelines/{run_id}",
+            params=params,
+            timeout=timeout,
+        )
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -3014,6 +3011,56 @@ class HTTPRunDB(RunDBInterface):
                 background_task.metadata.name
             )
         return None
+
+    def set_run_notifications(
+        self,
+        project: str,
+        run_uid: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a run. This will override any existing notifications on the run.
+        :param project: Project containing the run.
+        :param run_uid: UID of the run.
+        :param notifications: List of notifications to set on the run. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/runs/{run_uid}/notifications",
+            f"Failed to set notifications on run. uid={run_uid}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
+
+    def set_schedule_notifications(
+        self,
+        project: str,
+        schedule_name: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a schedule. This will override any existing notifications on the schedule.
+        :param project: Project containing the schedule.
+        :param schedule_name: Name of the schedule.
+        :param notifications: List of notifications to set on the schedule. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            f"Failed to set notifications on schedule. schedule={schedule_name}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
 
 
 def _as_json(obj):

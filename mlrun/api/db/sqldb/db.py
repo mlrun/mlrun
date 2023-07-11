@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -82,7 +82,6 @@ from mlrun.utils import (
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 conflict_messages = [
@@ -1390,7 +1389,7 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
-        logger.debug("Creating project in DB", project=project)
+        logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.utcnow()
         project.metadata.created = created
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
@@ -1411,7 +1410,14 @@ class SQLDB(DBInterface):
     def store_project(
         self, session: Session, name: str, project: mlrun.common.schemas.Project
     ):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug(
+            "Storing project in DB",
+            name=name,
+            project_metadata=project.metadata,
+            project_owner=project.spec.owner,
+            project_desired_state=project.spec.desired_state,
+            project_status=project.status,
+        )
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1743,7 +1749,7 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
-    ) -> Project:
+    ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
@@ -2286,7 +2292,6 @@ class SQLDB(DBInterface):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
-
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 
@@ -2451,7 +2456,6 @@ class SQLDB(DBInterface):
         )
 
         db_feature_set = FeatureSet(project=project)
-
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
@@ -2916,7 +2920,7 @@ class SQLDB(DBInterface):
         return self._add_labels_filter(session, query, Run, labels)
 
     def _get_db_notifications(
-        self, session, cls, name: str = None, parent_id: int = None, project: str = None
+        self, session, cls, name: str = None, parent_id: str = None, project: str = None
     ):
         return self._query(
             session, cls.Notification, name=name, parent_id=parent_id, project=project
@@ -3685,6 +3689,12 @@ class SQLDB(DBInterface):
             )
         }
         notifications = []
+        logger.debug(
+            "Storing notifications",
+            notifications_length=len(notification_objects),
+            parent_id=parent_id,
+            project=project,
+        )
         for notification_model in notification_objects:
             new_notification = False
             notification = db_notifications.get(notification_model.name, None)
@@ -3709,6 +3719,7 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
                 notification_name=notification.name,
+                notification_status=notification.status,
                 parent_id=parent_id,
                 project=project,
             )
@@ -3764,3 +3775,45 @@ class SQLDB(DBInterface):
 
         if commit:
             session.commit()
+
+    def set_run_notifications(
+        self,
+        session: Session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifier: mlrun.common.schemas.RunIdentifier,
+        **kwargs,
+    ):
+        """
+        Set notifications for a run. This will replace any existing notifications.
+        :param session: SQLAlchemy session
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param identifier: Run identifier
+        :param kwargs: Ignored additional arguments (for interfacing purposes)
+        """
+        run = self._get_run(session, identifier.uid, project, None)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: project={project}, uid={identifier.uid}"
+            )
+
+        run.struct.setdefault("spec", {})["notifications"] = [
+            notification.to_dict() for notification in notifications
+        ]
+
+        # update run, delete and store notifications all in one transaction.
+        # using session.add instead of upsert, so we don't commit the run.
+        # the commit will happen at the end (in store_run_notifications, or manually at the end).
+        session.add(run)
+        self.delete_run_notifications(
+            session, run_uid=run.uid, project=project, commit=False
+        )
+        if notifications:
+            self.store_run_notifications(
+                session,
+                notification_objects=notifications,
+                run_uid=run.uid,
+                project=project,
+            )
+        self._commit(session, [run], ignore=True)

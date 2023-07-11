@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -463,15 +463,25 @@ class MLClientCtx(object):
     def _load_project_object(self):
         if not self._project_object:
             if not self._project:
-                self.logger.warning("get_project_param called without a project name")
+                self.logger.warning(
+                    "Project cannot be loaded without a project name set in the context"
+                )
                 return None
             if not self._rundb:
                 self.logger.warning(
-                    "cannot retrieve project parameters - MLRun DB is not accessible"
+                    "Cannot retrieve project data - MLRun DB is not accessible"
                 )
                 return None
             self._project_object = self._rundb.get_project(self._project)
         return self._project_object
+
+    def get_project_object(self):
+        """
+        Get the MLRun project object by the project name set in the context.
+
+        :return: The project object or None if it couldn't be retrieved.
+        """
+        return self._load_project_object()
 
     def get_project_param(self, key: str, default=None):
         """get a parameter from the run's project's parameters"""

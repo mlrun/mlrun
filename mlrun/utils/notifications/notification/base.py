@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import typing
 
 import mlrun.common.schemas
@@ -30,6 +31,10 @@ class NotificationBase:
     @property
     def active(self) -> bool:
         return True
+
+    @property
+    def is_async(self) -> bool:
+        return asyncio.iscoroutinefunction(self.push)
 
     def push(
         self,

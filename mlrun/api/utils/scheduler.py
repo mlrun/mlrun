@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
@@ -137,6 +138,9 @@ class Scheduler:
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
+
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+
         get_db().create_schedule(
             db_session,
             project,
@@ -210,6 +214,8 @@ class Scheduler:
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+
         get_db().update_schedule(
             db_session,
             project,
@@ -277,7 +283,7 @@ class Scheduler:
         name: str,
     ):
         logger.debug("Deleting schedule", project=project, name=name)
-        self._remove_schedule_scheduler_resources(project, name)
+        self._remove_schedule_scheduler_resources(db_session, project, name)
         get_db().delete_schedule(db_session, project, name)
 
     @mlrun.api.utils.helpers.ensure_running_on_chief
@@ -292,15 +298,18 @@ class Scheduler:
         )
         logger.debug("Deleting schedules", project=project)
         for schedule in schedules.schedules:
-            self._remove_schedule_scheduler_resources(schedule.project, schedule.name)
+            self._remove_schedule_scheduler_resources(
+                db_session, schedule.project, schedule.name
+            )
         get_db().delete_schedules(db_session, project)
 
-    def _remove_schedule_scheduler_resources(self, project, name):
+    def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
         self._remove_schedule_from_scheduler(project, name)
         # This is kept for backwards compatibility - if schedule was using the "old" format of storing secrets, then
         # this is a good opportunity to remove them. Using the new method we don't remove secrets since they are per
         # access-key and there may be other entities (runtimes, for example) using the same secret.
         self._remove_schedule_secrets(project, name)
+        self._remove_schedule_notification_secrets(db_session, project, name)
 
     def _remove_schedule_from_scheduler(self, project, name):
         job_id = self._resolve_job_id(project, name)
@@ -336,6 +345,33 @@ class Scheduler:
             auth_info,
         )
         return await function(*args, **kwargs)
+
+    @mlrun.api.utils.helpers.ensure_running_on_chief
+    def set_schedule_notifications(
+        self,
+        session: Session,
+        project: str,
+        identifier: mlrun.common.schemas.ScheduleIdentifier,
+        notifications: List[mlrun.model.Notification],
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ):
+        """
+        Set notifications for a schedule. This will replace any existing notifications.
+        :param session: DB session
+        :param project: Project name
+        :param identifier: Schedule identifier
+        :param notifications: List of notifications to set
+        :param auth_info: Authorization info
+        """
+        name = identifier.name
+        logger.debug("Setting schedule notifications", project=project, name=name)
+        db_schedule = get_db().get_schedule(session, project, name)
+        scheduled_object = db_schedule.scheduled_object
+        if scheduled_object:
+            scheduled_object.get("task", {}).get("spec", {})["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+        self.update_schedule(session, auth_info, project, name, scheduled_object)
 
     def _ensure_auth_info_has_access_key(
         self,
@@ -594,7 +630,7 @@ class Scheduler:
                     delta=second_next_run_time - next_run_time,
                 )
                 raise ValueError(
-                    f"Cron trigger too frequent. no more then one job "
+                    f"Cron trigger too frequent. no more than one job "
                     f"per {self._min_allowed_interval} is allowed"
                 )
 
@@ -854,6 +890,55 @@ class Scheduler:
         :return: returns the identifier that will be used inside the APScheduler
         """
         return self._job_id_separator.join([project, name])
+
+    @staticmethod
+    def _enrich_schedule_notifications(
+        project: str, schedule_name: str, scheduled_object: Union[Dict, Callable]
+    ):
+        if not isinstance(scheduled_object, dict):
+            return
+
+        schedule_notifications = (
+            scheduled_object.get("task", {}).get("spec", {}).get("notifications")
+        )
+        if schedule_notifications:
+            scheduled_object["task"]["spec"]["notifications"] = [
+                notification.to_dict()
+                for notification in mlrun.api.api.utils.validate_and_mask_notification_list(
+                    schedule_notifications, schedule_name, project
+                )
+            ]
+
+    @staticmethod
+    def _remove_schedule_notification_secrets(
+        db_session: Session, project: str, schedule_name: str
+    ):
+        try:
+            db_schedule = get_db().get_schedule(
+                db_session,
+                project,
+                schedule_name,
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # we allow deleting a schedule even if it does not exist in the DB
+            logger.debug(
+                "Failed to find schedule. Continuing",
+                project=project,
+                schedule_name=schedule_name,
+            )
+            return
+
+        if db_schedule and isinstance(db_schedule.scheduled_object, dict):
+            notifications = (
+                db_schedule.scheduled_object.get("task", {})
+                .get("spec", {})
+                .get("notifications")
+            )
+            if notifications:
+                for notification in notifications:
+                    mlrun.api.api.utils.delete_notification_params_secret(
+                        project, mlrun.model.Notification.from_dict(notification)
+                    )
 
     @staticmethod
     async def submit_run_wrapper(

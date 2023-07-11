@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,6 +117,7 @@ class ServingSpec(NuclioSpec):
         function_kind=None,
         service_account=None,
         readiness_timeout=None,
+        readiness_timeout_before_failure=None,
         models=None,
         graph=None,
         parameters=None,
@@ -168,6 +169,7 @@ class ServingSpec(NuclioSpec):
             function_kind=serving_subkind,
             service_account=service_account,
             readiness_timeout=readiness_timeout,
+            readiness_timeout_before_failure=readiness_timeout_before_failure,
             build=build,
             node_name=node_name,
             node_selector=node_selector,

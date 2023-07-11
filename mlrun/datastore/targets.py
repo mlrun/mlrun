@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import os
 import random
 import sys
 import time
+import warnings
 from collections import Counter
 from copy import copy
 from typing import Any, Dict, List, Optional, Union
@@ -35,7 +36,13 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
-from .utils import parse_kafka_url, store_path_to_spark
+from .utils import (
+    _generate_sql_query_with_time_filter,
+    filter_df_start_end_time,
+    parse_kafka_url,
+    select_columns_from_df,
+    store_path_to_spark,
+)
 
 
 class TargetTypes:
@@ -75,11 +82,12 @@ def default_target_names():
     return [target.strip() for target in targets.split(",")]
 
 
-def get_default_targets():
+def get_default_targets(offline_only=False):
     """initialize the default feature set targets list"""
     return [
         DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
         for target in default_target_names()
+        if not offline_only or not target == "nosql"
     ]
 
 
@@ -987,6 +995,9 @@ class CSVTarget(BaseStoreTarget):
             df_module=df_module,
             entities=entities,
             format="csv",
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
             **kwargs,
         )
         if entities:
@@ -1474,7 +1485,15 @@ class DFTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        return self._df
+        return select_columns_from_df(
+            filter_df_start_end_time(
+                self._df,
+                time_column=time_column,
+                start_time=start_time,
+                end_time=end_time,
+            ),
+            columns,
+        )
 
 
 class SQLTarget(BaseStoreTarget):
@@ -1505,14 +1524,15 @@ class SQLTarget(BaseStoreTarget):
         # create_according_to_data: bool = False,
         time_fields: List[str] = None,
         varchar_len: int = 50,
+        parse_dates: List[str] = None,
     ):
         """
         Write to SqlDB as output target for a flow.
         example::
-             db_path = "sqlite:///stockmarket.db"
+             db_url = "sqlite:///stockmarket.db"
              schema = {'time': datetime.datetime, 'ticker': str,
                     'bid': float, 'ask': float, 'ind': int}
-             target = SqlDBTarget(table_name=f'{name}-tatget', db_path=db_path, create_table=True,
+             target = SqlDBTarget(table_name=f'{name}-target', db_url=db_url, create_table=True,
                                    schema=schema, primary_key_column=key)
         :param name:
         :param path:
@@ -1542,8 +1562,17 @@ class SQLTarget(BaseStoreTarget):
         :param create_according_to_data:    (not valid)
         :param time_fields :    all the field to be parsed as timestamp.
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
+        :param parse_dates :    all the field to be parsed as timestamp.
         """
         create_according_to_data = False  # TODO: open for user
+        if time_fields:
+            warnings.warn(
+                "'time_fields' is deprecated, use 'parse_dates' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
+            parse_dates = time_fields
         db_url = db_url or mlrun.mlconf.sql.url
         if db_url is None or table_name is None:
             attr = {}
@@ -1556,7 +1585,7 @@ class SQLTarget(BaseStoreTarget):
                 "db_path": db_url,
                 "create_according_to_data": create_according_to_data,
                 "if_exists": if_exists,
-                "time_fields": time_fields,
+                "parse_dates": parse_dates,
                 "varchar_len": varchar_len,
             }
             path = (
@@ -1643,17 +1672,24 @@ class SQLTarget(BaseStoreTarget):
     ):
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
+        parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
+            query, parse_dates = _generate_sql_query_with_time_filter(
+                table_name=table_name,
+                engine=engine,
+                time_column=time_column,
+                parse_dates=parse_dates,
+                start_time=start_time,
+                end_time=end_time,
+            )
             df = pd.read_sql(
-                "SELECT * FROM %(table)s",
+                query,
                 con=conn,
-                params={"table": self.attributes.get("table_name")},
-                parse_dates=self.attributes.get("time_fields"),
+                parse_dates=parse_dates,
+                columns=columns,
             )
             if self._primary_key_column:
                 df.set_index(self._primary_key_column, inplace=True)
-            if columns:
-                df = df[columns]
         return df
 
     def write_dataframe(

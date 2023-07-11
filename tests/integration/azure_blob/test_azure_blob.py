@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import os
 import random
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
@@ -29,6 +30,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_filename = here / "test.txt"
+test_csv_filename = here / "test_data.csv"
 with open(test_filename, "r") as f:
     test_string = f.read()
 
@@ -166,3 +168,16 @@ def test_blob_upload(auth_method):
 
     response = upload_data_item.get()
     assert response.decode() == test_string, "Result differs from original test"
+
+
+def test_as_df(auth_method):
+    source_df = pd.read_csv(test_csv_filename)
+    storage_options = verify_auth_parameters_and_configure_env(auth_method)
+    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+    blob_url = blob_path + "/" + blob_dir + "/" + blob_file.replace("txt", "csv")
+
+    upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
+    upload_data_item.upload(test_csv_filename)
+
+    result_df = upload_data_item.as_df()
+    assert result_df.equals(source_df)

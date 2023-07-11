@@ -1,6 +1,6 @@
 services:
   init_nuclio:
-    image: alpine:3.16
+    image: alpine:3.18
     command:
       - "/bin/sh"
       - "-c"

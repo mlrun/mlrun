@@ -13,11 +13,8 @@
 # limitations under the License.
 import pathlib
 
-from sqlalchemy.orm import Session
-
 import mlrun.projects
 from mlrun.__main__ import load_notification
-from mlrun.api.db.base import DBInterface
 from mlrun.artifacts.plots import ChartArtifact
 from mlrun.lists import ArtifactList
 

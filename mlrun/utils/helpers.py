@@ -801,9 +801,11 @@ def enrich_image_url(
     image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version
-    tag += resolve_image_tag_suffix(
-        mlrun_version=mlrun_version, python_version=client_python_version
-    )
+    # TODO: image tag suffix is irrelevant for now, but we might want to add it back in the future
+    #  when we upgrade python
+    # tag += resolve_image_tag_suffix(
+    #     mlrun_version=mlrun_version, python_version=client_python_version
+    # )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun

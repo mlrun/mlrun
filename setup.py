@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 try:
     from setuptools import setup
 except ImportError:
@@ -18,6 +19,7 @@ except ImportError:
 
 import json
 import logging
+import re
 
 import dependencies
 import packages
@@ -30,7 +32,9 @@ def version():
     try:
         with open("mlrun/utils/version/version.json") as version_file:
             version_metadata = json.load(version_file)
-            return version_metadata["version"]
+            version_ = version_metadata["version"]
+            # replace "1.4.0-rc1+rca" with "1.4.0rc1+rca"
+            return re.sub(r"(\d+\.\d+\.\d+)-rc(\d+)", r"\1rc\2", version_)
     except (ValueError, KeyError, FileNotFoundError):
         # When installing un-released version (e.g. by doing
         # pip install git+https://github.com/mlrun/mlrun@development)
@@ -72,6 +76,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Software Development :: Libraries",

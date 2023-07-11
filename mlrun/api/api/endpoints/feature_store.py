@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,12 +34,10 @@ from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}")
 
 
-@router.post(
-    "/projects/{project}/feature-sets", response_model=mlrun.common.schemas.FeatureSet
-)
+@router.post("/feature-sets", response_model=mlrun.common.schemas.FeatureSet)
 async def create_feature_set(
     project: str,
     feature_set: mlrun.common.schemas.FeatureSet,
@@ -79,7 +77,7 @@ async def create_feature_set(
 
 
 @router.put(
-    "/projects/{project}/feature-sets/{name}/references/{reference}",
+    "/feature-sets/{name}/references/{reference}",
     response_model=mlrun.common.schemas.FeatureSet,
 )
 async def store_feature_set(
@@ -125,7 +123,7 @@ async def store_feature_set(
     )
 
 
-@router.patch("/projects/{project}/feature-sets/{name}/references/{reference}")
+@router.patch("/feature-sets/{name}/references/{reference}")
 async def patch_feature_set(
     project: str,
     name: str,
@@ -160,7 +158,7 @@ async def patch_feature_set(
 
 
 @router.get(
-    "/projects/{project}/feature-sets/{name}/references/{reference}",
+    "/feature-sets/{name}/references/{reference}",
     response_model=mlrun.common.schemas.FeatureSet,
 )
 async def get_feature_set(
@@ -189,8 +187,8 @@ async def get_feature_set(
     return feature_set
 
 
-@router.delete("/projects/{project}/feature-sets/{name}")
-@router.delete("/projects/{project}/feature-sets/{name}/references/{reference}")
+@router.delete("/feature-sets/{name}")
+@router.delete("/feature-sets/{name}/references/{reference}")
 async def delete_feature_set(
     project: str,
     name: str,
@@ -220,7 +218,7 @@ async def delete_feature_set(
 
 
 @router.get(
-    "/projects/{project}/feature-sets",
+    "/feature-sets",
     response_model=mlrun.common.schemas.FeatureSetsOutput,
 )
 async def list_feature_sets(
@@ -277,7 +275,7 @@ async def list_feature_sets(
 
 
 @router.get(
-    "/projects/{project}/feature-sets/{name}/tags",
+    "/feature-sets/{name}/tags",
     response_model=mlrun.common.schemas.FeatureSetsTagsOutput,
 )
 async def list_feature_sets_tags(
@@ -347,7 +345,7 @@ def _has_v3io_path(data_source, data_targets, feature_set):
 
 
 @router.post(
-    "/projects/{project}/feature-sets/{name}/references/{reference}/ingest",
+    "/feature-sets/{name}/references/{reference}/ingest",
     response_model=mlrun.common.schemas.FeatureSetIngestOutput,
     status_code=HTTPStatus.ACCEPTED.value,
 )
@@ -459,9 +457,7 @@ async def ingest_feature_set(
     )
 
 
-@router.get(
-    "/projects/{project}/features", response_model=mlrun.common.schemas.FeaturesOutput
-)
+@router.get("/features", response_model=mlrun.common.schemas.FeaturesOutput)
 async def list_features(
     project: str,
     name: str = None,
@@ -497,9 +493,7 @@ async def list_features(
     return mlrun.common.schemas.FeaturesOutput(features=features)
 
 
-@router.get(
-    "/projects/{project}/entities", response_model=mlrun.common.schemas.EntitiesOutput
-)
+@router.get("/entities", response_model=mlrun.common.schemas.EntitiesOutput)
 async def list_entities(
     project: str,
     name: str = None,
@@ -534,7 +528,7 @@ async def list_entities(
 
 
 @router.post(
-    "/projects/{project}/feature-vectors",
+    "/feature-vectors",
     response_model=mlrun.common.schemas.FeatureVector,
 )
 async def create_feature_vector(
@@ -579,7 +573,7 @@ async def create_feature_vector(
 
 
 @router.get(
-    "/projects/{project}/feature-vectors/{name}/references/{reference}",
+    "/feature-vectors/{name}/references/{reference}",
     response_model=mlrun.common.schemas.FeatureVector,
 )
 async def get_feature_vector(
@@ -612,7 +606,7 @@ async def get_feature_vector(
 
 
 @router.get(
-    "/projects/{project}/feature-vectors",
+    "/feature-vectors",
     response_model=mlrun.common.schemas.FeatureVectorsOutput,
 )
 async def list_feature_vectors(
@@ -671,7 +665,7 @@ async def list_feature_vectors(
 
 
 @router.get(
-    "/projects/{project}/feature-vectors/{name}/tags",
+    "/feature-vectors/{name}/tags",
     response_model=mlrun.common.schemas.FeatureVectorsTagsOutput,
 )
 async def list_feature_vectors_tags(
@@ -718,7 +712,7 @@ async def list_feature_vectors_tags(
 
 
 @router.put(
-    "/projects/{project}/feature-vectors/{name}/references/{reference}",
+    "/feature-vectors/{name}/references/{reference}",
     response_model=mlrun.common.schemas.FeatureVector,
 )
 async def store_feature_vector(
@@ -768,7 +762,7 @@ async def store_feature_vector(
     )
 
 
-@router.patch("/projects/{project}/feature-vectors/{name}/references/{reference}")
+@router.patch("/feature-vectors/{name}/references/{reference}")
 async def patch_feature_vector(
     project: str,
     name: str,
@@ -805,8 +799,8 @@ async def patch_feature_vector(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.delete("/projects/{project}/feature-vectors/{name}")
-@router.delete("/projects/{project}/feature-vectors/{name}/references/{reference}")
+@router.delete("/feature-vectors/{name}")
+@router.delete("/feature-vectors/{name}/references/{reference}")
 async def delete_feature_vector(
     project: str,
     name: str,

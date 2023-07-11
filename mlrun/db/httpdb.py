@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
@@ -500,16 +499,16 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(struct)
         self.api_call("POST", path, error, params=params, body=body)
 
-    def update_run(self, updates: dict, uid, project="", iter=0):
+    def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
         path = self._path_of("run", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
-        self.api_call("PATCH", path, error, params=params, body=body)
+        self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
@@ -518,6 +517,7 @@ class HTTPRunDB(RunDBInterface):
             uid,
             project,
             iter,
+            timeout,
         )
 
     def read_run(self, uid, project="", iter=0):
@@ -549,21 +549,23 @@ class HTTPRunDB(RunDBInterface):
 
     def list_runs(
         self,
-        name=None,
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        state=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from: datetime = None,
-        start_time_to: datetime = None,
-        last_update_time_from: datetime = None,
-        last_update_time_to: datetime = None,
-        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -573,7 +575,7 @@ class HTTPRunDB(RunDBInterface):
         """Retrieve a list of runs, filtered by various options.
         Example::
 
-            runs = db.list_runs(name='download', project='iris', labels='owner=admin')
+            runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
             # If running in Jupyter, can use the .show() function to display the results
             db.list_runs(name='', project=project_name).show()
 
@@ -581,8 +583,8 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to.
-        :param labels: List runs that have a specific label assigned. Currently only a single label filter can be
-            applied, otherwise result will be empty.
+        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
+            applied.
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -734,8 +736,9 @@ class HTTPRunDB(RunDBInterface):
             # Show artifacts with label filters - both uploaded and of binary type
             result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
@@ -1471,21 +1474,17 @@ class HTTPRunDB(RunDBInterface):
     ):
         """Retrieve details of a specific pipeline using its run ID (as provided when the pipeline was executed)."""
 
-        try:
-            params = {}
-            if namespace:
-                params["namespace"] = namespace
-            params["format"] = format_
-            project_path = project if project else "*"
-            resp = self.api_call(
-                "GET",
-                f"projects/{project_path}/pipelines/{run_id}",
-                params=params,
-                timeout=timeout,
-            )
-        except OSError as err:
-            logger.error(f"error cannot get pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot get pipeline, {err_to_str(err)}")
+        params = {}
+        if namespace:
+            params["namespace"] = namespace
+        params["format"] = format_
+        project_path = project if project else "*"
+        resp = self.api_call(
+            "GET",
+            f"projects/{project_path}/pipelines/{run_id}",
+            params=params,
+            timeout=timeout,
+        )
 
         if not resp.ok:
             logger.error(f"bad resp!!\n{resp.text}")
@@ -3012,6 +3011,56 @@ class HTTPRunDB(RunDBInterface):
                 background_task.metadata.name
             )
         return None
+
+    def set_run_notifications(
+        self,
+        project: str,
+        run_uid: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a run. This will override any existing notifications on the run.
+        :param project: Project containing the run.
+        :param run_uid: UID of the run.
+        :param notifications: List of notifications to set on the run. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/runs/{run_uid}/notifications",
+            f"Failed to set notifications on run. uid={run_uid}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
+
+    def set_schedule_notifications(
+        self,
+        project: str,
+        schedule_name: str,
+        notifications: typing.List[mlrun.model.Notification] = None,
+    ):
+        """
+        Set notifications on a schedule. This will override any existing notifications on the schedule.
+        :param project: Project containing the schedule.
+        :param schedule_name: Name of the schedule.
+        :param notifications: List of notifications to set on the schedule. Default is an empty list.
+        """
+        notifications = notifications or []
+
+        self.api_call(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            f"Failed to set notifications on schedule. schedule={schedule_name}, project={project}",
+            json={
+                "notifications": [
+                    notification.to_dict() for notification in notifications
+                ],
+            },
+        )
 
 
 def _as_json(obj):

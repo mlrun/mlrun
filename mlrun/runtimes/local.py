@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -217,6 +217,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
         execution._current_workdir = workdir
         execution._old_workdir = None
 
+        # _is_run_local is set when the user specifies local=True in run()
+        # in this case we don't want to extract the source code and contaminate the user's local dir
         if self.spec.build.source and not hasattr(self, "_is_run_local"):
             target_dir = extract_source(
                 self.spec.build.source,
@@ -433,20 +435,23 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             if cwd:
                 os.chdir(cwd)
             # Apply the MLRun handler decorator for parsing inputs using type hints and logging outputs using log hints
-            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user.
-            # outputs are logged only if log hints are provided by the user):
-            val = mlrun.handler(
-                inputs=(
-                    runobj.spec.inputs_type_hints
-                    if runobj.spec.inputs_type_hints
-                    else True  # True will use type hints if provided in user's code.
-                ),
-                outputs=(
-                    runobj.spec.returns
-                    if runobj.spec.returns
-                    else None  # None will turn off outputs logging.
-                ),
-            )(handler)(**kwargs)
+            # (Expected behavior: inputs are being parsed when they have type hints in code or given by user. Outputs
+            # are logged only if log hints are provided by the user):
+            if mlrun.mlconf.packagers.enabled:
+                val = mlrun.handler(
+                    inputs=(
+                        runobj.spec.inputs_type_hints
+                        if runobj.spec.inputs_type_hints
+                        else True  # True will use type hints if provided in user's code.
+                    ),
+                    outputs=(
+                        runobj.spec.returns
+                        if runobj.spec.returns
+                        else None  # None will turn off outputs logging.
+                    ),
+                )(handler)(**kwargs)
+            else:
+                val = handler(**kwargs)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
@@ -475,7 +480,12 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
 
     def _get_input_value(input_key: str):
         input_obj = context.get_input(input_key, inputs[input_key])
-        if type(args[input_key].default) is str or args[input_key].annotation == str:
+        # If there is no type hint annotation but there is a default value and its type is string, point the data
+        # item to local downloaded file path (`local()` returns the downloaded temp path string):
+        if (
+            args[input_key].annotation is inspect.Parameter.empty
+            and type(args[input_key].default) is str
+        ):
             return input_obj.local()
         else:
             return input_obj

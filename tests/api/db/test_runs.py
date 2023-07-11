@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,48 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
 
     runs = db.list_runs(db_session, name="~RUN_naMe", project=project)
     assert len(runs) == 2
+
+
+def test_runs_with_notifications(db: DBInterface, db_session: Session):
+    project_name = "project"
+    run_uids = ["uid1", "uid2", "uid3"]
+    num_runs = len(run_uids)
+    # create several runs with different uids, each with a notification
+    for run_uid in run_uids:
+        _create_new_run(db, db_session, project=project_name, uid=run_uid)
+        notification = mlrun.model.Notification(
+            kind="slack",
+            when=["completed", "error"],
+            name=f"test-notification-{run_uid}",
+            message="test-message",
+            condition="blabla",
+            severity="info",
+            params={"some-param": "some-value"},
+        )
+        db.store_run_notifications(db_session, [notification], run_uid, project_name)
+
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == num_runs
+    for run in runs:
+        run_notifications = run["spec"]["notifications"]
+        assert len(run_notifications) == 1
+        assert (
+            run_notifications[0]["name"]
+            == f"test-notification-{run['metadata']['uid']}"
+        )
+
+    db.delete_run_notifications(db_session, run_uid=run_uids[0], project=project_name)
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == num_runs - 1
+
+    db.delete_run_notifications(db_session, project=project_name)
+    runs = db.list_runs(db_session, project=project_name, with_notifications=False)
+    assert len(runs) == num_runs
+    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    assert len(runs) == 0
+
+    db.del_runs(db_session, project=project_name)
+    db.verify_project_has_no_related_resources(db_session, project_name)
 
 
 def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):

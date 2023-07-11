@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -326,7 +326,6 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
     if secret:
         secret = {"name": secret}
 
-    # vol = client.V1Volume(name=name, flex_volume=client.V1FlexVolumeSource('v3io/fuse', options=opts))
     vol = {
         "flexVolume": client.V1FlexVolumeSource(
             "v3io/fuse", options=opts, secret_ref=secret

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@
 import datetime
 import typing
 
-import mlrun.api.utils.projects.remotes.leader
+import mlrun.api.utils.projects.remotes.leader as project_leader
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.errors
 
 
-class Member(mlrun.api.utils.projects.remotes.leader.Member):
+class Member(project_leader.Member):
     def __init__(self) -> None:
         super().__init__()
         self.db_session = None

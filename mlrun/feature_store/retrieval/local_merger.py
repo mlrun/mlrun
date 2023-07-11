@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ from .base import BaseMerger
 
 class LocalFeatureMerger(BaseMerger):
     engine = "local"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
@@ -47,7 +48,7 @@ class LocalFeatureMerger(BaseMerger):
             featureset_df[featureset.spec.timestamp_key]
         )
         entity_df.sort_values(by=entity_timestamp_column, inplace=True)
-        featureset_df.sort_values(by=entity_timestamp_column, inplace=True)
+        featureset_df.sort_values(by=featureset.spec.timestamp_key, inplace=True)
 
         merged_df = pd.merge_asof(
             entity_df,
@@ -62,7 +63,6 @@ class LocalFeatureMerger(BaseMerger):
         for col in merged_df.columns:
             if re.findall(f"_{featureset.metadata.name}_$", col):
                 self._append_drop_column(col)
-
         # Undo indexing tricks for asof merge
         # to return the correct indexes and not
         # overload `index` columns
@@ -109,25 +109,14 @@ class LocalFeatureMerger(BaseMerger):
         column_names=None,
         start_time=None,
         end_time=None,
-        entity_timestamp_column=None,
+        time_column=None,
     ):
-        # handling case where there are multiple feature sets and user creates vector where entity_timestamp_
-        # column is from a specific feature set (can't be entity timestamp)
-        if (
-            entity_timestamp_column in column_names
-            or feature_set.spec.timestamp_key == entity_timestamp_column
-        ):
-            df = feature_set.to_dataframe(
-                columns=column_names,
-                start_time=start_time,
-                end_time=end_time,
-                time_column=entity_timestamp_column,
-            )
-        else:
-            df = feature_set.to_dataframe(
-                columns=column_names,
-                time_column=entity_timestamp_column,
-            )
+        df = feature_set.to_dataframe(
+            columns=column_names,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+        )
         if df.index.names[0]:
             df.reset_index(inplace=True)
         return df

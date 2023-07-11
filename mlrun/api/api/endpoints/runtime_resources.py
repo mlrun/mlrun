@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,11 +26,11 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")
 
 
 @router.get(
-    "/projects/{project}/runtime-resources",
+    "",
     response_model=typing.Union[
         mlrun.common.schemas.RuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -55,7 +55,7 @@ async def list_runtime_resources(
 
 
 @router.delete(
-    "/projects/{project}/runtime-resources",
+    "",
     response_model=mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
 )
 async def delete_runtime_resources(

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ _running_inside_kubernetes_cluster = None
 
 def is_running_inside_kubernetes_cluster():
     global _running_inside_kubernetes_cluster
-    if _running_inside_kubernetes_cluster is not None:
+    if _running_inside_kubernetes_cluster is None:
         try:
             kubernetes.config.load_incluster_config()
             _running_inside_kubernetes_cluster = True

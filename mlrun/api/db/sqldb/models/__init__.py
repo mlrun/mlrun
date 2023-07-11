@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ if mysql_dsn_data:
     from .models_mysql import *  # noqa
 
     # importing private variables as well
-    from .models_mysql import _classes, _labeled, _table2cls, _tagged  # noqa # isort:skip
+    from .models_mysql import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
 else:
     from .models_sqlite import *  # noqa
 
     # importing private variables as well
-    from .models_sqlite import _classes, _labeled, _table2cls, _tagged  # noqa # isort:skip
+    from .models_sqlite import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
 # fmt: on

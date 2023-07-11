@@ -1,6 +1,10 @@
 mlrun.serving
 ==============
 
+.. autoclass:: mlrun.serving.states.BaseStep
+   :members: to, error_handler
+   :private-members:
+
 .. automodule:: mlrun.serving
    :members:
    :show-inheritance:
@@ -9,3 +13,6 @@ mlrun.serving
 .. automodule:: mlrun.serving.remote
    :members:
    :special-members: __init__
+
+.. autoclass:: mlrun.serving.utils.StepToDict
+   :members:

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +16,27 @@ import abc
 import typing
 from datetime import datetime
 
+import dask.dataframe as dd
+import pandas as pd
+
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
 from mlrun.feature_store.feature_vector import Feature
 
-from ...utils import logger
+from ...utils import logger, str_to_timestamp
 from ..feature_vector import OfflineVectorResponse
 
 
 class BaseMerger(abc.ABC):
     """abstract feature merger class"""
 
+    # In order to be an online merger, the merger should implement `init_online_vector_service` function.
+    support_online = False
+
+    # In order to be an offline merger, the merger should implement
+    # `_order_by`, `_filter`, `_drop_columns_from_result`, `_rename_columns_and_select`, `_get_engine_df` functions.
+    support_offline = False
     engine = None
 
     def __init__(self, vector, **engine_args):
@@ -42,6 +51,7 @@ class BaseMerger(abc.ABC):
         self._target = None
         self._alias = dict()
         self._origin_alias = dict()
+        self._entity_rows_node_name = "__mlrun__$entity_rows$"
 
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
@@ -73,22 +83,18 @@ class BaseMerger(abc.ABC):
         drop_columns=None,
         start_time=None,
         end_time=None,
+        timestamp_for_filtering=None,
         with_indexes=None,
         update_stats=None,
         query=None,
-        join_type="inner",
         order_by=None,
     ):
         self._target = target
-        self._join_type = join_type
 
         # calculate the index columns and columns we need to drop
         self._drop_columns = drop_columns or self._drop_columns
         if self.vector.spec.with_indexes or with_indexes:
             self._drop_indexes = False
-
-        if entity_timestamp_column and self._drop_indexes:
-            self._append_drop_column(entity_timestamp_column)
 
         # retrieve the feature set objects/fields needed for the vector
         feature_set_objects, feature_set_fields = self.vector.parse_features(
@@ -103,25 +109,34 @@ class BaseMerger(abc.ABC):
             # update the feature vector objects with refreshed stats
             self.vector.save()
 
+        if self._drop_indexes and entity_timestamp_column:
+            self._append_drop_column(entity_timestamp_column)
+
         for feature_set in feature_set_objects.values():
-            if not entity_timestamp_column and self._drop_indexes:
+            if self._drop_indexes:
                 self._append_drop_column(feature_set.spec.timestamp_key)
             for key in feature_set.spec.entities.keys():
                 self._append_index(key)
 
-        return self._generate_vector(
+        start_time = str_to_timestamp(start_time)
+        end_time = str_to_timestamp(end_time)
+        if start_time and not end_time:
+            # if end_time is not specified set it to now()
+            end_time = pd.Timestamp.now()
+
+        return self._generate_offline_vector(
             entity_rows,
             entity_timestamp_column,
             feature_set_objects=feature_set_objects,
             feature_set_fields=feature_set_fields,
             start_time=start_time,
             end_time=end_time,
+            timestamp_for_filtering=timestamp_for_filtering,
             query=query,
             order_by=order_by,
         )
 
-    def _write_to_target(self):
-        self.vector.spec.with_indexes = not self._drop_indexes
+    def _write_to_offline_target(self):
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -134,7 +149,7 @@ class BaseMerger(abc.ABC):
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
                 self.vector.save()
-        if self.vector.spec.with_indexes:
+        if not self._drop_indexes:
             self.vector.spec.entity_fields = [
                 Feature(name=feature, value_type=self._result_df[feature].dtype)
                 if self._result_df[feature].dtype.name != "object"
@@ -160,7 +175,7 @@ class BaseMerger(abc.ABC):
         else:
             df.reset_index(drop=True, inplace=True)
 
-    def _generate_vector(
+    def _generate_offline_vector(
         self,
         entity_rows,
         entity_timestamp_column,
@@ -168,6 +183,7 @@ class BaseMerger(abc.ABC):
         feature_set_fields,
         start_time=None,
         end_time=None,
+        timestamp_for_filtering=None,
         query=None,
         order_by=None,
     ):
@@ -185,6 +201,7 @@ class BaseMerger(abc.ABC):
             feature_set_objects, feature_set_fields
         )
 
+        filtered = False
         for node in fs_link_list:
             name = node.name
             feature_set = feature_set_objects[name]
@@ -195,27 +212,48 @@ class BaseMerger(abc.ABC):
 
             for column in node.data["save_cols"]:
                 if column not in column_names:
-                    self._append_drop_column(column)
                     column_names.append(column)
+                    if column not in self._index_columns:
+                        self._append_drop_column(column)
+
+            if isinstance(timestamp_for_filtering, dict):
+                time_column = timestamp_for_filtering.get(
+                    name, feature_set.spec.timestamp_key
+                )
+            elif isinstance(timestamp_for_filtering, str):
+                time_column = timestamp_for_filtering
+            else:
+                time_column = feature_set.spec.timestamp_key
+
+            if time_column != feature_set.spec.timestamp_key and time_column not in [
+                feature.name for feature in feature_set.spec.features
+            ]:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Feature set `{name}` "
+                    f"does not have a column named `{time_column}` to filter on."
+                )
+
+            if self._drop_indexes:
+                self._append_drop_column(time_column)
+            if (start_time or end_time) and time_column:
+                filtered = True
 
             df = self._get_engine_df(
                 feature_set,
                 name,
                 column_names,
-                start_time,
-                end_time,
-                entity_timestamp_column,
+                start_time if time_column else None,
+                end_time if time_column else None,
+                time_column,
             )
 
             column_names += node.data["save_index"]
             node.data["save_cols"] += node.data["save_index"]
+            fs_entities_and_timestamp = list(feature_set.spec.entities.keys())
             if feature_set.spec.timestamp_key:
-                entity_timestamp_column_list = [feature_set.spec.timestamp_key]
-                column_names += entity_timestamp_column_list
-                node.data["save_cols"] += entity_timestamp_column_list
-                if not entity_timestamp_column:
-                    # if not entity_timestamp_column the firs `FeatureSet` will define it
-                    entity_timestamp_column = feature_set.spec.timestamp_key
+                column_names.append(feature_set.spec.timestamp_key)
+                node.data["save_cols"].append(feature_set.spec.timestamp_key)
+                fs_entities_and_timestamp.append(feature_set.spec.timestamp_key)
 
             # rename columns to be unique for each feature set and select if needed
             rename_col_dict = {
@@ -223,9 +261,10 @@ class BaseMerger(abc.ABC):
                 for column in column_names
                 if column not in node.data["save_cols"]
             }
-            fs_entities = list(feature_set.spec.entities.keys())
             df_temp = self._rename_columns_and_select(
-                df, rename_col_dict, columns=list(set(column_names + fs_entities))
+                df,
+                rename_col_dict,
+                columns=list(set(column_names + fs_entities_and_timestamp)),
             )
 
             if df_temp is not None:
@@ -240,7 +279,7 @@ class BaseMerger(abc.ABC):
             # update alias according to the unique column name
             new_columns = []
             if not self._drop_indexes:
-                new_columns.extend([(ind, ind) for ind in fs_entities])
+                new_columns.extend([(ind, ind) for ind in fs_entities_and_timestamp])
             for column, alias in columns:
                 if column in rename_col_dict:
                     new_columns.append((rename_col_dict[column], alias or column))
@@ -248,29 +287,43 @@ class BaseMerger(abc.ABC):
                     new_columns.append((column, alias))
             self._update_alias(dictionary={name: alias for name, alias in new_columns})
 
-        # convert pandas entity_rows to spark DF if needed
+        # None of the feature sets was filtered as required
+        if not filtered and (start_time or end_time):
+            raise mlrun.errors.MLRunRuntimeError(
+                "start_time and end_time can only be provided in conjunction with "
+                "a timestamp column, or when the at least one feature_set has a timestamp key"
+            )
+        # convert pandas entity_rows to spark\dask DF if needed
         if (
             entity_rows is not None
             and not hasattr(entity_rows, "rdd")
             and self.engine == "spark"
         ):
             entity_rows = self.spark.createDataFrame(entity_rows)
+        elif (
+            entity_rows is not None
+            and not hasattr(entity_rows, "dask")
+            and self.engine == "dask"
+        ):
+            entity_rows = dd.from_pandas(
+                entity_rows, npartitions=len(entity_rows.columns)
+            )
 
         # join the feature data frames
-        self.merge(
+        result_timestamp = self.merge(
             entity_df=entity_rows,
-            entity_timestamp_column=entity_timestamp_column,
+            entity_timestamp_column=entity_timestamp_column
+            if entity_rows is not None
+            else None,
             featuresets=feature_sets,
             featureset_dfs=dfs,
             keys=keys,
         )
 
         all_columns = None
-        if not self._drop_indexes and entity_timestamp_column:
-            if entity_timestamp_column not in self._alias.values():
-                self._update_alias(
-                    key=entity_timestamp_column, val=entity_timestamp_column
-                )
+        if not self._drop_indexes and result_timestamp:
+            if result_timestamp not in self._alias.values():
+                self._update_alias(key=result_timestamp, val=result_timestamp)
             all_columns = list(self._alias.keys())
 
         df_temp = self._rename_columns_and_select(
@@ -309,8 +362,24 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_target()
+        self._write_to_offline_target()
         return OfflineVectorResponse(self)
+
+    def init_online_vector_service(
+        self, entity_keys, fixed_window_type, update_stats=False
+    ):
+        """
+        initialize the `OnlineVectorService`
+
+        :param entity_keys:         list of the feature_vector indexes.
+        :param fixed_window_type:   determines how to query the fixed window values which were previously
+                                    inserted by ingest
+        :param update_stats:        update features statistics from the requested feature sets on the vector.
+                                    Default: False.
+
+        :return:                    `OnlineVectorService`
+        """
+        raise NotImplementedError
 
     def _unpersist_df(self, df):
         pass
@@ -343,13 +412,8 @@ class BaseMerger(abc.ABC):
             keys[0][0] = keys[0][1] = list(featuresets[0].spec.entities.keys())
 
         for featureset, featureset_df, lr_key in zip(featuresets, featureset_dfs, keys):
-            if featureset.spec.timestamp_key:
+            if featureset.spec.timestamp_key and entity_timestamp_column:
                 merge_func = self._asof_join
-                if self._join_type != "inner":
-                    logger.warn(
-                        "Merge all the features with as_of_join and don't "
-                        "take into account the join_type that was given"
-                    )
             else:
                 merge_func = self._join
 
@@ -361,6 +425,9 @@ class BaseMerger(abc.ABC):
                 lr_key[0],
                 lr_key[1],
             )
+            entity_timestamp_column = (
+                entity_timestamp_column or featureset.spec.timestamp_key
+            )
 
             # unpersist as required by the implementation (e.g. spark) and delete references
             # to dataframe to allow for GC to free up the memory (local, dask)
@@ -368,8 +435,8 @@ class BaseMerger(abc.ABC):
             del featureset_df
 
         self._result_df = merged_df
+        return entity_timestamp_column
 
-    @abc.abstractmethod
     def _asof_join(
         self,
         entity_df,
@@ -381,7 +448,6 @@ class BaseMerger(abc.ABC):
     ):
         raise NotImplementedError("_asof_join() operation not implemented in class")
 
-    @abc.abstractmethod
     def _join(
         self,
         entity_df,
@@ -512,10 +578,11 @@ class BaseMerger(abc.ABC):
                         self.add_last(other_node)
                     node = other_node
 
-    @staticmethod
-    def _create_linked_relation_list(feature_set_objects, feature_set_fields):
+    def _create_linked_relation_list(
+        self, feature_set_objects, feature_set_fields, entity_rows_keys=None
+    ):
         feature_set_names = list(feature_set_fields.keys())
-        if len(feature_set_names) == 1:
+        if len(feature_set_names) == 1 and not entity_rows_keys:
             return BaseMerger._LinkedList(
                 head=BaseMerger._Node(
                     name=feature_set_names[0],
@@ -614,8 +681,42 @@ class BaseMerger(abc.ABC):
                 linked_list_relation.head.data["save_index"] = keys
             return linked_list_relation
 
+        def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
+            feature_set_entity_list = feature_set_entity_list_dict[fs_name]
+            feature_set_entity_list_names = list(feature_set_entity_list.keys())
+
+            if all([ent in entity_rows_keys for ent in feature_set_entity_list_names]):
+                # add to the link list feature set according to indexes match,
+                # only if all entities in the feature set exist in the entity rows
+                keys = feature_set_entity_list_names
+                entity_rows_relation.add_last(
+                    BaseMerger._Node(
+                        fs_name,
+                        data={
+                            "left_keys": keys,
+                            "right_keys": keys,
+                            "save_cols": [],
+                            "save_index": keys,
+                        },
+                        order=fs_order,
+                    )
+                )
+                entity_rows_relation.head.data["save_index"] = keys
+
+        if entity_rows_keys is not None:
+            entity_rows_linked_relation = _create_relation(
+                self._entity_rows_node_name, -1
+            )
+            relation_linked_lists.append(entity_rows_linked_relation)
+            linked_list_len_goal = len(feature_set_objects) + 1
+        else:
+            entity_rows_linked_relation = None
+            linked_list_len_goal = len(feature_set_objects)
+
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)
+            if entity_rows_linked_relation is not None:
+                _build_entity_rows_relation(entity_rows_linked_relation, name, i)
             for j, name_in in enumerate(feature_set_names):
                 if name != name_in:
                     linked_relation = _build_relation(name_in, j, linked_relation, i)
@@ -626,26 +727,23 @@ class BaseMerger(abc.ABC):
             return_relation = relation_linked_lists[i].__copy__()
             for relation_list in relation_linked_lists:
                 return_relation.concat(relation_list)
-            if return_relation.len == len(feature_set_objects):
+            if return_relation.len == linked_list_len_goal:
                 return return_relation
 
         raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
-    @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 
     def _reset_index(self, _result_df):
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _create_engine_env(self):
         """
         initialize engine env if needed
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _get_engine_df(
         self,
         feature_set: FeatureSet,
@@ -653,7 +751,7 @@ class BaseMerger(abc.ABC):
         column_names: typing.List[str] = None,
         start_time: typing.Union[str, datetime] = None,
         end_time: typing.Union[str, datetime] = None,
-        entity_timestamp_column: str = None,
+        time_column: typing.Optional[str] = None,
     ):
         """
         Return the feature_set data frame according to the args
@@ -663,13 +761,12 @@ class BaseMerger(abc.ABC):
         :param column_names:            list of columns to select (if not all)
         :param start_time:              filter by start time
         :param end_time:                filter by end time
-        :param entity_timestamp_column: specify the time column name in the file
+        :param time_column:             specify the time column name to filter on
 
         :return: Data frame of the current engine
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _rename_columns_and_select(
         self,
         df,
@@ -687,14 +784,12 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _drop_columns_from_result(self):
         """
         drop `self._drop_columns` from `self._result_df`
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _filter(self, query: str):
         """
         filter `self._result_df` by `query`
@@ -703,7 +798,6 @@ class BaseMerger(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
     def _order_by(self, order_by_active: typing.List[str]):
         """
         Order by `order_by_active` along all axis.

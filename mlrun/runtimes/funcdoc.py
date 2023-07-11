@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 import ast
 import inspect
 import re
+import sys
 
 from mlrun.model import FunctionEntrypoint
 
@@ -210,14 +211,31 @@ def ast_param_dict(param: ast.arg) -> dict:
 
 def ann_type(ann):
     if hasattr(ann, "slice"):
-        name = ann.value.id
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            name = get_attr_path(ann.value)
+        else:
+            name = ann.value.id
         inner = ", ".join(ann_type(e) for e in iter_elems(ann.slice))
         return f"{name}[{inner}]"
 
     if isinstance(ann, ast.Attribute):
+        if isinstance(ann.value, ast.Attribute):
+            # value is an attribute, e.g. b of a.b - get the full path
+            return get_attr_path(ann)
+
         return ann.attr
 
     return getattr(ann, "id", "")
+
+
+def get_attr_path(ann: ast.Attribute):
+    if isinstance(ann.value, ast.Attribute):
+        # value is an attribute, e.g. b of a.b - get the full path
+        return f"{get_attr_path(ann.value)}.{ann.attr}"
+
+    # value can be a subscript or name - get its annotation type and append the attribute
+    return f"{ann_type(ann.value)}.{ann.attr}"
 
 
 def iter_elems(ann):
@@ -234,10 +252,13 @@ def iter_elems(ann):
         return [ann.value]
 
     # From python 3.9, slice is an expr and we should evaluate it recursively. Left this for backward compatibility.
-    elif hasattr(ann.slice, "elts"):
-        return ann.slice.elts
-    elif hasattr(ann.slice, "value"):
-        return [ann.slice.value]
+    # TODO: Remove this in 1.5.0 when we drop support for python 3.7
+    if sys.version_info < (3, 9):
+        if hasattr(ann.slice, "elts"):
+            return ann.slice.elts
+        elif hasattr(ann.slice, "value"):
+            return [ann.slice.value]
+
     return [ann]
 
 

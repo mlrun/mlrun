@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -360,15 +360,25 @@ class KubeResourceSpec(FunctionSpec):
         patch: bool = False,
     ):
         """
-        set pod cpu/memory/gpu limits
-        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        Set pod cpu/memory/gpu limits (max values)
+
+        :param mem:     set limit for memory e.g. '500M', '2G', etc.
+        :param cpu:     set limit for cpu e.g. '0.5', '2', etc.
+        :param gpus:    set limit for gpu
+        :param gpu_type:    set gpu type e.g. "nvidia.com/gpu"
+        :param patch:    by default it overrides the whole limits section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
     def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
-        set requested (desired) pod cpu/memory resources
-        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        Set requested (desired) pod cpu/memory resources
+
+        :param mem:     set request for memory e.g. '200M', '1G', etc.
+        :param cpu:     set request for cpu e.g. '0.1', '1', etc.
+        :param patch:   by default it overrides the whole requests section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self._verify_and_set_requests("resources", mem, cpu, patch)
 
@@ -1041,15 +1051,25 @@ class KubeResource(BaseRuntime):
         patch: bool = False,
     ):
         """
-        set pod cpu/memory/gpu limits
-        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        Set pod cpu/memory/gpu limits (max values)
+
+        :param mem:     set limit for memory e.g. '500M', '2G', etc.
+        :param cpu:     set limit for cpu e.g. '0.5', '2', etc.
+        :param gpus:    set limit for gpu
+        :param gpu_type:    set gpu type e.g. "nvidia.com/gpu"
+        :param patch:    by default it overrides the whole limits section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
     def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
-        set requested (desired) pod cpu/memory resources
-        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        Set requested (desired) pod cpu/memory resources
+
+        :param mem:     set request for memory e.g. '200M', '1G', etc.
+        :param cpu:     set request for cpu e.g. '0.1', '1', etc.
+        :param patch:   by default it overrides the whole requests section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self.spec.with_requests(mem, cpu, patch=patch)
 
@@ -1458,7 +1478,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     if isinstance(attribute, dict):
         if attribute_config["not_sanitized_class"] != dict:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got dict"
+                f"expected to be of type {attribute_config.get('not_sanitized_class')} but got dict"
             )
         if _resolve_if_type_sanitized(attribute_name, attribute):
             return attribute
@@ -1468,7 +1488,7 @@ def get_sanitized_attribute(spec, attribute_name: str):
     ):
         if attribute_config["not_sanitized_class"] != list:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"expected to to be of type {attribute_config.get('not_sanitized_class')} but got list"
+                f"expected to be of type {attribute_config.get('not_sanitized_class')} but got list"
             )
         if _resolve_if_type_sanitized(attribute_name, attribute[0]):
             return attribute

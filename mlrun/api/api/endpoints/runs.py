@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import datetime
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -283,3 +283,43 @@ async def delete_runs(
         days_ago,
     )
     return {}
+
+
+@router.put(
+    "/projects/{project}/runs/{uid}/notifications",
+    status_code=HTTPStatus.OK.value,
+)
+async def set_run_notifications(
+    project: str,
+    uid: str,
+    set_notifications_request: mlrun.common.schemas.SetNotificationRequest = Body(...),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
+):
+    await run_in_threadpool(
+        mlrun.api.utils.singletons.project_member.get_project_member().ensure_project,
+        db_session,
+        project,
+        auth_info=auth_info,
+    )
+
+    # check permission per object type
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.run,
+        project,
+        resource_name=uid,
+        action=mlrun.common.schemas.AuthorizationAction.update,
+        auth_info=auth_info,
+    )
+
+    await run_in_threadpool(
+        mlrun.api.crud.Notifications().set_object_notifications,
+        db_session,
+        auth_info,
+        project,
+        set_notifications_request.notifications,
+        mlrun.common.schemas.RunIdentifier(uid=uid),
+    )
+    return Response(status_code=HTTPStatus.OK.value)

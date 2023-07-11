@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
 from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
 from mlrun.datastore.redis import RedisStore
@@ -36,6 +37,13 @@ from mlrun.datastore.v3io import V3ioStore
 def test_http_fs_parquet_as_df():
     data_item = mlrun.datastore.store_manager.object(
         "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq"
+    )
+    data_item.as_df()
+
+
+def test_http_fs_parquet_with_params_as_df():
+    data_item = mlrun.datastore.store_manager.object(
+        "https://s3.wasabisys.com/iguazio/data/market-palce/aggregate/metrics.pq?param1=1&param2=2"
     )
     data_item.as_df()
 
@@ -125,6 +133,7 @@ def test_kafka_source_without_attributes():
         (["redis", "rediss"], RedisStore, does_not_raise()),
         (["http", "https"], HttpStore, does_not_raise()),
         (["gcs", "gs"], GoogleCloudStorageStore, does_not_raise()),
+        (["dbfs"], DBFSStore, does_not_raise()),
         (["random"], None, pytest.raises(ValueError)),
     ],
 )

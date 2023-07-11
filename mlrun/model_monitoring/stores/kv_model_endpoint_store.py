@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -121,7 +121,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
 
         # For backwards compatability: replace null values for `error_count` and `metrics`
-        mlrun.utils.model_monitoring.validate_errors_and_metrics(endpoint=endpoint)
+        mlrun.utils.model_monitoring.validate_old_schema_fields(endpoint=endpoint)
 
         return endpoint
 

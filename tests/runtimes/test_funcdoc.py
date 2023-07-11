@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -206,7 +206,7 @@ def test_ast_compound():
 
         # collect the types of the function parameters
         # assumes each param is in a new line for simplicity
-        for line in code.splitlines()[3:12]:
+        for line in code.splitlines()[3:15]:
             if ":" not in line:
                 param_types.append(None)
                 continue

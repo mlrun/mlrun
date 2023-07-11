@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,11 +29,11 @@ import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
 
-router = APIRouter()
+router = APIRouter(prefix="/hub/sources")
 
 
 @router.post(
-    path="/hub/sources",
+    path="",
     status_code=HTTPStatus.CREATED.value,
     response_model=mlrun.common.schemas.hub.IndexedHubSource,
 )
@@ -63,7 +63,7 @@ async def create_source(
 
 
 @router.get(
-    path="/hub/sources",
+    path="",
     response_model=List[mlrun.common.schemas.hub.IndexedHubSource],
 )
 async def list_sources(
@@ -84,7 +84,7 @@ async def list_sources(
 
 
 @router.delete(
-    path="/hub/sources/{source_name}",
+    path="/{source_name}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def delete_source(
@@ -109,7 +109,7 @@ async def delete_source(
 
 
 @router.get(
-    path="/hub/sources/{source_name}",
+    path="/{source_name}",
     response_model=mlrun.common.schemas.hub.IndexedHubSource,
 )
 async def get_source(
@@ -132,7 +132,7 @@ async def get_source(
 
 
 @router.put(
-    path="/hub/sources/{source_name}",
+    path="/{source_name}",
     response_model=mlrun.common.schemas.hub.IndexedHubSource,
 )
 async def store_source(
@@ -164,7 +164,7 @@ async def store_source(
 
 
 @router.get(
-    path="/hub/sources/{source_name}/items",
+    path="/{source_name}/items",
     response_model=mlrun.common.schemas.hub.HubCatalog,
 )
 async def get_catalog(
@@ -196,7 +196,7 @@ async def get_catalog(
 
 
 @router.get(
-    "/hub/sources/{source_name}/items/{item_name}",
+    "/{source_name}/items/{item_name}",
     response_model=mlrun.common.schemas.hub.HubItem,
 )
 async def get_item(
@@ -230,7 +230,7 @@ async def get_item(
 
 
 @router.get(
-    "/hub/sources/{source_name}/item-object",
+    "/{source_name}/item-object",
 )
 async def get_object(
     source_name: str,
@@ -263,7 +263,7 @@ async def get_object(
     return Response(content=object_data, media_type=ctype)
 
 
-@router.get("/hub/sources/{source_name}/items/{item_name}/assets/{asset_name}")
+@router.get("/{source_name}/items/{item_name}/assets/{asset_name}")
 async def get_asset(
     source_name: str,
     item_name: str,

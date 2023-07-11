@@ -1,6 +1,11 @@
 (change-log)=
 # Change log
+- [v1.3.3](#v1-3-3)
+- [v1.3.2](#v1-3-2)
+- [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
+- [v1.2.3](#v1-2-3)
+- [v1.2.2](#v1-2-2)
 - [v1.2.1](#v1-2-1)
 - [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
@@ -14,6 +19,39 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
+## v1.3.3	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+
+## v1.3.2
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3896 | Fixed: MLRun API failed to get pod logs. [View in Git](https://github.com/mlrun/mlrun/pull/3649). |
+| ML-3865 | kubectl now returns logs as expected. [View in Git](https://github.com/mlrun/mlrun/pull/3660).  |
+| ML-3917 | Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674). |
+| ML-3934 | Logs are no longer collected for run pods in an unknown state [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
+
+## v1.3.1
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3764 | Fixed the scikit-learn to 1.2 in the tutorial 02-model-training. (Previously pointed to 1.0.) [View in Git](https://github.com/mlrun/mlrun/pull/3437).  |
+| ML-3794 | Fixed a Mask detection demo notebook (3-automatic-pipeline.ipynb). [View in Git](https://github.com/mlrun/demos/releases/tag/v1.3.1-rc6). |
+| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
+| ML-3823 | Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560). |
+
+###  Documentation
+New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
+
 ## v1.3.0
 
 ### Client/server matrix, prerequisites, and installing
@@ -21,34 +59,12 @@
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
-python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client.
+
+See instructions in [Set up your environment](../install/remote.html).
 
 MLRun is pre-installed in CE Jupyter.
 
-To install on a **Python 3.9** environment, run:<br>
-```
-./align_mlrun.sh
-```
-
-To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
-  
-1. Configure the Jupyter service with the env variable`JUPYTER_PREFER_ENV_PATH=false`.
-2. Within the Jupyter service, open a terminal and update conda and pip to have an up to date pip resolver.
-
-```
-$CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip
-```
-3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
-```
-conda create -n python39 python=3.9 ipykernel -y
-conda activate python39
-```
-4. Install mlrun:
-```
-./align_mlrun.sh
-```
-    
 ### New and updated features
 
 #### Feature store
@@ -203,6 +219,23 @@ The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and
 | ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241). |
 | ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
 
+## v1.2.3
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3287 | UI now resets the cache upon MLRun upgrades, and the Projects page displays correctly.  [View in Git](https://github.com/mlrun/ui/pull/1612). |
+| ML-3801 | Optimized `/projects` endpoint to work faster [View in Git](https://github.com/mlrun/ui/pull/1715). |
+| ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). |
+
+## v1.2.2
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3797, ML-3798 | Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
 
 ## v1.2.1
 
@@ -529,6 +562,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3315 | The feature store does not support an aggregation of aggregations | NA                                  | v1.2.1 |
 | ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
+| ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
  
 
 ## Deprecations

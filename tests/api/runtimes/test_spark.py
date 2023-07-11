@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -614,16 +614,19 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             fstore.get_offline_features(
                 fv,
                 with_indexes=True,
-                entity_timestamp_column="timestamp",
+                timestamp_for_filtering="timestamp",
                 engine="remote-spark",
                 run_config=RunConfig(local=False, function=runtime, watch=False),
                 target=ParquetTarget(),
             )
 
+        self.project = "default"
+        self._create_project(client)
+
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
-            entity_timestamp_column="timestamp",
+            timestamp_for_filtering="timestamp",
             engine="spark",
             # setting watch=False, because we don't want to wait for the job to complete when running in API
             run_config=RunConfig(local=False, function=runtime, watch=False),
@@ -640,18 +643,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     "max_events": 10000,
                     "flush_after_seconds": 900,
                 },
-                "timestamp_column": "timestamp",
+                "entity_timestamp_column": None,
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
-                "join_type": "inner",
                 "order_by": None,
+                "start_time": None,
+                "end_time": None,
+                "timestamp_for_filtering": "timestamp",
                 "engine_args": None,
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
             "secret_sources": [],
-            "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2",
+            "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",
             "data_stores": [],
             "handler": "merge_handler",
         }
@@ -661,13 +666,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 expected_runspec,
                 # excluding function attribute as it contains hash of the object, excluding this path because any change
                 # in the structure of the run will require to update the function hash
-                exclude_paths="function",
+                exclude_paths=["root['function']"],
             )
             == {}
         )
 
         self.name = "my-vector-merger"
-        self.project = "default"
 
         expected_code = _default_merger_handler.replace(
             "{{{engine}}}", "SparkFeatureMerger"
@@ -707,6 +711,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         # generate runtime and set source code to load on run
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         runtime.metadata.name = "test-spark-runtime"
+        runtime.metadata.project = self.project
         runtime.spec.build.source = "git://github.com/mock/repo"
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported

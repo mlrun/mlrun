@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -291,11 +291,12 @@ class BaseStep(ModelObj):
     ):
         """add a step right after this step and return the new step
 
-        example, a 4 step pipeline ending with a stream:
-        graph.to('URLDownloader')\
-             .to('ToParagraphs')\
-             .to(name='to_json', handler='json.dumps')\
-             .to('>>', 'to_v3io', path=stream_path)\
+        example:
+            a 4-step pipeline ending with a stream:
+            graph.to('URLDownloader')\
+                 .to('ToParagraphs')\
+                 .to(name='to_json', handler='json.dumps')\
+                 .to('>>', 'to_v3io', path=stream_path)\
 
         :param class_name:  class name or step object to build the step from
                             for router steps the class name should start with '*'
@@ -306,7 +307,7 @@ class BaseStep(ModelObj):
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
         :param input_path:  selects the key/path in the event to use as input to the step
-                            this require that the event body will behave like a dict, example:
+                            this requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
         :param result_path: selects the key/path in the event to write the results to
@@ -1282,15 +1283,8 @@ def _add_graphviz_flow(
                 _add_graphviz_router(sg, child)
         else:
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
-        after = child.after or []
-        for item in after:
-            previous_object = step[item]
-            kw = (
-                {"ltail": "cluster_" + previous_object.fullname}
-                if previous_object.kind == StepKinds.router
-                else {}
-            )
-            graph.edge(previous_object.fullname, child.fullname, **kw)
+        _add_edges(child.after or [], step, graph, child)
+        _add_edges(getattr(child, "before", []), step, graph, child, after=False)
         if child.on_error:
             graph.edge(child.fullname, child.on_error, style="dashed")
 
@@ -1308,6 +1302,18 @@ def _add_graphviz_flow(
             last_step = target.after or default_final_step
             if last_step:
                 graph.edge(last_step, target.fullname)
+
+
+def _add_edges(items, step, graph, child, after=True):
+    for item in items:
+        next_or_prev_object = step[item]
+        kw = {}
+        if next_or_prev_object.kind == StepKinds.router:
+            kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+        if after:
+            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+        else:
+            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
 
 
 def _generate_graphviz(

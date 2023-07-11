@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,14 +20,6 @@ MLRUN_VERSION ?= unstable
 # version for the python package with 0.0.0+
 # if the provided version includes a "+" we replace it with "-" for the docker tag
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
-# if the provided version is a semver and followed by a "-" we replace its first occurrence with "+" to align with PEP 404
-ifneq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+-" | grep -vE "^[0-9]+\.[0-9]+\.[0-9]+-(a|b|rc)[0-9]+$$"),)
-	MLRUN_PYTHON_PACKAGE_VERSION ?= $(shell echo "$(MLRUN_VERSION)" | sed "s/\-/\+/")
-endif
-ifeq ($(shell echo "$(MLRUN_VERSION)" | grep -E "^[0-9]+\.[0-9]+\.[0-9]+.*$$"),) # empty result from egrep
-	MLRUN_PYTHON_PACKAGE_VERSION ?= 0.0.0+$(MLRUN_VERSION)
-endif
-MLRUN_PYTHON_PACKAGE_VERSION ?= $(MLRUN_VERSION)
 MLRUN_DOCKER_REPO ?= mlrun
 # empty by default (dockerhub), can be set to something like "quay.io/".
 # This will be used to tag the images built using this makefile
@@ -59,6 +51,8 @@ MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_CUDA_VERSION ?= 11.7.0
 MLRUN_TENSORFLOW_VERSION ?= 2.9.0
 MLRUN_HOROVOD_VERSION ?= 0.25.0
+# overrides the ml-models base image (models core) since it is broken and ml-models is about to be deprecated anyway
+MLRUN_MODELS_BASE_IMAGE_OVERRIDE ?= quay.io/mlrun/ml-models:1.4.0-rc15
 
 # THIS BLOCK IS FOR COMPUTED VARIABLES
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
@@ -169,7 +163,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_PYTHON_PACKAGE_VERSION)
+	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -272,7 +266,7 @@ pull-base: ## Pull base docker image
 MLRUN_MODELS_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
 MLRUN_MODELS_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models
 MLRUN_MODELS_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_IMAGE_NAME_TAGGED)$(MLRUN_CORE_DOCKER_TAG_SUFFIX)
+MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED := $(if $(MLRUN_MODELS_BASE_IMAGE_OVERRIDE),$(strip $(MLRUN_MODELS_BASE_IMAGE_OVERRIDE))$(MLRUN_PYTHON_VERSION_SUFFIX),$(MLRUN_MODELS_IMAGE_NAME_TAGGED)$(MLRUN_CORE_DOCKER_TAG_SUFFIX))
 MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED),)
@@ -294,7 +288,7 @@ models-core: base-core ## Build models core docker image
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
 
 .PHONY: models
-models: models-core ## Build models docker image
+models: #models-core ## Build models docker image (uncomment to build models-core base image if not overriden)
 	docker build \
 		--file dockerfiles/common/Dockerfile \
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) \
@@ -533,7 +527,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests
+		tests/frameworks/test_ml_frameworks.py
 
 
 .PHONY: test-integration-dockerized
@@ -683,12 +677,12 @@ fmt: ## Format the code (using black and isort)
 	python -m isort .
 
 .PHONY: lint-imports
-lint-imports: ## making sure imports dependencies are aligned
+lint-imports: ## Validates import dependencies
 	@echo "Running import linter"
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check ## Run lint on the code
+lint: flake8 fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

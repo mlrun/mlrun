@@ -3,3 +3,5 @@ paramiko~=2.12
 semver~=2.13
 requests~=2.22
 boto3~=1.24.59
+pyyaml~=5.1
+packaging~=23.1

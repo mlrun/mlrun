@@ -44,9 +44,51 @@ to the [feature store example](./basic-demo.html).
 
 Aggregations, being a common tool in data preparation and ML feature engineering, are available directly through
 the MLRun {py:class}`~mlrun.feature_store.FeatureSet` class. These transformations add a new feature to the 
-feature-set that is created by performing an aggregate function over the feature's values. You can use aggregation for time-based 
-sliding windows and fixed windows. In general, sliding windows are used for real time data, while fixed windows are used for historical 
-aggregations. 
+feature-set, which is created by performing an aggregate function over the feature's values.
+
+If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
+If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
+
+
+Feature names, which are generated internally, must match this regex pattern to be treated as aggregations: 
+`.*_[a-z]+_[0-9]+[smhd]$`,<br>
+where `[a-z]+` is the name of an aggregation. 
+
+```{admonition} Warning
+You must ensure that your features will not conflict with the automatically generated feature names. For example, 
+when using `add_aggregation()` on a feature X, you may get a genegated feature name of `X_count_1h`. 
+But if your dataset already contains `X_count_1h`, this would result in either unreliable aggregations or errors.
+```
+
+If either the pattern or the condition is not met, the feature is treated as a static (or "regular") feature.
+    
+These features can be fed into predictive models or can be used for additional processing and feature generation.
+
+```{admonition} Notes
+- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
+   aggregation steps are needed, a unique name must be provided to each, using the `step_name` parameter.
+- The timestamp column must be part of the feature set definition (for aggregation).
+```
+
+Aggregations that are supported using this function are:
+- `count` 
+- `sum`
+- `sqr` (sum of squares)
+- `max`
+- `min`
+- `first`
+- `last`
+- `avg`
+- `stdvar` (variance)
+- `stddev` (standard deviation)
+
+For full description of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
+documentation.
+
+### Windows
+
+You can use aggregation for time-based sliding windows and fixed windows. In general, sliding windows are used for real time data, 
+while fixed windows are used for historical aggregations. 
 
 A window can be measured in years, days, hours, seconds, minutes. 
 A window can be a single window, e.g. ‘1h’, ‘1d’, or a 
@@ -97,34 +139,8 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
    quotes_set = fstore.FeatureSet("stock-quotes", entities=[fstore.Entity("ticker")])
    quotes_set.add_aggregation("bid", ["min", "max"], ["1h"] name="price")
    ```
-   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.
-   
-   
-If the `name` parameter is not specified, features are generated in the format `{column_name}_{operation}_{window}`.  
-If you supply the optional `name` parameter, features are generated in the format `{name}_{operation}_{window}`.
-    
-These features can be fed into predictive models or be used for additional processing and feature generation.
+   This code generates two new features: `bid_min_1h` and `bid_max_1h` once per hour.  
 
-```{admonition} Notes
-- Internally, the graph step that is created to perform these aggregations is named `"Aggregates"`. If more than one
-   aggregation steps are needed, a unique name must be provided to each, using the `state_name` parameter.
-- The timestamp column must be part of the feature set definition (for aggregation).
-```
-
-Aggregations that are supported using this function are:
-- `count` 
-- `sum`
-- `sqr` (sum of squares)
-- `max`
-- `min`
-- `first`
-- `last`
-- `avg`
-- `stdvar`
-- `stddev`
-
-For a full documentation of this function, see the {py:func}`~mlrun.feature_store.FeatureSet.add_aggregation` 
-documentation.
 
 ## Built-in transformations
 
@@ -190,3 +206,82 @@ quotes_set.graph.add_step("MyMap", "multi", after="filter", multiplier=3)
 
 This uses the `add_step` function of the graph to add a step called `multi` utilizing `MyMap` after the `filter` step 
 that was added previously. The class is initialized with a multiplier of 3.
+
+## Supporting multiple engines
+
+MLRun supports multiple processing engines for executing graphs. These engines differ in the way they invoke graph
+steps. When implementing custom transformations, the code has to support all engines that are expected to run it. 
+
+```{admonition} Note
+The vast majority of MLRun's built-in transformations support all engines. The support matrix is available 
+[here](../serving/available-steps.html#data-transformations).
+```
+
+The following are the main differences between transformation steps executing on different engines:
+
+* `storey` - the step receives a single event (either as a dictionary or as an Event object, depending on whether 
+  `full_event` is configured for the step). The step is expected to process the event and return the modified event.
+* `spark` - the step receives a Spark dataframe object. Steps are expected to add their processing and calculations to 
+  the dataframe (either in-place or not) and return the resulting dataframe without materializing the data. 
+* `pandas` - the step receives a Pandas dataframe, processes it, and returns the dataframe.
+
+To support multiple engines, extend the {py:class}`~mlrun.feature_store.steps.MLRunStep` class with a custom
+transformation. This class allows implementing engine-specific code by overriding the following methods:
+{py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey`, {py:func}`~mlrun.feature_store.steps.MLRunStep._do_pandas` 
+and {py:func}`~mlrun.feature_store.steps.MLRunStep._do_spark`. To add support for a given engine, the relevant `do` 
+method needs to be implemented. 
+
+When a graph is executed, each step is a single instance of the relevant class that gets invoked as events flow through 
+the graph. For `spark` and `pandas` engines, this only happens once per ingestion, since the entire data-frame is fed to 
+the graph. For the `storey` engine the same instance's {py:func}`~mlrun.feature_store.steps.MLRunStep._do_storey` 
+function will be invoked per input row. As the graph is initialized, this class instance can receive global parameters 
+in its `__init__` method that determines its behavior.
+
+The following example class multiplies a feature by a value and adds it to the event. (For simplicity, data type 
+checks and validations were omitted as well as needed imports.) Note that the class also extends 
+{py:class}`~mlrun.serving.utils.StepToDict` - this class implements generic serialization of graph steps to
+a python dictionary. This functionality allows passing instances of this class to `graph.to()` and `graph.add_step()`:
+
+```python
+class MultiplyFeature(StepToDict, MLRunStep):
+    def __init__(self, feature: str, value: int, **kwargs):
+        super().__init__(**kwargs)
+        self._feature = feature
+        self._value = value
+        self._new_feature = f"{feature}_times_{value}"
+
+    def _do_storey(self, event):
+        # event is a single row represented by a dictionary
+        event[self._new_feature] = event[self._feature] * self._value  
+        return event
+
+    def _do_pandas(self, event):
+        # event is a pandas.DataFrame
+        event[self._new_feature] = event[self._feature].multiply(self._value)
+        return event
+
+    def _do_spark(self, event):
+        # event is a pyspark.sql.DataFrame
+        return event.withColumn(self._new_feature, 
+                                col(self._feature) * lit(self._value)
+                                )
+```
+
+The following example uses this step in a feature-set graph with the `pandas` engine. This example adds a feature called 
+`number1_times_4` with the value of the `number1` feature multiplied by 4. Note how the global parameters are passed
+when creating the graph step:
+
+```python
+import mlrun.feature_store as fstore
+
+feature_set = fstore.FeatureSet("fs-new", 
+                                entities=[fstore.Entity("id")], 
+                                engine="pandas",
+                                )
+# Adding multiply step, with specific parameters
+feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
+df_pandas = fstore.ingest(feature_set, data)
+```
+
+
+

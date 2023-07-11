@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,11 +28,11 @@ import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 from mlrun.errors import MLRunConflictError
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}/model-endpoints")
 
 
 @router.put(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
+    "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def create_or_patch(
@@ -86,7 +86,7 @@ async def create_or_patch(
 
 
 @router.post(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
+    "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def create_model_endpoint(
@@ -138,7 +138,7 @@ async def create_model_endpoint(
 
 
 @router.patch(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
+    "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def patch_model_endpoint(
@@ -188,7 +188,7 @@ async def patch_model_endpoint(
 
 
 @router.delete(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
+    "/{endpoint_id}",
     status_code=HTTPStatus.NO_CONTENT.value,
 )
 async def delete_model_endpoint(
@@ -223,7 +223,7 @@ async def delete_model_endpoint(
 
 
 @router.get(
-    "/projects/{project}/model-endpoints",
+    "",
     response_model=mlrun.common.schemas.ModelEndpointList,
 )
 async def list_model_endpoints(
@@ -316,7 +316,7 @@ async def list_model_endpoints(
 
 
 @router.get(
-    "/projects/{project}/model-endpoints/{endpoint_id}",
+    "/{endpoint_id}",
     response_model=mlrun.common.schemas.ModelEndpoint,
 )
 async def get_model_endpoint(

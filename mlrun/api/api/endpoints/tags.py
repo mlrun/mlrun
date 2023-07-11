@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 from mlrun.utils.helpers import tag_name_regex_as_string
 
-router = fastapi.APIRouter()
+router = fastapi.APIRouter(prefix="/projects/{project}/tags")
 
 
-@router.post("/projects/{project}/tags/{tag}", response_model=mlrun.common.schemas.Tag)
+@router.post("/{tag}", response_model=mlrun.common.schemas.Tag)
 async def overwrite_object_tags_with_tag(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
@@ -67,7 +67,7 @@ async def overwrite_object_tags_with_tag(
     return mlrun.common.schemas.Tag(name=tag, project=project)
 
 
-@router.put("/projects/{project}/tags/{tag}", response_model=mlrun.common.schemas.Tag)
+@router.put("/{tag}", response_model=mlrun.common.schemas.Tag)
 async def append_tag_to_objects(
     project: str,
     tag: str = fastapi.Path(..., regex=tag_name_regex_as_string()),
@@ -104,9 +104,7 @@ async def append_tag_to_objects(
     return mlrun.common.schemas.Tag(name=tag, project=project)
 
 
-@router.delete(
-    "/projects/{project}/tags/{tag}", status_code=http.HTTPStatus.NO_CONTENT.value
-)
+@router.delete("/{tag}", status_code=http.HTTPStatus.NO_CONTENT.value)
 async def delete_tag_from_objects(
     project: str,
     tag: str,

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import pathlib
+import unittest.mock
 
 import pytest
 
@@ -28,9 +29,12 @@ def test_launch_remote_job(rundb_mock):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
     mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
     runtime = mlrun.code_to_function(
-        name="test", kind="job", filename=str(func_path), handler=handler
+        name="test",
+        kind="job",
+        filename=str(func_path),
+        handler=handler,
+        image="mlrun/mlrun",
     )
-    runtime.spec.image = "mlrun/mlrun"
 
     # store the run is done by the API so we need to mock it
     uid = "123"
@@ -46,9 +50,12 @@ def test_launch_remote_job_no_watch(rundb_mock):
     launcher = mlrun.launcher.remote.ClientRemoteLauncher()
     mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
     runtime = mlrun.code_to_function(
-        name="test", kind="job", filename=str(func_path), handler=handler
+        name="test",
+        kind="job",
+        filename=str(func_path),
+        handler=handler,
+        image="mlrun/mlrun",
     )
-    runtime.spec.image = "mlrun/mlrun"
     result = launcher.launch(runtime, watch=False)
     assert result.status.state == "created"
 
@@ -99,3 +106,32 @@ def test_prepare_image_for_deploy(
     launcher.prepare_image_for_deploy(runtime)
     assert runtime.spec.build.base_image == expected_base_image
     assert runtime.spec.image == expected_image
+
+
+def test_run_error_status(rundb_mock):
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    mlrun.config.config.artifact_path = "v3io:///users/admin/mlrun"
+    runtime = mlrun.code_to_function(
+        name="test",
+        kind="job",
+        filename=str(func_path),
+        handler=handler,
+        image="mlrun/mlrun",
+    )
+
+    # store the run is done by the API so we need to mock it
+    uid = "123"
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(uid=uid),
+    )
+    rundb_mock.store_run(run, uid)
+
+    result = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(uid=uid),
+        status=mlrun.model.RunStatus(state="error", reason="some error"),
+    )
+    runtime._get_db_run = unittest.mock.MagicMock(return_value=result.to_dict())
+
+    with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
+        launcher.launch(runtime, run, watch=True)
+    assert "some error" in str(exc.value)

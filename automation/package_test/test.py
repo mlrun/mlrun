@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -166,7 +166,8 @@ class PackageTester:
             raise_on_error=False,
         )
         if code != 0:
-            vulnerabilities = json.loads(stdout)
+            full_report = json.loads(stdout)
+            vulnerabilities = full_report["vulnerabilities"]
             if vulnerabilities:
                 self._logger.debug(
                     "Found requirements vulnerabilities",
@@ -213,11 +214,15 @@ class PackageTester:
 
             filtered_vulnerabilities = []
             for vulnerability in vulnerabilities:
-                if vulnerability[0] in ignored_vulnerabilities:
-                    ignored_vulnerability = ignored_vulnerabilities[vulnerability[0]]
+                if vulnerability["package_name"] in ignored_vulnerabilities:
+                    ignored_vulnerability = ignored_vulnerabilities[
+                        vulnerability["package_name"]
+                    ]
                     ignore_vulnerability = False
                     for ignored_pattern in ignored_vulnerability:
-                        if re.search(ignored_pattern["pattern"], vulnerability[3]):
+                        if re.search(
+                            ignored_pattern["pattern"], vulnerability["advisory"]
+                        ):
                             self._logger.debug(
                                 "Ignoring vulnerability",
                                 vulnerability=vulnerability,
@@ -232,7 +237,6 @@ class PackageTester:
                 message = "Found vulnerable requirements that can not be ignored"
                 logger.warning(
                     message,
-                    vulnerabilities=vulnerabilities,
                     filtered_vulnerabilities=filtered_vulnerabilities,
                     ignored_vulnerabilities=ignored_vulnerabilities,
                 )

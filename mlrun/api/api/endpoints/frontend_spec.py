@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import semver
 import mlrun.api.api.deps
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
@@ -39,13 +40,9 @@ def get_frontend_spec(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
-    # In Iguazio 3.0 auth is turned off, but for this endpoint specifically the session is a must, so getting it from
-    # the cookie like it was before
-    # TODO: remove when Iguazio 3.0 is no longer relevant
-    session: typing.Optional[str] = fastapi.Cookie(None),
 ):
     jobs_dashboard_url = None
-    session = auth_info.session or session
+    session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
@@ -76,7 +73,7 @@ def get_frontend_spec(
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
         function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
-        function_deployment_mlrun_command=mlrun.api.utils.builder.resolve_mlrun_install_command(),
+        function_deployment_mlrun_command=_resolve_function_deployment_mlrun_command(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
@@ -88,6 +85,15 @@ def get_frontend_spec(
         ce_mode=config.ce.mode,
         ce=config.ce.to_dict(),
     )
+
+
+def _resolve_function_deployment_mlrun_command():
+    # TODO: When UI adds a requirements section, mlrun should be specified there instead of the commands section i.e.
+    #  frontend spec will contain only the mlrun_version_specifier instead of the full command
+    mlrun_version_specifier = (
+        mlrun.api.utils.builder.resolve_mlrun_install_command_version()
+    )
+    return f'python -m pip install "{mlrun_version_specifier}"'
 
 
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
@@ -112,7 +118,7 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
     if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
-        mlrun.runtimes.utils.resolve_nuclio_version()
+        mlrun.api.utils.runtimes.nuclio.resolve_nuclio_version()
     ) >= semver.VersionInfo.parse("1.7.8"):
         nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -206,3 +206,30 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             mlrun.projects.pipeline_context._artifact_path
             == f"{generic_path}/{run_status.run_id}"
         )
+
+    def test_run_pipeline_with_ttl(self):
+        mlrun.projects.pipeline_context.clear(with_project=True)
+        self._create_project("localpipettl")
+        self._set_functions()
+        workflow_path = str(f"{self.assets_path / self.pipeline_path}")
+        cleanup_ttl = 1234
+        run = self.project.run(
+            "p4",
+            workflow_path=workflow_path,
+            workflow_handler="my_pipe",
+            arguments={"param1": 7},
+            local=True,
+            cleanup_ttl=cleanup_ttl,
+        )
+        assert run.workflow.cleanup_ttl == cleanup_ttl
+
+        self.project.set_workflow("my-workflow", workflow_path=workflow_path)
+
+        run = self.project.run(
+            "my-workflow",
+            workflow_handler="my_pipe",
+            arguments={"param1": 7},
+            local=True,
+            cleanup_ttl=cleanup_ttl,
+        )
+        assert run.workflow.cleanup_ttl == cleanup_ttl

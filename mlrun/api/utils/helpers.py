@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +57,10 @@ def ensure_running_on_chief(function):
 
     if asyncio.iscoroutinefunction(function):
         return async_wrapper
+
+    # ensure method name is preserved
+    wrapper.__name__ = function.__name__
+
     return wrapper
 
 

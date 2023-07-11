@@ -115,7 +115,7 @@ my_describe.doc()
 
 ## Running the function
 
-Use the `run` method to to run the function.
+Use the `run` method to run the function.
 
 When working with functions pay attention to the following:
 

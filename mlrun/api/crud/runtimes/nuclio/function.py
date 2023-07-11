@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,18 +22,20 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
-import mlrun.api.schemas
+import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
+import mlrun.common.schemas
 import mlrun.datastore
 import mlrun.errors
 import mlrun.runtimes.function
+import mlrun.runtimes.pod
 import mlrun.utils
 from mlrun.utils import logger
 
 
 def deploy_nuclio_function(
     function: mlrun.runtimes.function.RemoteRuntime,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
     client_version: str = None,
     builder_env: dict = None,
     client_python_version: str = None,
@@ -63,6 +65,11 @@ def deploy_nuclio_function(
     )
 
     try:
+        logger.info(
+            "Starting Nuclio function deployment",
+            function_name=function_name,
+            project_name=project_name,
+        )
         return nuclio.deploy.deploy_config(
             function_config,
             dashboard_url=mlrun.mlconf.nuclio_dashboard_url,
@@ -113,7 +120,7 @@ def get_nuclio_deploy_status(
     last_log_timestamp=0,
     verbose=False,
     resolve_address=True,
-    auth_info: mlrun.api.schemas.AuthInfo = None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """
     Get nuclio function deploy status
@@ -171,12 +178,88 @@ def _compile_function_config(
     builder_env=None,
     auth_info=None,
 ):
+    _set_function_labels(function)
+
+    # resolve env vars before compiling the nuclio spec, as we need to set them in the spec
+    env_dict, external_source_env_dict = _resolve_env_vars(function)
+
+    nuclio_spec = nuclio.ConfigSpec(
+        env=env_dict,
+        external_source_env=external_source_env_dict,
+        config=function.spec.config,
+    )
+    nuclio_spec.cmd = function.spec.build.commands or []
+
+    _resolve_and_set_build_requirements(function, nuclio_spec)
+    _resolve_and_set_nuclio_runtime(
+        function, nuclio_spec, client_version, client_python_version
+    )
+
+    project = function.metadata.project or "default"
+    tag = function.metadata.tag
+    handler = function.spec.function_handler
+
+    _set_build_params(function, nuclio_spec, builder_env, project, auth_info)
+    _set_function_scheduling_params(function, nuclio_spec)
+    _set_function_replicas(function, nuclio_spec)
+    _set_misc_specs(function, nuclio_spec)
+
+    # if the user code is given explicitly or from a source, we need to set the handler and relevant attributes
+    if (
+        function.spec.base_spec
+        or function.spec.build.functionSourceCode
+        or function.spec.build.source
+        or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
+    ):
+        config = function.spec.base_spec
+        if not config:
+            # if base_spec was not set (when not using code_to_function) and we have base64 code
+            # we create the base spec with essential attributes
+            config = nuclio.config.new_config()
+            mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
+
+        config = nuclio.config.extend_config(
+            config, nuclio_spec, tag, function.spec.build.code_origin
+        )
+
+        if (
+            function.kind == mlrun.runtimes.RuntimeKinds.serving
+            and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
+        ):
+            _set_source_code_and_handler(function, config)
+    else:
+        # this may also be called in case of using single file code_to_function(embed_code=False)
+        # this option need to be removed or be limited to using remote files (this code runs in server)
+        function_name, config, code = nuclio.build_file(
+            function.spec.source,
+            name=function.metadata.name,
+            project=project,
+            handler=handler,
+            tag=tag,
+            spec=nuclio_spec,
+            kind=function.spec.function_kind,
+            verbose=function.verbose,
+        )
+
+    mlrun.utils.update_in(
+        config, "spec.volumes", function.spec.generate_nuclio_volumes()
+    )
+
+    _resolve_and_set_base_image(function, config, client_version, client_python_version)
+    function_name = _set_function_name(function, config, project, tag)
+
+    return function_name, project, config
+
+
+def _set_function_labels(function):
     labels = function.metadata.labels or {}
     labels.update({"mlrun/class": function.kind})
     for key, value in labels.items():
         # Adding escaping to the key to prevent it from being split by dots if it contains any
         function.set_config(f"metadata.labels.\\{key}\\", value)
 
+
+def _resolve_env_vars(function):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
     # This only needs to run if we're running within k8s context. If running in Docker, for example, skip.
@@ -187,6 +270,22 @@ def _compile_function_config(
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
 
+    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
+    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
+    if (
+        mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
+            "1.6.0", "1.8.0"
+        )
+        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
+    ):
+        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+
+    return env_dict, external_source_env_dict
+
+
+def _resolve_and_set_nuclio_runtime(
+    function, nuclio_spec, client_version, client_python_version
+):
     nuclio_runtime = (
         function.spec.nuclio_runtime
         or mlrun.api.crud.runtimes.nuclio.helpers.resolve_nuclio_runtime_python_image(
@@ -194,6 +293,7 @@ def _compile_function_config(
         )
     )
 
+    # For backwards compatibility, we need to adjust the runtime for old Nuclio versions
     if mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
         "0.0.0", "1.6.0"
     ) and nuclio_runtime in [
@@ -209,23 +309,10 @@ def _compile_function_config(
             # our default is python:3.9, simply set it to python:3.6 to keep supporting envs with old Nuclio
             nuclio_runtime = "python:3.6"
 
-    # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
-    # Our code is counting on the strings to be decoded, so add the needed env var for those versions
-    if (
-        mlrun.api.crud.runtimes.nuclio.helpers.is_nuclio_version_in_range(
-            "1.6.0", "1.8.0"
-        )
-        and "NUCLIO_PYTHON_DECODE_EVENT_STRINGS" not in env_dict
-    ):
-        env_dict["NUCLIO_PYTHON_DECODE_EVENT_STRINGS"] = "true"
+    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
 
-    nuclio_spec = nuclio.ConfigSpec(
-        env=env_dict,
-        external_source_env=external_source_env_dict,
-        config=function.spec.config,
-    )
-    nuclio_spec.cmd = function.spec.build.commands or []
 
+def _resolve_and_set_build_requirements(function, nuclio_spec):
     if function.spec.build.requirements:
         resolved_requirements = []
         # wrap in single quote to ensure that the requirement is treated as a single string
@@ -246,28 +333,14 @@ def _compile_function_config(
         encoded_requirements = " ".join(resolved_requirements)
         nuclio_spec.cmd.append(f"python -m pip install {encoded_requirements}")
 
-    project = function.metadata.project or "default"
-    tag = function.metadata.tag
-    handler = function.spec.function_handler
 
+def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=None):
+    # handle archive build params
     if function.spec.build.source:
         mlrun.api.crud.runtimes.nuclio.helpers.compile_nuclio_archive_config(
             nuclio_spec, function, builder_env, project, auth_info=auth_info
         )
 
-    nuclio_spec.set_config("spec.runtime", nuclio_runtime)
-
-    # In Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
-    nuclio_spec.set_config(
-        "spec.serviceType",
-        function.spec.service_type or mlrun.mlconf.httpdb.nuclio.default_service_type,
-    )
-    if function.spec.readiness_timeout:
-        nuclio_spec.set_config(
-            "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
-        )
-    if function.spec.resources:
-        nuclio_spec.set_config("spec.resources", function.spec.resources)
     if function.spec.no_cache:
         nuclio_spec.set_config("spec.build.noCache", True)
     if function.spec.build.functionSourceCode:
@@ -285,6 +358,9 @@ def _compile_function_config(
 
     if function.spec.base_image_pull:
         nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
+
+
+def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible
     if mlrun.runtimes.function.validate_nuclio_version_compatibility(
         "1.5.20", "1.6.10"
@@ -316,18 +392,9 @@ def _compile_function_config(
                 function.spec.preemption_mode,
             )
 
-    # don't send default or any priority class name if nuclio is not compatible
-    if (
-        function.spec.priority_class_name
-        and mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.18")
-        and len(mlrun.mlconf.get_valid_function_priority_class_names())
-    ):
-        nuclio_spec.set_config(
-            "spec.priorityClassName", function.spec.priority_class_name
-        )
 
+def _set_function_replicas(function, nuclio_spec):
     if function.spec.replicas:
-
         nuclio_spec.set_config(
             "spec.minReplicas",
             mlrun.utils.as_number("spec.Replicas", function.spec.replicas),
@@ -336,7 +403,6 @@ def _compile_function_config(
             "spec.maxReplicas",
             mlrun.utils.as_number("spec.Replicas", function.spec.replicas),
         )
-
     else:
         nuclio_spec.set_config(
             "spec.minReplicas",
@@ -345,6 +411,35 @@ def _compile_function_config(
         nuclio_spec.set_config(
             "spec.maxReplicas",
             mlrun.utils.as_number("spec.maxReplicas", function.spec.max_replicas),
+        )
+
+
+def _set_misc_specs(function, nuclio_spec):
+    # in Nuclio >= 1.6.x default serviceType has changed to "ClusterIP".
+    nuclio_spec.set_config(
+        "spec.serviceType",
+        function.spec.service_type or mlrun.mlconf.httpdb.nuclio.default_service_type,
+    )
+    if function.spec.readiness_timeout:
+        nuclio_spec.set_config(
+            "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
+    if function.spec.readiness_timeout_before_failure:
+        nuclio_spec.set_config(
+            "spec.waitReadinessTimeoutBeforeFailure",
+            function.spec.readiness_timeout_before_failure,
+        )
+    if function.spec.resources:
+        nuclio_spec.set_config("spec.resources", function.spec.resources)
+
+    # don't send default or any priority class name if nuclio is not compatible
+    if (
+        function.spec.priority_class_name
+        and mlrun.runtimes.function.validate_nuclio_version_compatibility("1.6.18")
+        and len(mlrun.mlconf.get_valid_function_priority_class_names())
+    ):
+        nuclio_spec.set_config(
+            "spec.priorityClassName", function.spec.priority_class_name
         )
 
     if function.spec.service_account:
@@ -358,99 +453,53 @@ def _compile_function_config(
             ),
         )
 
-    if (
-        function.spec.base_spec
-        or function.spec.build.functionSourceCode
-        or function.spec.build.source
-        or function.kind == mlrun.runtimes.RuntimeKinds.serving  # serving can be empty
-    ):
-        config = function.spec.base_spec
-        if not config:
-            # if base_spec was not set (when not using code_to_function) and we have base64 code
-            # we create the base spec with essential attributes
-            config = nuclio.config.new_config()
-            mlrun.utils.update_in(config, "spec.handler", handler or "main:handler")
 
-        config = nuclio.config.extend_config(
-            config, nuclio_spec, tag, function.spec.build.code_origin
-        )
-
-        mlrun.utils.update_in(config, "metadata.name", function.metadata.name)
+def _set_source_code_and_handler(function, config):
+    if not function.spec.build.source:
+        # set the source to the mlrun serving wrapper
+        body = nuclio.build.mlrun_footer.format(mlrun.runtimes.serving.serving_subkind)
         mlrun.utils.update_in(
-            config, "spec.volumes", function.spec.generate_nuclio_volumes()
+            config,
+            "spec.build.functionSourceCode",
+            base64.b64encode(body.encode("utf-8")).decode("utf-8"),
         )
-        base_image = (
-            mlrun.utils.get_in(config, "spec.build.baseImage")
-            or function.spec.image
-            or function.spec.build.base_image
-        )
-        if base_image:
-            mlrun.utils.update_in(
-                config,
-                "spec.build.baseImage",
-                mlrun.utils.enrich_image_url(
-                    base_image, client_version, client_python_version
-                ),
-            )
-
-        logger.info("deploy started")
-        name = mlrun.runtimes.function.get_fullname(
-            function.metadata.name, project, tag
-        )
-        function.status.nuclio_name = name
-        mlrun.utils.update_in(config, "metadata.name", name)
-
-        if (
-            function.kind == mlrun.runtimes.RuntimeKinds.serving
-            and not mlrun.utils.get_in(config, "spec.build.functionSourceCode")
-        ):
-            if not function.spec.build.source:
-                # set the source to the mlrun serving wrapper
-                body = nuclio.build.mlrun_footer.format(
-                    mlrun.runtimes.serving.serving_subkind
-                )
-                mlrun.utils.update_in(
-                    config,
-                    "spec.build.functionSourceCode",
-                    base64.b64encode(body.encode("utf-8")).decode("utf-8"),
-                )
-            elif not function.spec.function_handler:
-                # point the nuclio function handler to mlrun serving wrapper handlers
-                mlrun.utils.update_in(
-                    config,
-                    "spec.handler",
-                    "mlrun.serving.serving_wrapper:handler",
-                )
-    else:
-        # this may also be called in case of using single file code_to_function(embed_code=False)
-        # this option need to be removed or be limited to using remote files (this code runs in server)
-        name, config, code = nuclio.build_file(
-            function.spec.source,
-            name=function.metadata.name,
-            project=project,
-            handler=handler,
-            tag=tag,
-            spec=nuclio_spec,
-            kind=function.spec.function_kind,
-            verbose=function.verbose,
-        )
-
+    elif not function.spec.function_handler:
+        # point the nuclio function handler to mlrun serving wrapper handlers
         mlrun.utils.update_in(
-            config, "spec.volumes", function.spec.generate_nuclio_volumes()
+            config,
+            "spec.handler",
+            "mlrun.serving.serving_wrapper:handler",
         )
-        base_image = function.spec.image or function.spec.build.base_image
-        if base_image:
-            mlrun.utils.update_in(
-                config,
-                "spec.build.baseImage",
-                mlrun.utils.enrich_image_url(
-                    base_image, client_version, client_python_version
-                ),
-            )
 
-        name = mlrun.runtimes.function.get_fullname(name, project, tag)
-        function.status.nuclio_name = name
 
-        mlrun.utils.update_in(config, "metadata.name", name)
+def _resolve_and_set_base_image(
+    function, config, client_version, client_python_version
+):
+    base_image = (
+        mlrun.utils.get_in(config, "spec.build.baseImage")
+        or function.spec.image
+        or function.spec.build.base_image
+    )
+    if base_image:
+        # we ignore the returned registry secret as nuclio uses the image pull secret, which is resolved in the
+        # build params
+        (
+            base_image,
+            _,
+        ) = mlrun.api.utils.builder.resolve_image_target_and_registry_secret(
+            base_image, secret_name=function.spec.build.secret
+        )
+        mlrun.utils.update_in(
+            config,
+            "spec.build.baseImage",
+            mlrun.utils.enrich_image_url(
+                base_image, client_version, client_python_version
+            ),
+        )
 
-    return name, project, config
+
+def _set_function_name(function, config, project, tag):
+    name = mlrun.runtimes.function.get_fullname(function.metadata.name, project, tag)
+    function.status.nuclio_name = name
+    mlrun.utils.update_in(config, "metadata.name", name)
+    return name

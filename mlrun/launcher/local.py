@@ -13,11 +13,11 @@
 # limitations under the License.
 import os
 import pathlib
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.errors
-import mlrun.launcher.client
+import mlrun.launcher.client as launcher
 import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
@@ -25,7 +25,7 @@ import mlrun.utils.notifications
 from mlrun.utils import logger
 
 
-class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
+class ClientLocalLauncher(launcher.ClientBaseLauncher):
     """
     ClientLocalLauncher is a launcher that runs the job locally.
     Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).
@@ -43,8 +43,10 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
-        handler: Optional[str] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
@@ -73,7 +75,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 "local and schedule cannot be used together"
             )
 
-        self._enrich_runtime(runtime)
+        self.enrich_runtime(runtime)
         run = self._create_run_object(task)
 
         if self._is_run_local:
@@ -117,15 +119,14 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             notifications=notifications,
         )
         self._validate_runtime(runtime, run)
-        result = self.execute(
+        result = self._execute(
             runtime=runtime,
             run=run,
         )
 
-        self._save_or_push_notifications(result)
         return result
 
-    def execute(
+    def _execute(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
@@ -134,13 +135,15 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
 
-        logger.info(
-            "Storing function",
-            name=run.metadata.name,
-            uid=run.metadata.uid,
-            db=runtime.spec.rundb,
-        )
-        self._store_function(runtime, run)
+        # store function object in db unless running from within a run pod
+        if not runtime.is_child:
+            logger.info(
+                "Storing function",
+                name=run.metadata.name,
+                uid=run.metadata.uid,
+                db=runtime.spec.rundb,
+            )
+            self._store_function(runtime, run)
 
         execution = mlrun.run.MLClientCtx.from_dict(
             run.to_dict(),
@@ -187,7 +190,8 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 last_err = err
                 result = runtime._update_run_state(task=run, err=err)
 
-        self._save_or_push_notifications(run)
+        self._push_notifications(run, runtime)
+
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
@@ -257,11 +261,16 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _save_or_push_notifications(self, runobj):
-        if not self._are_valid_notifications(runobj):
+    def _push_notifications(
+        self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
+    ):
+        if not self._run_has_valid_notifications(runobj):
             return
-        # The run is local, so we can assume that watch=True, therefore this code runs
-        # once the run is completed, and we can just push the notifications.
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
         #       SDK for documentation purposes.
-        mlrun.utils.notifications.NotificationPusher([runobj]).push()
+        # The run is local, so we can assume that watch=True, therefore this code runs
+        # once the run is completed, and we can just push the notifications.
+        # Only push from jupyter, not from the CLI.
+        # "handler" and "dask" kinds are special cases of local runs which don't set local=True
+        if self._is_run_local or runtime.kind in ["handler", "dask"]:
+            mlrun.utils.notifications.NotificationPusher([runobj]).push()

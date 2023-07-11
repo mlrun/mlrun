@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,11 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
+import mlrun.api.db.sqldb.db
+import mlrun.api.utils.scheduler
 import mlrun.api.utils.singletons.db
+import mlrun.api.utils.singletons.scheduler
+import mlrun.common.schemas
 import mlrun.utils.singleton
 
 
@@ -32,13 +36,11 @@ class Notifications(
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
-        notification_objects_to_store = []
-        for notification_object in notification_objects:
-            notification_objects_to_store.append(
-                mlrun.api.api.utils.mask_notification_params_with_secret(
-                    project, run_uid, notification_object
-                )
+        notification_objects_to_store = (
+            mlrun.api.api.utils.validate_and_mask_notification_list(
+                notification_objects, run_uid, project
             )
+        )
 
         mlrun.api.utils.singletons.db.get_db().store_run_notifications(
             session, notification_objects_to_store, run_uid, project
@@ -77,4 +79,71 @@ class Notifications(
 
         mlrun.api.utils.singletons.db.get_db().delete_run_notifications(
             session, name, run_uid, project
+        )
+
+    @staticmethod
+    def set_object_notifications(
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        project: str,
+        notifications: typing.List[mlrun.common.schemas.Notification],
+        notification_parent: typing.Union[
+            mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
+        ],
+    ):
+        """
+        Sets notifications on given object (run or schedule, might be extended in the future).
+        This will replace any existing notifications.
+        :param db_session: DB session
+        :param auth_info: Authorization info
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param notification_parent: Identifier of the object on which to set the notifications
+        """
+        set_notification_methods = {
+            "run": {
+                "factory": mlrun.api.utils.singletons.db.get_db,
+                "method_name": mlrun.api.db.sqldb.db.SQLDB.set_run_notifications.__name__,
+                "identifier_key": "uid",
+            },
+            "schedule": {
+                "factory": mlrun.api.utils.singletons.scheduler.get_scheduler,
+                "method_name": mlrun.api.utils.scheduler.Scheduler.set_schedule_notifications.__name__,
+                "identifier_key": "name",
+            },
+        }
+
+        set_notification_method = set_notification_methods.get(
+            notification_parent.kind, {}
+        )
+        factory = set_notification_method.get("factory")
+        if not factory:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find factory for object kind: {notification_parent.kind}"
+            )
+        set_func = set_notification_method.get("method_name")
+        if not set_func:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find set notification function for object kind: {notification_parent.kind}"
+            )
+        identifier_key = set_notification_method.get("identifier_key")
+        if not identifier_key:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"couldn't find identifier key for object kind: {notification_parent.kind}"
+            )
+
+        notification_objects_to_set = (
+            mlrun.api.api.utils.validate_and_mask_notification_list(
+                notifications,
+                getattr(notification_parent, identifier_key),
+                project,
+            )
+        )
+
+        getattr(factory(), set_func)(
+            session=db_session,
+            project=project,
+            notifications=notification_objects_to_set,
+            identifier=notification_parent,
+            auth_info=auth_info,
         )

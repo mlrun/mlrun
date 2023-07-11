@@ -22,7 +22,7 @@ import httpx
 import kfp
 import pytest
 from fastapi.testclient import TestClient
-from mlrun.common.db.sql_session import _init_engine, create_session
+
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -34,6 +34,7 @@ import mlrun.common.schemas
 from mlrun import mlconf
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger

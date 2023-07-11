@@ -28,15 +28,17 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-|  | The `error_handler` was updated. See {ref}`pipelines-error-handling` |
+| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling` |
 
 
 ####  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
+| ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. ***need doc update!!*** |
 | ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
- 
+| ML-3763 |  **needs to be added in docs**   |
+
 
 #### New documentation pages
 - {ref}`git-repo-as-hub`
@@ -48,7 +50,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3733 | `mlrun.get_run_db().list_model_endpoints()` returns `list`. Previously, it returned `mlrun.api.schemas.model_endpoints.ModelEndpointList`. |
-| ML-3474 | Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From 1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. |
+| ML-3474 | Pre-v1.4.0: When logging artifacts during a runtime (regular artifacts, not models (ModelArtifact via context.log_model) or datasets (DatasetArtifact via context.log_dataset)), they were strings in the RunObject outputs property. The strings were the target path to the file logged in the artifact. From v1.4.0, they are the store path of the artifact, and not the target path. (They now appear the same as the store paths for logging models and datasets.) This is breaking behavior only if you use the output of the run object as a parameter to another runtime and not as an input. [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
 
 ```
  # Set 2 functions:
@@ -76,23 +78,19 @@ run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/). |
+| ML-1787 | Optimized distribution of load between chief and workers so that heavy loads do not cause restart of kubelet. [View in Git](https://github.com/mlrun/mlrun/pull/1780). |
 | ML-2773 | Reduced memory footprint for feature vector that joins data from multiple feature sets. [View in Git](https://github.com/mlrun/mlrun/pull/2569). |
 | ML-3166 | New error message when `load_project` uses an invalid URL source. [View in Git](https://github.com/mlrun/mlrun/pull/3278). |
-| ML-3315 | removed limitation from change log. Still need to add how to aggregate aggregations  [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3420 | Fix artifacts corruption due to overflowing size. [View in Git](https://github.com/mlrun/mlrun/pull/3577). |
 | ML-3443 | Spark ingestion engine now supports more than 2 keys in online target. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3379). |
 | ML-3470 | Changes in secrets are now recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711). |
 | ML-3508 | Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686). |
-| ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3621 | `clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689). |
 | ML-3631 | MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927). |
 | ML-3652 | V3IO_API is now inferred from the DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422). |
-| ML-3654 | Serving functions (in a graph) now recover after an `error_handler` error.  [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 | ML-3703 | `project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549). |
 | ML-3713 | Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812). |
 | ML-3761 | \**kwargs now forward as expected in MLRun jobs and hyper params. [View in Git](https://github.com/mlrun/mlrun/pull/3533). |
-| ML-3763 |  **Also in docs**  Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED [View in Git](https://github.com/mlrun/mlrun/pull/). |
 | ML-3782 | The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
 | ML-3806 | Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446). |
 | ML-3847 | `add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810). |
@@ -576,6 +574,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-2407 | Kafka ingestion service on an empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 | ML-2489 | Cannot pickle a class inside an mlrun function. | Use cloudpickle instead of pickle | v1.2.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
+| ML-3315 | Spark ingestion does not support nested aggregations.  | NA | v1.2.1 |
 | ML-3386 | Documentation is missing full details on the feature store sources and targets | NA | v1.2.1 |
 | ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
@@ -594,17 +593,16 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
 | ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |
-| ML-3743 | Setting AWS credentials as project secret cause a build failure on EKS configured with ECR. | When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, 
-as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
+| ML-3743 | Setting AWS credentials as project secret cause a build failure on EKS configured with ECR. | When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
 
 ## Deprecations
 
     
-| In   | ID |Description                                  ]]                        |
+| In   | ID |Description                                                      |
 |------ | ---- | --------------------------------------------------------------------|
 | v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 |  NA | See [Deprecated APIs](#api-130).|
-| v1.4.0|  NA  | The paradigm for creating a feature vector over several feature sets with different entities is now based on feature vectors (and not feature sets). See **ref to docs**
+
 
 ### Deprecated APIs, removed from v1.3.0 code
 These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
@@ -640,7 +638,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported in v1.5.0. |
-| ML-4171 | In v1.4.1 Redi targets will have one key per record. This will not be backwards-compatible. |
+| ML-4171 | In v1.4.1 Redis targets will have one key per record. This will not be backwards-compatible. |
 
 
 
@@ -660,6 +658,11 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
 
+### Deprecated CLI, will be removed in v1.5.0
+
+The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
+
+
 ### Deprecated APIs, will be removed in v1.6.0
 These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.6.0.
 | Deprecated / to be removed                       | Use instead                                   |
@@ -668,6 +671,3 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 
 
 
-### Deprecated CLI, will be removed in v1.5.0
-
-The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.

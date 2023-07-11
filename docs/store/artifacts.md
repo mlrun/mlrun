@@ -45,7 +45,7 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
 - MLRun < 1.2: The allowed paths include only v3io paths
-- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// `. `http` paths are not visible
+- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// `. `http://` paths are not visible
  due to security reasons.
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.

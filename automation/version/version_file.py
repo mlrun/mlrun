@@ -44,6 +44,10 @@ def main():
         "--mlrun-version", type=str, required=False, default="0.0.0+unstable"
     )
 
+    subparsers.add_parser(
+        "is-feature-branch", help="check if the branch is a feature branch"
+    )
+
     is_stable_parser = subparsers.add_parser(
         "is-stable", help="check if the version is stable"
     )
@@ -92,6 +96,9 @@ def main():
     elif args.command == "is-stable":
         is_stable = is_stable_version(args.version)
         print(str(is_stable).lower())
+
+    elif args.command == "is-feature-branch":
+        print(str(is_feature_branch()).lower())
 
 
 def get_current_version(
@@ -331,6 +338,14 @@ def version_to_mlrun_version(version):
     return version_str
 
 
+def is_stable_version(mlrun_version: str) -> bool:
+    return re.match(r"^\d+\.\d+\.\d+$", mlrun_version) is not None
+
+
+def is_feature_branch() -> bool:
+    return get_feature_branch_feature_name() != ""
+
+
 def get_feature_branch_feature_name() -> typing.Optional[str]:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
@@ -340,10 +355,6 @@ def get_feature_branch_feature_name() -> typing.Optional[str]:
         if current_branch.startswith("feature/")
         else ""
     )
-
-
-def is_stable_version(mlrun_version: str) -> bool:
-    return re.match(r"^\d+\.\d+\.\d+$", mlrun_version) is not None
 
 
 def _run_command(command, args=None):

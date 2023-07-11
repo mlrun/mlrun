@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
-import mlrun.common.model_monitoring.helpers
+import mlrun.common.model_monitoring
 
 from ..object import ObjectKind, ObjectSpec, ObjectStatus
 from .constants import (

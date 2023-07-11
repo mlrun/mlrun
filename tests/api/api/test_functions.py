@@ -347,8 +347,9 @@ def test_tracking_on_serving(
     httpserver,
     monkeypatch,
 ):
-    """Validating that the `mlrun.common.schemas.model_monitoring.TrackingPolicy` configurations are generated as
-    expected when the user applies model monitoring on a serving function"""
+    """Validating that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
+    generated as expected when the user applies model monitoring on a serving function
+    """
 
     # Generate a test project
     tests.api.api.utils.create_project(client, PROJECT)
@@ -397,7 +398,7 @@ def test_tracking_on_serving(
     assert function_from_db["spec"]["track_models"]
 
     tracking_policy_default = (
-        mlrun.common.schemas.model_monitoring.TrackingPolicy().to_dict()
+        mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
     )
     assert (
         deepdiff.DeepDiff(

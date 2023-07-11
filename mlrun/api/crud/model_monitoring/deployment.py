@@ -47,7 +47,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Invoking monitoring deploying functions.
@@ -79,7 +79,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -140,7 +140,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
@@ -228,7 +228,7 @@ class MonitoringDeployment:
         self,
         project: str,
         model_monitoring_access_key: str,
-        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
         auth_info: mlrun.common.schemas.AuthInfo,
         parquet_target: str,
     ):
@@ -290,7 +290,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.TrackingPolicy,
+        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Initialize model monitoring batch function.

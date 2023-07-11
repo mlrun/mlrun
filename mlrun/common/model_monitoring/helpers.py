@@ -14,7 +14,6 @@
 #
 import mlrun.api
 import mlrun.common
-import mlrun.platforms
 from mlrun.common.schemas.model_monitoring import (
     EndpointUID,
     FunctionURI,

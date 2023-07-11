@@ -22,7 +22,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.tracking_policy
+from mlrun.common.schemas.model_monitoring.tracking_policy import TrackingPolicy
 
 from ..datastore import parse_kafka_url
 from ..model import ObjectList
@@ -304,9 +304,7 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
-        tracking_policy: Union[
-            mlrun.common.schemas.model_monitoring.TrackingPolicy, dict
-        ] = None,
+        tracking_policy: Union[TrackingPolicy, dict] = None,
     ):
         """set tracking parameters:
 
@@ -336,11 +334,7 @@ class ServingRuntime(RemoteRuntime):
         if tracking_policy:
             if isinstance(tracking_policy, dict):
                 # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
-                self.spec.tracking_policy = (
-                    mlrun.common.schemas.model_monitoring.TrackingPolicy.from_dict(
-                        tracking_policy
-                    )
-                )
+                self.spec.tracking_policy = TrackingPolicy.from_dict(tracking_policy)
             else:
                 # Tracking_policy is already a `model_monitoring.TrackingPolicy` object
                 self.spec.tracking_policy = tracking_policy

@@ -46,7 +46,6 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.tracking_policy
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
@@ -54,6 +53,7 @@ from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
+from mlrun.common.schemas.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.run import new_function
@@ -747,14 +747,12 @@ def _build_function(
 
                         if fn.spec.tracking_policy:
                             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-                            fn.spec.tracking_policy = mlrun.common.schemas.model_monitoring.TrackingPolicy.from_dict(
+                            fn.spec.tracking_policy = TrackingPolicy.from_dict(
                                 fn.spec.tracking_policy
                             )
                         else:
                             # Initialize tracking policy with default values
-                            fn.spec.tracking_policy = (
-                                mlrun.common.schemas.model_monitoring.TrackingPolicy()
-                            )
+                            fn.spec.tracking_policy = TrackingPolicy()
 
                         # deploy both model monitoring stream and model monitoring batch job
                         mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(

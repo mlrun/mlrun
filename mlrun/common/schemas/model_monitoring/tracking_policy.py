@@ -17,7 +17,6 @@ from typing import Union
 
 import mlrun.common
 import mlrun.model
-from mlrun.common.schemas.schedule import ScheduleCronTrigger
 
 
 class TrackingPolicy(mlrun.model.ModelObj):
@@ -34,9 +33,9 @@ class TrackingPolicy(mlrun.model.ModelObj):
 
     def __init__(
         self,
-        default_batch_intervals: Union[ScheduleCronTrigger, str] = ScheduleCronTrigger(
-            minute="0", hour="*/1"
-        ),
+        default_batch_intervals: Union[
+            mlrun.common.schemas.schedule.ScheduleCronTrigger, str
+        ] = mlrun.common.schemas.schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
     ):
@@ -53,8 +52,10 @@ class TrackingPolicy(mlrun.model.ModelObj):
                                             the image is mlrun/mlrun.
         """
         if isinstance(default_batch_intervals, str):
-            default_batch_intervals = ScheduleCronTrigger.from_crontab(
-                default_batch_intervals
+            default_batch_intervals = (
+                mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(
+                    default_batch_intervals
+                )
             )
         self.default_batch_intervals = default_batch_intervals
         self.default_batch_image = default_batch_image
@@ -76,13 +77,13 @@ class TrackingPolicy(mlrun.model.ModelObj):
                 ],
                 str,
             ):
-                new_obj.default_batch_intervals = ScheduleCronTrigger.from_crontab(
+                new_obj.default_batch_intervals = mlrun.common.schemas.schedule.ScheduleCronTrigger.from_crontab(
                     struct[
                         mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
                     ]
                 )
             else:
-                new_obj.default_batch_intervals = ScheduleCronTrigger.parse_obj(
+                new_obj.default_batch_intervals = mlrun.common.schemas.schedule.ScheduleCronTrigger.parse_obj(
                     struct[
                         mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS
                     ]

@@ -23,7 +23,6 @@ import sqlalchemy.orm
 
 import mlrun.api.crud
 import mlrun.api.db.session
-import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.projects.remotes.follower as project_follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s

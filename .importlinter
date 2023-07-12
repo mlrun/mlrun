@@ -93,7 +93,6 @@ ignore_imports =
     mlrun.runtimes.mpijob.v1 -> mlrun.api.db.base
     mlrun.runtimes.mpijob.v1alpha1 -> mlrun.api.db.base
     mlrun.runtimes.sparkjob.abstract -> mlrun.api.db.base
-    mlrun.launcher.factory -> mlrun.api.launcher
     mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s
     mlrun.model_monitoring.helpers -> mlrun.api.api.utils
     mlrun.model_monitoring.helpers -> mlrun.api.api.deps

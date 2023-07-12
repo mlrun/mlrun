@@ -340,8 +340,8 @@ class BaseRuntime(ModelObj):
 
         :return: Run context object (RunObject) with run metadata, results and status
         """
-        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
-            self._is_remote, local
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+            self._is_remote, local=local
         )
         return launcher.launch(
             runtime=self,
@@ -844,7 +844,7 @@ class BaseRuntime(ModelObj):
         but because we allow the user to set 'spec.image' for usability purposes,
         we need to check whether this is a built image or it requires to be built on top.
         """
-        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             is_remote=self._is_remote
         )
         launcher.prepare_image_for_deploy(self)
@@ -878,7 +878,7 @@ class BaseRuntime(ModelObj):
         return self
 
     def save(self, tag="", versioned=False, refresh=False) -> str:
-        launcher = mlrun.launcher.factory.LauncherFactory.create_launcher(
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             is_remote=self._is_remote
         )
         return launcher.save_function(

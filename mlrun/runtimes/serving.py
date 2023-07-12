@@ -476,6 +476,16 @@ class ServingRuntime(RemoteRuntime):
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
 
+                if mlrun.config.config.nuclio.explicit_ack == "enabled":
+                    trigger_args["explicit_ack_mode"] = trigger_args.get(
+                        "explicit_ack_mode", "explicitOnly"
+                    )
+                    extra_attributes = trigger_args.get("extra_attributes", {})
+                    trigger_args["extra_attributes"] = extra_attributes
+                    extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                        "workerAllocationMode", "static"
+                    )
+
                 if (
                     stream.path.startswith("kafka://")
                     or "kafka_bootstrap_servers" in stream.options

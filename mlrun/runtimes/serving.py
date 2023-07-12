@@ -22,7 +22,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
-from mlrun.common.schemas.model_monitoring.tracking_policy import TrackingPolicy
+from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 
 from ..datastore import parse_kafka_url
 from ..model import ObjectList

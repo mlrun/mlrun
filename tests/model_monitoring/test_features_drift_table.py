@@ -21,13 +21,13 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun.api.crud.model_monitoring.model_monitoring_batch import (
-    VirtualDrift,
-    calculate_inputs_statistics,
-)
 from mlrun.artifacts import Artifact
 from mlrun.data_types.infer import DFDataInfer
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
+from mlrun.model_monitoring.model_monitoring_batch import (
+    VirtualDrift,
+    calculate_inputs_statistics,
+)
 
 
 def generate_data(

@@ -22,6 +22,7 @@ import sqlalchemy as db
 
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.model_monitoring.helpers
 from mlrun.common.db.sql_session import create_session, get_engine
 from mlrun.utils import logger
 
@@ -56,7 +57,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         self.sql_connection_string = (
             sql_connection_string
-            or mlrun.common.model_monitoring.helpers.get_connection_string(
+            or mlrun.model_monitoring.helpers.get_connection_string(
                 project=self.project
             )
         )

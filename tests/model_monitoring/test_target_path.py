@@ -14,8 +14,8 @@
 import os
 from unittest import mock
 
-import mlrun.common.model_monitoring.helpers
 import mlrun.config
+import mlrun.model_monitoring
 
 TEST_PROJECT = "test-model-endpoints"
 
@@ -58,18 +58,14 @@ def test_get_file_target_path():
 
 def test_get_stream_path():
     # default stream path
-    stream_path = mlrun.common.model_monitoring.helpers.get_stream_path(
-        project=TEST_PROJECT
-    )
+    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/stream"
     )
 
     # kafka stream path from env
     os.environ["STREAM_PATH"] = "kafka://some_kafka_bootstrap_servers:8080"
-    stream_path = mlrun.common.model_monitoring.helpers.get_stream_path(
-        project=TEST_PROJECT
-    )
+    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path
         == f"kafka://some_kafka_bootstrap_servers:8080?topic=monitoring_stream_{TEST_PROJECT}"

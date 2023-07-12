@@ -28,7 +28,6 @@ import v3io_frames
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.model_monitoring.stores
 import mlrun.common.schemas.model_monitoring
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
@@ -519,9 +518,7 @@ class BatchProcessor:
 
         # Get a runtime database
 
-        self.db = mlrun.common.model_monitoring.stores.get_model_endpoint_store(
-            project=project
-        )
+        self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         if not mlrun.mlconf.is_ce_mode():
             # TODO: Once there is a time series DB alternative in a non-CE deployment, we need to update this if

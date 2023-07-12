@@ -19,6 +19,7 @@ import sqlalchemy.orm
 
 import mlrun.api
 import mlrun.common
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.schedule
 import mlrun.errors
 
@@ -107,3 +108,22 @@ def get_monitoring_parquet_path(
         artifact_path=artifact_path,
     )
     return parquet_path
+
+
+def get_stream_path(project: str = None):
+    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
+
+    stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
+        project=project,
+        provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+        allow_secrets_from_k8s=True,
+        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
+    ) or mlrun.mlconf.get_model_monitoring_file_target_path(
+        project=project,
+        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
+        target="online",
+    )
+
+    return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
+        stream_uri=stream_uri, project=project
+    )

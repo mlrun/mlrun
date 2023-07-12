@@ -25,12 +25,12 @@ import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring
-from mlrun.common.model_monitoring.stores import (  # noqa: F401
+from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
+from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
+from mlrun.model_monitoring.stores import (  # noqa: F401
     ModelEndpointStore,
     ModelEndpointStoreType,
 )
-from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
-from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
 
 TEST_PROJECT = "test_model_endpoints"
 ENDPOINT_STORE_CONNECTION = "sqlite:///test.db"
@@ -46,7 +46,7 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.ModelEndpointStoreType(
         value="v3io-nosql"
     )
 
@@ -282,7 +282,7 @@ def test_generating_tsdb_paths():
     """
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
         value="v3io-nosql"
     )
     endpoint_store: KVmodelType = store_type_object.to_endpoint_store(
@@ -336,7 +336,7 @@ def test_sql_target_list_model_endpoints():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
@@ -385,7 +385,7 @@ def test_sql_target_patch_endpoint():
     """
 
     # Generate model endpoint target
-    store_type_object = mlrun.common.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
         value="sql"
     )
     endpoint_store = store_type_object.to_endpoint_store(

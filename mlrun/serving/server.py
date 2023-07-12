@@ -24,7 +24,7 @@ from typing import Optional, Union
 
 import mlrun
 import mlrun.common.helpers
-import mlrun.common.model_monitoring.helpers
+import mlrun.model_monitoring
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
@@ -72,9 +72,7 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            stream_uri = mlrun.common.model_monitoring.helpers.get_stream_path(
-                project=project
-            )
+            stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value

@@ -21,17 +21,16 @@ from fastapi import Depends
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.helpers
-import mlrun.api.crud.model_monitoring.stream_processing
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
-import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
-import mlrun.common.schemas.model_monitoring.tracking_policy
+import mlrun.model_monitoring.stream_processing
+import mlrun.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.utils import logger
 
-_MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parent
+_MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
 _STREAM_PROCESSING_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )
@@ -47,7 +46,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Invoking monitoring deploying functions.
@@ -79,7 +78,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -140,7 +139,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
@@ -228,7 +227,7 @@ class MonitoringDeployment:
         self,
         project: str,
         model_monitoring_access_key: str,
-        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
         auth_info: mlrun.common.schemas.AuthInfo,
         parquet_target: str,
     ):
@@ -248,7 +247,7 @@ class MonitoringDeployment:
         """
 
         # Initialize Stream Processor object
-        stream_processor = mlrun.api.crud.model_monitoring.stream_processing.EventStreamProcessor(
+        stream_processor = mlrun.model_monitoring.stream_processing.EventStreamProcessor(
             project=project,
             parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
             parquet_target=parquet_target,
@@ -290,7 +289,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: str,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
     ):
         """
         Initialize model monitoring batch function.
@@ -358,9 +357,7 @@ class MonitoringDeployment:
 
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
-        stream_path = mlrun.common.model_monitoring.helpers.get_stream_path(
-            project=project
-        )
+        stream_path = mlrun.api.crud.model_monitoring.get_stream_path(project=project)
 
         if stream_path.startswith("kafka://"):
             topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)

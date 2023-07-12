@@ -15,7 +15,7 @@
 
 from typing import Union
 
-import mlrun.common
+import mlrun.common.schemas.schedule
 import mlrun.model
 
 

@@ -38,8 +38,8 @@ import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.tracking_policy
 import mlrun.errors
+import mlrun.model_monitoring.tracking_policy
 import tests.api.api.utils
 import tests.conftest
 
@@ -347,7 +347,7 @@ def test_tracking_on_serving(
     httpserver,
     monkeypatch,
 ):
-    """Validating that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
+    """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
     generated as expected when the user applies model monitoring on a serving function
     """
 
@@ -373,7 +373,7 @@ def test_tracking_on_serving(
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        mlrun.common.model_monitoring.helpers: ["get_stream_path"],
+        mlrun.api.crud.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -398,7 +398,7 @@ def test_tracking_on_serving(
     assert function_from_db["spec"]["track_models"]
 
     tracking_policy_default = (
-        mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
+        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
     )
     assert (
         deepdiff.DeepDiff(

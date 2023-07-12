@@ -22,7 +22,6 @@ import pandas as pd
 import storey
 
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.model_monitoring.stores
 import mlrun.feature_store.steps
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -1074,10 +1073,8 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_store = (
-        mlrun.common.model_monitoring.stores.get_model_endpoint_store(
-            project=project,
-        )
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
+        project=project,
     )
 
     model_endpoint_store.update_model_endpoint(
@@ -1086,9 +1083,7 @@ def update_endpoint_record(
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = (
-        mlrun.common.model_monitoring.stores.get_model_endpoint_store(
-            project=project,
-        )
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
+        project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)

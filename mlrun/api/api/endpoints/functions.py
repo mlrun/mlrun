@@ -53,9 +53,9 @@ from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
-from mlrun.common.schemas.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
+from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.utils import get_item_name
@@ -732,7 +732,7 @@ def _build_function(
                             )
 
                             stream_path = (
-                                mlrun.common.model_monitoring.helpers.get_stream_path(
+                                mlrun.api.crud.model_monitoring.get_stream_path(
                                     project=fn.metadata.project
                                 )
                             )

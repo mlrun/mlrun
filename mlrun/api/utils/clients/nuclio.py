@@ -20,7 +20,7 @@ import typing
 import requests.adapters
 import sqlalchemy.orm
 
-import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.follower as project_follower
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
@@ -28,7 +28,7 @@ from mlrun.utils import logger
 
 
 class Client(
-    mlrun.api.utils.projects.remotes.follower.Member,
+    project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:

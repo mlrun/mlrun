@@ -163,7 +163,7 @@ endif
 
 .PHONY: update-version-file
 update-version-file: ## Update the version file
-	python ./automation/version/version_file.py --mlrun-version $(MLRUN_VERSION)
+	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: build
 build: docker-images package-wheel ## Build all artifacts
@@ -677,12 +677,12 @@ fmt: ## Format the code (using black and isort)
 	python -m isort .
 
 .PHONY: lint-imports
-lint-imports: ## making sure imports dependencies are aligned
+lint-imports: ## Validates import dependencies
 	@echo "Running import linter"
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check ## Run lint on the code
+lint: flake8 fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

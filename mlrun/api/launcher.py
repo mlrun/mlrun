@@ -18,7 +18,8 @@ import mlrun.api.db.sqldb.session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
+import mlrun.launcher.factory
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -26,7 +27,19 @@ import mlrun.utils
 import mlrun.utils.regex
 
 
-class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+def initialize_launcher():
+    """Set the factory custom launcher to the server side launcher"""
+    mlrun.launcher.factory.LauncherFactory().set_launcher(ServerSideLauncher)
+
+
+class ServerSideLauncher(launcher.BaseLauncher):
+    def __init__(self, local: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        if local:
+            raise mlrun.errors.MLRunInternalServerError(
+                "Launch of local run inside the server is not allowed"
+            )
+
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,

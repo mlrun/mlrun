@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import typing
+
 import mlrun.api.utils.projects.follower
 import mlrun.api.utils.projects.leader
 import mlrun.api.utils.projects.member
 import mlrun.config
 
 # TODO: something nicer
-project_member: mlrun.api.utils.projects.member.Member = None
+project_member: typing.Optional[mlrun.api.utils.projects.member.Member] = None
 
 
 def initialize_project_member():

@@ -27,7 +27,6 @@ import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.projects
@@ -737,8 +736,9 @@ class HTTPRunDB(RunDBInterface):
             # Show artifacts with label filters - both uploaded and of binary type
             result_labels = db.list_artifacts('results', tag='*', project='iris', labels=['uploaded', 'type=binary'])
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or

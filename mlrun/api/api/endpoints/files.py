@@ -21,6 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.api.api.deps
 import mlrun.api.crud.secrets
 import mlrun.api.utils.auth.verifier
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 from mlrun.api.api.utils import get_obj_path, get_secrets, log_and_raise
 from mlrun.datastore import store_manager
@@ -196,6 +197,12 @@ def _get_filestat(
 
 
 async def _verify_and_get_project_secrets(project, auth_info):
+    # If running on Docker or locally, we cannot retrieve project secrets, so skip.
+    if not mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=True
+    ).is_running_inside_kubernetes_cluster():
+        return {}
+
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.secret,
         project,
@@ -203,6 +210,7 @@ async def _verify_and_get_project_secrets(project, auth_info):
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
+
     secrets_data = await run_in_threadpool(
         mlrun.api.crud.Secrets().list_project_secrets,
         project,

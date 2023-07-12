@@ -350,11 +350,9 @@ def load_project(
 
     if to_save:
         project.register_artifacts()
-        if sync_functions:
-            project.sync_functions(names=project.get_function_names(), save=True)
 
-    elif sync_functions:
-        project.sync_functions(names=project.get_function_names(), save=False)
+    if sync_functions:
+        project.sync_functions(save=to_save)
 
     _set_as_current_default_project(project)
 
@@ -1211,8 +1209,15 @@ class MlrunProject(ModelObj):
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
-        if not workflow_path:
-            raise ValueError("valid workflow_path must be specified")
+
+        # validate the provided workflow_path
+        if mlrun.utils.helpers.is_file_path_invalid(
+            self.spec.get_code_path(), workflow_path
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
+            )
+
         if embed:
             if (
                 self.context
@@ -1296,11 +1301,13 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
+        # TODO: To correctly maintain the list of artifacts from an exported project,
+        #  we need to maintain the different trees that generated them
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
@@ -2790,8 +2797,9 @@ class MlrunProject(ModelObj):
             # check different artifact versions for a specific artifact, return as objects list
             result_versions = project.list_artifacts('results', tag='*').to_objects()
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
@@ -2837,8 +2845,9 @@ class MlrunProject(ModelObj):
             latest_models = project.list_models('', tag='latest')
 
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.

@@ -44,7 +44,6 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
-from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -1397,20 +1396,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        self.set_targets(measurements)
+        if not passthrough:
+            self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        if not self.run_local:
+        if passthrough:
+            assert len(measurements.status.targets) == 0
+        elif not self.run_local:
             assert measurements.status.targets[0].run_id is not None
-
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        if passthrough and not self.run_local:
-            assert len(measurements.status.targets) == 1
-            assert isinstance(measurements.status.targets["nosql"], DataTarget)
 
         fv_name = "measurements-fv"
         features = [
@@ -1662,8 +1659,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        error_type = (
+            mlrun.errors.MLRunBadRequestError
+            if self.run_local
+            else mlrun.runtimes.utils.RunError
+        )
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
+            error_type,
             match="^MapValues - mapping that changes column type must change all values accordingly,"
             " which is not the case for column 'hr_is_error'$",
         ):

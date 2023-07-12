@@ -39,10 +39,18 @@ on:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       debug_enabled:
         description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 env:
   NAMESPACE: mlrun

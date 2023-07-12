@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-def parse_versioned_object_uri(uri, default_project=""):
+import typing
+
+
+def parse_versioned_object_uri(
+    uri: str, default_project: str = ""
+) -> typing.Tuple[str, str, str, str]:
     project = default_project
     tag = ""
     hash_key = ""

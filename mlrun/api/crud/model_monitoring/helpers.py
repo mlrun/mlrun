@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ import mlrun.errors
 
 
 def get_batching_interval_param(intervals_list: typing.List):
-    """Converting each value in the intervals list into a float number. None
+    """Convert each value in the intervals list into a float number. None
     Values will be converted into 0.0.
 
     param intervals_list: A list of values based on the ScheduleCronTrigger expression. Note that at the moment
@@ -49,7 +49,7 @@ def get_batching_interval_param(intervals_list: typing.List):
 def convert_to_cron_string(
     cron_trigger: mlrun.common.schemas.schedule.ScheduleCronTrigger,
 ):
-    """Converting the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
+    """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
     return "{} {} {} * *".format(
         cron_trigger.minute, cron_trigger.hour, cron_trigger.day
     ).replace("None", "*")
@@ -67,7 +67,7 @@ def json_loads_if_not_none(field: typing.Any) -> typing.Any:
 
 def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
     """
-    Getting access key from the current data session. This method is usually used to verify that the session
+    Get access key from the current data session. This method is usually used to verify that the session
     is valid and contains an access key.
 
     param auth_info: The auth info of the request.
@@ -83,7 +83,7 @@ def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
 def get_monitoring_parquet_path(
     db_session: sqlalchemy.orm.Session, project: str
 ) -> str:
-    """Getting model monitoring parquet target for the current project. The parquet target path is based on the
+    """Get model monitoring parquet target for the current project. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
     artifact path.
 

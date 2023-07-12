@@ -487,8 +487,8 @@ class ModelEndpoints:
         return endpoint_list
 
     def verify_project_has_no_model_endpoints(self, project_name: str):
-        """This method is usually being used during the process of deleting a project. It verifies that there no
-        model endpoint records in the DB by trying to list all of the project model endpoints.
+        """Verify that there no  model endpoint records in the DB by trying to list all of the project model endpoints.
+        This method is usually being used during the process of deleting a project.
 
         :param project_name: project name.
         """

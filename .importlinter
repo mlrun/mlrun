@@ -79,7 +79,6 @@ ignore_imports =
     mlrun.utils.model_monitoring -> mlrun.api.crud.secrets
     mlrun.feature_store.feature_set -> mlrun.api.api.utils
     mlrun.feature_store.ingestion -> mlrun.api.api.utils
-    mlrun.db.sqldb -> mlrun.api.db.sqldb.session
     mlrun.db.sqldb -> mlrun.api.crud
     mlrun.db.sqldb -> mlrun.api.db.sqldb.db
     mlrun.db.sqldb -> mlrun.api.db.base

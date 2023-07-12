@@ -609,7 +609,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | ID   | When | Description                                                    |
 | --- | ----| ----------------------------------------------------------------- |
-| ML-4171 | v1.4.1 | Redis targets will have one key per record. This will not be backwards-compatible. |
 | ML-3605 | v1.5.0 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
 | ML-3547 | v1.6.0 |MLRunProject.clear_context method will be deprecated. This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
 

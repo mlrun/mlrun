@@ -20,24 +20,23 @@
 | --- | ----------------------------------------------------------------- |
 | ML-1248 | The engine type now displays in the **Feature Set Overview** tab.  |
 | ML-2083 | The **Run on spot** value now displays in the **Jobs Overview** tab. |
-| ML-3176 | The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously sipported by SDK. 
+| ML-3176 | The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously supported by SDK. 
 | ML-3549 | The new **Resource monitoring** button in the **Jobs Details** view opens the **Grafana** dashboard. |
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. |
+| ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.  |
 
 ####  APIs
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling` |
+| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
 
 
 ####  Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3381 | Support private repo as a marketplace hub. See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo). |
-| ML-3548 | step.outputs can now be used in pipelines without specifying the outputs parameter in the preceding step. ***need doc update!!*** |
-| ML-3763 | Serving function with V3IO Steam Trigger error with failed to create cublas handle: CUBLAS_STATUS_NOT_INITIALIZED |
-| ML-3763 |  **needs to be added in docs**   |
+| ML-3548 | Passing parameters between steps using the `outputs` parameter is now described in [Write a pipeline](../projects/build-run-workflows-pipelines.html#write-a-pipeline). |
+| ML-3763 | The relationship between GPUs and remote functions is now explained in [Number of GPUs](../runtimes/configuring-job-resources.html#number-of-gpus) and [Example of Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function). |
 
 
 #### New documentation pages
@@ -72,7 +71,8 @@ run2 = func2.run(..., inputs={"artifact": run1.outputs["my_artifact"]})
 # But passing it through a parameter won't work as the string value is now a store path and not a target path:
 run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 ```
-
+### Deprecations and future deprecations
+See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations).
 
 ### Closed issues
 
@@ -589,7 +589,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                                    | Workaround                           | Opened in | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
-| ML-3381 | Private repo is not supported as a marketplace hub             | NA                                     | v1.2.1 | 
+| ML-3381 | Private repo is not supported as a marketplace hub             | See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo).                                     | v1.2.1 | 
 | ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
 | ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |
@@ -601,10 +601,45 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | In   | ID |Description                                                      |
 |------ | ---- | --------------------------------------------------------------------|
 | v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
-| v1.3.0 |  NA | See [Deprecated APIs](#api-130).|
+| v1.3.0 |  NA | [Deprecated and removed APIs](#apis-deprecated-and-removed-from-v1-3-0-code) and [Deprecated REST APIs](#rest-apis-deprecated-and-removed-from-v1-3-0-code), [APIs deprecated in v1.3.0, will be removed in v1.5.0](#apis-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0), [CLI Deprecated in v1.3.0, will be removed in v1.5.0.](#cli-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0) |
+| v1.4.0 |  ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated and removed from v1.4.0 code](#rest-apis-deprecated-and-removed-from-v1-4-0-code).|
 
 
-### Deprecated APIs, removed from v1.3.0 code
+## Future deprecations
+
+| ID   | When | Description                                                    |
+| --- | ----| ----------------------------------------------------------------- |
+| ML-4171 | v1.4.1 | Redis targets will have one key per record. This will not be backwards-compatible. |
+| ML-3605 | v1.5.0 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
+| ML-3547 | v1.6.0 |MLRunProject.clear_context method will be deprecated. This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
+
+## Deprecated APIs and CLI
+
+### APIs deprecated in v1.4.0, will be removed from v1.6.0 code
+These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.4.0 and higher.
+
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| clear_context() |  |
+| MLRunProject object legacy parameters | metadata and spec instead |
+| BaseRuntime.with_commands and KubejobRuntime.build_config'verify_base_image' param | 'prepare_image_for_deploy' |
+
+
+### REST APIs deprecated and removed from v1.4.0 code
+| Deprecated                        | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| http request POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |
+| http request GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path} instead |
+| http request DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid} instead |
+| http request GET /artifacts | /projects/{project}/artifacts instead |
+| http request DELETE /artifacts  | /projects/{project}/artifacts instead |
+| http request POST /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
+| http request GET /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
+| http request GET /funcs  | /projects/{project}/functions instead |
+
+
+
+### APIs deprecated and removed from v1.3.0 code
 These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
 
 | Deprecated/removed                   | Use instead                                   |
@@ -622,7 +657,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 | Dask `with_requests`                 | `with_scheduler_requests` / `with_worker_requests`    |
 
 
-### Deprecated REST APIs, removed from v1.3.0 code
+
+### REST APIs deprecated and removed from v1.3.0 code
 
 - `pod_status header` from response to `get_log` REST API
 - `client-spec` from response to health API 
@@ -631,19 +667,8 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
-
-## Future Deprecations
-
-
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported in v1.5.0. |
-| ML-4171 | In v1.4.1 Redis targets will have one key per record. This will not be backwards-compatible. |
-
-
-
-### Deprecated APIs, will be removed in v1.5.0
-These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0.
+### APIs deprecated in v1.3.0, will be removed in v1.5.0
+These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0 and higher.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
@@ -658,16 +683,8 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
 
-### Deprecated CLI, will be removed in v1.5.0
+### CLI Deprecated in v1.3.0, will be removed in v1.5.0
 
 The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
-
-
-### Deprecated APIs, will be removed in v1.6.0
-These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.6.0.
-| Deprecated / to be removed                       | Use instead                                   |
-| ------------------------------------------------ | --------------------------------------------- |
-| clear_context() |  |
-
 
 

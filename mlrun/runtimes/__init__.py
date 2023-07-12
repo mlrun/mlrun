@@ -23,7 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
-    "DatabricksRuntime"
+    "DatabricksRuntime",
 ]
 
 from mlrun.runtimes.utils import (
@@ -35,7 +35,12 @@ from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  #
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
 from .function import RemoteRuntime
-from .kubejob import KubejobRuntime, KubeRuntimeHandler, DatabricksRuntime, DatabricksRuntimeHandler  # noqa
+from .kubejob import (  # noqa
+    DatabricksRuntime,
+    DatabricksRuntimeHandler,
+    KubejobRuntime,
+    KubeRuntimeHandler,
+)
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import (  # noqa
     MpiRuntimeV1,
@@ -244,7 +249,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
         RuntimeKinds.spark: SparkRuntimeHandler,
         RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
-        RuntimeKinds.databricksruntime: DatabricksRuntimeHandler
+        RuntimeKinds.databricksruntime: DatabricksRuntimeHandler,
     }
     runtime_handler_class = kind_runtime_handler_map[kind]
     if not runtime_handler_instances_cache.get(kind):
@@ -272,7 +277,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
-        RuntimeKinds.databricksruntime: DatabricksRuntime
+        RuntimeKinds.databricksruntime: DatabricksRuntime,
     }
 
     return kind_runtime_map[kind]

@@ -31,4 +31,5 @@ image-build
 ../concepts/node-affinity
 configuring-job-resources
 load-from-hub
+git-repo-as-hub
 ```

@@ -108,31 +108,44 @@ def test_current_version(git_repo, base_version, tags, expected_current_version)
 
 
 @pytest.mark.parametrize(
-    "bump_type,current_version,feature_name,expected_next_version",
+    "bump_type,current_version,base_version,feature_name,expected_next_version",
     [
-        ("rc", "1.0.0", None, "1.0.1-rc1"),
-        ("rc", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
-        ("rc", "1.0.0-rc1", None, "1.0.0-rc2"),
-        ("rc", "1.0.0-rc1", "ft-test", "1.0.0-rc2+ft-test"),
-        ("rc-grad", "1.0.0-rc1", None, "1.0.0"),
-        ("rc-grad", "1.0.0-rc1", "ft-test", "1.0.0-rc1+ft-test"),
-        ("patch", "1.0.0", None, "1.0.1"),
-        ("patch", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
-        ("patch", "1.0.0-rc1", None, "1.0.1"),
-        ("patch", "1.0.0-rc1", "ft-test", "1.0.1-rc1+ft-test"),
-        ("minor", "1.0.0", None, "1.1.0"),
-        ("minor", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
-        ("minor", "1.0.0-rc1", None, "1.1.0"),
-        ("minor", "1.0.0-rc1", "ft-test", "1.1.0-rc1+ft-test"),
-        ("major", "1.0.0", None, "2.0.0"),
-        ("major", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
-        ("major", "1.0.0-rc1", None, "2.0.0"),
-        ("major", "1.0.0-rc1", "ft-test", "2.0.0-rc1+ft-test"),
+        # current version is olden than current base version,
+        # the next expected version is derived from the base version
+        ("rc", "1.0.0", "1.1.0", None, "1.1.0-rc1"),
+        ("rc-grad", "1.0.0", "1.1.0", None, "1.1.0"),
+        ("patch", "1.0.0", "1.1.0", None, "1.1.1"),
+        ("minor", "1.0.0", "1.1.0", None, "1.2.0"),
+        ("major", "1.0.0", "1.1.0", None, "2.0.0"),
+        # current+base tagged
+        ("rc", "1.0.0", "1.0.0", None, "1.0.1-rc1"),
+        ("rc", "1.0.0", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("rc", "1.0.0-rc1", "1.0.0", None, "1.0.0-rc2"),
+        ("rc", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.0-rc2+ft-test"),
+        ("rc-grad", "1.0.0-rc1", "1.0.0", None, "1.0.0"),
+        ("rc-grad", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.0-rc1+ft-test"),
+        ("patch", "1.0.0", "1.0.0", None, "1.0.1"),
+        ("patch", "1.0.0", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("patch", "1.0.0-rc1", "1.0.0", None, "1.0.1"),
+        ("patch", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("minor", "1.0.0", "1.0.0", None, "1.1.0"),
+        ("minor", "1.0.0", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
+        ("minor", "1.0.0-rc1", "1.0.0", None, "1.1.0"),
+        ("minor", "1.0.0-rc1", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
+        ("major", "1.0.0", "1.0.0", None, "2.0.0"),
+        ("major", "1.0.0", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
+        ("major", "1.0.0-rc1", "1.0.0", None, "2.0.0"),
+        ("major", "1.0.0-rc1", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
     ],
 )
-def test_next_version(bump_type, current_version, feature_name, expected_next_version):
+def test_next_version(
+    bump_type, current_version, base_version, feature_name, expected_next_version
+):
     next_version = resolve_next_version(
-        bump_type, packaging.version.parse(current_version), feature_name
+        bump_type,
+        packaging.version.parse(current_version),
+        packaging.version.parse(base_version),
+        feature_name,
     )
     assert (
         next_version == expected_next_version

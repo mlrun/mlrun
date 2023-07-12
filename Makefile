@@ -527,7 +527,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests/frameworks/test_ml_frameworks.py
+		tests
 
 
 .PHONY: test-integration-dockerized
@@ -682,7 +682,7 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check ## Run lint on the code
+lint: flake8 fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

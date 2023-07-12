@@ -24,7 +24,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.db.session
 import mlrun.api.utils.events.events_factory as events_factory
-import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.follower as project_follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.scheduler
@@ -35,7 +35,7 @@ from mlrun.utils import logger
 
 
 class Projects(
-    mlrun.api.utils.projects.remotes.follower.Member,
+    project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:
@@ -185,18 +185,26 @@ class Projects(
             secrets = None
             (
                 secret_name,
-                _,
+                action,
             ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
                 name, secrets
             )
-            events_client = events_factory.EventsFactory().get_events_client()
-            events_client.emit(
-                events_client.generate_project_secret_event(
-                    name,
-                    secret_name,
-                    action=mlrun.common.schemas.SecretEventActions.deleted,
+            if action:
+                events_client = events_factory.EventsFactory().get_events_client()
+                events_client.emit(
+                    events_client.generate_project_secret_event(
+                        name,
+                        secret_name,
+                        action=action,
+                    )
                 )
-            )
+
+            else:
+                logger.debug(
+                    "No project secrets to delete",
+                    action=action,
+                    secret_name=secret_name,
+                )
 
     def get_project(
         self, session: sqlalchemy.orm.Session, name: str

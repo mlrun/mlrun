@@ -110,14 +110,6 @@ def ensure_default_project() -> mlrun.projects.project.MlrunProject:
 
 
 @pytest.fixture()
-def running_as_api():
-    old_is_running_as_api = mlrun.config.is_running_as_api
-    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
-    yield
-    mlrun.config.is_running_as_api = old_is_running_as_api
-
-
-@pytest.fixture()
 def chdir_to_test_location(request):
     """
     Fixture to change the working directory for tests,
@@ -131,7 +123,7 @@ def chdir_to_test_location(request):
     """
     original_working_dir = os.getcwd()
     test_file_path = os.path.dirname(inspect.getfile(request.function))
-    os.chdir(os.path.dirname(test_file_path))
+    os.chdir(test_file_path)
 
     yield
 
@@ -483,6 +475,9 @@ class RunDBMock:
             return self._functions[function_name]
 
         return list(self._functions.values())[0]
+
+    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
+        pass
 
 
 @pytest.fixture()

@@ -1,5 +1,6 @@
 pytest~=7.0
 twine~=3.1
+databricks-sdk~=0.1.8
 black[jupyter]~=22.0
 flake8~=5.0
 pytest-asyncio~=0.15.0

@@ -13,9 +13,35 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-# for backwards compatibility
 
-
-from .helpers import get_stream_path
-from .model_endpoint import ModelEndpoint
-from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
+from .constants import (
+    EndpointType,
+    EndpointUID,
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
+    FileTargetKind,
+    FunctionURI,
+    ModelMonitoringMode,
+    ModelMonitoringStoreKinds,
+    ProjectSecretKeys,
+    TimeSeriesTarget,
+    VersionedModel,
+)
+from .grafana import (
+    GrafanaColumn,
+    GrafanaDataPoint,
+    GrafanaNumberColumn,
+    GrafanaStringColumn,
+    GrafanaTable,
+    GrafanaTimeSeriesTarget,
+)
+from .model_endpoints import (
+    Features,
+    FeatureValues,
+    ModelEndpoint,
+    ModelEndpointList,
+    ModelEndpointMetadata,
+    ModelEndpointSpec,
+    ModelEndpointStatus,
+)

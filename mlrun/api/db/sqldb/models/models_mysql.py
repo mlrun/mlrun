@@ -263,6 +263,9 @@ with warnings.catch_warnings():
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
@@ -321,6 +324,9 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
 
     class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
@@ -512,6 +518,9 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
+
+        def get_identifier_string(self) -> str:
+            return f"{self.version}"
 
 
 # Must be after all table definitions

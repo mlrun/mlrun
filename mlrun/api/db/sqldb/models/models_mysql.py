@@ -53,7 +53,7 @@ def make_label(table):
         parent = Column(Integer, ForeignKey(f"{table}.id"))
 
         def get_identifier_string(self) -> str:
-            return f"{self.__tablename__}/{self.parent}/{self.name}/{self.value}"
+            return f"{self.parent}/{self.name}/{self.value}"
 
     return Label
 
@@ -89,7 +89,7 @@ def make_tag_v2(table):
         obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
         def get_identifier_string(self) -> str:
-            return f"{self.__tablename__}/{self.project}/{self.name}"
+            return f"{self.project}/{self.name}"
 
     return Tag
 

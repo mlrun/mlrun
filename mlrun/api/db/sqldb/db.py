@@ -48,6 +48,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    DatastoreProfile,
     DataVersion,
     Entity,
     Feature,
@@ -1889,6 +1890,7 @@ class SQLDB(DBInterface):
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
+        self.delete_datastore_profiles(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -3916,3 +3918,102 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    def store_datastore_profile(
+        self, session, info: mlrun.common.schemas.DatastoreProfile
+    ):
+        """
+        Create or replace a datastore profile.
+        :param profile: name of the profile
+        :param public_info: JSON string that contains all the public information (like enpoint url) of the profile
+        :project: Name of the project
+        :returns: None
+        """
+        info.project = info.project or config.default_project
+        profile = self._query(
+            session, DatastoreProfile, name=info.name, project=info.project
+        )
+        if profile.first():
+            profile.first().type = info.type
+            profile.first().body = info.body
+            self._commit(session, [profile])
+        else:
+            profile = DatastoreProfile(
+                name=info.name,
+                type=info.type,
+                project=info.project,
+                body=info.body,
+            )
+            self._upsert(session, [profile])
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        """
+        get a datastore profile.
+        :param profile: name of the profile
+        :project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            r = res.first().to_dict(exclude=["id"])
+            return mlrun.common.schemas.DatastoreProfile(**r)
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile not found: project={project}, profile={profile}"
+            )
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            session.delete(res.first())
+            session.commit()
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile not found: project={project}, profile={profile}"
+            )
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        get a datastore profile.
+        :param profile: name of the profile
+        :project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        return [
+            mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+            for query in query_results
+        ]
+
+    def delete_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        delete all  datastore profiles.
+        :project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        for query in query_results:
+            session.delete(query)
+        session.commit()

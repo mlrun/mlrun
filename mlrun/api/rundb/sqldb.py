@@ -840,6 +840,26 @@ class SQLRunDB(RunDBInterface):
     def watch_log(self, uid, project="", watch=True, offset=0):
         raise NotImplementedError("Watching logs is not supported on the server")
 
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        raise NotImplementedError()
+
+    def delete_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        raise NotImplementedError()
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        raise NotImplementedError()
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        raise NotImplementedError()
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

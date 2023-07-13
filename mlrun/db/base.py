@@ -624,3 +624,11 @@ class RunDBInterface(ABC):
 
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
+
+    @abstractmethod
+    def get_datastore_profile(self, decorated_profile_name: str):
+        pass
+
+    @abstractmethod
+    def store_datastore_profile(self, decorated_profile_name: str, public_info: str):
+        pass

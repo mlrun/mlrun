@@ -33,6 +33,7 @@ import yaml
 from tabulate import tabulate
 
 import mlrun
+from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
 from .db import get_run_db
@@ -55,7 +56,6 @@ from .utils import (
     is_relative_path,
     list2dict,
     logger,
-    parse_versioned_object_uri,
     run_keys,
     update_in,
 )

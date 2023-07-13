@@ -40,12 +40,13 @@ from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger, parse_versioned_object_uri
+from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -203,7 +204,6 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(task):
-
     # Masking notification config params from the task object
     mask_notification_params_on_task(task)
 
@@ -817,7 +817,6 @@ def ensure_function_security_context(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
         mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
-
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:

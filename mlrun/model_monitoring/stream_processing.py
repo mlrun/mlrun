@@ -21,15 +21,10 @@ import typing
 import pandas as pd
 import storey
 
-import mlrun
-import mlrun.common.model_monitoring
-import mlrun.config
-import mlrun.datastore.targets
+import mlrun.common.model_monitoring.helpers
 import mlrun.feature_store.steps
-import mlrun.utils
-import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.common.model_monitoring import (
+from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
@@ -37,7 +32,6 @@ from mlrun.common.model_monitoring import (
     ModelEndpointTarget,
     ProjectSecretKeys,
 )
-from mlrun.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 
 
@@ -112,7 +106,9 @@ class EventStreamProcessor:
             _,
             self.kv_container,
             self.kv_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            kv_path
+        )
 
         # TSDB path and configurations
         tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -122,7 +118,9 @@ class EventStreamProcessor:
             _,
             self.tsdb_container,
             self.tsdb_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            tsdb_path
+        )
 
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
         self.tsdb_batching_max_events = tsdb_batching_max_events
@@ -1075,7 +1073,7 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_store = get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
         project=project,
     )
 
@@ -1085,7 +1083,7 @@ def update_endpoint_record(
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)

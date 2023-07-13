@@ -36,6 +36,7 @@ import mlrun.common.schemas.function as old_function
 import mlrun.common.schemas.http as old_http
 import mlrun.common.schemas.k8s as old_k8s
 import mlrun.common.schemas.memory_reports as old_memory_reports
+import mlrun.common.schemas.model_monitoring.grafana
 import mlrun.common.schemas.object as old_object
 import mlrun.common.schemas.pipeline as old_pipeline
 import mlrun.common.schemas.project as old_project
@@ -163,13 +164,23 @@ MostCommonObjectTypesReport = DeprecationHelper(
 ObjectTypeReport = DeprecationHelper(mlrun.common.schemas.ObjectTypeReport)
 Features = DeprecationHelper(mlrun.common.schemas.Features)
 FeatureValues = DeprecationHelper(mlrun.common.schemas.FeatureValues)
-GrafanaColumn = DeprecationHelper(mlrun.common.schemas.GrafanaColumn)
-GrafanaDataPoint = DeprecationHelper(mlrun.common.schemas.GrafanaDataPoint)
-GrafanaNumberColumn = DeprecationHelper(mlrun.common.schemas.GrafanaNumberColumn)
-GrafanaStringColumn = DeprecationHelper(mlrun.common.schemas.GrafanaStringColumn)
-GrafanaTable = DeprecationHelper(mlrun.common.schemas.GrafanaTable)
+GrafanaColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn
+)
+GrafanaDataPoint = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint
+)
+GrafanaNumberColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn
+)
+GrafanaStringColumn = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaStringColumn
+)
+GrafanaTable = DeprecationHelper(
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaTable
+)
 GrafanaTimeSeriesTarget = DeprecationHelper(
-    mlrun.common.schemas.GrafanaTimeSeriesTarget
+    mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget
 )
 ModelEndpoint = DeprecationHelper(mlrun.common.schemas.ModelEndpoint)
 ModelEndpointList = DeprecationHelper(mlrun.common.schemas.ModelEndpointList)

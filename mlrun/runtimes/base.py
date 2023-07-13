@@ -116,7 +116,6 @@ class FunctionSpec(ModelObj):
         disable_auto_mount=False,
         clone_target_dir=None,
     ):
-
         self.command = command or ""
         self.image = image or ""
         self.mode = mode
@@ -1674,7 +1673,6 @@ class BaseRuntimeHandler(ABC):
                     # if resources are tightly coupled to the run object - we want to perform some actions on the run
                     # object before deleting them
                     if self._are_resources_coupled_to_run_object():
-
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
                                 db,
@@ -2054,7 +2052,6 @@ class BaseRuntimeHandler(ABC):
                 return False, run_state
             # if the current run state is terminal and different than the desired - log
             if db_run_state in RunStates.terminal_states():
-
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
                 if run_state not in RunStates.terminal_states():

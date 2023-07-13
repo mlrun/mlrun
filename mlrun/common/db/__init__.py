@@ -12,26 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.api.utils.scheduler import Scheduler
-from mlrun.common.db.sql_session import create_session
-
-# TODO: something nicer
-scheduler: Scheduler = None
-
-
-async def initialize_scheduler():
-    global scheduler
-    scheduler = Scheduler()
-    db_session = None
-    try:
-        db_session = create_session()
-        await scheduler.start(
-            db_session,
-        )
-    finally:
-        db_session.close()
-
-
-def get_scheduler() -> Scheduler:
-    global scheduler
-    return scheduler

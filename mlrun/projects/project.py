@@ -38,8 +38,7 @@ import requests
 import yaml
 from deprecated import deprecated
 
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
@@ -2428,12 +2427,12 @@ class MlrunProject(ModelObj):
         secrets_dict = {}
         if access_key:
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             ] = access_key
 
         if endpoint_store_connection:
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
 
         if stream_path:
@@ -2442,7 +2441,7 @@ class MlrunProject(ModelObj):
                     "Custom kafka topic is not allowed"
                 )
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
 
         self.set_secrets(

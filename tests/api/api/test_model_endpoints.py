@@ -21,10 +21,12 @@ from typing import Optional
 import deepdiff
 import pytest
 
-import mlrun.api.crud
+import mlrun.api.crud.model_monitoring.deployment
+import mlrun.api.crud.model_monitoring.helpers
 import mlrun.common.schemas
+import mlrun.model_monitoring
+from mlrun.common.schemas.model_monitoring.constants import ModelMonitoringStoreKinds
 from mlrun.errors import MLRunBadRequestError, MLRunInvalidArgumentError
-from mlrun.model_monitoring import ModelMonitoringStoreKinds
 from mlrun.model_monitoring.stores import (  # noqa: F401
     ModelEndpointStore,
     ModelEndpointStoreType,
@@ -44,7 +46,7 @@ def test_build_kv_cursor_filter_expression():
     """Validate that the filter expression format converter for the KV cursor works as expected."""
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.ModelEndpointStoreType(
         value="v3io-nosql"
     )
 
@@ -83,13 +85,15 @@ def test_build_kv_cursor_filter_expression():
 
 
 def test_get_access_key():
-    key = mlrun.api.crud.ModelEndpoints().get_access_key(
+    key = mlrun.api.crud.model_monitoring.helpers.get_access_key(
         mlrun.common.schemas.AuthInfo(data_session="asd")
     )
     assert key == "asd"
 
     with pytest.raises(MLRunBadRequestError):
-        mlrun.api.crud.ModelEndpoints().get_access_key(mlrun.common.schemas.AuthInfo())
+        mlrun.api.crud.model_monitoring.helpers.get_access_key(
+            mlrun.common.schemas.AuthInfo()
+        )
 
 
 def test_get_endpoint_features_function():
@@ -229,7 +233,7 @@ def test_get_endpoint_features_function():
     }
     feature_names = list(stats.keys())
 
-    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+    features = mlrun.api.crud.model_monitoring.deployment.get_endpoint_features(
         feature_names, stats, stats
     )
     assert len(features) == 4
@@ -244,7 +248,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+    features = mlrun.api.crud.model_monitoring.deployment.get_endpoint_features(
         feature_names, stats, None
     )
     assert len(features) == 4
@@ -255,7 +259,7 @@ def test_get_endpoint_features_function():
         assert feature.expected.histogram is not None
         # assert len(feature.expected.histogram.buckets) == len(feature.expected.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+    features = mlrun.api.crud.model_monitoring.deployment.get_endpoint_features(
         feature_names, None, stats
     )
     assert len(features) == 4
@@ -266,7 +270,7 @@ def test_get_endpoint_features_function():
         assert feature.actual.histogram is not None
         # assert len(feature.actual.histogram.buckets) == len(feature.actual.histogram.counts)
 
-    features = mlrun.api.crud.ModelEndpoints.get_endpoint_features(
+    features = mlrun.api.crud.model_monitoring.deployment.get_endpoint_features(
         feature_names[1:], None, stats
     )
     assert len(features) == 3
@@ -274,7 +278,8 @@ def test_get_endpoint_features_function():
 
 def test_generating_tsdb_paths():
     """Validate that the TSDB paths for the KVModelEndpointStore object are created as expected. These paths are
-    usually important when the user call the delete project API and as a result the TSDB resources should be deleted"""
+    usually important when the user call the delete project API and as a result the TSDB resources should be deleted
+    """
 
     # Initialize endpoint store target object
     store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
@@ -410,7 +415,7 @@ def test_sql_target_patch_endpoint():
     endpoint = endpoint_store.get_model_endpoint(endpoint_id=mock_endpoint.metadata.uid)
 
     # Convert to model endpoint object
-    endpoint = mlrun.api.crud.ModelEndpoints()._convert_into_model_endpoint_object(
+    endpoint = mlrun.api.crud.model_monitoring.model_endpoints.ModelEndpoints._convert_into_model_endpoint_object(
         endpoint=endpoint
     )
     assert endpoint.spec.model == "test_model"

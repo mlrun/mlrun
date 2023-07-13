@@ -12,26 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from mlrun.api.utils.scheduler import Scheduler
-from mlrun.common.db.sql_session import create_session
-
-# TODO: something nicer
-scheduler: Scheduler = None
+import typing
 
 
-async def initialize_scheduler():
-    global scheduler
-    scheduler = Scheduler()
-    db_session = None
-    try:
-        db_session = create_session()
-        await scheduler.start(
-            db_session,
-        )
-    finally:
-        db_session.close()
+def parse_versioned_object_uri(
+    uri: str, default_project: str = ""
+) -> typing.Tuple[str, str, str, str]:
+    project = default_project
+    tag = ""
+    hash_key = ""
+    if "/" in uri:
+        loc = uri.find("/")
+        project = uri[:loc]
+        uri = uri[loc + 1 :]
+    if ":" in uri:
+        loc = uri.find(":")
+        tag = uri[loc + 1 :]
+        uri = uri[:loc]
+    if "@" in uri:
+        loc = uri.find("@")
+        hash_key = uri[loc + 1 :]
+        uri = uri[:loc]
 
-
-def get_scheduler() -> Scheduler:
-    global scheduler
-    return scheduler
+    return project, uri, tag, hash_key

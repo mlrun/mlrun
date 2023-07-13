@@ -24,6 +24,7 @@ and gets a new hash code upon changes.
 functions-architecture
 ../concepts/functions-overview
 create-and-use-functions
+packagers
 mlrun_code_annotations
 function-storage
 images

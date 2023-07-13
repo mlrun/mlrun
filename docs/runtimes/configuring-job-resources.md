@@ -63,7 +63,9 @@ When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a 
 ```
 ## Number of GPUs
 
-When using remote functions, the number of GPUs must equal the number of workers.
+When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of 
+workers. You can set the number of workers for each trigger and the number of GPUs for each pod 
+using the MLRun SDK.
 
 ## Volumes
 

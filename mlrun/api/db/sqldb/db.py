@@ -2867,16 +2867,18 @@ class SQLDB(DBInterface):
                 session.commit()
             except SQLAlchemyError as err:
                 session.rollback()
-                cls = objects[0].__class__.__name__
+                classes = list(set([object_.__class__.__name__ for object_ in objects]))
                 if "database is locked" in str(err):
                     logger.warning(
-                        "Database is locked. Retrying", cls=cls, err=str(err)
+                        "Database is locked. Retrying", classes=classes, err=str(err)
                     )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
                     ) from err
                 logger.warning(
-                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                    "Failed committing changes to DB",
+                    classes=classes,
+                    err=err_to_str(err),
                 )
                 if not ignore:
                     identifiers = ",".join(
@@ -2886,10 +2888,10 @@ class SQLDB(DBInterface):
                     try:
                         if any([message in str(err) for message in conflict_messages]):
                             raise mlrun.errors.MLRunConflictError(
-                                f"Conflict - {cls} already exists: {identifiers}"
+                                f"Conflict - at least one of the objects already exists: {identifiers}"
                             ) from err
                         raise mlrun.errors.MLRunRuntimeError(
-                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
+                            f"Failed committing changes to DB. classes={classes} objects={identifiers}"
                         ) from err
                     except (
                         mlrun.errors.MLRunRuntimeError,

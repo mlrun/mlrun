@@ -1114,7 +1114,7 @@ class NoSqlTarget(NoSqlBaseTarget):
         return Table(
             uri,
             V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
-            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            flush_interval_secs=mlrun.mlconf.feature_store_flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1196,7 +1196,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         return Table(
             uri,
             RedisDriver(redis_url=endpoint, key_prefix="/"),
-            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            flush_interval_secs=mlrun.mlconf.feature_store_flush_interval,
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1625,7 +1625,7 @@ class SQLTarget(BaseStoreTarget):
         return Table(
             f"{db_path}/{table_name}",
             SQLDriver(db_path=db_path, primary_key=primary_key),
-            flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+            flush_interval_secs=mlrun.mlconf.feature_store_flush_interval,
         )
 
     def add_writer_step(

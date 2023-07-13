@@ -82,7 +82,7 @@ class ResourceCache:
             self._tabels[uri] = Table(
                 uri,
                 V3ioDriver(webapi=endpoint or mlrun.mlconf.v3io_api),
-                flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+                flush_interval_secs=mlrun.mlconf.feature_store_flush_interval,
             )
             return self._tabels[uri]
 
@@ -94,7 +94,7 @@ class ResourceCache:
             self._tabels[uri] = Table(
                 uri,
                 RedisDriver(redis_url=endpoint, key_prefix="/"),
-                flush_interval_secs=mlrun.mlconf.feature_store.flush_interval,
+                flush_interval_secs=mlrun.mlconf.feature_store_flush_interval,
             )
             return self._tabels[uri]
 

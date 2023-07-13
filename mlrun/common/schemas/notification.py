@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+import typing
+
+import pydantic
 
 import mlrun.common.types
+
+
+class NotificationKind(mlrun.common.types.StrEnum):
+    console = "console"
+    git = "git"
+    ipython = "ipython"
+    slack = "slack"
 
 
 class NotificationSeverity(mlrun.common.types.StrEnum):
@@ -28,3 +39,19 @@ class NotificationStatus(mlrun.common.types.StrEnum):
     PENDING = "pending"
     SENT = "sent"
     ERROR = "error"
+
+
+class Notification(pydantic.BaseModel):
+    kind: NotificationKind
+    name: str
+    message: str
+    severity: NotificationSeverity
+    when: typing.List[str]
+    condition: str
+    params: typing.Dict[str, typing.Any] = None
+    status: NotificationStatus = None
+    sent_time: typing.Union[str, datetime.datetime] = None
+
+
+class SetNotificationRequest(pydantic.BaseModel):
+    notifications: typing.List[Notification] = None

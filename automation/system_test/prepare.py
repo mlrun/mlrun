@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 #
 
 import datetime
+import json
 import logging
 import os
 import pathlib
@@ -30,11 +31,27 @@ import click
 import paramiko
 import yaml
 
-# TODO: remove and use local logger
-import mlrun.utils
+
+class Logger:
+    def __init__(self, name, **kwargs):
+        self._logger = logging.getLogger(name)
+        level = kwargs.get("level", logging.INFO)
+        self._logger.setLevel(level)
+        if not self._logger.handlers:
+            ch = logging.StreamHandler()
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            ch.setFormatter(formatter)
+            self._logger.addHandler(ch)
+
+    def log(self, level: str, message: str, **kwargs: typing.Any) -> None:
+        more = f": {kwargs}" if kwargs else ""
+        self._logger.log(logging.getLevelName(level.upper()), f"{message}{more}")
+
 
 project_dir = pathlib.Path(__file__).resolve().parent.parent.parent
-logger = mlrun.utils.create_logger(level="debug", name="automation")
+logger = Logger(level=logging.DEBUG, name="automation")
 logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
 
@@ -69,12 +86,9 @@ class SystemTestPreparer:
         provctl_download_s3_access_key: str = None,
         provctl_download_s3_key_id: str = None,
         mlrun_dbpath: str = None,
-        webapi_direct_http: str = None,
-        framesd_url: str = None,
         username: str = None,
         access_key: str = None,
         iguazio_version: str = None,
-        spark_service: str = None,
         slack_webhook_url: str = None,
         mysql_user: str = None,
         mysql_password: str = None,
@@ -97,7 +111,6 @@ class SystemTestPreparer:
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
         self._app_cluster_ssh_password = app_cluster_ssh_password
-        self._github_access_token = github_access_token
         self._provctl_download_url = provctl_download_url
         self._provctl_download_s3_access_key = provctl_download_s3_access_key
         self._provctl_download_s3_key_id = provctl_download_s3_key_id
@@ -105,14 +118,12 @@ class SystemTestPreparer:
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
         self._purge_db = purge_db
+        self._ssh_client = None
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
-            "V3IO_API": webapi_direct_http,
-            "V3IO_FRAMESD": framesd_url,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
-            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE": spark_service,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
             "MLRUN_SYSTEM_TESTS_BRANCH": branch,
             # Setting to MLRUN_SYSTEM_TESTS_GIT_TOKEN instead of GIT_TOKEN, to not affect tests which doesn't need it
@@ -120,14 +131,16 @@ class SystemTestPreparer:
             "MLRUN_SYSTEM_TESTS_GIT_TOKEN": github_access_token,
         }
 
-    def prepare_local_env(self):
-        self._prepare_env_local()
+    def prepare_local_env(self, save_to_path: str = ""):
+        self._prepare_env_local(save_to_path)
 
     def connect_to_remote(self):
-        self._logger.info(
-            "Connecting to data-cluster", data_cluster_ip=self._data_cluster_ip
-        )
-        if not self._debug:
+        if not self._debug and self._data_cluster_ip:
+            self._logger.log(
+                "info",
+                "Connecting to data-cluster",
+                data_cluster_ip=self._data_cluster_ip,
+            )
             self._ssh_client = paramiko.SSHClient()
             self._ssh_client.set_missing_host_key_policy(paramiko.WarningPolicy)
             self._ssh_client.connect(
@@ -139,10 +152,14 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
-        # try:
-        #     self._install_dev_utilities()
-        # except Exception as exp:
-        #     self._logger.error("error on install dev utilities", exception=str(exp))
+        try:
+            logger.log("debug", "installing dev utilities")
+            self._install_dev_utilities()
+            logger.log("debug", "installing dev utilities - done")
+        except Exception as exp:
+            self._logger.log(
+                "error", "error on install dev utilities", exception=str(exp)
+            )
 
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
@@ -164,8 +181,8 @@ class SystemTestPreparer:
         self._patch_mlrun()
 
     def clean_up_remote_workdir(self):
-        self._logger.info(
-            "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
+        self._logger.log(
+            "info", "Cleaning up remote workdir", workdir=str(self.Constants.workdir)
         )
         self._run_command(
             f"rm -rf {self.Constants.workdir}", workdir=str(self.Constants.homedir)
@@ -189,7 +206,8 @@ class SystemTestPreparer:
         log_command_location = "locally" if local else "on data cluster"
 
         if verbose:
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 f"Running command {log_command_location}",
                 command=command,
                 args=args,
@@ -225,14 +243,16 @@ class SystemTestPreparer:
             if verbose:
                 err_log_kwargs["command"] = command
 
-            self._logger.error(
+            self._logger.log(
+                "error",
                 f"Failed running command {log_command_location}",
                 **err_log_kwargs,
             )
             raise
         else:
             if verbose:
-                self._logger.debug(
+                self._logger.log(
+                    "debug",
                     f"Successfully ran command {log_command_location}",
                     command=command,
                     stdout=stdout,
@@ -261,7 +281,9 @@ class SystemTestPreparer:
         if detach:
             command = f"screen -d -m bash -c '{command}'"
             if verbose:
-                self._logger.debug("running command in detached mode", command=command)
+                self._logger.log(
+                    "debug", "running command in detached mode", command=command
+                )
 
         stdin_stream, stdout_stream, stderr_stream = self._ssh_client.exec_command(
             command
@@ -294,18 +316,21 @@ class SystemTestPreparer:
             workdir=str(self.Constants.homedir),
         )
 
-    def _prepare_env_local(self):
-        filepath = str(self.Constants.system_tests_env_yaml)
+    def _prepare_env_local(self, save_to_path: str = ""):
+        filepath = save_to_path or str(self.Constants.system_tests_env_yaml)
         backup_filepath = str(self.Constants.system_tests_env_yaml) + ".bak"
-        self._logger.debug("Populating system tests env.yml", filepath=filepath)
+        self._logger.log("debug", "Populating system tests env.yml", filepath=filepath)
 
         # if filepath exists, backup the file first (to avoid overriding it)
         if os.path.isfile(filepath) and not os.path.isfile(backup_filepath):
-            self._logger.debug(
-                "Backing up existing env.yml", destination=backup_filepath
+            self._logger.log(
+                "debug", "Backing up existing env.yml", destination=backup_filepath
             )
             shutil.copy(filepath, backup_filepath)
 
+        # enrichment can be done only if ssh client is initialized
+        if self._ssh_client:
+            self._enrich_env()
         serialized_env_config = self._serialize_env_config()
         with open(filepath, "w") as f:
             f.write(serialized_env_config)
@@ -347,6 +372,26 @@ class SystemTestPreparer:
             args=["apply", "-f", manifest_file_name],
         )
 
+    def _enrich_env(self):
+        devutils_outputs = self._get_devutils_status()
+        if "redis" in devutils_outputs:
+            self._logger.log("debug", "Enriching env with redis info")
+            # uncomment when url is accessible from outside the cluster
+            # self._env_config["MLRUN_REDIS__URL"] = f"redis://{devutils_outputs['redis']['app_url']}"
+            # self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
+            # self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
+
+        api_url_host = self._get_ingress_host("datanode-dashboard")
+        framesd_host = self._get_ingress_host("framesd")
+        v3io_api_host = self._get_ingress_host("webapi")
+        spark_service_name = self._get_service_name("app=spark,component=spark-master")
+        self._env_config["MLRUN_IGUAZIO_API_URL"] = f"https://{api_url_host}"
+        self._env_config["V3IO_FRAMESD"] = f"https://{framesd_host}"
+        self._env_config[
+            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
+        ] = spark_service_name
+        self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
+
     def _install_dev_utilities(self):
         list_uninstall = [
             "dev_utilities.py",
@@ -383,7 +428,8 @@ class SystemTestPreparer:
             bucket_name = parsed_url.netloc.split(".")[0]
         # download provctl from s3
         with tempfile.NamedTemporaryFile() as local_provctl_path:
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 "Downloading provctl",
                 bucket_name=bucket_name,
                 object_name=object_name,
@@ -396,7 +442,8 @@ class SystemTestPreparer:
             )
             s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
             # upload provctl to data node
-            self._logger.debug(
+            self._logger.log(
+                "debug",
                 "Uploading provctl to datanode",
                 remote_path=str(self.Constants.provctl_path),
                 local_path=local_provctl_path.name,
@@ -423,7 +470,8 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception:
-                self._logger.debug(
+                self._logger.log(
+                    "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
                     retry_number=retries,
                 )
@@ -431,19 +479,21 @@ class SystemTestPreparer:
                 time.sleep(interval)
 
         if retries >= max_retries and not finished:
-            self._logger.info(
-                f"Command {command_name} timeout passed and not finished, failing..."
+            self._logger.log(
+                "info",
+                f"Command {command_name} timeout passed and not finished, failing...",
             )
-            raise mlrun.errors.MLRunTimeoutError()
+            raise RuntimeError("Command timeout passed and not finished")
         total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
-        self._logger.info(
-            f"Command {command_name} took {total_seconds_took} seconds to finish"
+        self._logger.log(
+            "info",
+            f"Command {command_name} took {total_seconds_took} seconds to finish",
         )
 
     def _patch_mlrun(self):
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        self._logger.debug(
-            "Creating mlrun patch archive", mlrun_version=self._mlrun_version
+        self._logger.log(
+            "debug", "Creating mlrun patch archive", mlrun_version=self._mlrun_version
         )
         mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
 
@@ -478,7 +528,9 @@ class SystemTestPreparer:
         # print provctl create patch log
         self._run_command(f"cat {provctl_create_patch_log}")
 
-        self._logger.info("Patching MLRun version", mlrun_version=self._mlrun_version)
+        self._logger.log(
+            "info", "Patching MLRun version", mlrun_version=self._mlrun_version
+        )
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             str(self.Constants.provctl_path),
@@ -496,6 +548,11 @@ class SystemTestPreparer:
                 "--force",
                 "mlrun",
                 mlrun_archive,
+                # enable audit events - will be ignored by provctl if mlrun version does not support it
+                # TODO: remove when setup is upgraded to iguazio version >= 3.5.4 since audit events
+                #  are enabled by default
+                "--feature-gates",
+                "mlrun.auditevents=enabled",
             ],
             detach=True,
         )
@@ -511,15 +568,15 @@ class SystemTestPreparer:
     def _resolve_iguazio_version(self):
         # iguazio version is optional, if not provided, we will try to resolve it from the data node
         if not self._iguazio_version:
-            self._logger.info("Resolving iguazio version")
+            self._logger.log("info", "Resolving iguazio version")
             self._iguazio_version, _ = self._run_command(
                 f"cat {self.Constants.igz_version_file}",
                 verbose=False,
                 live=False,
             )
             self._iguazio_version = self._iguazio_version.strip().decode()
-        self._logger.info(
-            "Resolved iguazio version", iguazio_version=self._iguazio_version
+        self._logger.log(
+            "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
 
     def _purge_mlrun_db(self):
@@ -530,7 +587,7 @@ class SystemTestPreparer:
         self._scale_down_mlrun_deployments()
 
     def _delete_mlrun_db(self):
-        self._logger.info("Deleting mlrun db")
+        self._logger.log("info", "Deleting mlrun db")
 
         mlrun_db_pod_name_cmd = self._get_pod_name_command(
             labels={
@@ -539,11 +596,11 @@ class SystemTestPreparer:
             },
         )
         if not mlrun_db_pod_name_cmd:
-            self._logger.info("No mlrun db pod found")
+            self._logger.log("info", "No mlrun db pod found")
             return
 
-        self._logger.info(
-            "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
+        self._logger.log(
+            "info", "Deleting mlrun db pod", mlrun_db_pod_name_cmd=mlrun_db_pod_name_cmd
         )
 
         password = ""
@@ -589,7 +646,7 @@ class SystemTestPreparer:
 
     def _scale_down_mlrun_deployments(self):
         # scaling down to avoid automatically deployments restarts and failures
-        self._logger.info("scaling down mlrun deployments")
+        self._logger.log("info", "scaling down mlrun deployments")
         self._run_kubectl_command(
             args=[
                 "scale",
@@ -620,6 +677,64 @@ class SystemTestPreparer:
                     del env_config[key]
 
         return yaml.safe_dump(env_config)
+
+    def _get_ingress_host(self, ingress_name: str):
+        host, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "ingress",
+                "--namespace",
+                self.Constants.namespace,
+                ingress_name,
+                "--output",
+                "jsonpath={'@.spec.rules[0].host'}",
+            ],
+        )
+        if stderr:
+            raise RuntimeError(
+                f"Failed getting {ingress_name} ingress host. Error: {stderr}"
+            )
+        return host.strip()
+
+    def _get_service_name(self, label_selector):
+        service_name, stderr = self._run_kubectl_command(
+            args=[
+                "get",
+                "deployment",
+                "--namespace",
+                self.Constants.namespace,
+                "-l",
+                label_selector,
+                "--output",
+                "jsonpath={'@.items[0].metadata.labels.release'}",
+            ],
+        )
+        if stderr:
+            raise RuntimeError(f"Failed getting service name. Error: {stderr}")
+        return service_name.strip()
+
+    def _get_devutils_status(self):
+        out, err = "", ""
+        try:
+            out, err = self._run_command(
+                "python3",
+                [
+                    "/home/iguazio/dev_utilities.py",
+                    "status",
+                    "--redis",
+                    "--kafka",
+                    "--mysql",
+                    "--redisinsight",
+                    "--output",
+                    "json",
+                ],
+            )
+        except Exception as exc:
+            self._logger.log(
+                "warning", "Failed to enrich env", exc=exc, err=err, out=out
+            )
+
+        return json.loads(out or "{}")
 
 
 @click.group()
@@ -657,18 +772,12 @@ def main():
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
 @click.option("--app-cluster-ssh-password", required=True)
-@click.option("--github-access-token", required=True)
 @click.option("--provctl-download-url", required=True)
 @click.option("--provctl-download-s3-access-key", required=True)
 @click.option("--provctl-download-s3-key-id", required=True)
-@click.option("--mlrun-dbpath", required=True)
-@click.option("--webapi-direct-url", required=True)
-@click.option("--framesd-url", required=True)
 @click.option("--username", required=True)
 @click.option("--access-key", required=True)
 @click.option("--iguazio-version", default=None)
-@click.option("--spark-service", required=True)
-@click.option("--slack-webhook-url")
 @click.option("--mysql-user")
 @click.option("--mysql-password")
 @click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
@@ -688,64 +797,52 @@ def run(
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
     app_cluster_ssh_password: str,
-    github_access_token: str,
     provctl_download_url: str,
     provctl_download_s3_access_key: str,
     provctl_download_s3_key_id: str,
-    mlrun_dbpath: str,
-    webapi_direct_url: str,
-    framesd_url: str,
     username: str,
     access_key: str,
     iguazio_version: str,
-    spark_service: str,
-    slack_webhook_url: str,
     mysql_user: str,
     mysql_password: str,
     purge_db: bool,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
-        mlrun_version,
-        mlrun_commit,
-        override_image_registry,
-        override_image_repo,
-        override_mlrun_images,
-        data_cluster_ip,
-        data_cluster_ssh_username,
-        data_cluster_ssh_password,
-        app_cluster_ssh_password,
-        github_access_token,
-        provctl_download_url,
-        provctl_download_s3_access_key,
-        provctl_download_s3_key_id,
-        mlrun_dbpath,
-        webapi_direct_url,
-        framesd_url,
-        username,
-        access_key,
-        iguazio_version,
-        spark_service,
-        slack_webhook_url,
-        mysql_user,
-        mysql_password,
-        purge_db,
-        debug,
+        mlrun_version=mlrun_version,
+        mlrun_commit=mlrun_commit,
+        override_image_registry=override_image_registry,
+        override_image_repo=override_image_repo,
+        override_mlrun_images=override_mlrun_images,
+        data_cluster_ip=data_cluster_ip,
+        data_cluster_ssh_username=data_cluster_ssh_username,
+        data_cluster_ssh_password=data_cluster_ssh_password,
+        app_cluster_ssh_password=app_cluster_ssh_password,
+        provctl_download_url=provctl_download_url,
+        provctl_download_s3_access_key=provctl_download_s3_access_key,
+        provctl_download_s3_key_id=provctl_download_s3_key_id,
+        username=username,
+        access_key=access_key,
+        iguazio_version=iguazio_version,
+        mysql_user=mysql_user,
+        mysql_password=mysql_password,
+        purge_db=purge_db,
+        debug=debug,
     )
     try:
         system_test_preparer.run()
     except Exception as exc:
-        logger.error("Failed running system test automation", exc=exc)
+        logger.log("error", "Failed running system test automation", exc=exc)
         raise
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
-@click.option("--webapi-direct-url", help="Iguazio webapi direct url")
-@click.option("--framesd-url", help="Iguazio framesd url")
+@click.option("--data-cluster-ip")
+@click.option("--data-cluster-ssh-username")
+@click.option("--data-cluster-ssh-password")
 @click.option("--username", help="Iguazio running username")
 @click.option("--access-key", help="Iguazio running user access key")
-@click.option("--spark-service", help="Iguazio kubernetes spark service name")
 @click.option(
     "--slack-webhook-url", help="Slack webhook url to send tests notifications to"
 )
@@ -760,34 +857,40 @@ def run(
     "--github-access-token",
     help="Github access token to use for fetching private functions",
 )
+@click.option(
+    "--save-to-path",
+    help="Path to save the compiled env file to",
+)
 def env(
+    data_cluster_ip: str,
+    data_cluster_ssh_username: str,
+    data_cluster_ssh_password: str,
     mlrun_dbpath: str,
-    webapi_direct_url: str,
-    framesd_url: str,
     username: str,
     access_key: str,
-    spark_service: str,
     slack_webhook_url: str,
     debug: bool,
     branch: str,
     github_access_token: str,
+    save_to_path: str,
 ):
     system_test_preparer = SystemTestPreparer(
+        data_cluster_ip=data_cluster_ip,
+        data_cluster_ssh_password=data_cluster_ssh_password,
+        data_cluster_ssh_username=data_cluster_ssh_username,
         mlrun_dbpath=mlrun_dbpath,
-        webapi_direct_http=webapi_direct_url,
-        framesd_url=framesd_url,
         username=username,
         access_key=access_key,
-        spark_service=spark_service,
         debug=debug,
         slack_webhook_url=slack_webhook_url,
         branch=branch,
         github_access_token=github_access_token,
     )
     try:
-        system_test_preparer.prepare_local_env()
+        system_test_preparer.connect_to_remote()
+        system_test_preparer.prepare_local_env(save_to_path)
     except Exception as exc:
-        logger.error("Failed preparing local system test environment", exc=exc)
+        logger.log("error", "Failed preparing local system test environment", exc=exc)
         raise
 
 

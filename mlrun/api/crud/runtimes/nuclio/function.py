@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -423,6 +423,11 @@ def _set_misc_specs(function, nuclio_spec):
     if function.spec.readiness_timeout:
         nuclio_spec.set_config(
             "spec.readinessTimeoutSeconds", function.spec.readiness_timeout
+        )
+    if function.spec.readiness_timeout_before_failure:
+        nuclio_spec.set_config(
+            "spec.waitReadinessTimeoutBeforeFailure",
+            function.spec.readiness_timeout_before_failure,
         )
     if function.spec.resources:
         nuclio_spec.set_config("spec.resources", function.spec.resources)

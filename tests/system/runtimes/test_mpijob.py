@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
+
 import mlrun
 import tests.system.base
 from mlrun.runtimes.constants import RunStates
@@ -21,6 +23,10 @@ from mlrun.runtimes.constants import RunStates
 class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     project_name = "does-not-exist-mpijob"
 
+    # TODO: This test is failing in the open source system tests due to a lack of resources
+    #  (running in git action worker with limited resources).
+    #  This mark should be removed if we shift to a new CE testing environment with adequate resources
+    @pytest.mark.enterprise
     def test_run_state_completion(self):
         code_path = str(self.assets_path / "mpijob_function.py")
 

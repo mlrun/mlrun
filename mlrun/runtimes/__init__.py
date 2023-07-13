@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@ __all__ = [
     "RemoteSparkRuntime",
 ]
 
-
-from mlrun.runtimes.package.context_handler import ArtifactType, ContextHandler
 from mlrun.runtimes.utils import (
     resolve_mpijob_crd_version,
     resolve_spark_operator_version,

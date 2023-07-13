@@ -207,7 +207,7 @@ Use standard Git commands to push the current project tree into a git archive. M
     git commit -m "Commit message"
     git push origin master
 
-Alternatively you can use MLRun SDK calls:
+Alternatively, you can use MLRun SDK calls:
 - {py:meth}`~mlrun.projects.MlrunProject.create_remote` - to register the remote Git path
 - {py:meth}`~mlrun.projects.MlrunProject.push` - save project spec (`project.yaml`) and commit/push updates to remote repo
 

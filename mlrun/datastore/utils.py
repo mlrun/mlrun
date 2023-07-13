@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@ import tarfile
 import tempfile
 import typing
 from urllib.parse import parse_qs, urlparse
+
+import pandas as pd
+import sqlalchemy
 
 import mlrun.datastore
 
@@ -73,7 +76,6 @@ def parse_kafka_url(
 
 
 def upload_tarball(source_dir, target, secrets=None):
-
     # will delete the temp file
     with tempfile.NamedTemporaryFile(suffix=".tar.gz") as temp_fh:
         with tarfile.open(mode="w:gz", fileobj=temp_fh) as tar:
@@ -81,3 +83,86 @@ def upload_tarball(source_dir, target, secrets=None):
         stores = mlrun.datastore.store_manager.set(secrets)
         datastore, subpath = stores.get_or_create_store(target)
         datastore.upload(subpath, temp_fh.name)
+
+
+def filter_df_start_end_time(
+    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    time_column: str = None,
+    start_time: pd.Timestamp = None,
+    end_time: pd.Timestamp = None,
+) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
+    if not time_column or (not start_time and not end_time):
+        return df
+    if isinstance(df, pd.DataFrame):
+        return _execute_time_filter(df, time_column, start_time, end_time)
+    else:
+        return filter_df_generator(df, time_column, start_time, end_time)
+
+
+def filter_df_generator(
+    dfs: typing.Iterator[pd.DataFrame],
+    time_field: str,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+) -> typing.Iterator[pd.DataFrame]:
+    for df in dfs:
+        yield _execute_time_filter(df, time_field, start_time, end_time)
+
+
+def _execute_time_filter(
+    df: pd.DataFrame, time_column: str, start_time: pd.Timestamp, end_time: pd.Timestamp
+):
+    df[time_column] = pd.to_datetime(df[time_column])
+    if start_time:
+        df = df[df[time_column] > start_time]
+    if end_time:
+        df = df[df[time_column] <= end_time]
+    return df
+
+
+def select_columns_from_df(
+    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    columns: typing.List[str],
+) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
+    if not columns:
+        return df
+    if isinstance(df, pd.DataFrame):
+        return df[columns]
+    else:
+        return select_columns_generator(df, columns)
+
+
+def select_columns_generator(
+    dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    columns: typing.List[str],
+) -> typing.Iterator[pd.DataFrame]:
+    for df in dfs:
+        yield df[columns]
+
+
+def _generate_sql_query_with_time_filter(
+    table_name: str,
+    engine: sqlalchemy.engine.Engine,
+    time_column: str,
+    parse_dates: typing.List[str],
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+):
+    table = sqlalchemy.Table(
+        table_name,
+        sqlalchemy.MetaData(),
+        autoload=True,
+        autoload_with=engine,
+    )
+    query = sqlalchemy.select(table)
+    if time_column:
+        if parse_dates and time_column not in parse_dates:
+            parse_dates.append(time_column)
+        else:
+            parse_dates = [time_column]
+        if start_time:
+            query = query.filter(getattr(table.c, time_column) > start_time)
+        if end_time:
+            query = query.filter(getattr(table.c, time_column) <= end_time)
+
+    return query, parse_dates

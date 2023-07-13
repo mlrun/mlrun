@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,10 +24,9 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
-import mlrun.api.utils.builder
 import mlrun.common.constants
+import mlrun.common.schemas
 import mlrun.utils.regex
-from mlrun.api.utils.clients import nuclio
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 from mlrun.runtimes.constants import MPIJobCRDVersions
@@ -61,7 +60,6 @@ global_context = _ContextStore()
 
 
 cached_mpijob_crd_version = None
-cached_nuclio_version = None
 
 
 # resolve mpijob runtime according to the mpi-operator's supported crd-version
@@ -116,29 +114,6 @@ def resolve_spark_operator_version():
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
-
-
-# if nuclio version specified on mlrun config set it likewise,
-# if not specified, get it from nuclio api client
-# since this is a heavy operation (sending requests to API), and it's unlikely that the version
-# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-def resolve_nuclio_version():
-    global cached_nuclio_version
-
-    if not cached_nuclio_version:
-
-        # config override everything
-        nuclio_version = config.nuclio_version
-        if not nuclio_version and config.nuclio_dashboard_url:
-            try:
-                nuclio_client = nuclio.Client()
-                nuclio_version = nuclio_client.get_dashboard_version()
-            except Exception as exc:
-                logger.warning("Failed to resolve nuclio version", exc=err_to_str(exc))
-
-        cached_nuclio_version = nuclio_version
-
-    return cached_nuclio_version
 
 
 def calc_hash(func, tag=""):
@@ -208,8 +183,18 @@ def add_code_metadata(path=""):
         ]
         if len(remotes) > 0:
             return f"{remotes[0]}#{repo.head.commit.hexsha}"
-    except (GitCommandNotFound, InvalidGitRepositoryError, NoSuchPathError, ValueError):
-        pass
+
+    except (
+        GitCommandNotFound,
+        InvalidGitRepositoryError,
+        NoSuchPathError,
+        ValueError,
+    ) as exc:
+        logger.warning(
+            "Failed to add git metadata, ignore if path is not part of a git repo.",
+            path=path,
+            error=err_to_str(exc),
+        )
     return None
 
 
@@ -474,20 +459,26 @@ def verify_limits(
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if gpus:
         verify_field_regex(
             f"function.spec.{resources_field_name}.limits.gpus",
             gpus,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu, gpus=gpus, gpu_type=gpu_type)
 
@@ -501,13 +492,17 @@ def verify_requests(
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.memory",
             mem,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     if cpu:
         verify_field_regex(
             f"function.spec.{resources_field_name}.requests.cpu",
             cpu,
-            mlrun.utils.regex.k8s_resource_quantity_regex,
+            mlrun.utils.regex.k8s_resource_quantity_regex
+            + mlrun.utils.regex.pipeline_param,
+            mode=mlrun.common.schemas.RegexMatchModes.any,
         )
     return generate_resources(mem=mem, cpu=cpu)
 

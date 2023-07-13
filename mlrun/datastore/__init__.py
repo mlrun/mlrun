@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,11 @@ __all__ = [
     "StreamSource",
     "KafkaSource",
     "RedisStore",
+    "DatabricksFileSystemDisableCache",
+    "DatabricksFileBugFixed",
 ]
+
+import fsspec
 
 import mlrun.datastore.wasbfs
 
@@ -42,6 +46,7 @@ from ..platforms.iguazio import (
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython
+from .dbfs_store import DatabricksFileBugFixed, DatabricksFileSystemDisableCache
 from .s3 import parse_s3_bucket_and_key
 from .sources import (
     BigQuerySource,
@@ -61,6 +66,22 @@ from .targets import CSVTarget, NoSqlTarget, ParquetTarget, StreamTarget
 from .utils import parse_kafka_url
 
 store_manager = StoreManager()
+
+if hasattr(fsspec, "register_implementation"):
+    fsspec.register_implementation(
+        "dbfs", DatabricksFileSystemDisableCache, clobber=True
+    )
+else:
+    from fsspec.registry import known_implementations
+
+    known_implementations["dbfs"] = {
+        "class": "mlrun.datastore.dbfs_store.DatabricksFileSystemDisableCache",
+        "err": "Please make sure your fsspec version supports dbfs",
+    }
+
+    del known_implementations
+
+del fsspec  # clear the module namespace
 
 
 def set_in_memory_item(key, value):

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -614,7 +614,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             fstore.get_offline_features(
                 fv,
                 with_indexes=True,
-                entity_timestamp_column="timestamp",
+                timestamp_for_filtering="timestamp",
                 engine="remote-spark",
                 run_config=RunConfig(local=False, function=runtime, watch=False),
                 target=ParquetTarget(),
@@ -626,7 +626,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         resp = fstore.get_offline_features(
             fv,
             with_indexes=True,
-            entity_timestamp_column="timestamp",
+            timestamp_for_filtering="timestamp",
             engine="spark",
             # setting watch=False, because we don't want to wait for the job to complete when running in API
             run_config=RunConfig(local=False, function=runtime, watch=False),
@@ -643,18 +643,20 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                     "max_events": 10000,
                     "flush_after_seconds": 900,
                 },
-                "timestamp_column": "timestamp",
+                "entity_timestamp_column": None,
                 "drop_columns": None,
                 "with_indexes": True,
                 "query": None,
-                "join_type": "inner",
                 "order_by": None,
+                "start_time": None,
+                "end_time": None,
+                "timestamp_for_filtering": "timestamp",
                 "engine_args": None,
             },
             "outputs": [],
             "output_path": "v3io:///mypath",
             "secret_sources": [],
-            "function": "None/my-vector-merger@3d197a096f5466a35961fc9fb6c6cdbc9d7266d2",
+            "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",
             "data_stores": [],
             "handler": "merge_handler",
         }

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -270,6 +271,18 @@ def test_build_project_from_minimal_dict():
             False,
             "",
         ),
+        (
+            "ssh://git@something/something",
+            "something",
+            [],
+            False,
+            0,
+            False,
+            "",
+            True,
+            "Unsupported url scheme, supported schemes are: git://, db:// or "
+            ".zip/.tar.gz/.yaml file path (could be local or remote) or project name which will be loaded from DB",
+        ),
     ],
 )
 def test_load_project(
@@ -326,6 +339,36 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
+def test_load_project_with_setup(context):
+    # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
+    project_path = (
+        pathlib.Path(tests.conftest.tests_root_directory)
+        / "projects"
+        / "assets"
+        / "load_setup_test"
+    )
+    project = mlrun.load_project(
+        context=project_path, name="projset", save=False, parameters={"p2": "123"}
+    )
+    mlrun.utils.logger.info(f"Project: {project}")
+
+    # see assets/load_setup_test/project_setup.py for extra project settings
+    # test that a function was added and its metadata was set from param[p2]
+    prep_func = project.get_function("prep-data")
+    assert prep_func.metadata.labels == {"tst1": "123"}  # = p2
+
+    # test that a serving function was set with a graph element (model)
+    srv_func = project.get_function("serving")
+    assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
+
+    # test that the project metadata was set correctly
+    assert project.name == "projset"
+    assert project.spec.context == project_path
+
+    # test that the params contain all params from the yaml, the load, and the setup script
+    assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+
+
 @pytest.mark.parametrize(
     "sync,expected_num_of_funcs, save",
     [
@@ -356,7 +399,7 @@ def test_load_project_and_sync_functions(
     assert len(project.spec._function_objects) == expected_num_of_funcs
 
     if sync:
-        function_names = project.get_function_names()
+        function_names = project.spec._function_definitions.keys()
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
@@ -511,6 +554,57 @@ def test_set_func_with_tag():
     )
     func = project.get_function("desc2")
     assert func.metadata.tag is None
+
+
+def test_set_function_with_tagged_key():
+    project = mlrun.new_project("set-func-tagged-key", save=False)
+    # create 2 functions with different tags
+    tag_v1 = "v1"
+    tag_v2 = "v2"
+    my_func_v1 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        tag=tag_v1,
+    )
+    my_func_v2 = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="my_func",
+        tag=tag_v2,
+    )
+
+    # set the functions
+    # function key is <function name> ("handler")
+    project.set_function(my_func_v1)
+    # function key is <function name>:<tag> ("handler:v1")
+    project.set_function(my_func_v1, tag=tag_v1)
+    # function key is "my_func"
+    project.set_function(my_func_v2, name=my_func_v2.metadata.name)
+    # function key is "my_func:v2"
+    project.set_function(my_func_v2, name=f"{my_func_v2.metadata.name}:{tag_v2}")
+
+    assert len(project.spec._function_objects) == 4
+
+    func = project.get_function(f"{my_func_v1.metadata.name}:{tag_v1}")
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name, tag=tag_v1)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v1.metadata.name)
+    assert func.metadata.tag == tag_v1
+
+    func = project.get_function(my_func_v2.metadata.name)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}")
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(my_func_v2.metadata.name, tag=tag_v2)
+    assert func.metadata.tag == tag_v2
+
+    func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}", tag=tag_v2)
+    assert func.metadata.tag == tag_v2
 
 
 def test_set_function_with_relative_path(context):
@@ -797,6 +891,62 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     mlrun.get_run_db().store_project("proj1", proj1)
     run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run6.spec.output_path == proj1.spec.artifact_path
+
+
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+        # relative path
+        ("./workflow.py", does_not_raise()),
+        # only file name
+        ("workflow.py", does_not_raise()),
+        # absolute path
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_workflow_with_invalid_path(
+    chdir_to_test_location, workflow_path, exception
+):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_project_ops():

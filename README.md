@@ -6,7 +6,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/mlrun/mlrun)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
-[![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](mlopslive.slack.com)
+[![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
 <p align="left"><img src="docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
 

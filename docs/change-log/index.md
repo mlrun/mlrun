@@ -1,5 +1,6 @@
 (change-log)=
 # Change log
+- [v1.3.3](#v1-3-3)
 - [v1.3.2](#v1-3-2)
 - [v1.3.1](#v1-3-1)
 - [v1.3.0](#v1-3-0)
@@ -18,7 +19,15 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.3.2	
+## v1.3.3	
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
+
+## v1.3.2
 
 ### Closed issues
 
@@ -50,34 +59,12 @@ New sections describing [Git best practices](../projects/git-best-practices.html
 The MLRun server is now based on Python 3.9. It's recommended to move the client to Python 3.9 as well. 
 
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
-python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client.
+
+See instructions in [Set up your environment](../install/remote.html).
 
 MLRun is pre-installed in CE Jupyter.
 
-To install on a **Python 3.9** environment, run:<br>
-```
-./align_mlrun.sh
-```
-
-To install on a **Python 3.7** environment (and optionally upgrade to python 3.9), run:
-  
-1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
-2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
-
-```
-$CONDA_HOME/bin/conda install -y conda=23.1.0
-$CONDA_HOME/bin/conda install -y pip
-```
-3. If you wish to upgrade to python 3.9, create a new conda env and activate it:
-```
-conda create -n python39 python=3.9 ipykernel -y
-conda activate python39
-```
-4. Install mlrun:
-```
-./align_mlrun.sh
-```
-    
 ### New and updated features
 
 #### Feature store
@@ -194,6 +181,7 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
+| `user_project`                                   | Use `get_or_create_project` or `load_project` to configure the active project. |
 
 **REST APIs deprecated and removed from v1.3.0 code**
 

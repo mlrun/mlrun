@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,9 +36,10 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.utils.model_monitoring
+import mlrun.model_monitoring.tracking_policy
 import tests.api.api.utils
 import tests.conftest
 
@@ -139,9 +140,11 @@ async def test_list_functions_with_hash_key_versioned(
     assert list_functions_results[0]["metadata"]["hash"] == hash_key
 
 
+@pytest.mark.parametrize("post_schedule", [True, False])
 def test_delete_function_with_schedule(
     db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
+    post_schedule,
 ):
     # create project and function
     tests.api.api.utils.create_project(client, PROJECT)
@@ -162,48 +165,53 @@ def test_delete_function_with_schedule(
 
     function_endpoint = f"projects/{PROJECT}/functions/{function_name}"
     function = client.post(function_endpoint, data=mlrun.utils.dict_to_json(function))
+    assert function.status_code == HTTPStatus.OK.value
     hash_key = function.json()["hash_key"]
 
-    # generate schedule object that matches to the function and create it
-    scheduled_object = {
-        "task": {
-            "spec": {
-                "function": f"{PROJECT}/{function_name}@{hash_key}",
-                "handler": "handler",
-            },
-            "metadata": {"name": "my-task", "project": f"{PROJECT}"},
-        }
-    }
-    schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=1)
-
-    schedule = mlrun.common.schemas.ScheduleInput(
-        name=function_name,
-        kind=mlrun.common.schemas.ScheduleKinds.job,
-        scheduled_object=scheduled_object,
-        cron_trigger=schedule_cron_trigger,
-    )
-
     endpoint = f"projects/{PROJECT}/schedules"
-    response = client.post(endpoint, data=mlrun.utils.dict_to_json(schedule.dict()))
-    assert response.status_code == HTTPStatus.CREATED.value
+    if post_schedule:
+        # generate schedule object that matches to the function and create it
+        scheduled_object = {
+            "task": {
+                "spec": {
+                    "function": f"{PROJECT}/{function_name}@{hash_key}",
+                    "handler": "handler",
+                },
+                "metadata": {"name": "my-task", "project": f"{PROJECT}"},
+            }
+        }
+        schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(minute=1)
 
-    response = client.get(endpoint)
-    assert (
-        response.status_code == HTTPStatus.OK.value
-        and response.json()["schedules"][0]["name"] == function_name
-    )
+        schedule = mlrun.common.schemas.ScheduleInput(
+            name=function_name,
+            kind=mlrun.common.schemas.ScheduleKinds.job,
+            scheduled_object=scheduled_object,
+            cron_trigger=schedule_cron_trigger,
+        )
 
-    # delete the function and assert that it has been removed, as has its schedule
+        endpoint = f"projects/{PROJECT}/schedules"
+        response = client.post(endpoint, data=mlrun.utils.dict_to_json(schedule.dict()))
+        assert response.status_code == HTTPStatus.CREATED.value
+
+        response = client.get(endpoint)
+        assert (
+            response.status_code == HTTPStatus.OK.value
+            and response.json()["schedules"][0]["name"] == function_name
+        )
+
+    # delete the function and assert that it has been removed, as has its schedule if created
     response = client.delete(function_endpoint)
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
     response = client.get(function_endpoint)
     assert response.status_code == HTTPStatus.NOT_FOUND.value
 
-    response = client.get(endpoint)
-    assert (
-        response.status_code == HTTPStatus.OK.value and not response.json()["schedules"]
-    )
+    if post_schedule:
+        response = client.get(endpoint)
+        assert (
+            response.status_code == HTTPStatus.OK.value
+            and not response.json()["schedules"]
+        )
 
 
 @pytest.mark.asyncio
@@ -339,8 +347,9 @@ def test_tracking_on_serving(
     httpserver,
     monkeypatch,
 ):
-    """Validating that the `mlrun.utils.model_monitoring.TrackingPolicy` configurations are generated as expected when
-    the user applies model monitoring on a serving function"""
+    """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
+    generated as expected when the user applies model monitoring on a serving function
+    """
 
     # Generate a test project
     tests.api.api.utils.create_project(client, PROJECT)
@@ -364,7 +373,7 @@ def test_tracking_on_serving(
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        mlrun.utils.model_monitoring: ["get_stream_path"],
+        mlrun.api.crud.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -388,7 +397,9 @@ def test_tracking_on_serving(
 
     assert function_from_db["spec"]["track_models"]
 
-    tracking_policy_default = mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
+    tracking_policy_default = (
+        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
+    )
     assert (
         deepdiff.DeepDiff(
             tracking_policy_default,
@@ -657,7 +668,6 @@ def _generate_function(
 def _generate_build_function_request(
     func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True
 ):
-
     request = {
         "function": func.to_dict(),
         "with_mlrun": "yes" if with_mlrun else "false",

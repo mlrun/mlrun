@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas.schedule
 import mlrun.errors
-import mlrun.launcher.client
+import mlrun.launcher.client as launcher
 import mlrun.run
 import mlrun.runtimes.generators
 import mlrun.utils.clones
@@ -25,19 +25,19 @@ import mlrun.utils.notifications
 from mlrun.utils import logger
 
 
-class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
+class ClientLocalLauncher(launcher.ClientBaseLauncher):
     """
     ClientLocalLauncher is a launcher that runs the job locally.
     Either on the user's machine (_is_run_local is True) or on a remote machine (_is_run_local is False).
     """
 
-    def __init__(self, local: bool):
+    def __init__(self, local: bool = False, **kwargs):
         """
         Initialize a ClientLocalLauncher.
         :param local:   True if the job runs on the user's local machine,
                         False if it runs on a remote machine (e.g. a dedicated k8s pod).
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._is_run_local = local
 
     def launch(
@@ -119,14 +119,14 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
             notifications=notifications,
         )
         self._validate_runtime(runtime, run)
-        result = self.execute(
+        result = self._execute(
             runtime=runtime,
             run=run,
         )
 
         return result
 
-    def execute(
+    def _execute(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
@@ -190,7 +190,7 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                 last_err = err
                 result = runtime._update_run_state(task=run, err=err)
 
-        self._push_notifications(run)
+        self._push_notifications(run, runtime)
 
         # run post run hooks
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
@@ -261,7 +261,9 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
                     args = sp[1:]
         return command, args
 
-    def _push_notifications(self, runobj):
+    def _push_notifications(
+        self, runobj: "mlrun.run.RunObject", runtime: "mlrun.runtimes.BaseRuntime"
+    ):
         if not self._run_has_valid_notifications(runobj):
             return
         # TODO: add store_notifications API endpoint so we can store notifications pushed from the
@@ -269,5 +271,6 @@ class ClientLocalLauncher(mlrun.launcher.client.ClientBaseLauncher):
         # The run is local, so we can assume that watch=True, therefore this code runs
         # once the run is completed, and we can just push the notifications.
         # Only push from jupyter, not from the CLI.
-        if self._is_run_local:
+        # "handler" and "dask" kinds are special cases of local runs which don't set local=True
+        if self._is_run_local or runtime.kind in ["handler", "dask"]:
             mlrun.utils.notifications.NotificationPusher([runobj]).push()

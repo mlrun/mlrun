@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@ import pathlib
 
 import mlrun.projects
 from mlrun.__main__ import load_notification
+from mlrun.artifacts.plots import ChartArtifact
+from mlrun.lists import ArtifactList
 
 
 def test_add_notification_to_cli_from_file():
@@ -23,8 +25,14 @@ def test_add_notification_to_cli_from_file():
     project = mlrun.projects.MlrunProject(name="test")
     load_notification(notifications, project)
 
-    assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
-    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"
+    assert (
+        project._notifiers._async_notifications["slack"].params.get("webhook")
+        == "123456"
+    )
+    assert (
+        project._notifiers._sync_notifications["ipython"].params.get("webhook")
+        == "1234"
+    )
 
 
 def test_add_notification_to_cli_from_dict():
@@ -32,5 +40,44 @@ def test_add_notification_to_cli_from_dict():
     project = mlrun.projects.MlrunProject(name="test")
     load_notification(notifications, project)
 
-    assert project._notifiers._notifications["slack"].params.get("webhook") == "123456"
-    assert project._notifiers._notifications["ipython"].params.get("webhook") == "1234"
+    assert (
+        project._notifiers._async_notifications["slack"].params.get("webhook")
+        == "123456"
+    )
+    assert (
+        project._notifiers._sync_notifications["ipython"].params.get("webhook")
+        == "1234"
+    )
+
+
+def test_cli_get_artifacts_with_uri():
+    artifacts = []
+    for i in range(5):
+        artifact_key = f"artifact_test_{i}"
+        artifact_uid = f"artifact_uid_{i}"
+        artifact_kind = ChartArtifact.kind
+        artifacts.append(
+            generate_artifact(artifact_key, kind=artifact_kind, uid=artifact_uid)
+        )
+    artifacts = ArtifactList(artifacts)
+
+    # this is the function called when executing the get artifacts cli command
+    df = artifacts.to_df()
+
+    # check that the uri is returned
+    assert "uri" in df
+
+
+def generate_artifact(name, uid=None, kind=None):
+    artifact = {
+        "metadata": {"key": name, "iter": 0},
+        "spec": {"src_path": "/some/path"},
+        "kind": kind,
+        "status": {"bla": "blabla"},
+    }
+    if kind:
+        artifact["kind"] = kind
+    if uid:
+        artifact["metadata"]["uid"] = uid
+
+    return artifact

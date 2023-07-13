@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,17 +39,13 @@ on:
         description: 'Clean resources created by test (like project) in each test teardown (default: true - perform clean)'
         required: true
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
       override_iguazio_version:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
-      test_code_from_action:
-        description: 'Take tested code from action from upstream rather than ref (default: false). If running on personal fork you will want to set to false in order to pull images from mlrun ghcr (note that test code will be taken from the action REF anyways)'
-        required: true
-        default: 'false'
-      ui_code_from_action:
-        description: 'Take ui code from action branch in mlrun/ui (default: false - take from upstream)'
-        required: true
-        default: 'false'
 
 concurrency: one-at-a-time
 jobs:
@@ -170,46 +166,33 @@ jobs:
       with:
         python-version: 3.9
         cache: pip
-    - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt && pip install -e .
-    - name: Install curl and jq
-      run: sudo apt-get install curl jq
-    - name: Extract git hash from action mlrun version
-      # because it is being run mainly on CI and the code is of the development but can be run against multiple branches
-      # the default is false so it will use the code of the chosen branch
-      # TODO: remove - might not be relevant anymore due to multi branch system tests
-      if: ${{ github.event.inputs.test_code_from_action != 'false' }}
-      id: git_action_info
+    - name: Install automation scripts dependencies
       run: |
-        echo "mlrun_hash=$(git rev-parse --short=8 $GITHUB_SHA)" >> $GITHUB_OUTPUT
-    - name: Extract git hash from action mlrun version
-      if: ${{ github.event.inputs.ui_code_from_action == 'true' }}
-      id: git_action_ui_info
-      run: |
-        echo "ui_hash=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
-          cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
-          cd .. && \
-          rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        pip install -r automation/requirements.txt
+        sudo apt-get install curl jq gnupg
     - name: Extract git hashes from upstream and latest version
       id: git_upstream_info
       run: |
+        
+        # Get the latest commit of mlrun/mlrun (that is older than 1 hour)
         echo "mlrun_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
           cd mlrun-upstream && \
-          git rev-parse --short=8 HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+        
+        # Get the latest commit of mlrun/ui (that is older than 1 hour)
         echo "ui_hash=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/ui.git mlrun-ui 2> /dev/null && \
           cd mlrun-ui && \
-          git rev-parse --short=8 HEAD && \
+          git rev-list --until="1 hour ago" --max-count 1 --abbrev-commit HEAD && \
           cd .. && \
           rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
+        
+        # Get the tested mlrun version
         echo "unstable_version_prefix=$( \
           cd /tmp && \
           git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
@@ -258,18 +241,12 @@ jobs:
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
           --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           --app-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_APP_CLUSTER_SSH_PASSWORD }}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
           --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
-          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          --webapi-direct-url "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          --framesd-url "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
-          --spark-service "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-          --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --mysql-user "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
           --mysql-password "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
           --purge-db \
@@ -279,6 +256,37 @@ jobs:
           --override-mlrun-images \
           "${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }},ghcr.io/mlrun/mlrun:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-models:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/ml-base:${{ steps.computed_params.outputs.mlrun_docker_tag }},ghcr.io/mlrun/log-collector:${{ steps.computed_params.outputs.mlrun_docker_tag }}"
 
+    - name: Prepare System Test env.yml and MLRun installation from current branch
+      timeout-minutes: 5
+      run: |
+        python automation/system_test/prepare.py env \
+          --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
+          --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
+          --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
+          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
+          --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
+          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --save-to-path "${{ github.workspace }}/env.yml"
+
+    - name: Encrypt file
+      run: |
+        gpg \
+          --batch \
+          --passphrase "${{ env.GPG_PASSPHRASE }}" \
+          --output "${{ github.workspace }}/env.yml.gpg" \
+          --symmetric "${{ github.workspace }}/env.yml"
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+    - name: Upload env file
+      uses: actions/upload-artifact@v3
+      with:
+        name: env
+        path: "${{ github.workspace }}/env.yml.gpg"
+        if-no-files-found: error
 
     outputs:
       mlrunVersion: ${{ steps.computed_params.outputs.mlrun_version }}
@@ -306,28 +314,29 @@ jobs:
       # than the mlrun version we deployed on the previous job (can have features that the resolved branch doesn't have)
       with:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
-    - name: Set up python
-      uses: actions/setup-python@v4
+
+    - uses: actions/download-artifact@v3
       with:
-        python-version: 3.9
-        cache: pip
-    - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: pip install -r automation/requirements.txt && pip install -e .
-    - name: Install curl and jq
-      run: sudo apt-get install curl jq
-    - name: Prepare System Test env.yaml and MLRun installation from current branch
-      timeout-minutes: 5
+        name: env
+        path: "${{ github.workspace }}/tests/system"
+
+    - name: Install GPG
       run: |
-        python automation/system_test/prepare.py env \
-          --mlrun-dbpath "${{ secrets.LATEST_SYSTEM_TEST_MLRUN_DB_PATH }}" \
-          --webapi-direct-url "${{ secrets.LATEST_SYSTEM_TEST_WEBAPI_DIRECT_URL }}" \
-          --framesd-url "${{ secrets.LATEST_SYSTEM_TEST_FRAMESD_URL }}" \
-          --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
-          --spark-service "${{ secrets.LATEST_SYSTEM_TEST_SPARK_SERVICE }}" \
-          --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
-          --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}"
+        sudo apt-get update -qqy && sudo apt-get install -y gnupg
+
+    - name: Decrypt file
+      run: |
+        gpg \
+          --batch \
+          --passphrase "${{ env.GPG_PASSPHRASE }}" \
+          --output "${{ github.workspace }}/tests/system/env.yml" \
+          --decrypt "${{ github.workspace }}/tests/system/env.yml.gpg"
+
+        # ensure file created
+        test -f ${{ github.workspace }}/tests/system/env.yml
+      env:
+        GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ def run_function(
 
         @dsl.pipeline(name="test pipeline", description="test")
         def my_pipe(url=""):
-            run1 = run_function("loaddata", params={"url": url})
+            run1 = run_function("loaddata", params={"url": url}, outputs=["data"])
             run2 = run_function("train", params={"label_columns": LABELS, "model_class": MODEL_CLASS},
                                          inputs={"dataset": run1.outputs["data"]})
 
@@ -138,7 +138,7 @@ def run_function(
     :param verbose:         add verbose prints/logs
     :param project_object:  override the project object to use, will default to the project set in the runtime context.
     :param auto_build:      when set to True and the function require build it will be built on the first
-                            function run, use only if you dont plan on changing the build config between runs
+                            function run, use only if you do not plan on changing the build config between runs
     :param schedule:        ScheduleCronTrigger class instance or a standard crontab expression string
                             (which will be converted to the class using its `from_crontab` constructor),
                             see this link for help:

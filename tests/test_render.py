@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,32 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pathlib
+
 import pytest
 
 import mlrun
+import mlrun.render
 from tests.conftest import results, rundb_path
+
+assets_path = pathlib.Path(__file__).parent / "assets"
+function_path = str(assets_path / "log_function.py")
 
 
 def get_db():
     return mlrun.get_run_db(rundb_path)
 
 
-#
-# pprint.pprint(db.list_runs()[:2])
-
-# FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and
-#  artifacts in the `results` dir, it should generate its own stuff, skipping for now
-@pytest.mark.skip("FIX_ME")
-def test_list_runs():
+@pytest.mark.parametrize(
+    "generate_artifact_hash_mode, expected_target_paths",
+    [
+        (
+            False,
+            [
+                f"{results}/log-function-log-dataset/0/feature_1.csv",
+                f"{results}/log-function-log-dataset/0/feature_2.csv",
+            ],
+        ),
+        (
+            True,
+            [
+                f"{results}/6154c46f1a6fffb0b6b716882279d7e09ecb6b8a.csv",
+                f"{results}/c88c2dc877a6595cb2eb834449aac6e2789d301c.csv",
+            ],
+        ),
+    ],
+)
+def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_paths):
+    mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = (
+        generate_artifact_hash_mode
+    )
+    func = mlrun.code_to_function(
+        filename=function_path, kind="job", handler="log_dataset"
+    )
+    func.run(local=True, out_path=str(results))
 
     db = get_db()
     runs = db.list_runs()
     assert runs, "empty runs result"
 
     html = runs.show(display=False)
-
-    with open(f"{results}/runs.html", "w") as fp:
-        fp.write(html)
+    for expected_target_path in expected_target_paths:
+        expected_link, _ = mlrun.render.link_to_ipython(expected_target_path)
+        assert expected_link in html
 
 
 # FIXME: this test was counting on the fact it's running after some test (I think test_httpdb) which leaves runs and

@@ -1,4 +1,4 @@
-# Copyright 2019 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import pytest
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
-from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db import SQLDB, sqldb
 from mlrun.db.base import RunDBInterface

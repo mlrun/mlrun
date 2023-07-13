@@ -300,8 +300,8 @@ Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/developmen
 import nuclio
 serve = mlrun.import_function('hub://v2_model_server')
 
-# HTTP trigger
-serve.with_http(workers=8, port=31010, worker_timeout=10)
+# Set amount of workers 
+serve.with_http(workers=8, worker_timeout=10)
 
 # V3IO stream trigger
 serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', name='stream', group='serving', seek_to='earliest', shards=1)
@@ -315,6 +315,11 @@ serve.add_trigger(
 # Cron trigger
 serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
 serve.add_trigger("cron_schedule", spec=nuclio.CronTrigger(schedule="0 9 * * *"))
+```
+
+```{admonition} Note
+The worker uses separate worker scope. This means that each worker has a copy of the variable, 
+and all changes are kept within the worker (change by worker x, do not affect worker y).
 ```
 
 ### Building Docker images
@@ -445,11 +450,16 @@ run_id = project.run(
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html)
 
 ```python
-context.logger.debug(message="Debugging info")
-context.logger.info(message="Something happened")
-context.logger.warning(message="Something might go wrong")
-context.logger.error(message="Something went wrong")
+context.logger.debug(message="Debugging info")              # logging all (debug, info, warning, error)
+context.logger.info(message="Something happened")           # logging info, warning and error
+context.logger.warning(message="Something might go wrong")  # logging warning and error
+context.logger.error(message="Something went wrong")        # logging only error
 ```
+
+```{admonition} Note
+The real-time (nuclio) function uses default logger level `debug` (logging all)
+```
+
 
 ## Experiment tracking
 Docs: [MLRun execution context](./concepts/mlrun-execution-context.html), [Automated experiment tracking](./concepts/auto-logging-mlops.html), [Decorators and auto-logging](./concepts/decorators-and-auto-logging.html)

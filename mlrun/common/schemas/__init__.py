@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,6 +47,12 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .events import (
+    AuthSecretEventActions,
+    EventClientKinds,
+    EventsModes,
+    SecretEventActions,
+)
 from .feature_store import (
     EntitiesOutput,
     Entity,
@@ -91,7 +97,11 @@ from .hub import (
 )
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
-from .model_endpoints import (
+from .model_monitoring import (
+    EndpointType,
+    EndpointUID,
+    EventFieldType,
+    EventKeyMetrics,
     Features,
     FeatureValues,
     GrafanaColumn,
@@ -105,7 +115,9 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    TimeSeriesTarget,
 )
 from .notification import (
     Notification,
@@ -130,6 +142,7 @@ from .project import (
     ProjectSummariesOutput,
     ProjectSummary,
 )
+from .regex import RegexMatchModes
 from .runs import RunIdentifier
 from .runtime_resource import (
     GroupedByJobRuntimeResourcesOutput,

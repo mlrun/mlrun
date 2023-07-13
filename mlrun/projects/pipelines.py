@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,14 +29,9 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
-from mlrun.utils import (
-    get_ui_url,
-    logger,
-    new_pipe_metadata,
-    parse_versioned_object_uri,
-    retry_until_successful,
-)
+from mlrun.utils import get_ui_url, logger, new_pipe_metadata, retry_until_successful
 
+from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
@@ -845,7 +840,6 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     setattr(mod, "this_project", project)
 
     if hasattr(mod, "init_functions"):
-
         # TODO: remove in 1.5.0
         warnings.warn(
             "'init_functions' is deprecated in 1.3.0 and will be removed in 1.5.0. "

@@ -25,6 +25,7 @@ import mlrun.kfpops
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
+import mlrun.utils.regex
 from mlrun.utils import logger
 
 run_modes = ["pass"]
@@ -37,6 +38,56 @@ class BaseLauncher(abc.ABC):
     i.e. running a function locally, remotely or in a server
     Each context will have its own implementation of the abstract methods while the common logic resides in this class
     """
+
+    def __init__(self, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def launch(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[
+            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        ] = None,
+        hyperparams: Dict[str, list] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    ) -> "mlrun.run.RunObject":
+        """run the function from the server/client[local/remote]"""
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
+    ):
+        pass
+
+    @staticmethod
+    @abc.abstractmethod
+    def _store_function(
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        pass
 
     def save_function(
         self,
@@ -73,36 +124,9 @@ class BaseLauncher(abc.ABC):
         hash_key = hash_key if versioned else None
         return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
-    @abc.abstractmethod
-    def launch(
-        self,
-        runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[Dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
-        hyperparams: Dict[str, list] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[Dict[str, str]] = None,
-        notifications: Optional[List[mlrun.model.Notification]] = None,
-        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    ) -> "mlrun.run.RunObject":
-        """run the function from the server/client[local/remote]"""
+    @staticmethod
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
     def _validate_runtime(
@@ -190,8 +214,8 @@ class BaseLauncher(abc.ABC):
         # task is already a RunObject
         return task
 
+    @staticmethod
     def _enrich_run(
-        self,
         runtime,
         run,
         handler=None,
@@ -377,26 +401,6 @@ class BaseLauncher(abc.ABC):
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):
-        pass
-
-    @staticmethod
-    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
-        """Check if the runtime requires to build the image and updates the spec accordingly"""
-        pass
-
-    @staticmethod
-    @abc.abstractmethod
-    def enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
-    ):
-        pass
-
-    @staticmethod
-    @abc.abstractmethod
-    def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
         pass
 
     @staticmethod

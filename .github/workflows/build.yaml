@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 # This name is referenced in the release.yaml workflow, if you're changing here - change there
 name: Build
+
 run-name: Building ${{ inputs.version }} ${{ github.ref_name }}
+
+permissions:
+
+  # Allow the action to upload images to ghcr
+  packages: write
 
 on:
   push:
@@ -44,137 +51,20 @@ on:
         description: 'Whether to build images from cache or not. Default: true, set to false only if required because that will cause a significant increase in build time'
         required: true
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
-  matrix_prep:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v3
-      - id: set-matrix
-        uses: ./.github/actions/image-matrix-prep
-        with:
-          skip_images: ${{ github.event.inputs.skip_images }}
-
-  build-images:
-    name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    needs: matrix_prep
-
-    # let's not run this on every fork, change to your fork when developing
+  build-mlrun:
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
-
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.matrix_prep.outputs.matrix)}}
-    steps:
-    - uses: actions/checkout@v3
-
-    # since github-actions gives us 14G only, and fills it up with some garbage
-    - name: Freeing up disk space
-      run: |
-        "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
-
-    - name: Install curl and jq
-      run: sudo apt-get install curl jq
-    - name: Extract git hash, ref and latest version
-      id: git_info
-      run: |
-        echo "mlrun_commit_hash=$(git rev-parse --short=8 $GITHUB_SHA)"  >> $GITHUB_OUTPUT
-        echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)"  >> $GITHUB_OUTPUT
-    - name: Resolve docker cache tag
-      id: docker_cache
-      run: |
-        export version_suffix=$(echo "$GITHUB_REF_NAME" | grep -E "^[0-9]+\.[0-9]+\.x$" | tr -d '.');
-        export unstable_tag=$(if [ -z "$version_suffix" ]; then echo "unstable-cache"; else echo "unstable-cache-$version_suffix";fi);
-        export build_from_cache=$(if [ -z "$INPUT_BUILD_FROM_CACHE" ]; then echo "true" ; else echo "$INPUT_BUILD_FROM_CACHE";fi);
-        export no_cache=$(if [ "$build_from_cache" = "false" ]; then echo "true" ; else echo "";fi);
-        echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
-        echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
-      env:
-        INPUT_BUILD_FROM_CACHE: ${{ github.event.inputs.build_from_cache }}
-    - name: Set computed versions params
-      id: computed_params
-      run: |
-        echo "mlrun_version=$( \
-          input_mlrun_version=$INPUT_VERSION && \
-          default_mlrun_version=$(echo ${{ steps.git_info.outputs.unstable_version_prefix }}+${{ steps.git_info.outputs.mlrun_commit_hash }}) && \
-          echo ${input_mlrun_version:-`echo $default_mlrun_version`})" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_repo=$( \
-          input_docker_repo=$INPUT_DOCKER_VERSION && \
-          default_docker_repo=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]') && \
-          echo ${input_docker_repo:-`echo $default_docker_repo`})" >> $GITHUB_OUTPUT
-        echo "mlrun_docker_registries=$( \
-          input_docker_registries=$INPUT_DOCKER_REGISTRIES && \
-          echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
-        echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
-      env:
-        INPUT_VERSION: ${{ github.event.inputs.version }}
-        INPUT_DOCKER_VERSION: ${{ github.event.inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRIES: ${{ github.event.inputs.docker_registries }}
-    - name: Docker login
-      # all suffixed with "| true" to allow failures if secrets are not defined (fork)
-      run: |
-        echo ${{ secrets.GHCR_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login ghcr.io -u ${{ secrets.GHCR_DOCKER_REGISTRY_USERNAME }} --password-stdin | true
-        echo ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login registry.hub.docker.com -u ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }} \
-          --password-stdin | true
-        echo ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }} | \
-          docker login quay.io -u ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }} \
-          --password-stdin | true
-
-    - name: Pull cache, build and push image
-
-      # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
-      # to use it and run much faster
-      if: ${{ matrix.image-name != 'test' }}
-      run: |
-        for registry in $(echo ${{ steps.computed_params.outputs.mlrun_docker_registries }} | sed "s/,/ /g"); \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=${{ steps.computed_params.outputs.mlrun_version }} \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_NO_CACHE=${{ steps.docker_cache.outputs.no_cache }} \
-            MLRUN_PUSH_DOCKER_CACHE_IMAGE="true" \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-            make push-${{ matrix.image-name }}; \
-          done;
-
-    - name: Build and push unstable tag
-
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
-      run: |
-        for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
-          do \
-            MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-            MLRUN_DOCKER_REGISTRY=$registry \
-            MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-            MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-            MLRUN_VERSION=unstable \
-            MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-            MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-            INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-            make push-${{ matrix.image-name }}; \
-          done;
-    - name: Pull cache, build and push test image
-      # When version is given we're probably in a release process, we don't need the test image in that case
-      if: matrix.image-name == 'test' && github.event.inputs.version == ''
-      run: |
-        MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
-        MLRUN_DOCKER_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_CACHE_FROM_REGISTRY=ghcr.io/ \
-        MLRUN_DOCKER_REPO=${{ steps.computed_params.outputs.mlrun_docker_repo }} \
-        MLRUN_VERSION=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
-        MLRUN_PUSH_DOCKER_CACHE_IMAGE=true \
-        MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
-        INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
-        make push-${{ matrix.image-name }}
+    name: Build MLRun
+    uses: ./.github/workflows/build-internal.yaml
+    with:
+      docker_registries: ${{ github.event.inputs.docker_registries }}
+      docker_repo: ${{ github.event.inputs.docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      skip_images: ${{ github.event.inputs.skip_images }}
+      build_from_cache: ${{ github.event.inputs.build_from_cache }}
+    secrets: inherit

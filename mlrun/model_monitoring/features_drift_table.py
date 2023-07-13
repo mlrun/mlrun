@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .model_monitoring_batch import DriftResultType, DriftStatus
+from mlrun.model_monitoring.model_monitoring_batch import DriftResultType, DriftStatus
 
 
 class FeaturesDriftTablePlot:

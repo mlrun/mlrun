@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import base64
+import json
 import subprocess
 
 import click
@@ -274,12 +276,18 @@ def uninstall(redis, kafka, mysql, redisinsight):
         if redisinsight:
             cmd = "kubectl delete ingress -n devtools redisinsight"
             subprocess.run(cmd.split(), check=True)
+    except Exception as e:
+        print(e)
+    try:
         for service in services:
             if locals().get(service):
                 cmd = f"helm uninstall {service} --namespace {namespace}"
                 subprocess.run(cmd.split(), check=True)
+    except Exception as e:
+        print(e)
+    try:
         print("namespace deleteted")
-        delns = "kubectl delete namespace  devtools"
+        cmd = "kubectl delete namespace  devtools"
         subprocess.run(cmd.split(), check=True)
     except Exception as e:  # !!!
         print(e)
@@ -301,30 +309,47 @@ def list_services_h():
 
 
 @click.command()
-@click.option("--redis", is_flag=True, help="Install Redis")
-@click.option("--kafka", is_flag=True, help="Install Kafka")
-@click.option("--mysql", is_flag=True, help="Install MySQL")
-@click.option("--redisinsight", is_flag=True, help="Install Redis GUI")
-def status(redis, kafka, mysql, redisinsight):
+@click.option("--redis", is_flag=True, help="Get Redis info")
+@click.option("--kafka", is_flag=True, help="Get Kafka info")
+@click.option("--mysql", is_flag=True, help="Get MySQL info")
+@click.option("--redisinsight", is_flag=True, help="Get Redis GUI info")
+@click.option("--output", default="human", type=click.Choice(["human", "json"]))
+def status(redis, kafka, mysql, redisinsight, output):
     namespace = "devtools"
+    get_all_output = {}
     if redis:
         svc_password = get_svc_password(namespace, "redis", "redis-password")
-        print_svc_info(
-            "redis-master-0.redis-headless.devtools.svc.cluster.local",
-            6379,
-            "default",
-            svc_password,
-            "-------",
-        )
+        get_all_output["redis"] = status_h("redis")
+        if output == "human":
+            print_svc_info(
+                "redis-master-0.redis-headless.devtools.svc.cluster.local",
+                6379,
+                "default",
+                svc_password,
+                "-------",
+            )
     if kafka:
-        print_svc_info("kafka", 9092, "-------", "-------", "-------")
+        get_all_output["kafka"] = status_h("kafka")
+        if output == "human":
+            print_svc_info("kafka", 9092, "-------", "-------", "-------")
     if mysql:
         svc_password = get_svc_password(namespace, "mysql", "mysql-root-password")
-        print_svc_info("mysql", 3306, "root", svc_password, "-------")
+        get_all_output["mysql"] = status_h("mysql")
+        if output == "human":
+            print_svc_info("mysql", 3306, "root", svc_password, "-------")
     if redisinsight:
-        fqdn = get_ingress_controller_version()
-        full_domain = "https://redisinsight" + fqdn
-        print_svc_info("", " " + full_domain, "-------", "-------", "-------")
+        get_all_output["redisinsight"] = status_h("redisinsight")
+        if output == "human":
+            print_svc_info(
+                "",
+                " " + get_all_output["redisinsight"]["app_url"],
+                "-------",
+                "-------",
+                "-------",
+            )
+
+    if output == "json":
+        print(json.dumps(get_all_output))
 
 
 def status_h(svc):

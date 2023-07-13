@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# pipeline param format which is passed when running a pipeline (e.g. {{pipelineparam:op=;name=mem}})
+# https://github.com/kubeflow/pipelines/blob/16edebf4eaf84cd7478e2601ef4878ab339a7854/sdk/python/kfp/dsl/_pipeline_param.py#L213
+# this is expected to be resolved at runtime
+pipeline_param = [r"{{pipelineparam:op=([\w\s_-]*);name=([\w\s_-]+)}}"]
 
 # k8s character limit is for 63 characters
 k8s_character_limit = [r"^.{0,63}$"]

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,17 +23,35 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.launcher
+import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
+import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.api.utils.singletons.logs_dir
+import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
 from mlrun import mlconf
-from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
-from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.project_member import initialize_project_member
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
+
+
+@pytest.fixture(autouse=True)
+def api_config_test():
+    mlrun.api.utils.singletons.db.db = None
+    mlrun.api.utils.singletons.project_member.project_member = None
+    mlrun.api.utils.singletons.scheduler.scheduler = None
+    mlrun.api.utils.singletons.k8s._k8s = None
+    mlrun.api.utils.singletons.logs_dir.logs_dir = None
+
+    mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+
+    mlrun.api.launcher.initialize_launcher()
 
 
 @pytest.fixture()
@@ -55,8 +73,8 @@ def db() -> Generator:
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
-    initialize_db()
-    initialize_project_member()
+    mlrun.api.utils.singletons.db.initialize_db()
+    mlrun.api.utils.singletons.project_member.initialize_project_member()
 
     # we're also running client code in tests so set dbpath as well
     # note that setting this attribute triggers connection to the run db therefore must happen after the initialization
@@ -124,12 +142,14 @@ class K8sSecretsMock:
     def get_auth_secret_name(username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
 
-    def store_auth_secret(self, username: str, access_key: str, namespace="") -> str:
+    def store_auth_secret(
+        self, username: str, access_key: str, namespace=""
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         secret_ref = self.get_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
-        return secret_ref
+        return secret_ref, mlrun.common.schemas.SecretEventActions.created
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -162,8 +182,12 @@ class K8sSecretsMock:
         ]
         return username, access_key
 
-    def store_project_secrets(self, project, secrets, namespace=""):
+    def store_project_secrets(
+        self, project, secrets, namespace=""
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
+        secret_name = project
+        return secret_name, mlrun.common.schemas.SecretEventActions.created
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         if not secrets:
@@ -171,6 +195,7 @@ class K8sSecretsMock:
         else:
             for key in secrets:
                 self.project_secrets_map.get(project, {}).pop(key, None)
+        return "", True
 
     def get_project_secret_keys(self, project, namespace="", filter_internal=False):
         secret_keys = list(self.project_secrets_map.get(project, {}).keys())
@@ -302,3 +327,30 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
     monkeypatch.setattr(kfp, "Client", lambda *args, **kwargs: kfp_client_mock)
     mlrun.mlconf.kfp_url = "http://ml-pipeline.custom_namespace.svc.cluster.local:8888"
     return kfp_client_mock
+
+
+@pytest.fixture()
+async def api_url() -> str:
+    api_url = "http://iguazio-api-url:8080"
+    mlrun.config.config._iguazio_api_url = api_url
+    return api_url
+
+
+@pytest.fixture()
+async def iguazio_client(
+    api_url: str,
+    request: pytest.FixtureRequest,
+) -> mlrun.api.utils.clients.iguazio.Client:
+    if request.param == "async":
+        client = mlrun.api.utils.clients.iguazio.AsyncClient()
+    else:
+        client = mlrun.api.utils.clients.iguazio.Client()
+
+    # force running init again so the configured api url will be used
+    client.__init__()
+    client._wait_for_job_completion_retry_interval = 0
+    client._wait_for_project_terminal_state_retry_interval = 0
+
+    # inject the request param into client, so we can use it in tests
+    setattr(client, "mode", request.param)
+    return client

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
@@ -39,12 +40,13 @@ from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
 from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger, parse_versioned_object_uri
+from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -202,7 +204,6 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(task):
-
     # Masking notification config params from the task object
     mask_notification_params_on_task(task)
 
@@ -245,14 +246,43 @@ def mask_notification_params_with_secret(
     return notification_object
 
 
-def unmask_notification_params_secret_on_task(run):
+def unmask_notification_params_secret_on_task(
+    db: mlrun.api.db.base.DBInterface,
+    db_session: Session,
+    run: typing.Union[dict, mlrun.model.RunObject],
+):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
 
-    run.spec.notifications = [
-        unmask_notification_params_secret(run.metadata.project, notification)
-        for notification in run.spec.notifications
-    ]
+    notifications = []
+    for notification in run.spec.notifications:
+        invalid_notifications = []
+        try:
+            notifications.append(
+                unmask_notification_params_secret(run.metadata.project, notification)
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to unmask notification params, notification will not be sent",
+                project=run.metadata.project,
+                run_uid=run.metadata.uid,
+                notification=notification.name,
+                exc=err_to_str(exc),
+            )
+            # set error status in order to later save the db
+            notification.status = mlrun.common.schemas.NotificationStatus.ERROR
+            invalid_notifications.append(notification)
+
+        if invalid_notifications:
+            db.store_run_notifications(
+                db_session,
+                invalid_notifications,
+                run.metadata.uid,
+                run.metadata.project,
+            )
+
+    run.spec.notifications = notifications
+
     return run
 
 
@@ -787,7 +817,6 @@ def ensure_function_security_context(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
         mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
-
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from .base import BaseMerger
 
 class SparkFeatureMerger(BaseMerger):
     engine = "spark"
+    support_offline = True
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
@@ -197,6 +198,7 @@ class SparkFeatureMerger(BaseMerger):
         end_time=None,
         time_column=None,
     ):
+        source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
@@ -204,6 +206,7 @@ class SparkFeatureMerger(BaseMerger):
                 )
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
+            source_kwargs.update(feature_set.spec.source.attributes)
         else:
             target = get_offline_target(feature_set)
             if not target:
@@ -223,6 +226,7 @@ class SparkFeatureMerger(BaseMerger):
             time_field=time_column,
             start_time=start_time,
             end_time=end_time,
+            **source_kwargs,
         )
 
         columns = column_names + [ent.name for ent in feature_set.spec.entities]

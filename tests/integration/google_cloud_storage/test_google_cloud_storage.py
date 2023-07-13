@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import os
 import random
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
@@ -82,6 +83,18 @@ class TestGoogleCloudStorage:
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
+        upload_parquet_file_path = f"{os.path.dirname(self._blob_url)}/file.parquet"
+        upload_parquet_data_item = mlrun.run.get_dataitem(upload_parquet_file_path)
+        test_parquet = here / "test_data.parquet"
+        upload_parquet_data_item.upload(str(test_parquet))
+        response = upload_parquet_data_item.as_df()
+        assert pd.read_parquet(test_parquet).equals(response)
+        upload_csv_file_path = f"{os.path.dirname(self._blob_url)}/file.csv"
+        upload_csv_data_item = mlrun.run.get_dataitem(upload_csv_file_path)
+        test_csv = here / "test_data.csv"
+        upload_csv_data_item.upload(str(test_csv))
+        response = upload_csv_data_item.as_df()
+        assert pd.read_csv(test_csv).equals(response)
 
     def test_using_google_env_variable(self):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["env"].get(

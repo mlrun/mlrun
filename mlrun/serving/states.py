@@ -21,6 +21,8 @@ from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Union
 
+import mlrun
+
 from ..config import config
 from ..datastore import get_stream_pusher
 from ..datastore.utils import parse_kafka_url
@@ -1512,5 +1514,9 @@ def _init_async_objects(context, steps):
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
-    default_source = storey.SyncEmitSource(context=context, **source_args)
+    default_source = storey.SyncEmitSource(
+        context=context,
+        explicit_ack=mlrun.mlconf.httpdb.nuclio.explicit_ack == "enabled",
+        **source_args,
+    )
     return default_source, wait_for_result

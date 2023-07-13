@@ -623,3 +623,33 @@ class DBInterface(ABC):
         **kwargs,
     ):
         pass
+
+    def store_datastore_profile(
+        self,
+        session,
+        profile: mlrun.common.schemas.DatastoreProfile,
+    ) -> str:
+        pass
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        pass
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        pass
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass

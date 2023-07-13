@@ -909,3 +909,23 @@ class SQLDB(RunDBInterface):
         # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
         # done from ingest()
         pass
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        raise NotImplementedError()
+
+    def delete_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        raise NotImplementedError()
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        raise NotImplementedError()
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        raise NotImplementedError()

@@ -22,6 +22,7 @@ from mlrun.api.api.endpoints import (
     background_tasks,
     client_spec,
     clusterization_spec,
+    datastore_profile,
     feature_store,
     files,
     frontend_spec,
@@ -143,5 +144,10 @@ api_router.include_router(
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    datastore_profile.router,
+    tags=["datastores"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

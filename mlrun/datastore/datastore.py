@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import string
 from urllib.parse import urlparse
 
@@ -20,6 +21,7 @@ from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
 from .base import DataItem, DataStore, HttpStore
+from .datastore_profile import DatastoreProfile2Json
 from .filestore import FileStore
 from .inmem import InMemoryStore
 from .store_resources import get_store_resource, is_store_uri
@@ -189,6 +191,19 @@ class StoreManager:
     def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
+        datastore_type = schema
+
+        if schema == "ds":
+            profile_name = endpoint
+            project_name = urlparse(url).username or mlrun.mlconf.default_project
+            profile = mlrun.db.get_run_db(secrets=self._secrets).get_datastore_profile(
+                profile_name, project_name
+            )
+            public_wrapper = json.loads(profile._content)
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["body"]
+            )
+            datastore_type = datastore.type
 
         if schema == "memory":
             subpath = url[len("memory://") :]
@@ -208,7 +223,7 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(schema)(
+        store = schema_to_store(datastore_type)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
         if not secrets and not mlrun.config.is_running_as_api():

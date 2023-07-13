@@ -621,3 +621,11 @@ class RunDBInterface(ABC):
         notifications: typing.List[mlrun.model.Notification],
     ):
         pass
+
+    @abstractmethod
+    def get_datastore_profile(self, decorated_profile_name: str):
+        pass
+
+    @abstractmethod
+    def store_datastore_profile(self, decorated_profile_name: str, public_info: str):
+        pass

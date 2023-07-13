@@ -47,6 +47,7 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .datastore_profile import DatastoreProfile
 from .events import (
     AuthSecretEventActions,
     EventClientKinds,

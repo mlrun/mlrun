@@ -474,7 +474,7 @@ class RunDBMock:
             return self._functions[function_name]
 
         return list(self._functions.values())[0]
-    
+
     def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
         pass
 
@@ -494,7 +494,7 @@ class RunDBMock:
         )
         return [source]
 
-      
+
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
     mock_object = RunDBMock()

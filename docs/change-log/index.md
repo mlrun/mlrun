@@ -25,12 +25,17 @@
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. |
 | ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.  |
 
-####  APIs
+####  Projects
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
+| ML-4084 | New API to run a setup script to enrich a project, when loading the project. |
+| ML-3474 | New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type |
 
+####  Serving
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
 
 ####  Documentation
 | ID   | Description                                                    |
@@ -602,7 +607,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |------ | ---- | --------------------------------------------------------------------|
 | v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 |  NA | [Deprecated and removed APIs](#apis-deprecated-and-removed-from-v1-3-0-code) and [Deprecated REST APIs](#rest-apis-deprecated-and-removed-from-v1-3-0-code), [APIs deprecated in v1.3.0, will be removed in v1.5.0](#apis-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0), [CLI Deprecated in v1.3.0, will be removed in v1.5.0.](#cli-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0) |
-| v1.4.0 |  ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated and removed from v1.4.0 code](#rest-apis-deprecated-and-removed-from-v1-4-0-code).|
+| v1.4.0 |  ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#rest-apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code).|
 
 
 ## Future deprecations
@@ -610,7 +615,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | When | Description                                                    |
 | --- | ----| ----------------------------------------------------------------- |
 | ML-3605 | v1.5.0 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
-| ML-3547 | v1.6.0 |MLRunProject.clear_context method will be deprecated. This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
 
 ## Deprecated APIs and CLI
 
@@ -619,12 +623,12 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| clear_context() |  |
+| MLRunProjectclear_context() | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 | MLRunProject object legacy parameters | metadata and spec instead |
 | BaseRuntime.with_commands and KubejobRuntime.build_config'verify_base_image' param | 'prepare_image_for_deploy' |
+| run_local | function.run(local=True) |
 
-
-### REST APIs deprecated and removed from v1.4.0 code
+### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code
 | Deprecated                        | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | http request POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |

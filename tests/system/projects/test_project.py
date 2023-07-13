@@ -1134,8 +1134,8 @@ class TestProject(TestMLRunSystem):
             handler="handler",
         )
         project.set_workflow("main", workflow_path)
-        
-        @pytest.mark.parametrize(
+
+    @pytest.mark.parametrize(
         "name, save_secrets, expected_states",
         [
             (
@@ -1153,7 +1153,6 @@ class TestProject(TestMLRunSystem):
             ),
         ],
     )
-        
     def test_load_project_remotely_with_secrets(
         self, name, save_secrets, expected_states
     ):

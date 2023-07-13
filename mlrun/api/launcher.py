@@ -188,7 +188,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.common.db.session.create_session()
+        session = mlrun.common.db.sql_session.create_session()
         mlrun.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,

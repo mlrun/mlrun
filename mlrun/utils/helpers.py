@@ -781,11 +781,9 @@ def enrich_image_url(
     image_url = image_url.strip()
     mlrun_version = config.images_tag or client_version or server_version
     tag = mlrun_version
-    # TODO: image tag suffix is irrelevant for now, but we might want to add it back in the future
-    #  when we upgrade python
-    # tag += resolve_image_tag_suffix(
-    #     mlrun_version=mlrun_version, python_version=client_python_version
-    # )
+    tag += resolve_image_tag_suffix(
+        mlrun_version=mlrun_version, python_version=client_python_version
+    )
     registry = config.images_registry
 
     # it's an mlrun image if the repository is mlrun
@@ -830,14 +828,14 @@ def resolve_image_tag_suffix(
             return "-py37"
         return ""
 
-    # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
+    # For mlrun 1.3.x and 1.4.x, we support mlrun runtimes images with both python 3.7 and 3.9 images.
     # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
     # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
     # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
-        "1.3.0-X"
-    ) and python_version.startswith("3.7"):
+    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+        mlrun_version
+    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
         return "-py37"
     return ""
 

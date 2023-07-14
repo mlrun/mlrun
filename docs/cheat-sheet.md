@@ -475,7 +475,7 @@ context.log_dataset(key="model", df=df, format="csv", index=False)
 ### Track returning values using `hints` and `returns`
 
 - Pass type hints into the inputs parameter of the run method. Inputs are automatically parsed to their hinted type. If type hints are 
-not in code, they can be passed in the inputs keys. Hints use the structure: `key : type_hint`
+not in code, they can be passed in the input keys. Hints use the structure: `key : type_hint`
 - Pass log hints: how to log the returning values from a handler. The log hints are passed via the returns parameter in the run method. 
 A log hint can be passed as a string or a dictionary.
 - Use the `returns` argument to specify how to log a function's returned values.

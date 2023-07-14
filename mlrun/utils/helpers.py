@@ -1275,6 +1275,7 @@ def str_to_timestamp(time_str: str, now_time: Timestamp = None):
 
     return Timestamp(time_str)
 
+
 # TODO: remove now
 def is_legacy_artifact(artifact):
     if isinstance(artifact, dict):

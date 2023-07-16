@@ -70,39 +70,3 @@ class RunDBFactory(
 class RunDBContainer(containers.DeclarativeContainer):
     nop = providers.Factory(mlrun.db.nopdb.NopDB)
     run_db = providers.Factory(mlrun.db.httpdb.HTTPRunDB)
-
-    @staticmethod
-    def validate_run_db_url(url):
-        parsed_url = urlparse(url)
-        scheme = parsed_url.scheme.lower()
-        if scheme not in ("http", "https"):
-            raise ValueError(
-                f"Invalid scheme {scheme} for MLRUN_DBPATH, only http(s) is supported"
-            )
-
-    @staticmethod
-    def resolve_run_db_kwargs(url):
-        parsed_url = urlparse(url)
-        kwargs = RunDBContainer._get_httpdb_kwargs(
-            parsed_url.hostname, parsed_url.username, parsed_url.password
-        )
-        endpoint = parsed_url.hostname
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
-        return url, kwargs
-
-    @staticmethod
-    def _get_httpdb_kwargs(host, username, password):
-        username = username or config.httpdb.user
-        password = password or config.httpdb.password
-
-        username, password, token = add_or_refresh_credentials(
-            host, username, password, config.httpdb.token
-        )
-
-        return {
-            "user": username,
-            "password": password,
-            "token": token,
-        }

@@ -37,7 +37,7 @@ import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.rundb.sqldb import SQLDB as SQLRunDB
+from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler

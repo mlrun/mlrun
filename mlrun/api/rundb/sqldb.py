@@ -915,11 +915,3 @@ class SQLRunDB(mlrun.db.RunDBInterface):
 @containers.override(mlrun.db.factory.RunDBContainer)
 class SQLRunDBContainer(containers.DeclarativeContainer):
     run_db = providers.Factory(SQLRunDB)
-
-    @staticmethod
-    def validate_run_db_url(url):
-        pass
-
-    @staticmethod
-    def resolve_run_db_kwargs(url):
-        return url, {}

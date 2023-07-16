@@ -15,24 +15,26 @@
 import datetime
 from typing import List, Optional, Union
 
+from dependency_injector import containers, providers
+
 import mlrun.common.schemas
+import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
 from mlrun.api.db.base import DBError
-from mlrun.api.db.sqldb.db import SQLDB as SQLAPIDB
+from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.common.db.sql_session import create_session
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
-# require a RunDB to manage their state, when a user run them locally this db will either be the
-# local filedb or the remote httpdb (we decided that we don't want to support SQLDB as an optional RunDB).
+# require a RunDB to manage their state, when a user run them locally this db will be a remote httpdb.
 # When the user submits something to run (task, function etc...) this runtime managers actually runs inside the api
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
-from .base import RunDBError, RunDBInterface
+from mlrun.db.base import RunDBError, RunDBInterface
 
 
-class SQLDB(RunDBInterface):
+class SQLRunDB(RunDBInterface):
     def __init__(
         self,
         dsn,
@@ -45,7 +47,7 @@ class SQLDB(RunDBInterface):
     def connect(self, secrets=None):
         if not self.session:
             self.session = create_session()
-        self.db = SQLAPIDB(self.dsn)
+        self.db = SQLDB(self.dsn)
         return self
 
     def store_log(self, uid, project="", body=b"", append=False):
@@ -909,3 +911,16 @@ class SQLDB(RunDBInterface):
         # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
         # done from ingest()
         pass
+
+
+@containers.override(mlrun.db.factory.RunDBContainer)
+class SQLRunDBContainer(containers.DeclarativeContainer):
+    run_db = providers.Factory(SQLRunDB)
+
+    @staticmethod
+    def validate_run_db_url(url):
+        pass
+
+    @staticmethod
+    def resolve_run_db_kwargs(url):
+        return url, {}

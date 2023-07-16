@@ -20,10 +20,10 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.errors
 from mlrun.api.initial_data import init_data
+from mlrun.api.rundb import sqldb
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
-from mlrun.db import SQLDB, sqldb
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
 
@@ -45,7 +45,7 @@ def db(request):
         init_data()
         initialize_db()
         db_session = create_session()
-        db = SQLDB(dsn, session=db_session)
+        db = sqldb.SQLRunDB(dsn, session=db_session)
     else:
         assert False, f"unknown db type - {request.param}"
 
@@ -126,7 +126,7 @@ def test_artifacts(db: RunDBInterface):
     db.store_artifact(k3, art3, u3, project=prj)
 
     arts = db.list_artifacts(project=prj, tag="*")
-    expected = 2 if isinstance(db, SQLDB) else 4  # FIXME
+    expected = 2 if isinstance(db, sqldb.SQLRunDB) else 4  # FIXME
     assert expected == len(arts), "list artifacts length"
     assert {2, 3} == {a["a"] for a in arts}, "list artifact a"
 

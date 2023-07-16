@@ -31,6 +31,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 05-model-monitoring
 06-add-mlops-to-code
 07-batch-infer
+nuclio-api-gateway
 ../feature-store/basic-demo
 MLRun demos repository <https://github.com/mlrun/demos>
 /cheat-sheet

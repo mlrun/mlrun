@@ -33,7 +33,7 @@ class SomeEnumClass(str, enum.Enum):
 
 
 def test_api_call_enum_conversion():
-    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     db.session = unittest.mock.Mock()
 
     # ensure not exploding when no headers/params
@@ -126,7 +126,7 @@ def test_connection_reset_causes_retries(
     feature_config, exception_type, exception_args, call_amount
 ):
     mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
-    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
     requests.Session.request.side_effect = exception_type(*exception_args)
@@ -163,7 +163,7 @@ def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
     expected,
 ):
     mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash = client_value
-    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
 
     db.api_call = unittest.mock.Mock()
     db.api_call.return_value = unittest.mock.Mock(
@@ -179,7 +179,7 @@ def test_client_spec_generate_target_path_from_artifact_hash_enrichment(
 
 
 def test_resolve_artifacts_to_tag_objects():
-    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
     artifact.metadata.iter = 1
     artifact.metadata.tree = "some-uid"

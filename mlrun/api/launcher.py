@@ -145,7 +145,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
             # single run
             try:
                 resp = runtime._run(run, execution)
-
+                print(f'spec handler: {run.spec.handler}')
+                print(f"execution: {type(execution)} {execution} {execution.to_dict()}")
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 

@@ -43,7 +43,6 @@ class RunDBFactory(
 
         self._last_db_url = url
 
-        kwargs = {}
         if "://" not in str(url):
             logger.warning(
                 "Could not detect path to API server, not connected to API server!"
@@ -52,12 +51,10 @@ class RunDBFactory(
                 "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API server"
                 " in order to connect"
             )
-            self._run_db = self._rundb_container.nop(url, **kwargs)
+            self._run_db = self._rundb_container.nop(url)
 
         else:
-            self._rundb_container.validate_run_db_url(url)
-            url, kwargs = self._rundb_container.resolve_run_db_kwargs(url)
-            self._run_db = self._rundb_container.run_db(url, **kwargs)
+            self._run_db = self._rundb_container.run_db(url)
 
         self._run_db.connect(secrets=secrets)
         return self._run_db

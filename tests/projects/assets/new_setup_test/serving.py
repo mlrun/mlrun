@@ -11,19 +11,5 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun
 
-
-def setup(project: mlrun.projects.MlrunProject):
-    """Example for project setup script which modify project metadata and functions"""
-    project.spec.params["test123"] = "456"
-    prep_func = project.set_function(
-        "prep_data.py", "prep-data", kind="job", image="mlrun/mlrun"
-    )
-    prep_func.set_label("tst1", project.get_param("p2"))
-
-    srv_func = project.set_function(
-        "serving.py", "serving", kind="serving", image="mlrun/mlrun"
-    )
-    srv_func.add_model("x", ".", class_name="MyCls")
-    return project
+# empty py file for test

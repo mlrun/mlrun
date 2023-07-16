@@ -13,7 +13,7 @@ Example of an exception on a step that only runs when/if the "pre-process" step 
 graph = function.set_topology('flow', engine='async')
 graph.to(name='pre-process', handler='raising_step').error_handler(name='catcher', handler='handle_error', full_event=True, before='echo')
 
-# Add another step after the error handling
+# Add another step after pre-process step or the error handling
 graph.add_step(name="echo", handler='echo', after="pre-process").respond()
 graph
 ```

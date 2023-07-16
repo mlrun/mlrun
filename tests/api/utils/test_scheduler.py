@@ -411,7 +411,7 @@ async def test_create_schedule_failure_already_exists(
 
     with pytest.raises(
         mlrun.errors.MLRunConflictError,
-        match=rf"Conflict - Schedule already exists: {project}/{schedule_name}",
+        match=rf"Conflict - at least one of the objects already exists: {project}/{schedule_name}",
     ):
         scheduler.create_schedule(
             db,

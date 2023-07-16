@@ -54,6 +54,9 @@ def make_label(table):
         value = Column(String(255, collation=SQLCollationUtil.collation()))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
 
+        def get_identifier_string(self) -> str:
+            return f"{self.parent}/{self.name}/{self.value}"
+
     return Label
 
 
@@ -89,6 +92,9 @@ def make_tag_v2(table):
             String(255, collation=SQLCollationUtil.collation()),
             ForeignKey(f"{table}.name"),
         )
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
 
     return Tag
 
@@ -242,6 +248,9 @@ with warnings.catch_warnings():
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
@@ -301,6 +310,9 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
 
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
+
     class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
         # For now since we use project name a lot
@@ -347,7 +359,7 @@ with warnings.catch_warnings():
         labels = relationship(Label, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.name}"
+            return f"{self.feature_set_id}/{self.name}"
 
     class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"
@@ -463,6 +475,9 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         version = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.version}"
 
 
 # Must be after all table definitions

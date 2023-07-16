@@ -310,6 +310,7 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
         command, args, extra_env = self._get_cmd_args(runobj)
+        print(f"command {command} , args:{args}, extra_env: {extra_env}")
 
         if runobj.metadata.iteration:
             self.store_run(runobj)

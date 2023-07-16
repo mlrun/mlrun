@@ -13,8 +13,6 @@
 # limitations under the License.
 from os import environ
 
-import mlrun.db.factory
-
 from ..config import config
 from .base import RunDBError, RunDBInterface  # noqa
 
@@ -28,5 +26,8 @@ def get_or_set_dburl(default=""):
 
 def get_run_db(url="", secrets=None, force_reconnect=False):
     """Returns the runtime database"""
+    # import here to avoid circular import
+    import mlrun.db.factory
+
     run_db_factory = mlrun.db.factory.RunDBFactory()
     return run_db_factory.get_run_db(url, secrets, force_reconnect)

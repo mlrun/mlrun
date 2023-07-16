@@ -31,10 +31,9 @@ from mlrun.common.db.sql_session import create_session
 # service, in order to prevent the api from calling itself several times for each submission request (since the runDB
 # will be httpdb to that same api service) we have this class which is kind of a proxy between the RunDB interface to
 # the api service's DB interface
-from mlrun.db.base import RunDBError, RunDBInterface
 
 
-class SQLRunDB(RunDBInterface):
+class SQLRunDB(mlrun.db.RunDBInterface):
     def __init__(
         self,
         dsn,
@@ -489,7 +488,7 @@ class SQLRunDB(RunDBInterface):
         try:
             return func(*args, **kwargs)
         except DBError as exc:
-            raise RunDBError(exc.args)
+            raise mlrun.db.RunDBError(exc.args)
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         import mlrun.api.crud

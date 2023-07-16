@@ -101,7 +101,7 @@ def test_runs(db: RunDBInterface):
         assert label not in run["metadata"]["labels"], "del_runs"
 
 
-def test_update_run(db: sqldb.SQLDB):
+def test_update_run(db: RunDBInterface):
     uid = "uid83"
     run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
     db.store_run(run, uid)
@@ -126,12 +126,12 @@ def test_artifacts(db: RunDBInterface):
     db.store_artifact(k3, art3, u3, project=prj)
 
     arts = db.list_artifacts(project=prj, tag="*")
-    expected = 2 if isinstance(db, sqldb.SQLRunDB) else 4  # FIXME
+    expected = 2
     assert expected == len(arts), "list artifacts length"
     assert {2, 3} == {a["a"] for a in arts}, "list artifact a"
 
     db.del_artifact(key=k1)
-    with pytest.raises((sqldb.RunDBError, mlrun.errors.MLRunNotFoundError)):
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.read_artifact(k1)
 
 

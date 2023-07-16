@@ -16,10 +16,10 @@ from urllib.parse import urlparse
 from dependency_injector import containers, providers
 
 import mlrun.db
+import mlrun.db.httpdb
+import mlrun.db.nopdb
 import mlrun.utils.singleton
 from mlrun.config import config
-from mlrun.db.httpdb import HTTPRunDB
-from mlrun.db.nopdb import NopDB
 from mlrun.platforms import add_or_refresh_credentials
 from mlrun.utils import logger
 
@@ -68,8 +68,8 @@ class RunDBFactory(
 
 
 class RunDBContainer(containers.DeclarativeContainer):
-    nop = providers.Factory(NopDB)
-    run_db = providers.Factory(HTTPRunDB)
+    nop = providers.Factory(mlrun.db.nopdb.NopDB)
+    run_db = providers.Factory(mlrun.db.httpdb.HTTPRunDB)
 
     @staticmethod
     def validate_run_db_url(url):

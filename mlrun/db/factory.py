@@ -11,16 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from urllib.parse import urlparse
-
 from dependency_injector import containers, providers
 
 import mlrun.db
 import mlrun.db.httpdb
 import mlrun.db.nopdb
 import mlrun.utils.singleton
-from mlrun.config import config
-from mlrun.platforms import add_or_refresh_credentials
 from mlrun.utils import logger
 
 

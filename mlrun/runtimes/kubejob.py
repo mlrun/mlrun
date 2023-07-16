@@ -418,6 +418,10 @@ class DatabricksRuntime(KubejobRuntime):
     _is_nested = True
     _is_remote = True
 
+    def _pre_run(self, runspec: RunObject, execution):
+        runspec.spec.handler = 'print_test'
+        pass
+
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks-job"

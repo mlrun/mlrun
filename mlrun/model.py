@@ -903,7 +903,7 @@ class RunSpec(ModelObj):
 
     def extract_type_hints_from_inputs(self):
         """
-        This method extracts the type hints from the inputs keys in the input dictionary.
+        This method extracts the type hints from the input keys in the input dictionary.
 
         As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
         values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
@@ -986,7 +986,7 @@ class RunSpec(ModelObj):
         # Validate correct pattern:
         if input_key.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"Incorrect input pattern. Input keys can have only a single ':' in them to specify the desired type "
                 f"the input will be parsed as. Given: {input_key}."
             )
 

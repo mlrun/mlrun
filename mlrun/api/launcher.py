@@ -144,6 +144,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
+                print(f'spec handler before run: {run.spec.handler}')
                 resp = runtime._run(run, execution)
                 print(f'spec handler: {run.spec.handler}')
                 print(f"execution: {type(execution)} {execution} {execution.to_dict()}")

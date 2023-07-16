@@ -14,6 +14,27 @@
 
 ### New and updated features
 
+
+####  Functions
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3474 | New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type. See {ref}`packagers`, and [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
+
+
+####  Projects
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
+| ML-4084 | New API to run a setup script to enrich a project, when loading the project , and [View in Git](https://github.com/mlrun/mlrun/pull/3809)|
+
+
+
+
+####  Serving
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
+
 #### UI 
 
 | ID   | Description                                                    |
@@ -25,17 +46,6 @@
 | ML-3551 | Nested workflows (`ParallelFor`) now fully display in UI. |
 | ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.  |
 
-####  Projects
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-| ML-4084 | New API to run a setup script to enrich a project, when loading the project. |
-| ML-3474 | New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type |
-
-####  Serving
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
 
 ####  Documentation
 | ID   | Description                                                    |
@@ -48,7 +58,7 @@
 - {ref}`git-repo-as-hub`
 - {ref}`notifications`
 - {ref}`ci-cd-automate`
-
+- {ref}`packages`
 
 ### Breaking changes
 | ID   | Description                                                    |
@@ -625,13 +635,13 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | ------------------------------------------------ | --------------------------------------------- |
 | MLRunProjectclear_context() | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 | MLRunProject object legacy parameters | metadata and spec instead |
-| BaseRuntime.with_commands and KubejobRuntime.build_config'verify_base_image' param | 'prepare_image_for_deploy' |
+| BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | run_local | function.run(local=True) |
 
 ### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code
 | Deprecated                        | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| http request POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |
+| POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |
 | http request GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path} instead |
 | http request DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid} instead |
 | http request GET /artifacts | /projects/{project}/artifacts instead |

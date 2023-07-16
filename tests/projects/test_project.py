@@ -339,18 +339,24 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
-def test_load_project_with_setup(context):
+@pytest.mark.parametrize("op", ["new", "load"])
+def test_project_with_setup(context, op):
     # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
     project_path = (
         pathlib.Path(tests.conftest.tests_root_directory)
         / "projects"
         / "assets"
-        / "load_setup_test"
+        / f"{op}_setup_test"
     )
-    project = mlrun.load_project(
-        context=project_path, name="projset", save=False, parameters={"p2": "123"}
+    name = f"projset-{op}"
+    if op == "new":
+        func = mlrun.new_project
+    else:
+        func = mlrun.load_project
+    project = func(
+        context=project_path, name=name, save=False, parameters={"p2": "123"}
     )
-    mlrun.utils.logger.info(f"Project: {project}")
+    mlrun.utils.logger.info("Created project", project=project)
 
     # see assets/load_setup_test/project_setup.py for extra project settings
     # test that a function was added and its metadata was set from param[p2]
@@ -362,41 +368,14 @@ def test_load_project_with_setup(context):
     assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
 
     # test that the project metadata was set correctly
-    assert project.name == "projset"
+    assert project.name == name
     assert project.spec.context == project_path
 
     # test that the params contain all params from the yaml, the load, and the setup script
-    assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
-
-
-def test_new_project_with_setup(context):
-    # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
-    project_path = (
-        pathlib.Path(tests.conftest.tests_root_directory)
-        / "projects"
-        / "assets"
-        / "new_setup_test"
-    )
-    project = mlrun.new_project(
-        context=project_path, name="projset2", save=False, parameters={"p2": "123"}
-    )
-    mlrun.utils.logger.info(f"Project: {project}")
-
-    # see assets/load_setup_test/project_setup.py for extra project settings
-    # test that a function was added and its metadata was set from param[p2]
-    prep_func = project.get_function("prep-data")
-    assert prep_func.metadata.labels == {"tst1": "123"}  # = p2
-
-    # test that a serving function was set with a graph element (model)
-    srv_func = project.get_function("serving")
-    assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
-
-    # test that the project metadata was set correctly
-    assert project.name == "projset2"
-    assert project.spec.context == project_path
-
-    # test that the params contain all params from the yaml, the load, and the setup script
-    assert project.spec.params == {"p2": "123", "test123": "456"}
+    if op == "new":
+        assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
+    else:
+        assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
 @pytest.mark.parametrize(

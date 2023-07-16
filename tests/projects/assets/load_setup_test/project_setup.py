@@ -25,6 +25,5 @@ def setup(project: mlrun.projects.MlrunProject):
     srv_func = project.set_function(
         "serving.py", "serving", kind="serving", image="mlrun/mlrun"
     )
-    # graph = srv_func.set_topology()
     srv_func.add_model("x", ".", class_name="MyCls")
     return project

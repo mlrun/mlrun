@@ -11,7 +11,7 @@ If you want the graph to complete after an error handler execution, omit the `be
 Example of an exception on a step that only runs when/if the "pre-process" step fails:
 ```
 graph = function.set_topology('flow', engine='async')
-graph.to(name='pre-process', handler='raising_step') .error_handler(name='catcher', handler='handle_error', full_event=True, before='echo')
+graph.to(name='pre-process', handler='raising_step').error_handler(name='catcher', handler='handle_error', full_event=True, before='echo')
 
 # Add another step after the error handling
 graph.add_step(name="echo", handler='echo', after="pre-process").respond()

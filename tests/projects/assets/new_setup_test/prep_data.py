@@ -14,16 +14,14 @@
 import mlrun
 
 
-def setup(project: mlrun.projects.MlrunProject):
-    """Example for project setup script which modify project metadata and functions"""
-    project.spec.params["test123"] = "456"
-    prep_func = project.set_function(
-        "prep_data.py", "prep-data", kind="job", image="mlrun/mlrun"
-    )
-    prep_func.set_label("tst1", project.get_param("p2"))
+def prep_data(context, source_url: mlrun.DataItem, label_column="label"):
+    # Convert the DataItem to a pandas DataFrame
+    df = source_url.as_df()
+    print("data url:", source_url.url)
+    df[label_column] = df[label_column].astype("category").cat.codes
 
-    srv_func = project.set_function(
-        "serving.py", "serving", kind="serving", image="mlrun/mlrun"
-    )
-    srv_func.add_model("x", ".", class_name="MyCls")
-    return project
+    # Record the DataFrame length after the run
+    context.log_result("num_rows", df.shape[0])
+
+    # Store the data set in your artifacts database
+    context.log_dataset("cleaned_data", df=df, index=False, format="csv")

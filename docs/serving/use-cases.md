@@ -108,7 +108,7 @@ If the responder is not specified, the graph is non-blocking.
 ```python
 # use built-in storey class or our custom Echo class to create and link Task steps. Add an error handling step that runs only if the "Echo" step fails
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc') .error_handler(name='catcher', handler='handle_error', full_event=True)
+     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler(name='catcher', handler='handle_error', full_event=True)
 
 # add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")

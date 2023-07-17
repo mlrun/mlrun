@@ -31,18 +31,17 @@ class BaseTracker(Tracker):
 
     @classmethod
     def is_enabled(cls) -> bool:
-        try:
-            # Check if the module is available - can be imported:
-            importlib.import_module(cls.TRACKED_MODULE_NAME)
-
-            module_in_area = True
-        except Exception:
-            module_in_area = False
-
+        module_in_area = False
         # Check for user configuration - defaulted to False if not configured:
-        return module_in_area and (
-            getattr(mlconf.tracking, cls.TRACKED_MODULE_NAME, {}).mode == "enabled"
-        )
+        if mlconf.tracking.mlflow.mode == "enabled":
+            try:
+                # Check if the module is available - can be imported:
+                importlib.import_module(cls.TRACKED_MODULE_NAME)
+
+                module_in_area = True
+            except Exception:
+                pass
+            return module_in_area
 
     @abstractmethod
     def log_model(self, model_uri, context):

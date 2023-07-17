@@ -30,4 +30,4 @@ def get_run_db(url="", secrets=None, force_reconnect=False):
     import mlrun.db.factory
 
     run_db_factory = mlrun.db.factory.RunDBFactory()
-    return run_db_factory.get_run_db(url, secrets, force_reconnect)
+    return run_db_factory.create_run_db(url, secrets, force_reconnect)

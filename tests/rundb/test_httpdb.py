@@ -798,7 +798,7 @@ def test_watch_logs_continue():
         b"LastRow",
     ]
     log_contents = b"".join(log_lines)
-    db = mlrun.db.httpdb.HTTPRunDB("http+mock://wherever.com")
+    db = mlrun.db.httpdb.HTTPRunDB("https://wherever.com")
     run_uid = "some-uid"
     project = "some-project"
     adapter = requests_mock.Adapter()
@@ -827,11 +827,11 @@ def test_watch_logs_continue():
 
     adapter.register_uri(
         "GET",
-        f"http+mock://wherever.com/api/v1/log/{project}/{run_uid}",
+        f"https://wherever.com/api/v1/log/{project}/{run_uid}",
         content=callback,
     )
     db.session = db._init_session()
-    db.session.mount("http+mock", adapter)
+    db.session.mount("https", adapter)
     mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
     with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
         db.watch_log(run_uid, project=project)

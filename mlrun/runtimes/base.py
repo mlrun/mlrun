@@ -444,6 +444,11 @@ class BaseRuntime(ModelObj):
             if runobj.spec.handler:
                 args += ["--handler", runobj.spec.handler]
                 print(f"handler: {runobj.spec.handler}")
+            if runobj.spec.internal_handler:
+                if not runobj.spec.handler:
+                    raise ValueError('cannot use internal_handler without handler')
+                args += ["--internal-handler", runobj.spec.internal_handler]
+                print(f"internal_handler: {runobj.spec.internal_handler}")
             if self.spec.mode:
                 args += ["--mode", self.spec.mode]
             if self.spec.build.origin_filename:

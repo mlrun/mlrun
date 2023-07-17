@@ -767,6 +767,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         ]
         df["tree"] = df["tree"].apply(lambda x: f"..{x[-8:]}")
         df["hash"] = df["hash"].apply(lambda x: f"..{x[-6:]}")
+        df["updated"] = df["updated"].apply(time_str)
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("func"):

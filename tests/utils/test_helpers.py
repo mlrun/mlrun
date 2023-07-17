@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -92,6 +92,19 @@ def test_retry_until_successful_fatal_failure():
 def test_run_name_regex(value, expected):
     with expected:
         verify_field_regex("test_field", value, mlrun.utils.regex.run_name)
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("{{pipelineparam:op=;name=mem}}", does_not_raise()),
+        ("{{pipelineparam:op=2;name=mem}}", does_not_raise()),
+        ("{{pipelineparam:op=10Mb;name=mem}}", does_not_raise()),
+    ],
+)
+def test_pipeline_param(value, expected):
+    with expected:
+        verify_field_regex("test_field", value, mlrun.utils.regex.pipeline_param)
 
 
 @pytest.mark.parametrize(
@@ -478,6 +491,15 @@ def test_enrich_image():
             "images_tag": None,
             "version": None,
             "expected_output": "mlrun/mlrun:1.3.0-py37",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
+            "client_version": "1.5.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.5.0",
             "images_to_enrich_registry": "",
         },
         {

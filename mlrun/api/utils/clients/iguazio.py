@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import igz_mgmt.schemas.manual_events
 import requests.adapters
 from fastapi.concurrency import run_in_threadpool
 
-import mlrun.api.utils.projects.remotes.leader
+import mlrun.api.utils.projects.remotes.leader as project_leader
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
@@ -73,7 +73,7 @@ class SessionPlanes:
 
 
 class Client(
-    mlrun.api.utils.projects.remotes.leader.Member,
+    project_leader.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self, *args, **kwargs) -> None:
@@ -92,37 +92,6 @@ class Client(
         self._wait_for_project_terminal_state_retry_interval = 5
         self._logger = logger.get_child("iguazio-client")
         self._igz_clients = {}
-
-    def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
-        """
-        Try to find a ready grafana app service, and return its URL
-        If nothing found, returns None
-        """
-        self._logger.debug("Getting grafana service url from Iguazio")
-        response = self._send_request_to_api(
-            "GET",
-            "app_services_manifests",
-            "Failed getting app services manifests from Iguazio",
-            session,
-        )
-        response_body = response.json()
-        for app_services_manifest in response_body.get("data", []):
-            for app_service in app_services_manifest.get("attributes", {}).get(
-                "app_services", []
-            ):
-                if (
-                    app_service.get("spec", {}).get("kind") == "grafana"
-                    and app_service.get("status", {}).get("state") == "ready"
-                    and len(app_service.get("status", {}).get("urls", [])) > 0
-                ):
-                    url_kind_to_url = {}
-                    for url in app_service["status"]["urls"]:
-                        url_kind_to_url[url["kind"]] = url["url"]
-                    # precedence for https
-                    for kind in ["https", "http"]:
-                        if kind in url_kind_to_url:
-                            return url_kind_to_url[kind]
-        return None
 
     def verify_request_session(
         self, request: fastapi.Request
@@ -195,10 +164,14 @@ class Client(
         project: mlrun.common.schemas.Project,
         wait_for_completion: bool = True,
     ) -> bool:
-        self._logger.debug("Creating project in Iguazio", project=project)
+        self._logger.debug("Creating project in Iguazio", project=project.metadata.name)
         body = self._transform_mlrun_project_to_iguazio_project(project)
         return self._create_project_in_iguazio(
-            session, project.metadata.name, body, wait_for_completion
+            session,
+            project.metadata.name,
+            body,
+            wait_for_completion,
+            timeout=60,
         )
 
     def update_project(
@@ -322,9 +295,38 @@ class Client(
         """
         return True
 
-    def emit_manual_event(
-        self, access_key: str, event: igz_mgmt.schemas.manual_events.ManualEventSchema
-    ):
+    def try_get_grafana_service_url(self, session: str) -> typing.Optional[str]:
+        """
+        Try to find a ready grafana app service, and return its URL
+        If nothing found, returns None
+        """
+        self._logger.debug("Getting grafana service url from Iguazio")
+        response = self._send_request_to_api(
+            "GET",
+            "app_services_manifests",
+            "Failed getting app services manifests from Iguazio",
+            session,
+        )
+        response_body = response.json()
+        for app_services_manifest in response_body.get("data", []):
+            for app_service in app_services_manifest.get("attributes", {}).get(
+                "app_services", []
+            ):
+                if (
+                    app_service.get("spec", {}).get("kind") == "grafana"
+                    and app_service.get("status", {}).get("state") == "ready"
+                    and len(app_service.get("status", {}).get("urls", [])) > 0
+                ):
+                    url_kind_to_url = {}
+                    for url in app_service["status"]["urls"]:
+                        url_kind_to_url[url["kind"]] = url["url"]
+                    # precedence for https
+                    for kind in ["https", "http"]:
+                        if kind in url_kind_to_url:
+                            return url_kind_to_url[kind]
+        return None
+
+    def emit_manual_event(self, access_key: str, event: igz_mgmt.Event):
         """
         Emit a manual event to Iguazio
         """
@@ -394,9 +396,14 @@ class Client(
         return latest_updated_at
 
     def _create_project_in_iguazio(
-        self, session: str, name: str, body: dict, wait_for_completion: bool
+        self,
+        session: str,
+        name: str,
+        body: dict,
+        wait_for_completion: bool,
+        **kwargs,
     ) -> bool:
-        _, job_id = self._post_project_to_iguazio(session, body)
+        _, job_id = self._post_project_to_iguazio(session, body, **kwargs)
         if wait_for_completion:
             self._logger.debug(
                 "Waiting for project creation job in Iguazio",
@@ -415,10 +422,18 @@ class Client(
         return True
 
     def _post_project_to_iguazio(
-        self, session: str, body: dict
+        self,
+        session: str,
+        body: dict,
+        **kwargs,
     ) -> typing.Tuple[mlrun.common.schemas.Project, str]:
         response = self._send_request_to_api(
-            "POST", "projects", "Failed creating project in Iguazio", session, json=body
+            "POST",
+            "projects",
+            "Failed creating project in Iguazio",
+            session,
+            json=body,
+            **kwargs,
         )
         response_body = response.json()
         return (
@@ -427,7 +442,11 @@ class Client(
         )
 
     def _put_project_to_iguazio(
-        self, session: str, name: str, body: dict
+        self,
+        session: str,
+        name: str,
+        body: dict,
+        **kwargs,
     ) -> mlrun.common.schemas.Project:
         response = self._send_request_to_api(
             "PUT",
@@ -435,6 +454,7 @@ class Client(
             "Failed updating project in Iguazio",
             session,
             json=body,
+            **kwargs,
         )
         return self._transform_iguazio_project_to_mlrun_project(response.json()["data"])
 
@@ -743,6 +763,9 @@ class Client(
         self, method, path, response, response_body, error_message, kwargs
     ):
         log_kwargs = copy.deepcopy(kwargs)
+
+        # this can be big and spammy
+        log_kwargs.pop("json", None)
         log_kwargs.update({"method": method, "path": path})
         try:
             ctx = response_body.get("meta", {}).get("ctx")

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -893,7 +893,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert result_columns.sort() == orig_columns.sort()
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
-    def test_passthrough_feature_set(self, engine):
+    @pytest.mark.parametrize("with_start_time", [True, False])
+    @pytest.mark.parametrize("explicit_targets", [True, False])
+    def test_passthrough_feature_set(self, engine, with_start_time, explicit_targets):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
@@ -912,7 +914,10 @@ class TestFeatureStore(TestMLRunSystem):
         expected = source.to_dataframe().set_index("patient_id")
 
         # The file is sorted by time. 10 is just an arbitrary number.
-        start_time = expected["timestamp"][10]
+        if with_start_time:
+            start_time = expected["timestamp"][10]
+        else:
+            start_time = None
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
@@ -923,11 +928,16 @@ class TestFeatureStore(TestMLRunSystem):
             preview_pd.set_index("patient_id", inplace=True)
             assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
 
-        fstore.ingest(measurements_set, source)
+        targets = [NoSqlTarget()] if explicit_targets else None
 
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        assert len(measurements_set.status.targets) == 1
-        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        fstore.ingest(measurements_set, source, targets=targets)
+
+        if explicit_targets:
+            # assert that online target exist (nosql) and offline target does not (parquet)
+            assert len(measurements_set.status.targets) == 1
+            assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        else:
+            assert len(measurements_set.status.targets) == 0
 
         # verify that get_offline (and preview) equals the source
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
@@ -937,31 +947,33 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
 
         # check time filter with passthrough
-        expected = expected[(expected["timestamp"] > start_time)]
+        if start_time:
+            expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
-        # assert get_online correctness
-        with fstore.get_online_feature_service(vector) as svc:
-            resp = svc.get([{"patient_id": "305-90-1613"}])
-            assert resp == [
-                {
-                    "bad": 95,
-                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                    "room": 2,
-                    "hr": 220.0,
-                    "hr_is_error": False,
-                    "rr": 25,
-                    "rr_is_error": False,
-                    "spo2": 99,
-                    "spo2_is_error": False,
-                    "movements": 4.614601941071927,
-                    "movements_is_error": False,
-                    "turn_count": 0.3582583538239813,
-                    "turn_count_is_error": False,
-                    "is_in_bed": 1,
-                    "is_in_bed_is_error": False,
-                }
-            ]
+        if explicit_targets:
+            # assert get_online correctness
+            with fstore.get_online_feature_service(vector) as svc:
+                resp = svc.get([{"patient_id": "305-90-1613"}])
+                assert resp == [
+                    {
+                        "bad": 95,
+                        "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                        "room": 2,
+                        "hr": 220.0,
+                        "hr_is_error": False,
+                        "rr": 25,
+                        "rr_is_error": False,
+                        "spo2": 99,
+                        "spo2_is_error": False,
+                        "movements": 4.614601941071927,
+                        "movements_is_error": False,
+                        "turn_count": 0.3582583538239813,
+                        "turn_count_is_error": False,
+                        "is_in_bed": 1,
+                        "is_in_bed_is_error": False,
+                    }
+                ]
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -1402,11 +1414,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        source = ParquetSource(
-            "myparquet",
-            path=path,
-            schedule="mock",
-        )
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fstore.FeatureSet(
             name=name,
@@ -2149,10 +2157,18 @@ class TestFeatureStore(TestMLRunSystem):
             api = None
             if config.v3io_api:
                 api = config.v3io_api
+
+                # strip protocol
                 if "//" in api:
                     api = api[api.find("//") + 2 :]
+
+                # strip port
                 if ":" in api:
                     api = api[: api.find(":")]
+
+                # ensure webapi prefix
+                if not api.startswith("webapi."):
+                    api = f"webapi.{api}"
             return api
 
         key = "patient_id"
@@ -2170,7 +2186,7 @@ class TestFeatureStore(TestMLRunSystem):
             ),
             NoSqlTarget(
                 name="fullpath",
-                path=f"v3io://webapi.{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
+                path=f"v3io://{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
             ),
         ]
 
@@ -3398,7 +3414,7 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "d_id": [i for i in range(1, 11, 2)],
                 "name": [f"dept{num}" for num in range(1, 11, 2)],
-                "manager_id": [i for i in range(10, 15)],
+                "m_id": [i for i in range(10, 15)],
             }
         )
 
@@ -3444,7 +3460,7 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            left_on=["manager_id"],
+            left_on=["m_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
         )
@@ -3531,7 +3547,7 @@ class TestFeatureStore(TestMLRunSystem):
             "managers",
             entities=[managers_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(managers_set, managers)
 
         classes_set_entity = fstore.Entity("c_id")
@@ -3539,16 +3555,16 @@ class TestFeatureStore(TestMLRunSystem):
             "classes",
             entities=[classes_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(classes_set, classes)
 
         departments_set_entity = fstore.Entity("d_id")
         departments_set = fstore.FeatureSet(
             "departments",
             entities=[departments_set_entity],
-            relations={"manager_id": managers_set_entity},
+            relations={"m_id": managers_set_entity},
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        departments_set.set_targets()
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -3557,7 +3573,7 @@ class TestFeatureStore(TestMLRunSystem):
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
         )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        employees_set.set_targets()
         fstore.ingest(employees_set, employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
@@ -3568,7 +3584,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "class_id": classes_set_entity,
             },
         )
-        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        mini_employees_set.set_targets()
         fstore.ingest(mini_employees_set, employees_with_class)
 
         features = ["employees.name"]
@@ -3595,6 +3611,11 @@ class TestFeatureStore(TestMLRunSystem):
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
             )
+
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"name": "employee100"}
+
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
@@ -3610,6 +3631,10 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "n2": "dept1"}
 
         features = [
             "employees.name as n",
@@ -3631,6 +3656,14 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "man_name": "manager10",
+            }
+
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
@@ -3646,6 +3679,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
 
         features = [
             "employees.name as n",
@@ -3667,6 +3703,15 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
+
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "mini_name": "employee100",
+                "name_cls": "class20",
+            }
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

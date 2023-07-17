@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import mlrun.api.api.utils
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.project_member
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.utils.helpers
 from mlrun.api.api import deps
@@ -68,7 +69,7 @@ async def submit_job(
             function_name,
             _,
             _,
-        ) = mlrun.utils.helpers.parse_versioned_object_uri(function_url)
+        ) = mlrun.common.helpers.parse_versioned_object_uri(function_url)
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.function,
             function_project,

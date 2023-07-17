@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,7 +62,11 @@ class ModelObj:
         return param
 
     def to_dict(self, fields=None, exclude=None):
-        """convert the object to a python dictionary"""
+        """convert the object to a python dictionary
+
+        :param fields:  list of fields to include in the dict
+        :param exclude: list of fields to exclude from the dict
+        """
         struct = {}
         fields = fields or self._dict_fields
         if not fields:
@@ -105,13 +109,19 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self) -> str:
-        """convert the object to yaml"""
-        return dict_to_yaml(self.to_dict())
+    def to_yaml(self, exclude=None) -> str:
+        """convert the object to yaml
 
-    def to_json(self):
-        """convert the object to json"""
-        return dict_to_json(self.to_dict())
+        :param exclude: list of fields to exclude from the yaml
+        """
+        return dict_to_yaml(self.to_dict(exclude=exclude))
+
+    def to_json(self, exclude=None):
+        """convert the object to json
+
+        :param exclude: list of fields to exclude from the json
+        """
+        return dict_to_json(self.to_dict(exclude=exclude))
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -539,12 +549,14 @@ class Notification(ModelObj):
         status=None,
         sent_time=None,
     ):
-        self.kind = kind
-        self.name = name
-        self.message = message
-        self.severity = severity
-        self.when = when
-        self.condition = condition
+        self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
+        self.name = name or ""
+        self.message = message or ""
+        self.severity = (
+            severity or mlrun.common.schemas.notification.NotificationSeverity.INFO
+        )
+        self.when = when or ["completed"]
+        self.condition = condition or ""
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
@@ -891,7 +903,7 @@ class RunSpec(ModelObj):
 
     def extract_type_hints_from_inputs(self):
         """
-        This method extracts the type hints from the inputs keys in the input dictionary.
+        This method extracts the type hints from the input keys in the input dictionary.
 
         As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
         values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
@@ -974,7 +986,7 @@ class RunSpec(ModelObj):
         # Validate correct pattern:
         if input_key.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"Incorrect input pattern. Input keys can have only a single ':' in them to specify the desired type "
                 f"the input will be parsed as. Given: {input_key}."
             )
 

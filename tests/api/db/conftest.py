@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ import pytest
 
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine
 from mlrun.api.initial_data import init_data
 from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.api.utils.singletons.project_member import initialize_project_member
+from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
 
 

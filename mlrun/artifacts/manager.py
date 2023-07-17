@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,7 +65,7 @@ artifact_types = {
     "bokeh": BokehArtifact,
 }
 
-# TODO - Remove this when legacy types are deleted in 1.5.0
+# TODO - Remove this when legacy types are deleted in 1.6.0
 legacy_artifact_types = {
     "": LegacyArtifact,
     "dir": LegacyDirArtifact,

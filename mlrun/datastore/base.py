@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -261,7 +261,7 @@ class DataStore:
                             updated_args = [f"{base_path}/{filename}"]
                             updated_args.extend(args[1:])
                             dfs.append(df_module.read_csv(*updated_args, **kwargs))
-                        return pd.concat(dfs)
+                        return df_module.concat(dfs)
 
         elif (
             file_url.endswith(".parquet")

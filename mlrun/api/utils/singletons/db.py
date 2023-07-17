@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 #
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import create_session
+from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
 

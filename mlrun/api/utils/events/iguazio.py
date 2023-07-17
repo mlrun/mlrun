@@ -14,7 +14,7 @@
 #
 import typing
 
-import igz_mgmt.schemas.manual_events
+import igz_mgmt.schemas.events
 
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.events.base
@@ -38,7 +38,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         self.verbose = verbose if verbose is not None else mlrun.mlconf.events.verbose
         self.source = "mlrun-api"
 
-    def emit(self, event: igz_mgmt.schemas.manual_events.ManualEventSchema):
+    def emit(self, event: igz_mgmt.Event):
         try:
             logger.debug("Emitting event", event=event)
             mlrun.api.utils.clients.iguazio.Client().emit_manual_event(
@@ -52,55 +52,25 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
                     exc_info=exc,
                 )
 
-    def generate_project_auth_secret_event(
+    def generate_auth_secret_event(
         self,
         username: str,
         secret_name: str,
         action: mlrun.common.schemas.AuthSecretEventActions,
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
+    ) -> igz_mgmt.Event:
         """
-        Generate a project auth secret event
+        Generate an auth secret event
         :param username:  username
         :param secret_name:  secret name
         :param action: preformed action
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:
-            return self.generate_project_auth_secret_created_event(
-                username, secret_name
-            )
+            return self._generate_auth_secret_created_event(username, secret_name)
         elif action == mlrun.common.schemas.SecretEventActions.updated:
-            return self.generate_project_auth_secret_updated_event(
-                username, secret_name
-            )
+            return self._generate_auth_secret_updated_event(username, secret_name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
-
-    def generate_project_auth_secret_created_event(
-        self, username: str, secret_name: str
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        return igz_mgmt.schemas.manual_events.ManualEventSchema(
-            source=self.source,
-            kind=PROJECT_AUTH_SECRET_CREATED,
-            description=f"User {username} created secret {secret_name}",
-            severity=igz_mgmt.constants.EventSeverity.info,
-            classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
-            visibility=igz_mgmt.constants.EventVisibility.external,
-        )
-
-    def generate_project_auth_secret_updated_event(
-        self, username: str, secret_name: str
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        return igz_mgmt.schemas.manual_events.ManualEventSchema(
-            source=self.source,
-            kind=PROJECT_AUTH_SECRET_UPDATED,
-            description=f"User {username} updated secret {secret_name}",
-            severity=igz_mgmt.constants.EventSeverity.info,
-            classification=igz_mgmt.constants.EventClassification.security,
-            system_event=False,
-            visibility=igz_mgmt.constants.EventVisibility.external,
-        )
 
     def generate_project_secret_event(
         self,
@@ -108,7 +78,7 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         secret_name: str,
         secret_keys: typing.List[str] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
+    ) -> igz_mgmt.Event:
         """
         Generate a project secret event
         :param project: project name
@@ -118,56 +88,124 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:
-            return self.generate_project_secret_created_event(
+            return self._generate_project_secret_created_event(
                 project, secret_name, secret_keys
             )
         elif action == mlrun.common.schemas.SecretEventActions.updated:
-            return self.generate_project_secret_updated_event(
+            return self._generate_project_secret_updated_event(
                 project, secret_name, secret_keys
             )
         elif action == mlrun.common.schemas.SecretEventActions.deleted:
-            return self.generate_project_secret_deleted_event(project, secret_name)
+            return self._generate_project_secret_deleted_event(project, secret_name)
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(f"Unsupported action {action}")
 
-    def generate_project_secret_created_event(
-        self, project: str, secret_name: str, secret_keys: typing.List[str]
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
-        normalized_secret_keys = self._list_to_string(secret_keys)
-        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+    def _generate_auth_secret_created_event(
+        self, username: str, secret_name: str
+    ) -> igz_mgmt.Event:
+        return igz_mgmt.Event(
             source=self.source,
-            kind=PROJECT_SECRET_CREATED,
-            description=f"Created project secret {secret_name} with secret keys {normalized_secret_keys}"
-            f" for project {project}",
+            kind=PROJECT_AUTH_SECRET_CREATED,
+            description=f"User {username} created secret {secret_name}",
+            parameters_text=[
+                igz_mgmt.schemas.events.ParametersText(name="username", value=username),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_name", value=secret_name
+                ),
+            ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
             system_event=False,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 
-    def generate_project_secret_updated_event(
+    def _generate_auth_secret_updated_event(
+        self, username: str, secret_name: str
+    ) -> igz_mgmt.Event:
+        return igz_mgmt.Event(
+            source=self.source,
+            kind=PROJECT_AUTH_SECRET_UPDATED,
+            description=f"User {username} updated secret {secret_name}",
+            parameters_text=[
+                igz_mgmt.schemas.events.ParametersText(name="username", value=username),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_name", value=secret_name
+                ),
+            ],
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
+
+    def _generate_project_secret_created_event(
+        self, project: str, secret_name: str, secret_keys: typing.List[str]
+    ) -> igz_mgmt.Event:
+        normalized_secret_keys = self._list_to_string(secret_keys)
+        return igz_mgmt.Event(
+            source=self.source,
+            kind=PROJECT_SECRET_CREATED,
+            parameters_text=[
+                igz_mgmt.schemas.events.ParametersText(
+                    name="project_name", value=project
+                ),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_name", value=secret_name
+                ),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_keys", value=normalized_secret_keys
+                ),
+            ],
+            description=f"Project {project} secret created",
+            severity=igz_mgmt.constants.EventSeverity.info,
+            classification=igz_mgmt.constants.EventClassification.security,
+            system_event=False,
+            visibility=igz_mgmt.constants.EventVisibility.external,
+        )
+
+    def _generate_project_secret_updated_event(
         self,
         project: str,
         secret_name: str,
         secret_keys: typing.List[str],
-    ) -> igz_mgmt.schemas.manual_events.ManualEventSchema:
+    ) -> igz_mgmt.Event:
         normalized_secret_keys = self._list_to_string(secret_keys)
-        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+        return igz_mgmt.Event(
             source=self.source,
             kind=PROJECT_SECRET_UPDATED,
-            description=f"Updated secret keys {normalized_secret_keys} of project secret {secret_name} "
-            f"for project {project}",
+            description=f"Project {project} secret updated",
+            parameters_text=[
+                igz_mgmt.schemas.events.ParametersText(
+                    name="project_name", value=project
+                ),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_name", value=secret_name
+                ),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_keys", value=normalized_secret_keys
+                ),
+            ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
             system_event=False,
             visibility=igz_mgmt.constants.EventVisibility.external,
         )
 
-    def generate_project_secret_deleted_event(self, project: str, secret_name: str):
-        return igz_mgmt.schemas.manual_events.ManualEventSchema(
+    def _generate_project_secret_deleted_event(
+        self, project: str, secret_name: str
+    ) -> igz_mgmt.Event:
+        return igz_mgmt.Event(
             source=self.source,
             kind=PROJECT_SECRET_DELETED,
-            description=f"Deleted project secret {secret_name} for project {project}",
+            description=f"Project {project} secret deleted",
+            parameters_text=[
+                igz_mgmt.schemas.events.ParametersText(
+                    name="project_name", value=project
+                ),
+                igz_mgmt.schemas.events.ParametersText(
+                    name="secret_name", value=secret_name
+                ),
+            ],
             severity=igz_mgmt.constants.EventSeverity.info,
             classification=igz_mgmt.constants.EventClassification.security,
             system_event=False,

@@ -1,4 +1,4 @@
-// Copyright 2018 Iguazio
+// Copyright 2023 Iguazio
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -209,8 +209,7 @@ func (s *Server) StartLog(ctx context.Context,
 		return s.successfulBaseResponse(), nil
 	}
 
-	var pods *v1.PodList
-	var err error
+	var pod v1.Pod
 
 	s.Logger.DebugWithCtx(ctx, "Getting run pod using label selector", "selector", request.Selector)
 
@@ -219,7 +218,7 @@ func (s *Server) StartLog(ctx context.Context,
 		s.startLogsFindingPodsTimeout,
 		s.startLogsFindingPodsInterval,
 		func() (bool, error) {
-			pods, err = s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
+			pods, err := s.kubeClientSet.CoreV1().Pods(s.namespace).List(ctx, metav1.ListOptions{
 				LabelSelector: request.Selector,
 			})
 
@@ -230,7 +229,15 @@ func (s *Server) StartLog(ctx context.Context,
 				return true, errors.Errorf("No pods found for run uid '%s'", request.RunUID)
 			}
 
-			// if pods were found, stop retrying
+			// found pods. we take the first pod because each run has a single pod.
+			pod = pods.Items[0]
+
+			// fail if pod is pending, as we cannot stream logs from a pending pod
+			if pod.Status.Phase == v1.PodPending {
+				return true, errors.Errorf("Pod '%s' is in pending state", pod.Name)
+			}
+
+			// all good, stop retrying
 			return false, nil
 		}); err != nil {
 
@@ -265,9 +272,6 @@ func (s *Server) StartLog(ctx context.Context,
 			ErrorMessage: err.Error(),
 		}, err
 	}
-
-	// found a pod. for now, we only assume each run has a single pod.
-	pod := pods.Items[0]
 
 	// write log item in progress to state store
 	if err := s.stateManifest.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {

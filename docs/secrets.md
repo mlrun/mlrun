@@ -1,5 +1,5 @@
 (secrets)=
-# Working with secrets  <!-- omit in toc -->
+# Working with secrets<!-- omit in toc -->
 When executing jobs through MLRun, the code might need access to specific secrets, for example to access data 
 residing on a data-store that requires credentials (such as a private S3 bucket), or many other similar needs.
 

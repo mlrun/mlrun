@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
+from mlrun.api.launcher import initialize_launcher
 from mlrun.api.middlewares import init_middlewares
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
@@ -140,6 +141,7 @@ async def startup_event():
 
     initialize_logs_dir()
     initialize_db()
+    initialize_launcher()
 
     if (
         config.httpdb.clusterization.worker.sync_with_chief.mode
@@ -607,7 +609,9 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     # Unmasking the run parameters from secrets before handing them over to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [
-        mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)
+        mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+            db, db_session, run
+        )
         for run in runs
     ]
 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -758,21 +758,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
 
     short_run = {
         "graph": dag,
-        "run": {
-            k: str(v) if v is not None else v
-            for k, v in kfp_run["run"].items()
-            if k
-            in [
-                "id",
-                "name",
-                "status",
-                "error",
-                "created_at",
-                "scheduled_at",
-                "finished_at",
-                "description",
-            ]
-        },
+        "run": mlrun.utils.helpers.format_run(kfp_run["run"]),
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message

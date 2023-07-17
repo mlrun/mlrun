@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -427,7 +427,7 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.common.schemas.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -570,7 +570,7 @@ default_config = {
         # supported modes "enabled", "disabled".
         # "enabled" - events are emitted.
         # "disabled" - a nop client is used (aka doing nothing).
-        "mode": "enabled",
+        "mode": "disabled",
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",

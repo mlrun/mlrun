@@ -62,11 +62,11 @@ class BaseTrackerExample(BaseTracker):
         [BaseTrackerExample],
     ],
 )
-def test_add_tracker(rundb_mock, tracker_list):
+def test_add_tracker(tracker_list):
     trackers_manager = TrackerManager()
     for tracker in tracker_list:
         trackers_manager.add_tracker(tracker)
-        assert type(trackers_manager._trackers[-1]) is tracker
+        assert isinstance(trackers_manager._trackers[-1], tracker)
     assert len(trackers_manager._trackers) == len(tracker_list)
 
 

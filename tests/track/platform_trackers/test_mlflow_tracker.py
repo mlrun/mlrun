@@ -37,17 +37,17 @@ mpl.use("Agg")
 
 # simple general mlflow example of hand logging
 def simple_run():
+    # Log some random params and metrics
     log_param("param1", randint(0, 100))
     log_metric("foo", random())
     log_metric("foo", random() + 1)
     log_metric("foo", random() + 2)
-
-    if not os.path.exists("outputs"):
-        os.makedirs("outputs")
-    with open("outputs/test.txt", "w") as f:
+    # Create an artifact and log it
+    test_directory = tempfile.TemporaryDirectory()
+    with open(f"{test_directory.name}/test.txt", "w") as f:
         f.write("hello world!")
-
-    log_artifacts("outputs")
+    log_artifacts(test_directory.name)
+    test_directory.cleanup()
 
 
 def lgb_run():
@@ -124,23 +124,31 @@ def test_is_enabled(rundb_mock):
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_run(rundb_mock, handler):
     test_directory = tempfile.TemporaryDirectory()
-    trainer = mlrun.code_to_function(
+    # Create a project for this tester:
+    project = mlrun.get_or_create_project(name="default", context=test_directory.name)
+
+    # Create a MLRun function using the tester source file (all the functions must be located in it):
+    func = project.set_function(
+        func=__file__,
         name=f"{handler}-test",
-        filename=__file__,
         kind="job",
         image="mlrun/mlrun",
-        handler=handler,
         requirements=["mlflow"],
     )
+    # mlflow creates a dir to log the run, this makes it in the tmpdir we create
+    mlflow.set_tracking_uri(test_directory.name)
     try:
-        trainer_run = trainer.run(local=True, artifact_path=test_directory.name)
-        _validate_run(trainer_run)
+        trainer_run = func.run(local=True, artifact_path=test_directory.name, handler=handler)
+        _validate_run(trainer_run, test_directory)
+    except Exception as e:
         test_directory.cleanup()
-    except Exception:
-        test_directory.cleanup()
+        raise e
+    test_directory.cleanup()
 
 
-def _validate_run(run):
+def _validate_run(run, test_directory):
+    # in order to tell mlflow where to look for logged run for comparison
+    mlflow.set_tracking_uri(test_directory.name)
     client = mlflow.MlflowClient()
     runs = []
     # returns a list of mlflow.entities.Experiment

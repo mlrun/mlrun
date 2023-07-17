@@ -109,10 +109,7 @@ class FunctionReference(ModelObj):
                 func = enrich_function_from_dict(func, self.spec)
         elif self.code is not None:
             code = self.code
-            if kind == mlrun.runtimes.RuntimeKinds.serving:
-                code = code + mlrun_footer.format(
-                    mlrun.runtimes.serving.serving_subkind
-                )
+            code = code + mlrun.runtimes.get_runtime_class(kind).get_code_addition()
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )

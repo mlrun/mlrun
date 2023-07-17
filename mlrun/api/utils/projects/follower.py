@@ -356,7 +356,7 @@ class Member(
                         logger.warning(
                             "Failed to delete project from DB, continuing...",
                             name=project_to_remove,
-                            exc=exc,
+                            exc=err_to_str(exc),
                         )
             if latest_updated_at:
 

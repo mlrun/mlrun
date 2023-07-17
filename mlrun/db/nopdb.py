@@ -45,7 +45,8 @@ class NopDB(RunDBInterface):
 
             return
 
-        if attr == "connect":
+        # ignore __class__ because __getattribute__ overrides the parent class's method and it spams logs
+        if attr in ["connect", "__class__"]:
             return super().__getattribute__(attr)
         else:
             nop()
@@ -93,6 +94,7 @@ class NopDB(RunDBInterface):
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         pass
 

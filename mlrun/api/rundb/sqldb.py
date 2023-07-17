@@ -23,6 +23,7 @@ import mlrun.model_monitoring.model_endpoint
 from mlrun.api.db.base import DBError
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.common.db.sql_session import create_session
+from mlrun.db import RunDBInterface
 
 # This class is a proxy for the real implementation that sits under mlrun.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
@@ -33,7 +34,7 @@ from mlrun.common.db.sql_session import create_session
 # the api service's DB interface
 
 
-class SQLRunDB(mlrun.db.RunDBInterface):
+class SQLRunDB(RunDBInterface):
     def __init__(
         self,
         dsn,

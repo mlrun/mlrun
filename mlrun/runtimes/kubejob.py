@@ -419,6 +419,10 @@ class DatabricksRuntime(KubejobRuntime):
     _is_nested = True
     _is_remote = True
 
+    @staticmethod
+    def get_code_addition():
+        return _databricks_code_addition
+
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.internal_handler = runspec.spec.handler
         runspec.spec.handler = 'print_test'
@@ -428,3 +432,11 @@ class DatabricksRuntime(KubejobRuntime):
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks-job"
     class_modes = {RuntimeClassMode.run: "databricks-job"}
+
+
+_databricks_code_addition = """
+
+def print_test():
+    print('this is the print_test')
+
+"""

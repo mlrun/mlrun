@@ -213,6 +213,7 @@ def run(
     func_url,
     task,
     handler,
+    internal_handler,
     mode,
     schedule,
     from_env,

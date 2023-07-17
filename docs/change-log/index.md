@@ -155,7 +155,37 @@ The MLRun server is now based on Python 3.9. It's recommended to move the client
 MLRun v1.3.0 maintains support for mlrun base images that are based on python 3.7. To differentiate between the images, the images based on
 python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
 
-See installation instructions in {ref}`install-remote`.
+MLRun v1.3.x maintains support for mlrun base images that are based on a python 3.7 environment. To differentiate between the images, the images based on
+python 3.7 have the suffix: `-py37`. The correct version is automatically chosen for the built-in MLRun images according to the Python version of the MLRun client (for example, a 3.7 Jupyter gets the `-py37` images).
+
+For a Python 3.9 environment see [Set up a Python 3.7 client environment](../install/remote.html#set-up-a-python-3-9-client-environment).
+
+#### Set up a Python 3.7 client environment (Iguazio versions up to and including v3.5.2) 
+
+```{admonition} Note
+There is a known bug with nbformat on the Jupyter version in Iguazio up to and including v3.5.2, 
+which requires upgrading nbformat to 5.7.0. When using an older nbformat, some Jupyter Notebooks do not open.
+```
+
+To install on a **Python 3.7** environment (and optionally upgrade to python 3.9 environment):
+  
+1. Configure the Jupyter service with the env variable `JUPYTER_PREFER_ENV_PATH=false`.
+2. Within the Jupyter service, open a terminal and update conda and pip to have an up-to-date pip resolver.
+
+```
+$CONDA_HOME/bin/conda install -y conda=23.1.0 	
+$CONDA_HOME/bin/conda install -y 'pip>=22.0'
+$CONDA_HOME/bin/conda install -y nbformat=5.7.0
+```
+3. If you want to upgrade to a Python 3.9 environment, create a new conda env and activate it:
+```
+conda create -n python39 python=3.9 ipykernel -y
+conda activate python39
+```
+4. Install mlrun:
+```
+./align_mlrun.sh
+```
     
 ### New and updated features
 

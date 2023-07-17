@@ -677,27 +677,28 @@ class RunSpec(ModelObj):
     """Run specification"""
 
     def __init__(
-        self,
-        parameters=None,
-        hyperparams=None,
-        param_file=None,
-        selector=None,
-        handler=None,
-        inputs=None,
-        outputs=None,
-        input_path=None,
-        output_path=None,
-        function=None,
-        secret_sources=None,
-        data_stores=None,
-        strategy=None,
-        verbose=None,
-        scrape_metrics=None,
-        hyper_param_options=None,
-        allow_empty_resources=None,
-        inputs_type_hints=None,
-        returns=None,
-        notifications=None,
+            self,
+            parameters=None,
+            hyperparams=None,
+            param_file=None,
+            selector=None,
+            handler=None,
+            internal_handler=None,
+            inputs=None,
+            outputs=None,
+            input_path=None,
+            output_path=None,
+            function=None,
+            secret_sources=None,
+            data_stores=None,
+            strategy=None,
+            verbose=None,
+            scrape_metrics=None,
+            hyper_param_options=None,
+            allow_empty_resources=None,
+            inputs_type_hints=None,
+            returns=None,
+            notifications=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -724,6 +725,7 @@ class RunSpec(ModelObj):
         self.strategy = strategy
         self.selector = selector
         self.handler = handler
+        self.internal_handler = internal_handler
         self.input_path = input_path
         self.output_path = output_path
         self.function = function

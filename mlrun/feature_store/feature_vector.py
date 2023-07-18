@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import collections
+import json
 import logging
 import typing
 from copy import copy
@@ -131,12 +132,15 @@ class FeatureVectorSpec(ModelObj):
         self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
     ):
         self._relations = {}
-        print(relations)
         for fs_name, relation in relations.items():
-            print(relation)
+            if isinstance(relation, str):
+                # when runs in remote mode
+                relation = json.loads(relation)
             for col, ent in relation.items():
                 if isinstance(ent, str):
                     relation[col] = Entity(ent)
+                elif isinstance(ent, dict):
+                    relation[col] = Entity.from_dict(ent)
             self._relations[fs_name] = ObjectDict.from_dict(
                 {"entity": Entity}, relation, "entity"
             )

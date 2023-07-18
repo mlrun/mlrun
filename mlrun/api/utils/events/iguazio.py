@@ -60,9 +60,9 @@ class Client(base_events.BaseEventClient):
     ) -> igz_mgmt.Event:
         """
         Generate an auth secret event
-        :param username:  username
-        :param secret_name:  secret name
-        :param action: preformed action
+        :param username:        username
+        :param secret_name:     secret name
+        :param action:          preformed action
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:
@@ -81,10 +81,10 @@ class Client(base_events.BaseEventClient):
     ) -> igz_mgmt.Event:
         """
         Generate a project secret event
-        :param project: project name
+        :param project:     project name
         :param secret_name: secret name
         :param secret_keys: secret keys, optional, only relevant for created/updated events
-        :param action: preformed action
+        :param action:      preformed action
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:

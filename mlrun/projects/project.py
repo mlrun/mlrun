@@ -38,8 +38,7 @@ import requests
 import yaml
 from deprecated import deprecated
 
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
@@ -119,6 +118,10 @@ def new_project(
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
+    A new project is created and returned, you can customize the project by placing a project_setup.py file
+    in the project root dir, it will be executed upon project creation or loading.
+
+
     example::
 
         # create a project with local and hub functions, a workflow, and an artifact
@@ -142,6 +145,16 @@ def new_project(
         project.run("main", watch=True)
 
 
+    example using project_setup.py to init the project objects::
+
+            def setup(project):
+                project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
+                project.set_function('hub://auto-trainer', 'train')
+                project.set_artifact('data', Artifact(target_path=data_url))
+                project.set_workflow('main', "./myflow.py")
+                return project
+
+
     :param name:         project name
     :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
@@ -162,6 +175,10 @@ def new_project(
     name = _add_username_to_project_name_if_needed(name, user_project)
 
     if from_template:
+        if subpath:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unsupported option, cannot use subpath argument with project templates"
+            )
         if from_template.endswith(".yaml"):
             project = _load_project_file(from_template, name, secrets)
         elif from_template.startswith("git://"):
@@ -227,10 +244,9 @@ def new_project(
             context=context,
             save=save,
         )
-        if from_template:
-            # Hook for initializing the project using a project_setup script
-            setup_file_path = path.join(context, "project_setup.py")
-            project = _run_project_setup(project, setup_file_path, save)
+
+    # Hook for initializing the project using a project_setup script
+    project = project.setup(save and mlrun.mlconf.dbpath)
 
     return project
 
@@ -250,13 +266,32 @@ def load_project(
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
-    example::
+    MLRun looks for a project.yaml file with project definition and objects in the project root path
+    and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
+    for further customization.
+
+    Usage example::
 
         # Load the project and run the 'main' workflow.
         # When using git as the url source the context directory must be an empty or
         # non-existent folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
+
+
+    project_setup.py example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
 
     :param context:         project local directory path (default value = "./")
     :param url:             name (in DB) or git or tar.gz or .zip sources archive path e.g.:
@@ -345,16 +380,13 @@ def load_project(
         project.save()
 
     # Hook for initializing the project using a project_setup script
-    setup_file_path = path.join(context, project.spec.subpath or "", "project_setup.py")
-    project = _run_project_setup(project, setup_file_path, to_save)
+    project = project.setup(to_save)
 
     if to_save:
         project.register_artifacts()
-        if sync_functions:
-            project.sync_functions(names=project.get_function_names(), save=True)
 
-    elif sync_functions:
-        project.sync_functions(names=project.get_function_names(), save=False)
+    if sync_functions:
+        project.sync_functions(save=to_save)
 
     _set_as_current_default_project(project)
 
@@ -376,12 +408,31 @@ def get_or_create_project(
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
-    example::
+    MLRun looks for a project.yaml file with project definition and objects in the project root path
+    and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
+    for further customization.
+
+    Usage example::
 
         # load project from the DB (if exist) or the source repo
         project = get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
         project.pull("development")  # pull the latest code from git
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
+
+
+    project_setup.py example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
 
     :param name:         project name
     :param context:      project local directory path (default value = "./")
@@ -1211,8 +1262,15 @@ class MlrunProject(ModelObj):
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param args:          argument values (key=value, ..)
         """
-        if not workflow_path:
-            raise ValueError("valid workflow_path must be specified")
+
+        # validate the provided workflow_path
+        if mlrun.utils.helpers.is_file_path_invalid(
+            self.spec.get_code_path(), workflow_path
+        ):
+            raise ValueError(
+                f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
+            )
+
         if embed:
             if (
                 self.context
@@ -1296,11 +1354,13 @@ class MlrunProject(ModelObj):
         artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
+        # TODO: To correctly maintain the list of artifacts from an exported project,
+        #  we need to maintain the different trees that generated them
         producer = ArtifactProducer(
             "project",
             self.metadata.name,
             self.metadata.name,
-            tag=self._get_hexsha() or "latest",
+            tag=self._get_hexsha() or str(uuid.uuid4()),
         )
         for artifact_dict in self.spec.artifacts:
             if _is_imported_artifact(artifact_dict):
@@ -1682,6 +1742,21 @@ class MlrunProject(ModelObj):
             project.sync_functions()
         self.__dict__.update(project.__dict__)
         return project
+
+    def setup(self, save: bool = True) -> "MlrunProject":
+        """Run the project setup file if found
+
+        When loading a project MLRun will look for a project_setup.py file, if it is found
+        it will execute the setup(project) handler, which can enrich the project with additional
+        objects, functions, artifacts, etc.
+
+        :param save: save the project after the setup
+        """
+        # Hook for initializing the project using a project_setup script
+        setup_file_path = path.join(
+            self.context, self.spec.subpath or "", "project_setup.py"
+        )
+        return _run_project_setup(self, setup_file_path, save)
 
     def set_function(
         self,
@@ -2421,12 +2496,12 @@ class MlrunProject(ModelObj):
         secrets_dict = {}
         if access_key:
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.ACCESS_KEY
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             ] = access_key
 
         if endpoint_store_connection:
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
             ] = endpoint_store_connection
 
         if stream_path:
@@ -2435,7 +2510,7 @@ class MlrunProject(ModelObj):
                     "Custom kafka topic is not allowed"
                 )
             secrets_dict[
-                model_monitoring_constants.ProjectSecretKeys.STREAM_PATH
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
             ] = stream_path
 
         self.set_secrets(
@@ -2790,8 +2865,9 @@ class MlrunProject(ModelObj):
             # check different artifact versions for a specific artifact, return as objects list
             result_versions = project.list_artifacts('results', tag='*').to_objects()
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.
@@ -2837,8 +2913,9 @@ class MlrunProject(ModelObj):
             latest_models = project.list_models('', tag='latest')
 
 
-        :param name: Name of artifacts to retrieve. Name is used as a like query, and is not case-sensitive. This means
-            that querying for ``name`` may return artifacts named ``my_Name_1`` or ``surname``.
+        :param name: Name of artifacts to retrieve. Name with '~' prefix is used as a like query, and is not
+            case-sensitive. This means that querying for ``~name`` may return artifacts named
+            ``my_Name_1`` or ``surname``.
         :param tag: Return artifacts assigned this tag.
         :param labels: Return artifacts that have these labels. Labels can either be a dictionary {"label": "value"} or
             a list of "label=value" (match label key and value) or "label" (match just label key) strings.

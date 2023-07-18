@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
-
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from unittest import mock
 
 import deepdiff
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -231,6 +233,37 @@ def test_projects_crud(db: SQLDB, db_session: Session):
         db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
     )
     assert [project.metadata.name, project_2.metadata.name] == projects_output.projects
+
+
+@pytest.mark.parametrize(
+    "error_message, expected_exception",
+    [
+        # exhausted retries
+        ("database is locked", Exception),
+        # conflicts
+        (
+            "(sqlite3.IntegrityError) UNIQUE constraint failed",
+            mlrun.errors.MLRunConflictError,
+        ),
+        ("(pymysql.err.IntegrityError) (1062", mlrun.errors.MLRunConflictError),
+        ("(pymysql.err.IntegrityError) (1586", mlrun.errors.MLRunConflictError),
+        # other errors
+        ("some other exception", mlrun.errors.MLRunRuntimeError),
+    ],
+)
+def test_commit_failures(db: SQLDB, error_message: str, expected_exception: Exception):
+    # create some fake objects to commit
+    objects = [
+        mlrun.api.db.sqldb.models.Run(project="p1", uid="u1", name="run-1"),
+        mlrun.api.db.sqldb.models.Feature(feature_set_id="fs-1", name="feat-1"),
+        mlrun.api.db.sqldb.models.Function(project="p3", name="func-1"),
+    ]
+
+    session = mock.MagicMock()
+    session.commit = mock.MagicMock(side_effect=SQLAlchemyError(error_message))
+
+    with pytest.raises(expected_exception):
+        db._commit(session, objects)
 
 
 # def test_function_latest(db: SQLDB, db_session: Session):

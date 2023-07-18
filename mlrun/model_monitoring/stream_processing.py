@@ -22,23 +22,21 @@ import pandas as pd
 import storey
 
 import mlrun
+import mlrun.common.model_monitoring.helpers
 import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.prometheus
 import mlrun.utils
-import mlrun.utils.model_monitoring
 import mlrun.utils.v3io_clients
-from mlrun.common.model_monitoring import (
+from mlrun.common.schemas.model_monitoring.constants import (
     EventFieldType,
     EventKeyMetrics,
     EventLiveStats,
     FileTargetKind,
     ModelEndpointTarget,
     ProjectSecretKeys,
-    create_model_endpoint_uid,
 )
-from mlrun.model_monitoring.stores import get_model_endpoint_store
 from mlrun.utils import logger
 
 
@@ -51,19 +49,15 @@ class EventStreamProcessor:
         parquet_target: str,
         sample_window: int = 10,
         parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
-        aggregate_count_windows: typing.Optional[typing.List[str]] = None,
-        aggregate_count_period: str = "30s",
-        aggregate_avg_windows: typing.Optional[typing.List[str]] = None,
-        aggregate_avg_period: str = "30s",
+        aggregate_windows: typing.Optional[typing.List[str]] = None,
+        aggregate_period: str = "30s",
         model_monitoring_access_key: str = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
         self.sample_window = sample_window
-        self.aggregate_count_windows = aggregate_count_windows or ["5m", "1h"]
-        self.aggregate_count_period = aggregate_count_period
-        self.aggregate_avg_windows = aggregate_avg_windows or ["5m", "1h"]
-        self.aggregate_avg_period = aggregate_avg_period
+        self.aggregate_windows = aggregate_windows or ["5m", "1h"]
+        self.aggregate_period = aggregate_period
 
         # Parquet path and configurations
         self.parquet_path = parquet_target
@@ -119,7 +113,9 @@ class EventStreamProcessor:
             _,
             self.kv_container,
             self.kv_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(kv_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            kv_path
+        )
 
         # TSDB path and configurations
         tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -129,7 +125,9 @@ class EventStreamProcessor:
             _,
             self.tsdb_container,
             self.tsdb_path,
-        ) = mlrun.utils.model_monitoring.parse_model_endpoint_store_prefix(tsdb_path)
+        ) = mlrun.common.model_monitoring.helpers.parse_model_endpoint_store_prefix(
+            tsdb_path
+        )
 
         self.tsdb_path = f"{self.tsdb_container}/{self.tsdb_path}"
         self.tsdb_batching_max_events = tsdb_batching_max_events
@@ -236,35 +234,28 @@ class EventStreamProcessor:
                 class_name="storey.AggregateByKey",
                 aggregates=[
                     {
-                        "name": EventFieldType.PREDICTIONS,
-                        "column": EventFieldType.ENDPOINT_ID,
-                        "operations": ["count"],
-                        "windows": self.aggregate_count_windows,
-                        "period": self.aggregate_count_period,
-                    }
-                ],
-                name=EventFieldType.PREDICTIONS,
-                after="MapFeatureNames",
-                step_name="Aggregates",
-                table=".",
-                key=EventFieldType.ENDPOINT_ID,
-            )
-            # Step 7.2 - Calculate average latency time for each window (5 min and 1 hour by default)
-            graph.add_step(
-                class_name="storey.AggregateByKey",
-                aggregates=[
-                    {
                         "name": EventFieldType.LATENCY,
                         "column": EventFieldType.LATENCY,
-                        "operations": ["avg"],
-                        "windows": self.aggregate_avg_windows,
-                        "period": self.aggregate_avg_period,
+                        "operations": ["count", "avg"],
+                        "windows": self.aggregate_windows,
+                        "period": self.aggregate_period,
                     }
                 ],
                 name=EventFieldType.LATENCY,
-                after=EventFieldType.PREDICTIONS,
+                after="MapFeatureNames",
+                step_name="Aggregates",
                 table=".",
-                key=EventFieldType.ENDPOINT_ID,
+                key_field=EventFieldType.ENDPOINT_ID,
+            )
+            # Step 7.2 - Calculate average latency time for each window (5 min and 1 hour by default)
+            graph.add_step(
+                class_name="storey.Rename",
+                mapping={
+                    "latency_count_5m": EventLiveStats.PREDICTIONS_COUNT_5M,
+                    "latency_count_1h": EventLiveStats.PREDICTIONS_COUNT_1H,
+                },
+                name="Rename",
+                after=EventFieldType.LATENCY,
             )
 
         apply_storey_aggregations()
@@ -274,7 +265,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "storey.steps.SampleWindow",
                 name="sample",
-                after=EventFieldType.LATENCY,
+                after="Rename",
                 window_size=self.sample_window,
                 key=EventFieldType.ENDPOINT_ID,
             )
@@ -661,7 +652,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         version = event.get(EventFieldType.VERSION)
         versioned_model = f"{model}:{version}" if version else f"{model}:latest"
 
-        endpoint_id = create_model_endpoint_uid(
+        endpoint_id = mlrun.common.model_monitoring.create_model_endpoint_uid(
             function_uri=function_uri,
             versioned_model=versioned_model,
         )
@@ -1234,7 +1225,7 @@ def update_endpoint_record(
     endpoint_id: str,
     attributes: dict,
 ):
-    model_endpoint_store = get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
         project=project,
     )
 
@@ -1244,7 +1235,7 @@ def update_endpoint_record(
 
 
 def get_endpoint_record(project: str, endpoint_id: str):
-    model_endpoint_store = get_model_endpoint_store(
+    model_endpoint_store = mlrun.model_monitoring.get_model_endpoint_store(
         project=project,
     )
     return model_endpoint_store.get_model_endpoint(endpoint_id=endpoint_id)

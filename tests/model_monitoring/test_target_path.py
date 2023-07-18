@@ -15,14 +15,13 @@ import os
 from unittest import mock
 
 import mlrun.config
-import mlrun.utils.model_monitoring
+import mlrun.model_monitoring
 
 TEST_PROJECT = "test-model-endpoints"
 
 
 @mock.patch.dict(os.environ, {"MLRUN_ARTIFACT_PATH": "s3://some-bucket/"}, clear=True)
 def test_get_file_target_path():
-
     # offline target with relative path
     offline_parquet_relative = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=TEST_PROJECT,
@@ -59,14 +58,14 @@ def test_get_file_target_path():
 
 def test_get_stream_path():
     # default stream path
-    stream_path = mlrun.utils.model_monitoring.get_stream_path(project=TEST_PROJECT)
+    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path == f"v3io:///users/pipelines/{TEST_PROJECT}/model-endpoints/stream"
     )
 
     # kafka stream path from env
     os.environ["STREAM_PATH"] = "kafka://some_kafka_bootstrap_servers:8080"
-    stream_path = mlrun.utils.model_monitoring.get_stream_path(project=TEST_PROJECT)
+    stream_path = mlrun.model_monitoring.get_stream_path(project=TEST_PROJECT)
     assert (
         stream_path
         == f"kafka://some_kafka_bootstrap_servers:8080?topic=monitoring_stream_{TEST_PROJECT}"

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ from mlrun.datastore.store_resources import ResourceCache
 from mlrun.datastore.targets import get_online_target
 from mlrun.serving.server import create_graph_server
 
-from ...features import Feature
 from ..feature_vector import OnlineVectorService
 from .base import BaseMerger
 
@@ -128,6 +127,10 @@ class StoreyFeatureMerger(BaseMerger):
         feature_set_objects, feature_set_fields = self.vector.parse_features(
             offline=False, update_stats=update_stats
         )
+        if not feature_set_fields:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"No features found for feature vector '{self.vector.metadata.name}'"
+            )
         (
             graph,
             requested_columns,
@@ -142,6 +145,7 @@ class StoreyFeatureMerger(BaseMerger):
         server = create_graph_server(graph=graph, parameters={})
 
         cache = ResourceCache()
+        all_fs_entities = []
         for featureset in feature_set_objects.values():
             driver = get_online_target(featureset)
             if not driver:
@@ -149,20 +153,18 @@ class StoreyFeatureMerger(BaseMerger):
                     f"resource {featureset.uri} does not have an online data target"
                 )
             cache.cache_table(featureset.uri, driver.get_table_object())
+
             for key in featureset.spec.entities.keys():
-                if (
-                    not self.vector.spec.with_indexes
-                    and key not in self.vector.spec.entity_fields.keys()
-                ):
-                    self.vector.spec.entity_fields[key] = Feature(name=key)
+                if key not in all_fs_entities:
+                    all_fs_entities.append(key)
         server.init_states(context=None, namespace=None, resource_cache=cache)
         server.init_object(None)
-        self.vector.save()
 
         service = OnlineVectorService(
             self.vector,
             graph,
             entity_keys,
+            all_fs_entities=all_fs_entities,
             impute_policy=self.impute_policy,
             requested_columns=requested_columns,
         )

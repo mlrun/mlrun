@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import enum
 import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
+import mlrun.common.helpers
 import mlrun.utils
 
 
@@ -140,29 +140,6 @@ class PrometheusMetric:
     DRIFT_STATUS = "drift_status"
 
 
-def create_model_endpoint_uid(function_uri: str, versioned_model: str):
-    function_uri = FunctionURI.from_string(function_uri)
-    versioned_model = VersionedModel.from_string(versioned_model)
-
-    if (
-        not function_uri.project
-        or not function_uri.function
-        or not versioned_model.model
-    ):
-        raise ValueError("Both function_uri and versioned_model have to be initialized")
-
-    uid = EndpointUID(
-        function_uri.project,
-        function_uri.function,
-        function_uri.tag,
-        function_uri.hash_key,
-        versioned_model.model,
-        versioned_model.version,
-    )
-
-    return uid
-
-
 @dataclass
 class FunctionURI:
     project: str
@@ -172,7 +149,7 @@ class FunctionURI:
 
     @classmethod
     def from_string(cls, function_uri):
-        project, uri, tag, hash_key = mlrun.utils.parse_versioned_object_uri(
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
             function_uri
         )
         return cls(

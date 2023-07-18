@@ -17,6 +17,7 @@ import hashlib
 import inspect
 import json
 import os
+import pathlib
 import re
 import sys
 import time
@@ -243,6 +244,34 @@ def get_regex_list_as_string(regex_list: List) -> str:
     with and condition between them.
     """
     return "".join(["(?={regex})".format(regex=regex) for regex in regex_list]) + ".*$"
+
+
+def is_file_path_invalid(code_path: str, file_path: str) -> bool:
+    """
+    The function checks if the given file_path is a valid path.
+    If the file_path is a relative path, it is completed by joining it with the code_path.
+    Otherwise, the file_path is used as is.
+    Additionally, it checks if the resulting path exists as a file, unless the file_path is a remote URL.
+    If the file_path has no suffix, it is considered invalid.
+
+    :param code_path: The base directory or code path to search for the file in case of relative file_path
+    :param file_path: The file path to be validated
+    :return: True if the file path is invalid, False otherwise
+    """
+    if not file_path:
+        return True
+
+    if file_path.startswith("./") or (
+        "://" not in file_path and os.path.basename(file_path) == file_path
+    ):
+        abs_path = os.path.join(code_path, file_path.lstrip("./"))
+    else:
+        abs_path = file_path
+
+    return (
+        not (os.path.isfile(abs_path) or "://" in file_path)
+        or not pathlib.Path(file_path).suffix
+    )
 
 
 def tag_name_regex_as_string() -> str:
@@ -596,26 +625,6 @@ def dict_to_json(struct):
     return json.dumps(struct, cls=MyEncoder)
 
 
-def parse_versioned_object_uri(uri, default_project=""):
-    project = default_project
-    tag = ""
-    hash_key = ""
-    if "/" in uri:
-        loc = uri.find("/")
-        project = uri[:loc]
-        uri = uri[loc + 1 :]
-    if ":" in uri:
-        loc = uri.find(":")
-        tag = uri[loc + 1 :]
-        uri = uri[:loc]
-    if "@" in uri:
-        loc = uri.find("@")
-        hash_key = uri[loc + 1 :]
-        uri = uri[:loc]
-
-    return project, uri, tag, hash_key
-
-
 def parse_artifact_uri(uri, default_project=""):
     uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
     match = re.match(uri_pattern, uri)
@@ -819,14 +828,14 @@ def resolve_image_tag_suffix(
             return "-py37"
         return ""
 
-    # For mlrun 1.3.0, we decided to support mlrun runtimes images with both python 3.7 and 3.9 images.
+    # For mlrun 1.3.x and 1.4.x, we support mlrun runtimes images with both python 3.7 and 3.9 images.
     # While the python 3.9 images will continue to have no suffix, the python 3.7 images will have a '-py37' suffix.
     # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
     # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse(mlrun_version) >= semver.VersionInfo.parse(
-        "1.3.0-X"
-    ) and python_version.startswith("3.7"):
+    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+        mlrun_version
+    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
         return "-py37"
     return ""
 
@@ -916,15 +925,12 @@ def create_step_backoff(steps=None):
     while True:
         current_step_value, current_step_remain = step
         if current_step_remain == 0:
-
             # No more in this step, moving on
             step = next(steps)
         elif current_step_remain is None:
-
             # We are in the last step, staying here forever
             yield current_step_value
         elif current_step_remain > 0:
-
             # Still more remains in this step, just reduce the remaining number
             step[1] -= 1
             yield current_step_value
@@ -939,7 +945,6 @@ def create_exponential_backoff(base=2, max_value=120, scale_factor=1):
     """
     exponent = 1
     while True:
-
         # This "complex" implementation (unlike the one in linear backoff) is to avoid exponent growing too fast and
         # risking going behind max_int
         next_value = scale_factor * (base**exponent)
@@ -1351,6 +1356,18 @@ def is_relative_path(path):
     return not (path.startswith("/") or ":\\" in path or "://" in path)
 
 
+def is_running_in_jupyter_notebook() -> bool:
+    """
+    Check if the code is running inside a Jupyter Notebook.
+    :return: True if running inside a Jupyter Notebook, False otherwise.
+    """
+    import IPython
+
+    ipy = IPython.get_ipython()
+    # if its IPython terminal, it isn't a Jupyter ipython
+    return ipy and "Terminal" not in str(type(ipy))
+
+
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
         raise ValueError(f"{field_name} must be numeric (str/int types)")
@@ -1360,7 +1377,6 @@ def as_number(field_name, field_value):
 def filter_warnings(action, category):
     def decorator(function):
         def wrapper(*args, **kwargs):
-
             # context manager that copies and, upon exit, restores the warnings filter and the showwarning() function.
             with warnings.catch_warnings():
                 warnings.simplefilter(action, category)

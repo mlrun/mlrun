@@ -477,7 +477,7 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             self.spec.with_default_targets = True
-            targets.extend(get_default_targets())
+            targets.extend(get_default_targets(offline_only=self.spec.passthrough))
         else:
             self.spec.with_default_targets = False
 
@@ -946,7 +946,7 @@ class FeatureSet(ModelObj):
                 columns=columns,
                 start_time=start_time
                 or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
-                end_time=end_time,
+                end_time=end_time or pd.Timestamp.max,
                 time_field=time_column,
                 **kwargs,
             )

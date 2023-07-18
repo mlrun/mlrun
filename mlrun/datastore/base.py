@@ -261,7 +261,7 @@ class DataStore:
                             updated_args = [f"{base_path}/{filename}"]
                             updated_args.extend(args[1:])
                             dfs.append(df_module.read_csv(*updated_args, **kwargs))
-                        return pd.concat(dfs)
+                        return df_module.concat(dfs)
 
         elif (
             file_url.endswith(".parquet")

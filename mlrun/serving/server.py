@@ -23,17 +23,19 @@ import uuid
 from typing import Optional, Union
 
 import mlrun
-import mlrun.utils.model_monitoring
-from mlrun.common.model_monitoring import FileTargetKind
+import mlrun.common.helpers
+import mlrun.model_monitoring
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
 
+from ..common.helpers import parse_versioned_object_uri
+from ..common.schemas.model_monitoring.constants import FileTargetKind
 from ..datastore import get_stream_pusher
 from ..datastore.store_resources import ResourceCache
 from ..errors import MLRunInvalidArgumentError
 from ..model import ModelObj
-from ..utils import get_caller_globals, parse_versioned_object_uri
+from ..utils import get_caller_globals
 from .states import RootFlowStep, RouterStep, get_function, graph_root_setter
 from .utils import (
     event_id_key,
@@ -48,7 +50,6 @@ class _StreamContext:
     that will be used for pushing the events from the nuclio model serving function"""
 
     def __init__(self, enabled: bool, parameters: dict, function_uri: str):
-
         """
         Initialize _StreamContext object.
         :param enabled:      A boolean indication for applying the stream context
@@ -71,7 +72,7 @@ class _StreamContext:
                 function_uri, config.default_project
             )
 
-            stream_uri = mlrun.utils.model_monitoring.get_stream_path(project=project)
+            stream_uri = mlrun.model_monitoring.get_stream_path(project=project)
 
             if log_stream:
                 # Update the stream path to the log stream value
@@ -483,7 +484,7 @@ class GraphContext:
     @property
     def project(self):
         """current project name (for the current function)"""
-        project, _, _, _ = mlrun.utils.parse_versioned_object_uri(
+        project, _, _, _ = mlrun.common.helpers.parse_versioned_object_uri(
             self._server.function_uri
         )
         return project
@@ -521,13 +522,13 @@ class GraphContext:
         """
         if "://" in name:
             return name
-        project, uri, tag, _ = mlrun.utils.parse_versioned_object_uri(
+        project, uri, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(
             self._server.function_uri
         )
         if name.startswith("."):
             name = f"{uri}-{name[1:]}"
         else:
-            project, name, tag, _ = mlrun.utils.parse_versioned_object_uri(
+            project, name, tag, _ = mlrun.common.helpers.parse_versioned_object_uri(
                 name, project
             )
         (

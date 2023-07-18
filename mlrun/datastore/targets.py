@@ -82,11 +82,12 @@ def default_target_names():
     return [target.strip() for target in targets.split(",")]
 
 
-def get_default_targets():
+def get_default_targets(offline_only=False):
     """initialize the default feature set targets list"""
     return [
         DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
         for target in default_target_names()
+        if not offline_only or not target == "nosql"
     ]
 
 

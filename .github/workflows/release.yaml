@@ -14,76 +14,127 @@
 #
 
 name: Release
+
 run-name: Releasing ${{ inputs.version }}
+
+permissions:
+
+  # Create release and upload artifact to releases
+  contents: write
+
+  # Allow the action to upload images to ghcr
+  packages: write
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10)'
-        required: true
-      previous_version:
-        description: 'The previous version, without prefix v (e.g. 1.1.0-rc9)'
-        required: true
-      pre_release:
-        description: 'Whether to mark release as pre-release or not (default: false)'
-        required: false
-        default: 'true'
-      generate_release_notes:
-        description: 'Whether to generate release notes or not (default: true)'
-        required: false
-        default: 'true'
+        description: 'The version to release, without prefix v (e.g. 1.1.0-rc10). if not provided, will be calculated from the current version and bump_version_mode'
+        default: ''
+        type: string
+      bump_version_mode:
+        description: 'The version bump mode. Whether to bump rc version or set stable version'
+        default: 'bump-rc'
+        type: choice
+        options: [ 'bump-rc', 'stable' ]
       skip_images:
         description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:
-        description: 'Whether to skip publishing the python package to Pypi, (true/false)'
+        description: 'Whether to skip publishing the python package to Pypi'
         required: false
         default: 'false'
+        type: choice
+        options: ['true', 'false']
       skip_create_tag_release:
-        description: 'Whether to skip creating tag & release in Github, (true/false)'
+        description: 'Whether to skip creating tag & release in Github'
         required: false
         default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      ui_ref:
+        description: 'The UI reference (branch / tag name) to use for the UI image, (development, 1.3.3, etc)'
+        required: false
+        default: ''
 
 jobs:
+  prepare-inputs:
+    name: Prepare inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      previous_version: ${{ steps.resolve.outputs.previous_version }}
+      ui_ref: ${{ steps.resolve.outputs.ui_ref }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+
+          # Fetch all history for all tags and branches
+          fetch-depth: 0
+      - name: Resolve inputs
+        id: resolve
+        run: |
+
+          # map the input to the actual mode
+          declare -A bump_version_mode=(["bump-rc"]="rc" ["stable"]="rc-grad")
+          NEXT_VERSION_MODE=${bump_version_mode[$BUMP_VERSION_MODE_INPUT]}
+          version=$(python ./automation/version/version_file.py next-version --mode $NEXT_VERSION_MODE)
+          echo "Calculated version: $version"
+          if [[ -n "$VERSION_INPUT" ]]; then \
+            version=$VERSION_INPUT; \
+            echo "Using version from input: $version"; \
+          fi
+
+          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version) " >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
+          echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+        env:
+          UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
+          BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
+          VERSION_INPUT: ${{ github.event.inputs.version }}
+
   trigger-and-wait-for-mlrun-image-building:
     name: Trigger build workflow in mlrun/mlrun and wait to finish
-    runs-on: ubuntu-latest
+    needs: prepare-inputs
+    uses: ./.github/workflows/build-internal.yaml
+    with:
+      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      skip_images: ${{ github.event.inputs.skip_images }}
+    secrets: inherit
 
-    steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.5
-        with:
-          owner: mlrun
-          repo: mlrun
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          workflow_file_name: build.yaml
-          ref: ${{ github.ref_name }}
-          wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}", "skip_images": "${{ github.event.inputs.skip_images }}"}'
-
+  # TODO: Move to reuseable-workflow too.
+  # Requires cross-repo validation for passing github token as secret
   trigger-and-wait-for-ui-image-building:
     name: Trigger build workflow in mlrun/ui and wait to finish
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-
+    needs: prepare-inputs
     steps:
       - uses: convictional/trigger-workflow-and-wait@v1.6.5
+
+        # since some steps relay on the ui image, we need to wait for it to finish building
+        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
+        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
         with:
-          owner: mlrun
+          owner: ${{ github.repository_owner }}
           repo: ui
           github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           workflow_file_name: build.yaml
-          ref: ${{ github.ref_name }}
+          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
           wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ github.event.inputs.version }}"}'
+          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
 
   publish-to-pypi:
     name: Publish package to pypi
     runs-on: ubuntu-latest
-    if: github.event.inputs.skip_publish_pypi != 'true'
+
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
-    needs: [trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building]
+    needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - uses: actions/checkout@v3
       - name: Set up python
@@ -91,41 +142,46 @@ jobs:
         with:
           python-version: 3.9
           cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r automation/requirements.txt
       - name: Build & push to pypi
+        if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
           pip install twine wheel
           export TWINE_USERNAME=${{ secrets.PYPI_USERNAME }}
           export TWINE_PASSWORD=${{ secrets.PYPI_PASSWORD }}
           MLRUN_VERSION="$INPUT_VERSION" make publish-package
         env:
-          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_VERSION: ${{ needs.prepare-inputs.outputs.version }}
 
   create-releases:
-    name: Create release & tag v${{ github.event.inputs.version }}
+    name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
     runs-on: ubuntu-latest
-    if: github.event.inputs.skip_create_tag_release != 'true'
-    needs: publish-to-pypi
+    needs: [ prepare-inputs, publish-to-pypi ]
     steps:
       - uses: ncipollo/release-action@v1
+        if: github.event.inputs.skip_create_tag_release != 'true'
         with:
-          tag: v${{ github.event.inputs.version }}
+          tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          prerelease: ${{ github.event.inputs.pre_release }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
       - uses: ncipollo/release-action@v1
+        if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
-          tag: v${{ github.event.inputs.version }}
+          tag: v${{ needs.prepare-inputs.outputs.version }}
           commit: ${{ github.ref_name }}
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
-          # prerelease: ${{ github.event.inputs.pre_release }}
+          # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
 
   update-release-notes:
     name: Update release notes
     runs-on: ubuntu-latest
-    if: github.event.inputs.generate_release_notes == 'true'
-    needs: create-releases
+    if: github.event.inputs.skip_create_tag_release != 'true'
+    needs: [ prepare-inputs, create-releases ]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -141,29 +197,32 @@ jobs:
       - name: Generate release notes
         id: release-notes
         run: |
-          make release-notes MLRUN_OLD_VERSION="v$INPUT_PREVIOUS_VERSION" MLRUN_VERSION="v$INPUT_VERSION" MLRUN_RELEASE_BRANCH=${{ github.ref_name }} MLRUN_RAISE_ON_ERROR=false MLRUN_RELEASE_NOTES_OUTPUT_FILE=release_notes.md MLRUN_SKIP_CLONE=true
+          make release-notes
         env:
-          INPUT_PREVIOUS_VERSION: ${{ github.event.inputs.previous_version }}
-          INPUT_VERSION: ${{ github.event.inputs.version }}
+          MLRUN_SKIP_CLONE: true
+          MLRUN_RELEASE_BRANCH: ${{ github.ref_name }}
+          MLRUN_RELEASE_NOTES_OUTPUT_FILE: release_notes.md
+          MLRUN_RAISE_ON_ERROR: false
+          MLRUN_OLD_VERSION: "v${{ needs.prepare-inputs.outputs.previous_version }}"
+          MLRUN_VERSION: "v${{ needs.prepare-inputs.outputs.version }}"
+
       - name: resolve release notes
         id: resolve-release-notes
         run: |
           echo "body<<EOF" >> $GITHUB_OUTPUT
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
       - uses: ncipollo/release-action@v1
         with:
-          tag: v${{ github.event.inputs.version }}
-          commit: ${{ github.ref_name }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          allowUpdates: true
-          prerelease: ${{ github.event.inputs.pre_release }}
+          tag: v${{ needs.prepare-inputs.outputs.version }}
           body: ${{ steps.resolve-release-notes.outputs.body }}
-  
-  
+          token: ${{ secrets.GITHUB_TOKEN }}
+          allowUpdates: true
+
   update-tutorials:
     name: Bundle tutorials
-    needs: create-releases
+    needs: [ prepare-inputs, create-releases ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -174,6 +233,6 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          tag: v${{ github.event.inputs.version }}
-          token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+          tag: v${{ needs.prepare-inputs.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar

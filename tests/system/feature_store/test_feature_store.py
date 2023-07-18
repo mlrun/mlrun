@@ -893,7 +893,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert result_columns.sort() == orig_columns.sort()
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
-    def test_passthrough_feature_set(self, engine):
+    @pytest.mark.parametrize("with_start_time", [True, False])
+    @pytest.mark.parametrize("explicit_targets", [True, False])
+    def test_passthrough_feature_set(self, engine, with_start_time, explicit_targets):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
@@ -912,7 +914,10 @@ class TestFeatureStore(TestMLRunSystem):
         expected = source.to_dataframe().set_index("patient_id")
 
         # The file is sorted by time. 10 is just an arbitrary number.
-        start_time = expected["timestamp"][10]
+        if with_start_time:
+            start_time = expected["timestamp"][10]
+        else:
+            start_time = None
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
@@ -923,11 +928,16 @@ class TestFeatureStore(TestMLRunSystem):
             preview_pd.set_index("patient_id", inplace=True)
             assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
 
-        fstore.ingest(measurements_set, source)
+        targets = [NoSqlTarget()] if explicit_targets else None
 
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        assert len(measurements_set.status.targets) == 1
-        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        fstore.ingest(measurements_set, source, targets=targets)
+
+        if explicit_targets:
+            # assert that online target exist (nosql) and offline target does not (parquet)
+            assert len(measurements_set.status.targets) == 1
+            assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        else:
+            assert len(measurements_set.status.targets) == 0
 
         # verify that get_offline (and preview) equals the source
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
@@ -937,31 +947,33 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
 
         # check time filter with passthrough
-        expected = expected[(expected["timestamp"] > start_time)]
+        if start_time:
+            expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
-        # assert get_online correctness
-        with fstore.get_online_feature_service(vector) as svc:
-            resp = svc.get([{"patient_id": "305-90-1613"}])
-            assert resp == [
-                {
-                    "bad": 95,
-                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                    "room": 2,
-                    "hr": 220.0,
-                    "hr_is_error": False,
-                    "rr": 25,
-                    "rr_is_error": False,
-                    "spo2": 99,
-                    "spo2_is_error": False,
-                    "movements": 4.614601941071927,
-                    "movements_is_error": False,
-                    "turn_count": 0.3582583538239813,
-                    "turn_count_is_error": False,
-                    "is_in_bed": 1,
-                    "is_in_bed_is_error": False,
-                }
-            ]
+        if explicit_targets:
+            # assert get_online correctness
+            with fstore.get_online_feature_service(vector) as svc:
+                resp = svc.get([{"patient_id": "305-90-1613"}])
+                assert resp == [
+                    {
+                        "bad": 95,
+                        "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                        "room": 2,
+                        "hr": 220.0,
+                        "hr_is_error": False,
+                        "rr": 25,
+                        "rr_is_error": False,
+                        "spo2": 99,
+                        "spo2_is_error": False,
+                        "movements": 4.614601941071927,
+                        "movements_is_error": False,
+                        "turn_count": 0.3582583538239813,
+                        "turn_count_is_error": False,
+                        "is_in_bed": 1,
+                        "is_in_bed_is_error": False,
+                    }
+                ]
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -3620,7 +3632,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "n2": "dept1"}
 
@@ -3644,7 +3656,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {
                 "n": "employee100",
@@ -3667,7 +3679,7 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
 
@@ -3692,7 +3704,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
-        with fstore.get_online_feature_service(vector, ["id"]) as svc:
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {
                 "n": "employee100",

@@ -17,6 +17,8 @@ from datetime import datetime
 
 from sqlalchemy.orm import class_mapper
 
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+
 
 class BaseModel:
     def to_dict(self, exclude=None):

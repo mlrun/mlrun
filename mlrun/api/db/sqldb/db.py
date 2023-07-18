@@ -82,7 +82,6 @@ from mlrun.utils import (
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 conflict_messages = [
@@ -2866,32 +2865,50 @@ class SQLDB(DBInterface):
         def _try_commit_obj():
             try:
                 session.commit()
-            except SQLAlchemyError as err:
+            except SQLAlchemyError as sql_err:
                 session.rollback()
-                cls = objects[0].__class__.__name__
-                if "database is locked" in str(err):
+                classes = list(set([object_.__class__.__name__ for object_ in objects]))
+
+                # if the database is locked, we raise a retryable error
+                if "database is locked" in str(sql_err):
                     logger.warning(
-                        "Database is locked. Retrying", cls=cls, err=str(err)
+                        "Database is locked. Retrying",
+                        classes_to_commit=classes,
+                        err=str(sql_err),
                     )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
-                    ) from err
+                    ) from sql_err
+
+                # the error is not retryable, so we try to identify weather there was a conflict or not
+                # either way - we wrap the error with a fatal error so the retry mechanism will stop
                 logger.warning(
-                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                    "Failed committing changes to DB",
+                    classes=classes,
+                    err=err_to_str(sql_err),
                 )
                 if not ignore:
+                    # get the identifiers of the objects that failed to commit, for logging purposes
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
-                    # We want to retry only when database is locked so for any other scenario escalate to fatal failure
+
+                    mlrun_error = mlrun.errors.MLRunRuntimeError(
+                        f"Failed committing changes to DB. classes={classes} objects={identifiers}"
+                    )
+
+                    # check if the error is a conflict error
+                    if any([message in str(sql_err) for message in conflict_messages]):
+                        mlrun_error = mlrun.errors.MLRunConflictError(
+                            f"Conflict - at least one of the objects already exists: {identifiers}"
+                        )
+
+                    # we want to keep the exception stack trace, but we also want the retry mechanism to stop
+                    # so, we raise a new indicative exception from the original sql exception (this keeps
+                    # the stack trace intact), and then wrap it with a fatal error (which stops the retry mechanism).
+                    # Note - this way, the exception is raised from this code section, and not from the retry function.
                     try:
-                        if any([message in str(err) for message in conflict_messages]):
-                            raise mlrun.errors.MLRunConflictError(
-                                f"Conflict - {cls} already exists: {identifiers}"
-                            ) from err
-                        raise mlrun.errors.MLRunRuntimeError(
-                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
-                        ) from err
+                        raise mlrun_error from sql_err
                     except (
                         mlrun.errors.MLRunRuntimeError,
                         mlrun.errors.MLRunConflictError,

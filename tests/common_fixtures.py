@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import inspect
+import os
 import shutil
 import unittest
+from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable, List, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -26,11 +29,6 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
-import mlrun.api.utils.singletons.logs_dir
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.singletons.scheduler
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
@@ -38,10 +36,6 @@ import mlrun.k8s_utils
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import _init_engine, create_session
-from mlrun.api.initial_data import init_data
-from mlrun.api.utils.singletons.db import initialize_db
 from mlrun.config import config
 from mlrun.lists import ArtifactList
 from mlrun.runtimes import BaseRuntime
@@ -56,7 +50,6 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
-
     # recreating the test results path on each test instead of running it on conftest since
     # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
     # in parallel and may cause errors.
@@ -90,15 +83,8 @@ def config_test_base():
     # remove singletons in case they were changed (we don't want changes to pass between tests)
     mlrun.utils.singleton.Singleton._instances = {}
 
-    mlrun.api.utils.singletons.db.db = None
-    mlrun.api.utils.singletons.project_member.project_member = None
-    mlrun.api.utils.singletons.scheduler.scheduler = None
-    mlrun.api.utils.singletons.k8s._k8s = None
-    mlrun.api.utils.singletons.logs_dir.logs_dir = None
-
     mlrun.runtimes.runtime_handler_instances_cache = {}
     mlrun.runtimes.utils.cached_mpijob_crd_version = None
-    mlrun.runtimes.utils.cached_nuclio_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
@@ -111,33 +97,9 @@ def config_test_base():
 @pytest.fixture
 def aioresponses_mock():
     with aioresponses_() as aior:
-
         # handy function to get how many times requests were made using this specific mock
         aior.called_times = lambda: len(list(aior.requests.values())[0])
         yield aior
-
-
-@pytest.fixture
-def db():
-    global session_maker
-    dsn = "sqlite:///:memory:?check_same_thread=false"
-    db_session = None
-    try:
-        config.httpdb.dsn = dsn
-        _init_engine(dsn=dsn)
-        init_data()
-        initialize_db()
-        db_session = create_session()
-        db = SQLDB(dsn)
-        db.initialize(db_session)
-        config.dbpath = dsn
-    finally:
-        if db_session is not None:
-            db_session.close()
-    mlrun.api.utils.singletons.db.initialize_db(db)
-    mlrun.api.utils.singletons.logs_dir.initialize_logs_dir()
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
-    return db
 
 
 @pytest.fixture
@@ -146,22 +108,24 @@ def ensure_default_project() -> mlrun.projects.project.MlrunProject:
 
 
 @pytest.fixture()
-def db_session() -> Generator:
-    db_session = None
-    try:
-        db_session = create_session()
-        yield db_session
-    finally:
-        if db_session is not None:
-            db_session.close()
+def chdir_to_test_location(request):
+    """
+    Fixture to change the working directory for tests,
+    It allows seamless access to files relative to the test file.
 
+    Because the working directory inside the dockerized test is '/mlrun',
+    this fixture allows to automatically modify the cwd to the test file directory,
+    to ensure the workflow files are located,
+    and modify it back after the test case for other tests
 
-@pytest.fixture()
-def running_as_api():
-    old_is_running_as_api = mlrun.config.is_running_as_api
-    mlrun.config.is_running_as_api = unittest.mock.Mock(return_value=True)
+    """
+    original_working_dir = os.getcwd()
+    test_file_path = os.path.dirname(inspect.getfile(request.function))
+    os.chdir(test_file_path)
+
     yield
-    mlrun.config.is_running_as_api = old_is_running_as_api
+
+    os.chdir(original_working_dir)
 
 
 @pytest.fixture
@@ -275,6 +239,33 @@ class RunDBMock:
     def read_run(self, uid, project, iter=0):
         return self._runs.get(uid, {})
 
+    def list_runs(
+        self,
+        name: Optional[str] = None,
+        uid: Optional[Union[str, List[str]]] = None,
+        project: Optional[str] = None,
+        labels: Optional[Union[str, List[str]]] = None,
+        state: Optional[str] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: Optional[datetime] = None,
+        start_time_to: Optional[datetime] = None,
+        last_update_time_from: Optional[datetime] = None,
+        last_update_time_to: Optional[datetime] = None,
+        partition_by: Optional[
+            Union[mlrun.common.schemas.RunPartitionByField, str]
+        ] = None,
+        rows_per_partition: int = 1,
+        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
+        partition_order: Union[
+            mlrun.common.schemas.OrderType, str
+        ] = mlrun.common.schemas.OrderType.desc,
+        max_partitions: int = 0,
+        with_notifications: bool = False,
+    ) -> mlrun.lists.RunList:
+        return mlrun.lists.RunList(self._runs.values())
+
     def get_function(self, function, project, tag, hash_key=None):
         if function not in self._functions:
             raise mlrun.errors.MLRunNotFoundError("Function not found")
@@ -303,11 +294,14 @@ class RunDBMock:
         return True
 
     def store_project(self, name, project):
-        self._project_name = name
+        return self.create_project(project)
 
+    def create_project(self, project):
         if isinstance(project, dict):
             project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
+        self._project_name = project.name
+        return self._project
 
     def get_project(self, name):
         if self._project_name and name == self._project_name:
@@ -479,6 +473,9 @@ class RunDBMock:
             return self._functions[function_name]
 
         return list(self._functions.values())[0]
+
+    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
+        pass
 
 
 @pytest.fixture()

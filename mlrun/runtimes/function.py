@@ -86,26 +86,6 @@ def validate_nuclio_version_compatibility(*min_versions):
     return False
 
 
-def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
-    """
-    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
-    """
-    try:
-        parsed_min_version = semver.VersionInfo.parse(min_version)
-        parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
-        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
-    except ValueError:
-        logger.warning(
-            "Unable to parse nuclio version, assuming in range",
-            nuclio_version=nuclio_version,
-            min_version=min_version,
-            max_version=max_version,
-        )
-        return True
-    return parsed_min_version <= parsed_current_version < parsed_max_version
-
-
 def min_nuclio_versions(*versions):
     def decorator(function):
         def wrapper(*args, **kwargs):
@@ -844,6 +824,7 @@ class RemoteRuntime(KubeResource):
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: bool = None,
+        **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -859,6 +840,9 @@ class RemoteRuntime(KubeResource):
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
+        :param http_client_kwargs:   allow the user to pass any parameter supported in requests.request method
+                                     see this link for more information:
+                                     https://requests.readthedocs.io/en/latest/api/#requests.request
         """
         if not method:
             method = "POST" if body else "GET"
@@ -890,15 +874,16 @@ class RemoteRuntime(KubeResource):
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
         headers.setdefault("x-nuclio-target", full_function_name)
-        kwargs = {}
+        if not http_client_kwargs:
+            http_client_kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):
-                kwargs["data"] = body
+                http_client_kwargs["data"] = body
             else:
-                kwargs["json"] = body
+                http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **kwargs)
+            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

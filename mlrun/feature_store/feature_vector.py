@@ -131,19 +131,17 @@ class FeatureVectorSpec(ModelObj):
     def relations(
         self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
     ):
-        self._relations = {}
+        temp_relations = {}
         for fs_name, relation in relations.items():
-            if isinstance(relation, str):
-                # when runs in remote mode
-                relation = json.loads(relation)
             for col, ent in relation.items():
                 if isinstance(ent, str):
                     relation[col] = Entity(ent)
-                elif isinstance(ent, dict):
-                    relation[col] = Entity.from_dict(ent)
-            self._relations[fs_name] = ObjectDict.from_dict(
+            temp_relations[fs_name] = ObjectDict.from_dict(
                 {"entity": Entity}, relation, "entity"
             )
+        self._relations = ObjectDict.from_dict(
+            {"object_dict": ObjectDict}, temp_relations, "object_dict"
+        )
 
     @property
     def join_graph(self):

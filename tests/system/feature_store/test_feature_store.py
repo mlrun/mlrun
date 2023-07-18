@@ -241,7 +241,11 @@ class TestFeatureStore(TestMLRunSystem):
         join_graph=None,
     ):
         vector = fstore.FeatureVector(
-            "myvector", features, "stock-quotes.xx", join_graph=join_graph
+            "myvector",
+            features,
+            "stock-quotes.xx",
+            join_graph=join_graph,
+            relations={"stocks": {"name": "id_y"}},  # dummy relations
         )
         resp = fstore.get_offline_features(
             vector,
@@ -277,7 +281,12 @@ class TestFeatureStore(TestMLRunSystem):
 
     def _get_online_features(self, features, features_size, join_graph=None):
         # test real-time query
-        vector = fstore.FeatureVector("my-vec", features, join_graph=join_graph)
+        vector = fstore.FeatureVector(
+            "my-vec",
+            features,
+            join_graph=join_graph,
+            relations={"stocks": {"name": "id_y"}},  # dummy relations
+        )
         with fstore.get_online_feature_service(vector) as svc:
             # check non existing column
             resp = svc.get([{"bb": "AAPL"}])

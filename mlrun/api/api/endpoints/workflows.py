@@ -165,12 +165,20 @@ async def submit_workflow(
         action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # check permission READ workflow
+    # check permission READ workflow on project's workflow
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
         resource_name=name,
         action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    # Check permission CREATE workflow on new workflow's name
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
+        project_name=project.metadata.name,
+        resource_name=workflow_request.spec.name,
+        action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
     # Re-route to chief in case of schedule

@@ -488,8 +488,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         ) = mlrun.api.crud.runtimes.nuclio.function._compile_function_config(function)
         for expected_env_var in expected_env_vars:
             assert expected_env_var in config["spec"]["env"]
-        assert isinstance(function.spec.env[0], kubernetes.client.V1EnvVar)
-        assert isinstance(function.spec.env[1], kubernetes.client.V1EnvVar)
+        env_var_names = []
+        for envvar in function.spec.env:
+            if isinstance(envvar, kubernetes.client.V1EnvVar):
+                env_var_names.append(envvar.name)
+        assert env_var_names == ["env1", "env2"]
 
         # simulating sending to API - serialization through dict
         function = function.from_dict(function.to_dict())

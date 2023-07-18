@@ -34,7 +34,7 @@ class TestEventClient:
             None,
         ],
     )
-    def test_create_project_auth_secret(
+    def test_emit_project_auth_secret_event(
         self,
         monkeypatch,
         db: sqlalchemy.orm.Session,
@@ -42,17 +42,20 @@ class TestEventClient:
         k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
         iguazio_version: str,
     ):
+        # since auth secrets are internal we don't emit events when they are created/updated/deleted,
+        # so we just emit from the client for testing purposes
         self._initialize_and_mock_client(monkeypatch, iguazio_version)
 
         username = "some-username"
-        access_key = "some-access-key"
-        mlrun.api.crud.Secrets().store_auth_secret(
-            mlrun.common.schemas.AuthSecretData(
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                username=username,
-                access_key=access_key,
-            )
+        events_client = (
+            mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
         )
+        event = events_client.generate_auth_secret_event(
+            username=username,
+            secret_name="auth_secret_name",
+            action=mlrun.common.schemas.AuthSecretEventActions.created,
+        )
+        events_client.emit(event)
         self._assert_client_was_called(iguazio_version)
 
     @pytest.mark.parametrize(

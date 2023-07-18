@@ -30,6 +30,7 @@ class MLFlowTracker(BaseTracker):
     """
     specific tracker to log artifacts, parameters and metrics collected by MLFlow
     """
+
     TRACKED_MODULE_NAME = "mlflow"
 
     def __init__(self):
@@ -157,6 +158,7 @@ class MLFlowTracker(BaseTracker):
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         import mlflow
+
         experiment = "mlflow_experiment"
         self._client = mlflow.MlflowClient()
         self._apply_post_run_tasks(context=context, experiment=experiment)

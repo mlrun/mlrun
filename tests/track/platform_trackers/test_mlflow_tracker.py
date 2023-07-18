@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import importlib
-import os
 import tempfile
 from random import randint, random
 
@@ -138,7 +137,9 @@ def test_run(rundb_mock, handler):
     # mlflow creates a dir to log the run, this makes it in the tmpdir we create
     mlflow.set_tracking_uri(test_directory.name)
     try:
-        trainer_run = func.run(local=True, artifact_path=test_directory.name, handler=handler)
+        trainer_run = func.run(
+            local=True, artifact_path=test_directory.name, handler=handler
+        )
         _validate_run(trainer_run, test_directory)
     except Exception as e:
         test_directory.cleanup()

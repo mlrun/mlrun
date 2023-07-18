@@ -17,7 +17,7 @@ import typing
 import igz_mgmt.schemas.events
 
 import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.events.base
+import mlrun.api.utils.events.base as base_events
 import mlrun.common.schemas
 from mlrun.utils import logger
 
@@ -28,7 +28,7 @@ PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"
 PROJECT_SECRET_DELETED = "Security.Project.Secret.Deleted"
 
 
-class Client(mlrun.api.utils.events.base.BaseEventClient):
+class Client(base_events.BaseEventClient):
     def __init__(self, access_key: str = None, verbose: bool = None):
         self.access_key = (
             access_key

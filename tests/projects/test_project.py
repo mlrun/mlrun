@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -338,18 +339,24 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
-def test_load_project_with_setup(context):
+@pytest.mark.parametrize("op", ["new", "load"])
+def test_project_with_setup(context, op):
     # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
     project_path = (
         pathlib.Path(tests.conftest.tests_root_directory)
         / "projects"
         / "assets"
-        / "load_setup_test"
+        / f"{op}_setup_test"
     )
-    project = mlrun.load_project(
-        context=project_path, name="projset", save=False, parameters={"p2": "123"}
+    name = f"projset-{op}"
+    if op == "new":
+        func = mlrun.new_project
+    else:
+        func = mlrun.load_project
+    project = func(
+        context=project_path, name=name, save=False, parameters={"p2": "123"}
     )
-    mlrun.utils.logger.info(f"Project: {project}")
+    mlrun.utils.logger.info("Created project", project=project)
 
     # see assets/load_setup_test/project_setup.py for extra project settings
     # test that a function was added and its metadata was set from param[p2]
@@ -361,11 +368,14 @@ def test_load_project_with_setup(context):
     assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
 
     # test that the project metadata was set correctly
-    assert project.name == "projset"
+    assert project.name == name
     assert project.spec.context == project_path
 
     # test that the params contain all params from the yaml, the load, and the setup script
-    assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+    if op == "new":
+        assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
+    else:
+        assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
 @pytest.mark.parametrize(
@@ -398,7 +408,7 @@ def test_load_project_and_sync_functions(
     assert len(project.spec._function_objects) == expected_num_of_funcs
 
     if sync:
-        function_names = project.get_function_names()
+        function_names = project.spec._function_definitions.keys()
         assert len(function_names) == expected_num_of_funcs
         for func in function_names:
             fn = project.get_function(func)
@@ -890,6 +900,62 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     mlrun.get_run_db().store_project("proj1", proj1)
     run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run6.spec.output_path == proj1.spec.artifact_path
+
+
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+        # relative path
+        ("./workflow.py", does_not_raise()),
+        # only file name
+        ("workflow.py", does_not_raise()),
+        # absolute path
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_workflow_with_invalid_path(
+    chdir_to_test_location, workflow_path, exception
+):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_project_ops():

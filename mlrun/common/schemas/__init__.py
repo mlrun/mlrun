@@ -97,7 +97,11 @@ from .hub import (
 )
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
-from .model_endpoints import (
+from .model_monitoring import (
+    EndpointType,
+    EndpointUID,
+    EventFieldType,
+    EventKeyMetrics,
     Features,
     FeatureValues,
     GrafanaColumn,
@@ -111,7 +115,9 @@ from .model_endpoints import (
     ModelEndpointMetadata,
     ModelEndpointSpec,
     ModelEndpointStatus,
+    ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    TimeSeriesTarget,
 )
 from .notification import (
     Notification,

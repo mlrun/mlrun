@@ -57,7 +57,7 @@ def captured_output():
         sys.stdout, sys.stderr = old_out, old_err
 
 
-def test_noparams(db):
+def test_noparams(rundb_mock):
     mlrun.get_or_create_project("default")
     # Since we're executing the function without inputs, it will try to use the input name as the file path
     result = new_function().run(
@@ -102,7 +102,7 @@ def test_invalid_name():
     )
 
 
-def test_with_params(db):
+def test_with_params(rundb_mock):
     mlrun.get_or_create_project("default")
     spec = tag_test(base_spec, "test_with_params")
     result = new_function().run(spec, handler=my_func)
@@ -137,7 +137,7 @@ def test_local_runtime():
     verify_state(result)
 
 
-def test_local_runtime_failure_before_executing_the_function_code(db):
+def test_local_runtime_failure_before_executing_the_function_code(rundb_mock):
     function = new_function(command=f"{assets_path}/fail.py")
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
@@ -162,7 +162,7 @@ def test_local_runtime_with_kwargs(
     assert result.outputs.get("return", {}) == expected_kwargs
 
 
-def test_local_runtime_with_kwargs_with_code_to_function(db):
+def test_local_runtime_with_kwargs_with_code_to_function(rundb_mock):
     mlrun.get_or_create_project("default")
     function = mlrun.code_to_function(
         "kwarg",
@@ -239,7 +239,7 @@ def test_is_watchable(rundb_mock, kind, watch, expected_watch_count):
 
 
 @pytest.mark.asyncio
-async def test_local_args(db, db_session):
+async def test_local_args(rundb_mock):
     spec = tag_test(base_spec, "test_local_no_context")
     spec.spec.parameters = {"xyz": "789"}
 

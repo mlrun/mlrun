@@ -14,10 +14,8 @@
 #
 
 from mlrun.api.db.sqldb.models import Base
-from mlrun.api.db.sqldb.session import get_engine
-from mlrun.config import config
+from mlrun.common.db.sql_session import get_engine
 
 
 def init_db() -> None:
-    if config.httpdb.db_type != "filedb":
-        Base.metadata.create_all(bind=get_engine())
+    Base.metadata.create_all(bind=get_engine())

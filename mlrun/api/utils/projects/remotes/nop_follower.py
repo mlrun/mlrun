@@ -18,12 +18,12 @@ import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.utils.helpers
-import mlrun.api.utils.projects.remotes.follower
+import mlrun.api.utils.projects.remotes.follower as project_follower
 import mlrun.common.schemas
 import mlrun.errors
 
 
-class Member(mlrun.api.utils.projects.remotes.follower.Member):
+class Member(project_follower.Member):
     def __init__(self) -> None:
         super().__init__()
         self._projects: typing.Dict[str, mlrun.common.schemas.Project] = {}

@@ -25,6 +25,7 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.api.utils
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.kfpops
@@ -59,12 +60,8 @@ class Pipelines(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Summary format is not supported for list pipelines, use get instead"
             )
-        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-        if not kfp_url:
-            raise mlrun.errors.MLRunNotFoundError(
-                "KubeFlow Pipelines is not configured"
-            )
-        kfp_client = kfp.Client(host=kfp_url)
+
+        kfp_client = self.initialize_kfp_client(namespace)
         if project != "*":
             run_dicts = []
             while page_token is not None:
@@ -102,6 +99,36 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
+    def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project: str):
+        _, _, project_pipeline_runs = self.list_pipelines(
+            db_session=db_session,
+            project=project,
+            format_=mlrun.common.schemas.PipelinesFormat.metadata_only,
+        )
+        kfp_client = self.initialize_kfp_client()
+
+        if project_pipeline_runs:
+            logger.debug(
+                "Detected pipeline runs for project, deleting them",
+                project=project,
+                pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
+            )
+
+        for pipeline_run in project_pipeline_runs:
+            try:
+                # delete pipeline run also terminates it if it is in progress
+                kfp_client._run_api.delete_run(pipeline_run["id"])
+            except Exception as exc:
+                # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
+                # so it won't fail the delete project operation. we will log the error and continue
+                logger.warning(
+                    "Failed to delete pipeline run",
+                    project=project,
+                    pipeline_run_id=pipeline_run["id"],
+                    exc_info=exc,
+                )
+        logger.debug("Finished deleting pipeline runs", project=project)
+
     def get_pipeline(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -110,12 +137,7 @@ class Pipelines(
         namespace: typing.Optional[str] = None,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.summary,
     ):
-        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-        if not kfp_url:
-            raise mlrun.errors.MLRunBadRequestError(
-                "KubeFlow Pipelines is not configured"
-            )
-        kfp_client = kfp.Client(host=kfp_url)
+        kfp_client = self.initialize_kfp_client(namespace)
         run = None
         try:
             api_run_detail = kfp_client.get_run(run_id)
@@ -176,12 +198,7 @@ class Pipelines(
         )
 
         try:
-            kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
-            if not kfp_url:
-                raise mlrun.errors.MLRunBadRequestError(
-                    "KubeFlow Pipelines is not configured"
-                )
-            kfp_client = kfp.Client(host=kfp_url)
+            kfp_client = self.initialize_kfp_client(namespace)
             experiment = kfp_client.create_experiment(name=experiment_name)
             run = kfp_client.run_pipeline(
                 experiment.id, run_name, pipeline_file.name, params=arguments
@@ -199,6 +216,15 @@ class Pipelines(
             pipeline_file.close()
 
         return run
+
+    @staticmethod
+    def initialize_kfp_client(namespace: typing.Optional[str] = None) -> kfp.Client:
+        kfp_url = mlrun.mlconf.resolve_kfp_url(namespace)
+        if not kfp_url:
+            raise mlrun.errors.MLRunNotFoundError(
+                "KubeFlow Pipelines is not configured"
+            )
+        return kfp.Client(host=kfp_url)
 
     def _format_runs(
         self,
@@ -265,7 +291,7 @@ class Pipelines(
                             _,
                             _,
                             _,
-                        ) = mlrun.utils.helpers.parse_versioned_object_uri(
+                        ) = mlrun.common.helpers.parse_versioned_object_uri(
                             function_url[len("db://") :]
                         )
                         if project:
@@ -291,7 +317,6 @@ class Pipelines(
         return None
 
     def resolve_project_from_pipeline(self, pipeline):
-
         workflow_manifest = json.loads(
             pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )

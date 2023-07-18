@@ -24,6 +24,7 @@ import pytest
 from kfp import dsl
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.utils.logger
 from mlrun.artifacts import Artifact
 from mlrun.model import EntrypointParam
@@ -479,6 +480,34 @@ class TestProject(TestMLRunSystem):
 
     def test_kfp_pipeline(self):
         self._test_new_pipeline("kfppipe", engine="kfp")
+
+    def test_kfp_runs_getting_deleted_on_project_deletion(self):
+        project_name = "kfppipedelete"
+        self.custom_project_names_to_delete.append(project_name)
+
+        project = self._create_project(project_name)
+        self._initialize_sleep_workflow(project)
+        project.run("main", engine="kfp")
+
+        db = mlrun.get_run_db()
+        project_pipeline_runs = db.list_pipelines(project=project_name)
+        # expecting to have pipeline run
+        assert (
+            project_pipeline_runs.runs
+        ), "no pipeline runs found for project, expected to have pipeline run"
+        # deleting project with deletion strategy cascade so it will delete any related resources ( pipelines as well )
+        db.delete_project(
+            name=project_name,
+            deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascade,
+        )
+        # create the project again ( using new_project, instead of get_or_create_project so it won't create project
+        # from project.yaml in the context that might contain project.yaml
+        mlrun.new_project(project_name)
+
+        project_pipeline_runs = db.list_pipelines(project=project_name)
+        assert (
+            not project_pipeline_runs.runs
+        ), "pipeline runs found for project after deletion, expected to be empty"
 
     def test_kfp_pipeline_with_resource_param_passed(self):
         project_name = "test-pipeline-with-resource-param"
@@ -946,29 +975,12 @@ class TestProject(TestMLRunSystem):
         # when pull_state mode is enabled it simulates the flow of wait_for_completion
         mlrun.mlconf.httpdb.logs.pipelines.pull_state.mode = pull_state_mode
 
-        code_path = str(self.assets_path / "sleep.py")
-        workflow_path = str(self.assets_path / "workflow.py")
-
-        project.set_function(
-            name="func-1",
-            func=code_path,
-            kind="job",
-            image="mlrun/mlrun",
-            handler="handler",
-        )
-        project.set_function(
-            name="func-2",
-            func=code_path,
-            kind="job",
-            image="mlrun/mlrun",
-            handler="handler",
-        )
-
         def _assert_workflow_status(workflow, status):
             assert workflow.state == status
 
-        # set and run a two-step workflow in the project
-        project.set_workflow("main", workflow_path)
+        self._initialize_sleep_workflow(project)
+
+        # run a two-step workflow in the project
         workflow = project.run("main", engine="kfp")
 
         mlrun.utils.retry_until_successful(
@@ -1072,3 +1084,22 @@ class TestProject(TestMLRunSystem):
         assert run_result.output("score")
 
         shutil.rmtree(project_dir, ignore_errors=True)
+
+    def _initialize_sleep_workflow(self, project: mlrun.projects.MlrunProject):
+        code_path = str(self.assets_path / "sleep.py")
+        workflow_path = str(self.assets_path / "workflow.py")
+        project.set_function(
+            name="func-1",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        project.set_function(
+            name="func-2",
+            func=code_path,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="handler",
+        )
+        project.set_workflow("main", workflow_path)

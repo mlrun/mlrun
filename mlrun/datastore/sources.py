@@ -427,6 +427,7 @@ class BigQuerySource(BaseSourceDriver):
         end_time=None,
         gcp_project: str = None,
         spark_options: dict = None,
+        **kwargs,
     ):
         if query and table:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -459,6 +460,7 @@ class BigQuerySource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def _get_credentials_string(self):
@@ -631,6 +633,7 @@ class SnowflakeSource(BaseSourceDriver):
         database: str = None,
         schema: str = None,
         warehouse: str = None,
+        **kwargs,
     ):
         attrs = {
             "query": query,
@@ -649,6 +652,7 @@ class SnowflakeSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def _get_password(self):
@@ -965,6 +969,7 @@ class SQLSource(BaseSourceDriver):
         spark_options: dict = None,
         time_fields: List[str] = None,
         parse_dates: List[str] = None,
+        **kwargs,
     ):
         """
         Reads SqlDB as input source for a flow.
@@ -1024,6 +1029,7 @@ class SQLSource(BaseSourceDriver):
             schedule=schedule,
             start_time=start_time,
             end_time=end_time,
+            **kwargs,
         )
 
     def to_dataframe(

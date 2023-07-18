@@ -131,7 +131,9 @@ class FeatureVectorSpec(ModelObj):
         self, relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]]
     ):
         self._relations = {}
+        print(relations)
         for fs_name, relation in relations.items():
+            print(relation)
             for col, ent in relation.items():
                 if isinstance(ent, str):
                     relation[col] = Entity(ent)

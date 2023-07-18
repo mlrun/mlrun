@@ -457,7 +457,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -1044,13 +1044,6 @@ class Config:
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
-
-    @property
-    def feature_store_flush_interval(self):
-        # Disable table cache when explicit ack is on
-        if self.httpdb.nuclio.explicit_ack == "enabled":
-            return None
-        return mlrun.mlconf.feature_store.flush_interval
 
 
 # Global configuration

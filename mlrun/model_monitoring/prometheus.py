@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import typing
 
 import prometheus_client
 
-from mlrun.common.model_monitoring import EventFieldType, PrometheusMetric
+from mlrun.common.schemas.model_monitoring import EventFieldType, PrometheusMetric
 
 # Memory path for Prometheus registry file
 _registry_path = "/tmp/prom-reg.txt"
@@ -113,7 +113,7 @@ def write_predictions_and_latency_metrics(
     :param latency:       Latency time (microsecond) in which the event has been processed through the model server.
     :param model_name:    Model name which will be used by Grafana for displaying the results by model.
     :param endpoint_type: Endpoint type that is represented by an int (possible values: 1,2,3) corresponding to the
-                          Enum class :py:class:`~mlrun.common.model_monitoring.EndpointType`.
+                          Enum class :py:class:`~mlrun.common.schemas.model_monitoring.EndpointType`.
     """
 
     # Increase the prediction counter by 1

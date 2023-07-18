@@ -177,7 +177,8 @@ async def submit_workflow(
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
-        resource_name=workflow_request.spec.name,
+        # If workflow spec has not passed need to create on same name:
+        resource_name=getattr(workflow_request.spec, "name", name),
         action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )

@@ -225,17 +225,24 @@ class TestFeatureStore(TestMLRunSystem):
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-        quotes_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # quotes_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         df = fstore.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
     def _get_offline_vector(
-        self, features, features_size, entity_timestamp_column, engine=None
+        self,
+        features,
+        features_size,
+        entity_timestamp_column,
+        engine=None,
+        join_graph=None,
     ):
-        vector = fstore.FeatureVector("myvector", features, "stock-quotes.xx")
+        vector = fstore.FeatureVector(
+            "myvector", features, "stock-quotes.xx", join_graph=join_graph
+        )
         resp = fstore.get_offline_features(
             vector,
             entity_rows=trades,
@@ -268,9 +275,9 @@ class TestFeatureStore(TestMLRunSystem):
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
-    def _get_online_features(self, features, features_size):
+    def _get_online_features(self, features, features_size, join_graph=None):
         # test real-time query
-        vector = fstore.FeatureVector("my-vec", features)
+        vector = fstore.FeatureVector("my-vec", features, join_graph=join_graph)
         with fstore.get_online_feature_service(vector) as svc:
             # check non existing column
             resp = svc.get([{"bb": "AAPL"}])
@@ -305,7 +312,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("entity_timestamp_column", [None, "time"])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_ingest_and_query(self, engine, entity_timestamp_column):
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_ingest_and_query(self, engine, entity_timestamp_column, with_graph):
 
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
@@ -324,16 +332,28 @@ class TestFeatureStore(TestMLRunSystem):
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
+        join_graph = None
+        if with_graph:
+            if entity_timestamp_column:
+                join_graph = (
+                    fstore.JoinGraph()
+                    .left("stock-quotes", asof_join=True)
+                    .inner("stocks")
+                )
+            else:
+                join_graph = fstore.JoinGraph().inner("stock-quotes").inner("stocks")
+
         # test fetch
         self._get_offline_vector(
             features,
             features_size,
             engine=engine,
             entity_timestamp_column=entity_timestamp_column,
+            join_graph=join_graph,
         )
 
         self._logger.debug("Get online feature vector")
-        self._get_online_features(features, features_size)
+        self._get_online_features(features, features_size, join_graph=join_graph)
 
     def test_get_offline_features_with_or_without_indexes(self):
         # ingest test data
@@ -1152,9 +1172,9 @@ class TestFeatureStore(TestMLRunSystem):
             options=fstore.InferOptions.default(),
         )
 
-        data_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # data_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         fstore.ingest(data_set, data, return_df=True)
 
         features = [
@@ -1601,7 +1621,7 @@ class TestFeatureStore(TestMLRunSystem):
             default_final_step="FeaturesetValidator",
         )
 
-        quotes_set.plot(with_targets=True)
+        # quotes_set.plot(with_targets=True)
 
         inf_out = fstore.preview(quotes_set, quotes)
         ing_out = fstore.ingest(quotes_set, quotes, return_df=True)
@@ -3479,6 +3499,7 @@ class TestFeatureStore(TestMLRunSystem):
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
+            how="right",
         )
 
         col_1 = ["name_employees", "name_departments"]
@@ -3571,18 +3592,23 @@ class TestFeatureStore(TestMLRunSystem):
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
-            relations={
-                "department_id": departments_set_entity,
-                "class_id": classes_set_entity,
-            },
         )
         mini_employees_set.set_targets()
         fstore.ingest(mini_employees_set, employees_with_class)
 
+        extra_relations = {
+            "mini-employees": {
+                "department_id": departments_set_entity,
+                "class_id": "c_id",
+            }
+        }
         features = ["employees.name"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3611,7 +3637,10 @@ class TestFeatureStore(TestMLRunSystem):
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3635,7 +3664,10 @@ class TestFeatureStore(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector(
-            "man-vec", features, description="Employees feature vector"
+            "man-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3659,7 +3691,10 @@ class TestFeatureStore(TestMLRunSystem):
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
-            "mini-emp-vec", features, description="Employees feature vector"
+            "mini-emp-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3681,9 +3716,19 @@ class TestFeatureStore(TestMLRunSystem):
             "mini-employees.name as mini_name",
             "classes.name as name_cls",
         ]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees")
+            .inner(departments_set)
+            .inner("mini-employees")
+            .right("classes")
+        )
 
         vector = fstore.FeatureVector(
-            "four-vec", features, description="Employees feature vector"
+            "four-vec",
+            features,
+            join_graph=join_graph,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 

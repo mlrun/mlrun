@@ -35,7 +35,6 @@ from ..datastore.targets import (
     validate_target_placement,
 )
 from ..features import Entity, Feature
-from .feature_vector import JoinOperand
 from ..model import (
     DataSource,
     DataTarget,
@@ -318,7 +317,7 @@ def emit_policy_to_dict(policy: EmitPolicy):
     return struct
 
 
-class FeatureSet(JoinOperand):
+class FeatureSet(ModelObj):
     """Feature set object, defines a set of features and their data pipeline"""
 
     kind = mlrun.common.schemas.ObjectKind.feature_set.value
@@ -355,7 +354,6 @@ class FeatureSet(JoinOperand):
         :param passthrough:   if true, ingest will skip offline targets, and get_offline_features will read
                               directly from source
         """
-        super().__init__(name)
         self._spec: FeatureSetSpec = None
         self._metadata = None
         self._status = None

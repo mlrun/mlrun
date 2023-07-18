@@ -95,6 +95,7 @@ def test_requirement_specifiers_convention():
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {"~=2.4.2"},
         "storey": {"~=1.4.4"},
+        "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
         "sphinx": {"~=4.3.0"},

@@ -3181,26 +3181,16 @@ class HTTPRunDB(RunDBInterface):
         # In order to remove secrets from project we need to wait for the background task to end:
         if secrets and not save_secrets:
 
-            def _wait_for_background_task_to_end(task):
-                task = self.get_project_background_task(
-                    project=name, name=task.metadata.name
-                )
-                state = task.status.state
+            def _wait_for_background_task_to_end(bg_name):
+                bg_task = self.get_project_background_task(project=name, name=bg_name)
                 if (
-                    state
+                    bg_task.status.state
                     not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
                 ):
                     raise Exception(
-                        f"Background task not in terminal state. State: {state}"
+                        f"Background task not in terminal state. State: {bg_task.status.state}"
                     )
-                if state == mlrun.common.schemas.BackgroundTaskState.failed:
-                    logger.error("Load project task failed, deleting project")
-                    response = self.delete_project(
-                        name, mlrun.common.schemas.DeletionStrategy.cascade
-                    )
-                    if response.status_code != http.HTTPStatus.ACCEPTED:
-                        logger.error("Failed to delete project")
-                return task
+                return bg_task
 
             bg_task = mlrun.utils.helpers.retry_until_successful(
                 backoff=self._wait_for_project_terminal_state_retry_interval,
@@ -3208,8 +3198,16 @@ class HTTPRunDB(RunDBInterface):
                 logger=logger,
                 verbose=False,
                 _function=_wait_for_background_task_to_end,
-                task=bg_task,
+                bg_name=bg_task.metadata.name,
             )
+
+            if bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
+                logger.error("Load project task failed, deleting project")
+                response = self.delete_project(
+                    name, mlrun.common.schemas.DeletionStrategy.cascade
+                )
+                if response.status_code != http.HTTPStatus.ACCEPTED:
+                    logger.error("Failed to delete project")
 
             self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
 

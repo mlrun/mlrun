@@ -42,6 +42,8 @@ class TestEventClient:
         k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
         iguazio_version: str,
     ):
+        # since auth secrets are internal we don't emit events when they are created/updated/deleted,
+        # so we just emit from the client for testing purposes
         self._initialize_and_mock_client(monkeypatch, iguazio_version)
 
         username = "some-username"

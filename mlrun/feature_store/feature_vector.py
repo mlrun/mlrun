@@ -201,149 +201,6 @@ class FeatureVectorStatus(ModelObj):
         self._features = ObjectList.from_list(Feature, features)
 
 
-# class _JoinOperand(ModelObj):
-#     # can be the feature set class himself
-#     def __init__(
-#             self,
-#             name: str,
-#     ):
-#         """
-#
-#         :param name:
-#         """
-#         self.name = name
-#         self._steps: ObjectList = None
-#         self._feature_sets = None
-#
-#     def _join_operands(self, other_operand, join_type, asof_join=False):
-#         first_key_num = len(self._steps.keys()) if self._steps else 0
-#         left_last_step_name, left_all_feature_sets = (
-#             self.last_step_name,
-#             self.all_feature_sets_names,
-#         )
-#         if other_operand.steps:
-#             # append all the other operand steps to the current operand steps.
-#             all_new_key_names = [
-#                 f"step_{i}"
-#                 for i in range(
-#                     first_key_num, first_key_num + len(other_operand.steps.keys())
-#                 )
-#             ]
-#             if self.steps:
-#                 rename_dict = dict(zip(other_operand.steps.keys(), all_new_key_names))
-#                 for key, step in other_operand.steps.items():
-#                     step.rename_mentioned_steps(rename_dict)
-#                     self.steps.update(step)
-#                     first_key_num += 1
-#             else:
-#                 self.steps = list(other_operand.steps._children.values())
-#
-#         if join_type == "start" and other_operand.steps is None:
-#             join_type = "get"
-#         elif join_type == "start":
-#             # no need to add a new step because
-#             # we're just connecting all the existing steps to the graph.
-#             return self
-#         elif self.name == "join_graph" and self.steps is None:
-#             # used inner/outer/.. instanced of start
-#             if other_operand.steps is None:
-#                 join_type = "get"
-#             else:
-#                 return self
-#
-#         # create_new_step
-#         new_step = _JoinStep(
-#             f"step_{first_key_num}",
-#             left_last_step_name if join_type != "get" else "",
-#             other_operand.last_step_name,
-#             left_all_feature_sets if join_type != "get" else [],
-#             other_operand.all_feature_sets_names,
-#             join_type,
-#         )
-#
-#         if self.steps is not None:
-#             self.steps.update(new_step)
-#         else:
-#             self.steps = [new_step]
-#         return self
-#
-#     def inner(self, other_operand=None):
-#         """
-#
-#         :param other_operand:
-#         :return:
-#         """
-#         return self._join_operands(other_operand, "inner")
-#
-#     def outer(self, other_operand=None):
-#         """
-#
-#         :param other_operand:
-#         :return:
-#         """
-#         return self._join_operands(other_operand, "outer")
-#
-#     def left(self, other_operand=None, asof_join=False):
-#         """
-#
-#         :param asof_join:
-#         :param other_operand:
-#         :return:
-#         """
-#         return self._join_operands(other_operand, "left")
-#
-#     def right(self, other_operand=None, asof_join=False):
-#         """
-#
-#         :param other_operand:
-#         :return:
-#         """
-#         return self._join_operands(other_operand, "right")
-#
-#     @property
-#     def all_feature_sets_names(self):
-#         """
-#
-#         :return:
-#         """
-#         if self._steps:
-#             return (
-#                 self._steps[-1].left_feature_set_names
-#                 + self._steps[-1].right_feature_set_names
-#             )
-#         else:
-#             return self.name
-#
-#     @property
-#     def last_step_name(self):
-#         """
-#
-#         :return:
-#         """
-#         if self._steps:
-#             return self._steps[-1].name
-#         else:
-#             return self.name
-#
-#     @property
-#     def steps(self):
-#         """
-#
-#         :return:
-#         """
-#         """child (workflow) steps"""
-#         return self._steps
-#
-#     @steps.setter
-#     def steps(self, steps):
-#         """
-#
-#         :param steps:
-#         :return:
-#         """
-#         self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
-
-
 class JoinGraph(ModelObj):
     default_graph_name = "$__join_graph_fv__$"
     _dict_fields = ["name", "first_feature_set", "steps"]
@@ -412,23 +269,6 @@ class JoinGraph(ModelObj):
             self.last_step_name,
             self.all_feature_sets_names,
         )
-        # if other_operand.steps:
-        #     # append all the other operand steps to the current operand steps.
-        #     all_new_key_names = [
-        #         f"step_{i}"
-        #         for i in range(
-        #             first_key_num, first_key_num + len(other_operand.steps.keys())
-        #         )
-        #     ]
-        #     if self.steps:
-        #         rename_dict = dict(zip(other_operand.steps.keys(), all_new_key_names))
-        #         for key, step in other_operand.steps.items():
-        #             step.rename_mentioned_steps(rename_dict)
-        #             self.steps.update(step)
-        #             first_key_num += 1
-        #     else:
-        #         self.steps = list(other_operand.steps._children.values())
-
         if join_type == "start" and self.steps is None:
             join_type = "get"
         elif join_type == "start" and self.steps is not None:
@@ -615,18 +455,6 @@ class _JoinStep(ModelObj):
             return curr_col_relation_list, list(right_feature_set_entity_list.keys())
 
         return [], []
-
-    def rename_mentioned_steps(self, rename_dict: typing.Dict[str, str]):
-        """
-
-        :param rename_dict:
-        :return:
-        """
-        self.name = rename_dict.get(self.name)
-        self.left_step_name = rename_dict.get(self.left_step_name, self.left_step_name)
-        self.right_step_name = rename_dict.get(
-            self.right_step_name, self.right_step_name
-        )
 
 
 class FeatureVector(ModelObj):

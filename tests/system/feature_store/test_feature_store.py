@@ -3867,7 +3867,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_relation_asof_join(self, with_indexes, engine):
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_relation_asof_join(self, with_indexes, engine, with_graph):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
@@ -3943,8 +3944,18 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["employees.name as n", "departments.name as n2"]
 
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees").left(
+                "departments", asof_join=True
+            )
+            if with_graph
+            else None
+        )
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            join_graph=join_graph,
         )
         vector.save()
         resp_1 = fstore.get_offline_features(

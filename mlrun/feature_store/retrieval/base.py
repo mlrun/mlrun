@@ -16,7 +16,6 @@ import abc
 import typing
 from datetime import datetime
 
-import dask.dataframe as dd
 import pandas as pd
 
 import mlrun

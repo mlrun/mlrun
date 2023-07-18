@@ -109,7 +109,7 @@ and parameters that provide high availability, using a non-default configuration
 Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
 entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
       
-See the [ack_window_size API](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger).
+See the {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`.
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2:

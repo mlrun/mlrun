@@ -17,3 +17,5 @@ logging_datasets
 ingest-data-fs
 ../feature-store/using-spark-engine
 ```
+
+See also {ref}`ci-cd-automate`.

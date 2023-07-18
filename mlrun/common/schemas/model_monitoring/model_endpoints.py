@@ -16,13 +16,21 @@
 import enum
 import json
 import typing
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
-from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
+
+from ..object import ObjectKind, ObjectSpec, ObjectStatus
+from .constants import (
+    EndpointType,
+    EventFieldType,
+    EventKeyMetrics,
+    EventLiveStats,
+    ModelMonitoringMode,
+)
 
 
 class ModelMonitoringStoreKinds:
@@ -49,7 +57,7 @@ class ModelEndpointMetadata(BaseModel):
         """
         new_object = cls()
         if json_parse_values is None:
-            json_parse_values = [mlrun.common.model_monitoring.EventFieldType.LABELS]
+            json_parse_values = [EventFieldType.LABELS]
 
         return _mapping_attributes(
             base_model=new_object,
@@ -69,9 +77,7 @@ class ModelEndpointSpec(ObjectSpec):
     algorithm: Optional[str] = ""
     monitor_configuration: Optional[dict] = {}
     active: Optional[bool] = True
-    monitoring_mode: Optional[
-        mlrun.common.model_monitoring.ModelMonitoringMode
-    ] = mlrun.common.model_monitoring.ModelMonitoringMode.disabled.value
+    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled.value
 
     @classmethod
     def from_flat_dict(cls, endpoint_dict: dict, json_parse_values: typing.List = None):
@@ -84,9 +90,9 @@ class ModelEndpointSpec(ObjectSpec):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                mlrun.common.model_monitoring.EventFieldType.FEATURE_NAMES,
-                mlrun.common.model_monitoring.EventFieldType.LABEL_NAMES,
-                mlrun.common.model_monitoring.EventFieldType.MONITOR_CONFIGURATION,
+                EventFieldType.FEATURE_NAMES,
+                EventFieldType.LABEL_NAMES,
+                EventFieldType.MONITOR_CONFIGURATION,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -149,17 +155,15 @@ class ModelEndpointStatus(ObjectStatus):
     drift_status: Optional[str] = ""
     drift_measures: Optional[dict] = {}
     metrics: Optional[Dict[str, Dict[str, Any]]] = {
-        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC: {
-            mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-            mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+        EventKeyMetrics.GENERIC: {
+            EventLiveStats.LATENCY_AVG_1H: 0,
+            EventLiveStats.PREDICTIONS_PER_SECOND: 0,
         }
     }
     features: Optional[List[Features]] = []
     children: Optional[List[str]] = []
     children_uids: Optional[List[str]] = []
-    endpoint_type: Optional[
-        mlrun.common.model_monitoring.EndpointType
-    ] = mlrun.common.model_monitoring.EndpointType.NODE_EP.value
+    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
 
@@ -177,13 +181,13 @@ class ModelEndpointStatus(ObjectStatus):
         new_object = cls()
         if json_parse_values is None:
             json_parse_values = [
-                mlrun.common.model_monitoring.EventFieldType.FEATURE_STATS,
-                mlrun.common.model_monitoring.EventFieldType.CURRENT_STATS,
-                mlrun.common.model_monitoring.EventFieldType.DRIFT_MEASURES,
-                mlrun.common.model_monitoring.EventFieldType.METRICS,
-                mlrun.common.model_monitoring.EventFieldType.CHILDREN,
-                mlrun.common.model_monitoring.EventFieldType.CHILDREN_UIDS,
-                mlrun.common.model_monitoring.EventFieldType.ENDPOINT_TYPE,
+                EventFieldType.FEATURE_STATS,
+                EventFieldType.CURRENT_STATS,
+                EventFieldType.DRIFT_MEASURES,
+                EventFieldType.METRICS,
+                EventFieldType.CHILDREN,
+                EventFieldType.CHILDREN_UIDS,
+                EventFieldType.ENDPOINT_TYPE,
             ]
         return _mapping_attributes(
             base_model=new_object,
@@ -236,17 +240,17 @@ class ModelEndpoint(BaseModel):
                 else:
                     flatten_dict[key] = current_value
 
-        if mlrun.common.model_monitoring.EventFieldType.METRICS not in flatten_dict:
+        if EventFieldType.METRICS not in flatten_dict:
             # Initialize metrics dictionary
-            flatten_dict[mlrun.common.model_monitoring.EventFieldType.METRICS] = {
-                mlrun.common.model_monitoring.EventKeyMetrics.GENERIC: {
-                    mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H: 0,
-                    mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND: 0,
+            flatten_dict[EventFieldType.METRICS] = {
+                EventKeyMetrics.GENERIC: {
+                    EventLiveStats.LATENCY_AVG_1H: 0,
+                    EventLiveStats.PREDICTIONS_PER_SECOND: 0,
                 }
             }
 
         # Remove the features from the dictionary as this field will be filled only within the feature analysis process
-        flatten_dict.pop(mlrun.common.model_monitoring.EventFieldType.FEATURES, None)
+        flatten_dict.pop(EventFieldType.FEATURES, None)
         return flatten_dict
 
     @classmethod
@@ -266,43 +270,6 @@ class ModelEndpoint(BaseModel):
 
 class ModelEndpointList(BaseModel):
     endpoints: List[ModelEndpoint] = []
-
-
-class GrafanaColumn(BaseModel):
-    text: str
-    type: str
-
-
-class GrafanaNumberColumn(GrafanaColumn):
-    text: str
-    type: str = "number"
-
-
-class GrafanaStringColumn(GrafanaColumn):
-    text: str
-    type: str = "string"
-
-
-class GrafanaTable(BaseModel):
-    columns: List[GrafanaColumn]
-    rows: List[List[Optional[Union[float, int, str]]]] = []
-    type: str = "table"
-
-    def add_row(self, *args):
-        self.rows.append(list(args))
-
-
-class GrafanaDataPoint(BaseModel):
-    value: float
-    timestamp: int  # Unix timestamp in milliseconds
-
-
-class GrafanaTimeSeriesTarget(BaseModel):
-    target: str
-    datapoints: List[Tuple[float, int]] = []
-
-    def add_data_point(self, data_point: GrafanaDataPoint):
-        self.datapoints.append((data_point.value, data_point.timestamp))
 
 
 def _mapping_attributes(

@@ -36,6 +36,7 @@ import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
+from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
 from .datastore import store_manager
 from .db import get_or_set_dburl, get_run_db
@@ -64,7 +65,6 @@ from .utils import (
     get_in,
     logger,
     new_pipe_metadata,
-    parse_versioned_object_uri,
     retry_until_successful,
     run_keys,
     update_in,

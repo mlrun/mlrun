@@ -25,6 +25,7 @@ import sqlalchemy.orm
 
 import mlrun
 import mlrun.api.api.utils
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.kfpops
@@ -290,7 +291,7 @@ class Pipelines(
                             _,
                             _,
                             _,
-                        ) = mlrun.utils.helpers.parse_versioned_object_uri(
+                        ) = mlrun.common.helpers.parse_versioned_object_uri(
                             function_url[len("db://") :]
                         )
                         if project:
@@ -316,7 +317,6 @@ class Pipelines(
         return None
 
     def resolve_project_from_pipeline(self, pipeline):
-
         workflow_manifest = json.loads(
             pipeline.get("pipeline_spec", {}).get("workflow_manifest") or "{}"
         )

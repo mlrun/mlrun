@@ -14,7 +14,7 @@
 #
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.session import create_session
+from mlrun.common.db.sql_session import create_session
 from mlrun.config import config
 from mlrun.utils import logger
 

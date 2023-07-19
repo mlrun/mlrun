@@ -273,7 +273,7 @@ class FeatureSetStatus(ModelObj):
         :param run_uri: last run used for ingestion
         """
 
-        self.state = state or "created"
+        self.state = state or mlrun.common.schemas.object.ObjectStatusState.CREATED
         self._targets: ObjectList = None
         self.targets = targets or []
         self.stats = stats or {}

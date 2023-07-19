@@ -261,6 +261,13 @@ class HTTPRunDB(RunDBInterface):
         return f"{prefix}/{project}/{uid}"
 
     def _is_retry_on_post_allowed(self, method, path: str):
+        """
+        Check if the given path is allowed to be retried on POST method
+        :param method:  used to verify that the method is POST since if there is no session initialized there is no
+                        need to initialize it with retry policy for POST when the method is not POST
+        :param path:    the path to check
+        :return:        True if the path is allowed to be retried on POST method and method is POST, False otherwise
+        """
         return method == "POST" and any(
             re.match(regex, path) for regex in self.RETRIABLE_POST_PATHS
         )

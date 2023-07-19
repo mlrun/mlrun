@@ -102,8 +102,8 @@ class HTTPRunDB(RunDBInterface):
     # by default we don't retry on POST request as they are usually not idempotent
     # here is a list of identified POST requests that are idempotent ('store' vs 'create') and can be retried
     RETRIABLE_POST_PATHS = [
-        r"projects\/*.\/artifacts\/*.\/*.",
-        r"run\/*.\/*.",
+        r"\/?projects\/.*\/artifacts\/.*\/.*",
+        r"\/?run\/.*\/.*",
     ]
 
     def __init__(self, base_url, user="", password="", token=""):
@@ -224,7 +224,7 @@ class HTTPRunDB(RunDBInterface):
         # retry_on_post is not None means that method is POST, so we need to update the session
         # with the appropriate retry policy
         if not self.session or retry_on_post is not None:
-            self.session = self._init_session(retry_on_post)
+            self.session = self._init_session(retry_on_post or False)
 
         try:
             response = self.session.request(

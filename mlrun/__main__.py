@@ -147,9 +147,6 @@ def main():
 @click.option(
     "--handler", default="", help="invoke function handler inside the code file"
 )
-@click.option(
-    "--internal-handler", default="", help="invoke function handler inside the code file to in external environment"
-)
 @click.option("--mode", help="special run mode ('pass' for using the command as is)")
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
@@ -213,7 +210,6 @@ def run(
     func_url,
     task,
     handler,
-    internal_handler,
     mode,
     schedule,
     from_env,

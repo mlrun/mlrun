@@ -397,11 +397,18 @@ class _JoinStep(ModelObj):
         self.left_keys = []
         self.right_keys = []
 
-        if self.join_type == JoinGraph.first_join_type or not self.left_feature_set_names:
+        if (
+            self.join_type == JoinGraph.first_join_type
+            or not self.left_feature_set_names
+        ):
             self.left_keys = self.right_keys = list(
                 feature_set_objects[self.right_feature_set_name].spec.entities.keys()
             )
-            self.join_type = "inner" if self.join_type == JoinGraph.first_join_type else self.join_type
+            self.join_type = (
+                "inner"
+                if self.join_type == JoinGraph.first_join_type
+                else self.join_type
+            )
             return
 
         for left_fset in self.left_feature_set_names:

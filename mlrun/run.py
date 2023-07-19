@@ -859,6 +859,12 @@ def code_to_function(
         kind=subkind,
         ignored_tags=ignored_tags,
     )
+    spec["spec"]["env"].append(
+        {
+            "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
+            "value": mlrun.mlconf.httpdb.nuclio.explicit_ack == "enabled",
+        }
+    )
     spec_kind = get_in(spec, "kind", "")
     if not kind and spec_kind not in ["", "Function"]:
         kind = spec_kind.lower()

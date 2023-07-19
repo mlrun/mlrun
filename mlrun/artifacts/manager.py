@@ -64,7 +64,7 @@ artifact_types = {
     "bokeh": BokehArtifact,
 }
 
-# TODO - Remove this when legacy types are deleted in 1.5.0
+# TODO - Remove this when legacy types are deleted in 1.6.0
 legacy_artifact_types = {
     "": LegacyArtifact,
     "dir": LegacyDirArtifact,

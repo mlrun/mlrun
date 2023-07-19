@@ -424,7 +424,6 @@ class DatabricksRuntime(KubejobRuntime):
         return _databricks_code_addition
 
     def _pre_run(self, runspec: RunObject, execution):
-        runspec.spec.internal_handler = runspec.spec.handler
         runspec.spec.parameters['internal_handler'] = runspec.spec.handler
         runspec.spec.handler = 'print_test'
         print(f'pre run handler: {runspec.spec.handler}')

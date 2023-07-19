@@ -201,6 +201,10 @@ class FeatureVectorStatus(ModelObj):
 
 
 class JoinGraph(ModelObj):
+    """
+    explain here about the class
+    """
+
     default_graph_name = "$__join_graph_fv__$"
     _dict_fields = ["name", "first_feature_set", "steps"]
 
@@ -210,9 +214,23 @@ class JoinGraph(ModelObj):
         first_feature_set: Union[str, FeatureSet] = None,
     ):
         """
+        JoinGraph is a class that represents a graph of data joins between feature sets. It allows users to define
+        data joins step by step, specifying the join type for each step. The graph can be used to build a sequence of
+        joins that will be executed in order, allowing the creation of complex join operations between feature sets.
 
-        :param name:
-        :param first_feature_set:
+
+        Example:
+        # Create a new JoinGraph and add steps for joining feature sets.
+        join_graph = JoinGraph(name="my_join_graph", first_feature_set="featureset1")
+        join_graph.inner("featureset2")
+        join_graph.left("featureset3", asof_join=True)
+
+
+        :param name:                (str, optional) The name of the join graph. If not provided,
+                                    a default name will be used.
+        :param first_feature_set:   (str or FeatureSet, optional) The first feature set to join. It can be
+                                    specified either as a string representing the name of the feature set or as a
+                                    FeatureSet object.
         """
         self.name = name or self.default_graph_name
         self._steps: ObjectList = None
@@ -222,35 +240,41 @@ class JoinGraph(ModelObj):
 
     def inner(self, other_operand: typing.Union[str, FeatureSet]):
         """
+        Specifies an inner join with the given feature set
 
-        :param other_operand:
-        :return:
+        :param other_operand:       (str or FeatureSet) The name of the feature set or a FeatureSet object to join with.
+
+        :return:                    JoinGraph: The updated JoinGraph object with the specified inner join.
         """
         return self._join_operands(other_operand, "inner")
 
     def outer(self, other_operand: typing.Union[str, FeatureSet]):
         """
+        Specifies an outer join with the given feature set
 
-        :param other_operand:
-        :return:
+        :param other_operand:       (str or FeatureSet) The name of the feature set or a FeatureSet object to join with.
+        :return:                    JoinGraph: The updated JoinGraph object with the specified outer join.
         """
         return self._join_operands(other_operand, "outer")
 
     def left(self, other_operand: typing.Union[str, FeatureSet], asof_join):
         """
+        Specifies a left join with the given feature set
 
-        :param asof_join:
-        :param other_operand:
-        :return:
+        :param other_operand:       (str or FeatureSet) The name of the feature set or a FeatureSet object to join with.
+        :param asof_join:           (bool) A flag indicating whether to perform an as-of join.
+
+        :return:                    JoinGraph: The updated JoinGraph object with the specified left join.
         """
         return self._join_operands(other_operand, "left", asof_join=asof_join)
 
     def right(self, other_operand: typing.Union[str, FeatureSet]):
         """
+        Specifies a right join with the given feature set
 
-        :param asof_join:
-        :param other_operand:
-        :return:
+        :param other_operand:       (str or FeatureSet) The name of the feature set or a FeatureSet object to join with.
+
+        :return:                    JoinGraph: The updated JoinGraph object with the specified right join.
         """
         return self._join_operands(other_operand, "right")
 
@@ -297,11 +321,6 @@ class JoinGraph(ModelObj):
         return self
 
     def _start(self, other_operand: typing.Union[str, FeatureSet]):
-        """
-
-        :param other_operand:
-        :return:
-        """
         return self._join_operands(other_operand, "start")
 
     def _init_all_join_keys(self, feature_set_objects, vector):
@@ -311,8 +330,9 @@ class JoinGraph(ModelObj):
     @property
     def all_feature_sets_names(self):
         """
+         Returns a list of all feature set names included in the join graph.
 
-        :return:
+        :return:                    List[str]: A list of feature set names.
         """
         if self._steps:
             return self._steps[-1].left_feature_set_names + [
@@ -324,8 +344,9 @@ class JoinGraph(ModelObj):
     @property
     def last_step_name(self):
         """
+        Returns the name of the last step in the join graph.
 
-        :return:
+        :return:                    str: The name of the last step.
         """
         if self._steps:
             return self._steps[-1].name
@@ -335,18 +356,18 @@ class JoinGraph(ModelObj):
     @property
     def steps(self):
         """
-
-        :return:
+        Returns the list of join steps as ObjectList, which can be used to iterate over the steps
+        or access the properties of each step.
+        :return:                    ObjectList: The list of join steps.
         """
-        """child (workflow) steps"""
         return self._steps
 
     @steps.setter
     def steps(self, steps):
         """
+         Setter for the steps property. It allows updating the join steps.
 
-        :param steps:
-        :return:
+        :param steps:               (List[_JoinStep]) The list of join steps.
         """
         self._steps = ObjectList.from_list(child_class=_JoinStep, children=steps)
 
@@ -362,16 +383,6 @@ class _JoinStep(ModelObj):
         join_type: str = "inner",
         asof_join: bool = False,
     ):
-        """
-
-        :param name:
-        :param left_step_name:
-        :param right_step_name:
-        :param left_feature_set_names:
-        :param right_feature_set_name:
-        :param join_type:
-        :param asof_join
-        """
         self.name = name
         self.left_step_name = left_step_name
         self.right_step_name = right_step_name
@@ -392,12 +403,6 @@ class _JoinStep(ModelObj):
         feature_set_objects: ObjectList,
         vector,
     ):
-        """
-
-        :param feature_set_objects:
-        :param vector:
-        :return:
-        """
         self.left_keys = []
         self.right_keys = []
 
@@ -471,7 +476,6 @@ class FeatureVector(ModelObj):
         with_indexes=None,
         join_graph: JoinGraph = None,
         relations: typing.Dict[str, typing.Dict[str, Union[Entity, str]]] = None,
-        update_relation: bool = False,  # for future use
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -494,9 +498,18 @@ class FeatureVector(ModelObj):
         :param label_feature:  feature name to be used as label data
         :param description:    text description of the vector
         :param with_indexes:   whether to keep the entity and timestamp columns in the response
-        :param join_graph
-        :param relations:
-        :param update_relation: for future use
+        :param join_graph:     An optional JoinGraph object representing the graph of data joins
+                               between feature sets for this feature vector, specified the order and the join types.
+        :param relations:      {<feature_set name>: {<column_name>: <other entity object/name>, ...}...}
+                               An optional dictionary specifying the relations between feature sets in the
+                               feature vector. The keys of the dictionary are feature set names, and the values
+                               are dictionaries where the keys represent column names(of the feature set),
+                               and the values represent the target entities to join with.
+                               The relations provided here will take precedence over the relations that were specified
+                               on the feature sets themselves. In case a specific feature set is not mentioned as a key
+                               here, the function will fall back to using the default relations defined in the
+                               feature set.
+
         """
         self._spec: FeatureVectorSpec = None
         self._metadata = None

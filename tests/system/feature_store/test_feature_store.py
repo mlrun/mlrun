@@ -2801,12 +2801,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert run.output("uri") == vector.uri
 
     def test_two_ingests(self):
-        df1 = pd.DataFrame(
-            {"name": ["AB", "CD"], "ent_bool": [True, False], "some_data": [10, 20]}
-        )
-        set1 = fstore.FeatureSet(
-            "set1", entities=[Entity("name"), Entity("ent_bool")], engine="pandas"
-        )
+        df1 = pd.DataFrame({"name": ["AB", "CD"], "some_data": [10, 20]})
+        set1 = fstore.FeatureSet("set1", entities=[Entity("name")], engine="pandas")
         fstore.ingest(set1, df1)
 
         df2 = pd.DataFrame({"name": ["AB", "CD"], "some_data": ["Paris", "Tel Aviv"]})

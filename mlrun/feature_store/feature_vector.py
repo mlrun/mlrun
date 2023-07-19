@@ -206,6 +206,7 @@ class JoinGraph(ModelObj):
     """
 
     default_graph_name = "$__join_graph_fv__$"
+    first_join_type = "first"
     _dict_fields = ["name", "first_feature_set", "steps"]
 
     def __init__(
@@ -292,23 +293,13 @@ class JoinGraph(ModelObj):
             self.last_step_name,
             self.all_feature_sets_names,
         )
-        if join_type == "start" and self.steps is None:
-            join_type = "get"
-        elif join_type == "start" and self.steps is not None:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Have to specify a join type because the graph already contains"
-                f" {self.all_feature_sets_names}"
-            )
-        elif self.steps is None:
-            # used inner/outer/.. instanced of start
-            join_type = "get"
 
         # create_new_step
         new_step = _JoinStep(
-            f"step_{first_key_num}" if join_type != "get" else other_operand,
-            left_last_step_name if join_type != "get" else "",
+            f"step_{first_key_num}",
+            left_last_step_name if join_type != JoinGraph.first_join_type else "",
             other_operand,
-            left_all_feature_sets if join_type != "get" else [],
+            left_all_feature_sets if join_type != JoinGraph.first_join_type else [],
             other_operand,
             join_type,
             asof_join,
@@ -321,7 +312,7 @@ class JoinGraph(ModelObj):
         return self
 
     def _start(self, other_operand: typing.Union[str, FeatureSet]):
-        return self._join_operands(other_operand, "start")
+        return self._join_operands(other_operand, JoinGraph.first_join_type)
 
     def _init_all_join_keys(self, feature_set_objects, vector):
         for step in self.steps:
@@ -406,11 +397,11 @@ class _JoinStep(ModelObj):
         self.left_keys = []
         self.right_keys = []
 
-        if self.join_type == "get" or not self.left_feature_set_names:
+        if self.join_type == JoinGraph.first_join_type or not self.left_feature_set_names:
             self.left_keys = self.right_keys = list(
                 feature_set_objects[self.right_feature_set_name].spec.entities.keys()
             )
-            self.join_type = "inner" if self.join_type == "get" else self.join_type
+            self.join_type = "inner" if self.join_type == JoinGraph.first_join_type else self.join_type
             return
 
         for left_fset in self.left_feature_set_names:

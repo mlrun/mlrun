@@ -683,7 +683,6 @@ class RunSpec(ModelObj):
             param_file=None,
             selector=None,
             handler=None,
-            internal_handler=None,
             inputs=None,
             outputs=None,
             input_path=None,
@@ -725,7 +724,6 @@ class RunSpec(ModelObj):
         self.strategy = strategy
         self.selector = selector
         self.handler = handler
-        self.internal_handler = internal_handler
         self.input_path = input_path
         self.output_path = output_path
         self.function = function

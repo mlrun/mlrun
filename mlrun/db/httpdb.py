@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import re
 import tempfile
 import time
 import traceback
@@ -98,6 +99,12 @@ class HTTPRunDB(RunDBInterface):
     """
 
     kind = "http"
+    # by default we don't retry on POST request as they are usually not idempotent
+    # here is a list of identified POST requests that are idempotent ('store' vs 'create') and can be retried
+    RETRIABLE_POST_PATHS = [
+        r"projects\/*.\/artifacts\/*.\/*.",
+        r"run\/*.\/*.",
+    ]
 
     def __init__(self, base_url, user="", password="", token=""):
         self.base_url = base_url
@@ -210,8 +217,14 @@ class HTTPRunDB(RunDBInterface):
                     if isinstance(dict_[key], enum.Enum):
                         dict_[key] = dict_[key].value
 
-        if not self.session:
-            self.session = self._init_session()
+        retry_on_post = None
+        if method == "POST":
+            retry_on_post = self._is_retry_on_post_allowed(path)
+
+        # retry_on_post is not None means that method is POST, so we need to update the session
+        # with the appropriate retry policy
+        if not self.session or retry_on_post is not None:
+            self.session = self._init_session(retry_on_post)
 
         try:
             response = self.session.request(
@@ -239,15 +252,19 @@ class HTTPRunDB(RunDBInterface):
 
         return response
 
-    def _init_session(self):
+    def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
-            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            retry_on_post=retry_on_post,
         )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
         return f"{prefix}/{project}/{uid}"
+
+    def _is_retry_on_post_allowed(self, path: str):
+        return any(re.match(regex, path) for regex in self.RETRIABLE_POST_PATHS)
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.

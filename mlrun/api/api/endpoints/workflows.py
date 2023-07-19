@@ -186,7 +186,7 @@ async def submit_workflow(
     except Exception as error:
         logger.error(traceback.format_exc())
         log_and_raise(
-            reason=f"Workflow failed",
+            reason="Workflow failed",
             workflow_name=workflow_spec.name,
             workflow_action=workflow_action,
             error=error,

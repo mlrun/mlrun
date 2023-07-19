@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections.abc
 import copy
 import traceback
 import typing
@@ -32,84 +33,10 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.projects.pipelines
-from mlrun.api.api.utils import log_and_raise
+from mlrun.api.api.utils import log_and_raise, parse_reference
 from mlrun.utils.helpers import logger
 
 router = fastapi.APIRouter()
-
-
-def _get_workflow_by_name(
-    project: mlrun.common.schemas.Project, name: str
-) -> typing.Optional[Dict]:
-    """
-    Getting workflow from project
-
-    :param project:     MLRun project
-    :param name:        workflow name
-
-    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
-    """
-    for workflow in project.spec.workflows:
-        if workflow["name"] == name:
-            return workflow
-    log_and_raise(
-        reason=f"workflow {name} not found in project",
-    )
-
-
-def _fill_workflow_missing_fields_from_project(
-    project: mlrun.common.schemas.Project,
-    name: str,
-    spec: mlrun.common.schemas.WorkflowSpec,
-    arguments: typing.Dict,
-) -> mlrun.common.schemas.WorkflowSpec:
-    """
-    Fill the workflow spec details from the project object, with favour to spec
-
-    :param project:     MLRun project that contains the workflow
-    :param name:        workflow name
-    :param spec:        workflow spec input
-    :param arguments:   arguments to workflow
-
-    :return: completed workflow spec
-    """
-    # Verifying workflow exists in project:
-    workflow = _get_workflow_by_name(project, name)
-
-    if spec:
-        # Merge between the workflow spec provided in the request with existing
-        # workflow while the provided workflow takes precedence over the existing workflow params
-        workflow = copy.deepcopy(workflow)
-        for key, val in spec.dict().items():
-            if val:
-                workflow[key] = val
-
-    workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
-    # Overriding arguments of the existing workflow:
-    if arguments:
-        workflow_spec.args = workflow_spec.args or {}
-        workflow_spec.args.update(arguments)
-
-    return workflow_spec
-
-
-def is_requested_schedule(
-    name: str,
-    workflow_spec: mlrun.common.schemas.WorkflowSpec,
-    project: mlrun.common.schemas.Project,
-) -> bool:
-    """
-    Checks if the workflow needs to be scheduled, which can be decided either the request itself
-    contains schedule information or the workflow which was predefined in the project contains schedule.
-
-    :param name:            workflow name
-    :param workflow_spec:   workflow spec input
-    :param project:         MLRun project that contains the workflow
-
-    :return: True if the workflow need to be scheduled and False if not.
-    """
-    project_workflow = _get_workflow_by_name(project, name)
-    return any((project_workflow.get("schedule"), workflow_spec.schedule))
 
 
 @router.post(
@@ -184,7 +111,7 @@ async def submit_workflow(
     )
     # Re-route to chief in case of schedule
     if (
-        is_requested_schedule(name, workflow_request.spec, project)
+        _is_requested_schedule(name, workflow_request.spec, project)
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
@@ -198,7 +125,7 @@ async def submit_workflow(
 
     workflow_spec = _fill_workflow_missing_fields_from_project(
         project=project,
-        name=name,
+        workflow_name=name,
         spec=workflow_request.spec,
         arguments=workflow_request.arguments,
     )
@@ -209,7 +136,10 @@ async def submit_workflow(
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
     workflow_runner = await run_in_threadpool(
         mlrun.api.crud.WorkflowRunners().create_runner,
-        run_name=updated_request.run_name or f"workflow-runner-{workflow_spec.name}",
+        run_name=updated_request.run_name
+        or mlrun.mlconf.workflows.default_workflow_runner_name.format(
+            workflow_spec.name
+        ),
         project=project.metadata.name,
         db_session=db_session,
         auth_info=auth_info,
@@ -219,7 +149,7 @@ async def submit_workflow(
     )
 
     logger.debug(
-        "saved function for running workflow",
+        "Saved function for running workflow",
         project_name=workflow_runner.metadata.project,
         function_name=workflow_runner.metadata.name,
         workflow_name=workflow_spec.name,
@@ -256,7 +186,10 @@ async def submit_workflow(
     except Exception as error:
         logger.error(traceback.format_exc())
         log_and_raise(
-            reason=f"Workflow {workflow_spec.name} {workflow_action} failed!, error: {error}"
+            reason=f"Workflow failed",
+            workflow_name=workflow_spec.name,
+            workflow_action=workflow_action,
+            error=error,
         )
 
     return mlrun.common.schemas.WorkflowResponse(
@@ -268,14 +201,107 @@ async def submit_workflow(
     )
 
 
+def _is_requested_schedule(
+    name: str,
+    workflow_spec: mlrun.common.schemas.WorkflowSpec,
+    project: mlrun.common.schemas.Project,
+) -> bool:
+    """
+    Checks if the workflow needs to be scheduled, which can be decided either the request itself
+    contains schedule information or the workflow which was predefined in the project contains schedule.
+
+    :param name:            workflow name
+    :param workflow_spec:   workflow spec input
+    :param project:         MLRun project that contains the workflow
+
+    :return: True if the workflow need to be scheduled and False if not.
+    """
+    if workflow_spec:
+        return workflow_spec.schedule is not None
+
+    project_workflow = _get_workflow_by_name(project, name)
+    return bool(project_workflow.get("schedule"))
+
+
+def _get_workflow_by_name(
+    project: mlrun.common.schemas.Project, name: str
+) -> typing.Optional[Dict]:
+    """
+    Getting workflow from project
+
+    :param project:     MLRun project
+    :param name:        workflow name
+
+    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
+    """
+    for workflow in project.spec.workflows:
+        if workflow["name"] == name:
+            return workflow
+    log_and_raise(
+        reason=f"workflow {name} not found in project",
+    )
+
+
+def _fill_workflow_missing_fields_from_project(
+    project: mlrun.common.schemas.Project,
+    workflow_name: str,
+    spec: mlrun.common.schemas.WorkflowSpec,
+    arguments: typing.Dict,
+) -> mlrun.common.schemas.WorkflowSpec:
+    """
+    Fill the workflow spec details from the project object, with favour to spec
+
+    :param project:         MLRun project that contains the workflow.
+    :param workflow_name:   workflow name
+    :param spec:            workflow spec input
+    :param arguments:       arguments to workflow
+
+    :return: completed workflow spec
+    """
+    # Verifying workflow exists in project:
+    workflow = _get_workflow_by_name(project, workflow_name)
+
+    if spec:
+        # Merge between the workflow spec provided in the request with existing
+        # workflow while the provided workflow takes precedence over the existing workflow params
+        workflow = copy.deepcopy(workflow)
+        workflow = _update_dict(workflow, spec.dict())
+
+    workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
+    # Overriding arguments of the existing workflow:
+    if arguments:
+        workflow_spec.args = workflow_spec.args or {}
+        workflow_spec.args.update(arguments)
+
+    return workflow_spec
+
+
+def _update_dict(dict_1: dict, dict_2: dict):
+    """
+    Update two dictionaries included nested dictionaries (recursively).
+    :param dict_1: The dict to update
+    :param dict_2: The values of this dict take precedence over dict_1.
+    :return:
+    """
+    for key, val in dict_2.items():
+        if isinstance(val, collections.abc.Mapping):
+            dict_1[key] = _update_dict(dict_1.get(key, {}), val)
+        # It is necessary to update only if value is exist because
+        # on initialization of the WorkflowSpec object all unfilled values gets None values,
+        # and when converting to dict the keys gets those None values.
+        elif val:
+            dict_1[key] = val
+    return dict_1
+
+
 @router.get(
-    "/projects/{project}/workflows/{name}/references/{uid}",
+    "/projects/{project}/workflows/{name}/references/{reference}",
     response_model=mlrun.common.schemas.GetWorkflowResponse,
 )
 async def get_workflow_id(
     project: str,
     name: str,
-    uid: str,
+    reference: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -296,13 +322,14 @@ async def get_workflow_id(
 
     :param project:     name of the project
     :param name:        name of the workflow
-    :param uid:         the id of the running job that runs the workflow
+    :param reference:   the id of the running job that runs the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
     :param engine:      pipeline runner, for example: "kfp"
 
     :returns: workflow id
     """
+    _, uid = parse_reference(reference)
     # Check permission READ run:
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,

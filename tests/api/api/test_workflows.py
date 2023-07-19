@@ -24,19 +24,6 @@ PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
 
 
-def _create_proj_with_workflow(client: TestClient):
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT_NAME),
-        spec=mlrun.common.schemas.ProjectSpec(
-            description="banana",
-            source="git://github.com/mlrun/project-demo",
-            goals="some goals",
-            workflows=[{"name": WORKFLOW_NAME}],
-        ),
-    )
-    client.post("projects", json=project.dict())
-
-
 def test_workflow_does_not_exist(db: Session, client: TestClient):
     _create_proj_with_workflow(client)
     # path with wrong name:
@@ -104,3 +91,16 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/references/{run_id}"
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
+
+
+def _create_proj_with_workflow(client: TestClient):
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=PROJECT_NAME),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="banana",
+            source="git://github.com/mlrun/project-demo",
+            goals="some goals",
+            workflows=[{"name": WORKFLOW_NAME}],
+        ),
+    )
+    client.post("projects", json=project.dict())

@@ -139,131 +139,6 @@ class WorkflowRunners(
                     " If you want to override this schedule use override=True (SDK) or --override-workflow (CLI)"
                 )
 
-    def run(
-        self,
-        runner: mlrun.run.KubejobRuntime,
-        project: mlrun.common.schemas.Project,
-        workflow_request: mlrun.common.schemas.WorkflowRequest = None,
-        load_only: bool = False,
-    ) -> RunObject:
-        """
-        Run workflow runner.
-
-        :param runner:              workflow runner function object
-        :param project:             MLRun project
-        :param workflow_request:    contains the workflow spec, that will be executed
-        :param load_only:           If True, will only load the project remotely (without running workflow)
-
-        :returns: run context object (RunObject) with run metadata, results and status
-        """
-        labels = {"project": project.metadata.name}
-        if load_only:
-            labels["job-type"] = "project-loader"
-        else:
-            labels["job-type"] = "workflow-runner"
-            labels["workflow"] = runner.metadata.name
-
-        run_spec = self._prepare_run_object_for_single_run(
-            project=project,
-            labels=labels,
-            workflow_request=workflow_request,
-            run_name=runner.metadata.name,
-            load_only=load_only,
-        )
-
-        artifact_path = workflow_request.artifact_path if workflow_request else ""
-        return runner.run(
-            runspec=run_spec,
-            artifact_path=artifact_path,
-            local=False,
-            watch=False,
-        )
-
-    @staticmethod
-    def get_workflow_id(
-        uid: str, project: str, engine: str, db_session: Session
-    ) -> mlrun.common.schemas.GetWorkflowResponse:
-        """
-        Retrieving the actual workflow id form the workflow runner
-
-        :param uid:         the id of the workflow runner job
-        :param project:     name of the project
-        :param engine:      pipeline runner, for example: "kfp"
-        :param db_session:  session that manages the current dialog with the database
-
-        :return: The id of the workflow.
-        """
-        # Reading run:
-        run = mlrun.api.crud.Runs().get_run(
-            db_session=db_session, uid=uid, iter=0, project=project
-        )
-        run_object = RunObject.from_dict(run)
-        state = run_object.status.state
-        workflow_id = None
-        if isinstance(run_object.status.results, dict):
-            workflow_id = run_object.status.results.get("workflow_id", None)
-
-        if workflow_id is None:
-            if (
-                engine == "local"
-                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
-            ):
-                workflow_id = ""
-            else:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {project}:{uid} not found"
-                )
-
-        return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
-
-    @staticmethod
-    def _label_run_object(
-        run_object: mlrun.run.RunObject,
-        labels: Dict[str, str],
-    ) -> mlrun.run.RunObject:
-        """
-        Setting labels to the task
-
-        :param run_object:  run object to set labels on
-        :param labels:      dict of labels
-
-        :returns: labeled RunObject
-        """
-        for key, value in labels.items():
-            run_object = run_object.set_label(key, value)
-        return run_object
-
-    @staticmethod
-    def _set_source(
-        project: mlrun.common.schemas.Project, source: str, load_only: bool = False
-    ) -> bool:
-        """
-        Setting the project source.
-        In case the user provided a source we want to load the project from the source
-        (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
-
-        :param project:     MLRun project
-        :param source:      the source of the project, needs to be a remote URL that contains the project yaml file.
-        :param load_only:   if we only load the project, the project must be saved.
-
-        :returns: True if the project need to be saved afterwards.
-        """
-
-        save = True
-        if source and not load_only:
-            save = False
-            project.spec.source = source
-
-        if "://" not in project.spec.source:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
-                f" but the specified source '{project.spec.source}' is not remote. "
-                f"Either put your code in Git, or archive it and then set a source to it."
-                f" For more details, read"
-                f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
-            )
-        return save
-
     def _prepare_run_object_for_scheduling(
         self,
         project: mlrun.common.schemas.Project,
@@ -312,6 +187,46 @@ class WorkflowRunners(
 
         # Setting labels:
         return self._label_run_object(run_object, labels)
+
+    def run(
+        self,
+        runner: mlrun.run.KubejobRuntime,
+        project: mlrun.common.schemas.Project,
+        workflow_request: mlrun.common.schemas.WorkflowRequest = None,
+        load_only: bool = False,
+    ) -> RunObject:
+        """
+        Run workflow runner.
+
+        :param runner:              workflow runner function object
+        :param project:             MLRun project
+        :param workflow_request:    contains the workflow spec, that will be executed
+        :param load_only:           If True, will only load the project remotely (without running workflow)
+
+        :returns: run context object (RunObject) with run metadata, results and status
+        """
+        labels = {"project": project.metadata.name}
+        if load_only:
+            labels["job-type"] = "project-loader"
+        else:
+            labels["job-type"] = "workflow-runner"
+            labels["workflow"] = runner.metadata.name
+
+        run_spec = self._prepare_run_object_for_single_run(
+            project=project,
+            labels=labels,
+            workflow_request=workflow_request,
+            run_name=runner.metadata.name,
+            load_only=load_only,
+        )
+
+        artifact_path = workflow_request.artifact_path if workflow_request else ""
+        return runner.run(
+            runspec=run_spec,
+            artifact_path=artifact_path,
+            local=False,
+            watch=False,
+        )
 
     def _prepare_run_object_for_single_run(
         self,
@@ -365,3 +280,88 @@ class WorkflowRunners(
 
         # Setting labels:
         return self._label_run_object(run_object, labels)
+
+    @staticmethod
+    def _set_source(
+        project: mlrun.common.schemas.Project, source: str, load_only: bool = False
+    ) -> bool:
+        """
+        Setting the project source.
+        In case the user provided a source we want to load the project from the source
+        (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
+
+        :param project:     MLRun project
+        :param source:      the source of the project, needs to be a remote URL that contains the project yaml file.
+        :param load_only:   if we only load the project, the project must be saved.
+
+        :returns: True if the project need to be saved afterward.
+        """
+
+        save = True
+        if source and not load_only:
+            save = False
+            project.spec.source = source
+
+        if "://" not in project.spec.source:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
+                f" but the specified source '{project.spec.source}' is not remote. "
+                f"Either put your code in Git, or archive it and then set a source to it."
+                f" For more details, read"
+                f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
+            )
+        return save
+
+    @staticmethod
+    def _label_run_object(
+        run_object: mlrun.run.RunObject,
+        labels: Dict[str, str],
+    ) -> mlrun.run.RunObject:
+        """
+        Setting labels to the task
+
+        :param run_object:  run object to set labels on
+        :param labels:      dict of labels
+
+        :returns: labeled RunObject
+        """
+        for key, value in labels.items():
+            run_object = run_object.set_label(key, value)
+        return run_object
+
+    @staticmethod
+    def get_workflow_id(
+        uid: str, project: str, engine: str, db_session: Session
+    ) -> mlrun.common.schemas.GetWorkflowResponse:
+        """
+        Retrieving the actual workflow id form the workflow runner
+
+        :param uid:         the id of the workflow runner job
+        :param project:     name of the project
+        :param engine:      pipeline runner, for example: "kfp"
+        :param db_session:  session that manages the current dialog with the database
+
+        :return: The id of the workflow.
+        """
+        # Reading run:
+        run = mlrun.api.crud.Runs().get_run(
+            db_session=db_session, uid=uid, iter=0, project=project
+        )
+        run_object = RunObject.from_dict(run)
+        state = run_object.status.state
+        workflow_id = None
+        if isinstance(run_object.status.results, dict):
+            workflow_id = run_object.status.results.get("workflow_id", None)
+
+        if workflow_id is None:
+            if (
+                engine == "local"
+                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+            ):
+                workflow_id = ""
+            else:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"workflow id of run {project}:{uid} not found"
+                )
+
+        return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)

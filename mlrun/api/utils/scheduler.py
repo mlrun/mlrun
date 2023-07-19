@@ -142,14 +142,14 @@ class Scheduler:
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
         get_db().create_schedule(
-            db_session,
-            project,
-            name,
-            kind,
-            scheduled_object,
-            cron_trigger,
-            concurrency_limit,
-            labels,
+            session=db_session,
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
+            labels=labels,
         )
         job = self._create_schedule_in_scheduler(
             project,
@@ -217,13 +217,13 @@ class Scheduler:
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
         get_db().update_schedule(
-            db_session,
-            project,
-            name,
-            scheduled_object,
-            cron_trigger,
-            labels,
-            concurrency_limit,
+            session=db_session,
+            project=project,
+            name=name,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
 
@@ -316,7 +316,7 @@ class Scheduler:
         concurrency_limit: int = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ):
-        # raise on conflict flag is to prevent raising error when the schedule not exists, so we can create a new one
+        # raise on conflict flag is to prevent raising error when the schedule doesn't exist, so we can create a new one
         db_schedule = get_db().get_schedule(
             db_session, project, name, raise_on_not_found=False
         )

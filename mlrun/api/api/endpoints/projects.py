@@ -399,7 +399,7 @@ async def load_project(
     )
 
     logger.debug(
-        "saved function for loading project",
+        "Saved function for loading project",
         project_name=name,
         function_name=load_project_runner.metadata.name,
         kind=load_project_runner.kind,
@@ -417,7 +417,7 @@ async def load_project(
         background_tasks,
         mlrun.api.crud.WorkflowRunners().run,
         background_timeout,
-        # arguments for execute_function
+        # arguments for the actual task with 'load_only'
         load_project_runner,
         project,
         None,

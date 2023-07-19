@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import random
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -45,8 +46,7 @@ def test_bad_schedule_format(db: Session, client: TestClient):
         f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/submit", json=workflow_body
     )
     assert (
-        "Wrong number of fields in crontab expression"
-        in resp.json()["detail"]["reason"]
+        "Wrong number of fields in crontab expression" in resp.json()["detail"]["error"]
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
@@ -56,8 +56,8 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
 
     # wrong run id:
     expected_workflow_id = "some id"
-    right_id = "good-id"
-    wrong_id = "bad-id"
+    right_id = "".join(random.choices("0123456789abcdef", k=40))
+    wrong_id = "".join(random.choices("0123456789abcdef", k=40))
     data = {
         "metadata": {"name": "run-name"},
         "status": {"results": {"workflow_id": expected_workflow_id}},

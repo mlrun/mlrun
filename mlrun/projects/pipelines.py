@@ -820,7 +820,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         source=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-
+        workflow_name = name.replace(project.name,"").split("-")[1:] if project.name in name else name
         run_id = None
 
         # If the user provided a source we want to load the project from the source
@@ -842,7 +842,7 @@ class _RemoteRunner(_PipelineRunner):
             source=current_source,
             project_name=project.name,
             save=save,
-            workflow_name=name,
+            workflow_name=workflow_name,
             workflow_spec=workflow_spec,
             artifact_path=artifact_path,
             workflow_handler=workflow_handler,
@@ -882,7 +882,7 @@ class _RemoteRunner(_PipelineRunner):
             trace = traceback.format_exc()
             logger.error(trace)
             project.notifiers.push(
-                f":x: Workflow {name} run failed!, error: {e}\n{trace}",
+                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
                 "error",
             )
             state = mlrun.run.RunStatuses.failed

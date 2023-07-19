@@ -66,9 +66,7 @@ class FeatureAggregation(ModelObj):
         self.period = period
 
 
-class FeatureSetSpec(
-    ModelObj,
-):
+class FeatureSetSpec(ModelObj):
     def __init__(
         self,
         owner=None,

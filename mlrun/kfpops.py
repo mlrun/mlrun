@@ -24,6 +24,7 @@ from kubernetes import client as k8s_client
 
 import mlrun
 from mlrun.errors import err_to_str
+import mlrun.api.utils.singletons.db
 
 from .config import config
 from .model import HyperParamOptions, RunSpec

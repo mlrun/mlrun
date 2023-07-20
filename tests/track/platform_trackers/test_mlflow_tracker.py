@@ -28,7 +28,6 @@ from sklearn.metrics import accuracy_score, f1_score, log_loss
 from sklearn.model_selection import train_test_split
 
 import mlrun
-from mlrun.config import config as mlconf
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
 mpl.use("Agg")
@@ -103,6 +102,8 @@ def xgb_run():
 
 
 def test_is_enabled(rundb_mock):
+    # enable tracking in config for inspection
+    mlrun.mlconf.tracking.enabled = True
     # see if mlflow is in scope
     try:
         importlib.import_module("mlflow")
@@ -113,7 +114,7 @@ def test_is_enabled(rundb_mock):
     # check all the stuff we check in is_enabled
     enabled = (
         mlflow_tracker._tracked_platform is not None
-        and getattr(mlconf.tracking, "mlflow", {}).mode == "enabled"
+        and getattr(mlrun.mlconf.tracking, "mlflow", {}).mode == "enabled"
         and relevant
     )
 
@@ -122,6 +123,7 @@ def test_is_enabled(rundb_mock):
 
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_run(rundb_mock, handler):
+    mlrun.mlconf.tracking.enabled = True
     test_directory = tempfile.TemporaryDirectory()
     # Create a project for this tester:
     project = mlrun.get_or_create_project(name="default", context=test_directory.name)

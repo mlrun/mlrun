@@ -31,6 +31,12 @@ class TrackerManager:
         """
         self._trackers.append(tracker())
 
+    def clear_trackers(self):
+        """
+        removes all trackers from the tracking list
+        """
+        self._trackers.clear()
+
     def pre_run(self, context: MLClientCtx):
         """
         goes over all trackers and calls there pre_run function
@@ -47,7 +53,9 @@ class TrackerManager:
         :param context: current mlrun context
         """
         if isinstance(context, dict):
-            context = MLClientCtx.from_dict(context, include_status=True)
+            context = MLClientCtx.from_dict(
+                context, include_status=True, store_run=False
+            )
 
         for tracker in self._trackers:
             if tracker.is_enabled():

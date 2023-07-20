@@ -15,8 +15,9 @@
 import importlib
 from abc import abstractmethod
 
-from mlrun.config import config as mlconf
+import mlrun
 
+from ..utils import logger
 from .tracker import Tracker
 
 
@@ -31,17 +32,25 @@ class BaseTracker(Tracker):
 
     @classmethod
     def is_enabled(cls) -> bool:
-        module_in_area = False
+        is_module_found = False
         # Check for user configuration - defaulted to False if not configured:
-        if mlconf.tracking.mlflow.mode == "enabled":
+        if (
+            mlrun.mlconf.tracking.enabled
+            and getattr(mlrun.mlconf.tracking, cls.TRACKED_MODULE_NAME).mode
+            == "enabled"
+        ):
             try:
                 # Check if the module is available - can be imported:
                 importlib.import_module(cls.TRACKED_MODULE_NAME)
 
-                module_in_area = True
-            except Exception:
-                pass
-            return module_in_area
+                is_module_found = True
+            except (ModuleNotFoundError, ImportError) as e:
+                logger.warning(
+                    f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but unable to import module "
+                    f"due to the following exception: {str(e)}"
+                )
+
+        return is_module_found
 
     @abstractmethod
     def log_model(self, model_uri, context):

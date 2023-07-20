@@ -34,8 +34,8 @@ from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
+import mlrun.track
 from mlrun.lists import RunList
-from mlrun.track import TRACKERS_MANAGER
 
 from ..errors import err_to_str
 from ..execution import MLClientCtx
@@ -169,6 +169,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         )
         global_context.set(context)
         # Running tracking services pre run to detect if some of them should be used and update the env accordingly:
+        TRACKERS_MANAGER = mlrun.track.get_trackers_manager()
         TRACKERS_MANAGER.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
@@ -281,6 +282,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 global_context.set(context)
                 # Running tracking services pre run to detect if some of them should be used
                 # and update the env accordingly:
+                TRACKERS_MANAGER = mlrun.track.get_trackers_manager()
                 TRACKERS_MANAGER.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
@@ -332,6 +334,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 args = new_args
             # Running tracking services pre run to detect if some of them should be used
             # and update the env accordingly:
+            TRACKERS_MANAGER = mlrun.track.get_trackers_manager()
             TRACKERS_MANAGER.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)

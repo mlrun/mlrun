@@ -148,7 +148,7 @@ default_config = {
     # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
     "tracking": {
         # General enabler for the entire tracking mechanism (all tracking services):
-        "enabled": True,
+        "enabled": False,
         # Specific enablement and other configurations supported 3-rd party platforms:
         "mlflow": {
             # Add the MLFlow tracker to MLRun:

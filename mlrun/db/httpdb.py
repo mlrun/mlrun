@@ -3084,6 +3084,157 @@ class HTTPRunDB(RunDBInterface):
             },
         )
 
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[Dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ):
+        """
+        Submitting workflow for a remote execution.
+
+        :param project:         project name
+        :param name:            workflow name
+        :param workflow_spec:   the workflow spec to execute
+        :param arguments:       arguments for the workflow
+        :param artifact_path:   artifact target path of the workflow
+        :param source:          source url of the project
+        :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
+        :param namespace:       kubernetes namespace if other than default
+
+        :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
+        """
+        image = (
+            workflow_spec.image
+            if hasattr(workflow_spec, "image")
+            else workflow_spec.get("image", None)
+        )
+        req = {
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+            req["spec"] = workflow_spec.dict()
+        elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
+            req["spec"] = workflow_spec.to_dict()
+        else:
+            req["spec"] = workflow_spec
+        req["spec"]["image"] = image
+        response = self.api_call(
+            "POST",
+            f"projects/{project}/workflows/{name}/submit",
+            json=req,
+        )
+        return mlrun.common.schemas.WorkflowResponse(**response.json())
+
+    def get_workflow_id(
+        self,
+        project: str,
+        name: str,
+        run_id: str,
+        engine: str = "",
+    ):
+        """
+        Retrieve workflow id from the uid of the workflow runner.
+
+        :param project: project name
+        :param name:    workflow name
+        :param run_id:  the id of the workflow runner - the job that runs the workflow
+        :param engine:  pipeline runner
+
+        :returns:   :py:class:`~mlrun.common.schemas.GetWorkflowResponse`.
+        """
+        params = {}
+        if engine:
+            params["engine"] = engine
+        response = self.api_call(
+            "GET",
+            f"projects/{project}/workflows/{name}/references/{run_id}",
+            params=params,
+        )
+        return mlrun.common.schemas.GetWorkflowResponse(**response.json())
+
+    def load_project(
+        self,
+        name: str,
+        url: str,
+        secrets: Optional[Dict] = None,
+        save_secrets: bool = True,
+    ) -> mlrun.common.schemas.BackgroundTask:
+        """
+        Loading a project remotely from the given source.
+        :param name:            project name
+        :param url:             git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project.
+                                Setting to False will cause waiting for the process completion.
+
+        :returns:      A BackgroundTask object, with details on execution process and its status.
+        """
+        params = {"url": url}
+        body = None
+        if secrets:
+            provider = mlrun.common.schemas.SecretProviderName.kubernetes
+            secrets_input = mlrun.common.schemas.SecretsData(
+                provider=provider, secrets=secrets
+            )
+            body = secrets_input.dict()
+        response = self.api_call(
+            "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
+        )
+        bg_task = mlrun.common.schemas.BackgroundTask(**response.json())
+
+        # In order to remove secrets from project we need to wait for the background task to end:
+        if secrets and not save_secrets:
+
+            def _wait_for_background_task_to_end(bg_name):
+                bg_task = self.get_project_background_task(project=name, name=bg_name)
+                if (
+                    bg_task.status.state
+                    not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+                ):
+                    raise Exception(
+                        f"Background task not in terminal state. State: {bg_task.status.state}"
+                    )
+                return bg_task
+
+            bg_task = mlrun.utils.helpers.retry_until_successful(
+                backoff=self._wait_for_project_terminal_state_retry_interval,
+                timeout=60 * 3,
+                logger=logger,
+                verbose=False,
+                _function=_wait_for_background_task_to_end,
+                bg_name=bg_task.metadata.name,
+            )
+
+            if bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
+                logger.error("Load project task failed, deleting project")
+                response = self.delete_project(
+                    name, mlrun.common.schemas.DeletionStrategy.cascade
+                )
+                if response.status_code != http.HTTPStatus.ACCEPTED:
+                    logger.error("Failed to delete project")
+
+            self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+
+        return bg_task
+
 
 def _as_json(obj):
     fn = getattr(obj, "to_json", None)

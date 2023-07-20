@@ -76,7 +76,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
-        "mlflow": ["mlflow~=1.30"],
+        "mlflow": ["mlflow~=2.5"],
     }
 
     # see above why we are excluding google-cloud

@@ -62,6 +62,7 @@ def lgb_run():
     y_pred = regressor.predict(X_test)
     f1_score(y_test, y_pred, average="micro")
     run_id = mlflow.last_active_run().info.run_id
+    print("Logged data and model in run {}".format(run_id))
 
 
 def xgb_run():

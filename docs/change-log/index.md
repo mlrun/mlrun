@@ -673,13 +673,13 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | Deprecated                        | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |
-| http request GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path} instead |
-| http request DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid} instead |
-| http request GET /artifacts | /projects/{project}/artifacts instead |
-| http request DELETE /artifacts  | /projects/{project}/artifacts instead |
-| http request POST /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
-| http request GET /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
-| http request GET /funcs  | /projects/{project}/functions instead |
+| GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path} instead |
+| DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid} instead |
+| GET /artifacts | /projects/{project}/artifacts instead |
+| DELETE /artifacts  | /projects/{project}/artifacts instead |
+| POST /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
+| GET /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
+| GET /funcs  | /projects/{project}/functions instead |
 
 
 

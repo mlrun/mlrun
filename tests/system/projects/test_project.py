@@ -556,6 +556,7 @@ class TestProject(TestMLRunSystem):
         )
 
         assert run.state == mlrun.run.RunStatuses.succeeded, "pipeline failed"
+        # run.run_id can be empty in case of a local engine:
         assert run.run_id is not None, "workflow's run id failed to fetch"
 
     def test_remote_pipeline_with_kfp_engine_from_github(self):

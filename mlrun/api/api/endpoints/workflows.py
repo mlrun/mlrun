@@ -189,7 +189,7 @@ async def submit_workflow(
             reason="Workflow failed",
             workflow_name=workflow_spec.name,
             workflow_action=workflow_action,
-            error=str(error),
+            error=mlrun.errors.err_to_str(error),
         )
 
     return mlrun.common.schemas.WorkflowResponse(

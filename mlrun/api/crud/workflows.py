@@ -228,6 +228,43 @@ class WorkflowRunners(
             watch=False,
         )
 
+    @staticmethod
+    def get_workflow_id(
+        uid: str, project: str, engine: str, db_session: Session
+    ) -> mlrun.common.schemas.GetWorkflowResponse:
+        """
+        Retrieving the actual workflow id form the workflow runner
+
+        :param uid:         the id of the workflow runner job
+        :param project:     name of the project
+        :param engine:      pipeline runner, for example: "kfp"
+        :param db_session:  session that manages the current dialog with the database
+
+        :return: The id of the workflow.
+        """
+        # Reading run:
+        run = mlrun.api.crud.Runs().get_run(
+            db_session=db_session, uid=uid, iter=0, project=project
+        )
+        run_object = RunObject.from_dict(run)
+        state = run_object.status.state
+        workflow_id = None
+        if isinstance(run_object.status.results, dict):
+            workflow_id = run_object.status.results.get("workflow_id", None)
+
+        if workflow_id is None:
+            if (
+                engine == "local"
+                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
+            ):
+                workflow_id = ""
+            else:
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"workflow id of run {project}:{uid} not found"
+                )
+
+        return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)
+
     def _prepare_run_object_for_single_run(
         self,
         project: mlrun.common.schemas.Project,
@@ -328,40 +365,3 @@ class WorkflowRunners(
         for key, value in labels.items():
             run_object = run_object.set_label(key, value)
         return run_object
-
-    @staticmethod
-    def get_workflow_id(
-        uid: str, project: str, engine: str, db_session: Session
-    ) -> mlrun.common.schemas.GetWorkflowResponse:
-        """
-        Retrieving the actual workflow id form the workflow runner
-
-        :param uid:         the id of the workflow runner job
-        :param project:     name of the project
-        :param engine:      pipeline runner, for example: "kfp"
-        :param db_session:  session that manages the current dialog with the database
-
-        :return: The id of the workflow.
-        """
-        # Reading run:
-        run = mlrun.api.crud.Runs().get_run(
-            db_session=db_session, uid=uid, iter=0, project=project
-        )
-        run_object = RunObject.from_dict(run)
-        state = run_object.status.state
-        workflow_id = None
-        if isinstance(run_object.status.results, dict):
-            workflow_id = run_object.status.results.get("workflow_id", None)
-
-        if workflow_id is None:
-            if (
-                engine == "local"
-                and state.casefold() == mlrun.run.RunStatuses.running.casefold()
-            ):
-                workflow_id = ""
-            else:
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {project}:{uid} not found"
-                )
-
-        return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)

@@ -80,7 +80,7 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
     _create_proj_with_workflow(client)
     # wrong run id:
     expected_workflow_id = "some id"
-    run_id = "some run id"
+    run_id = "".join(random.choices("0123456789abcdef", k=40))
     wrong_project_name = "not a project"
     data = {
         "metadata": {"name": "run-name"},
@@ -91,6 +91,7 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/references/{run_id}"
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
+    assert f"Run {run_id}:{wrong_project_name} not found" in resp.json()["detail"]
 
 
 def _create_proj_with_workflow(client: TestClient):

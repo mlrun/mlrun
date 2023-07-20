@@ -1103,3 +1103,22 @@ class TestProject(TestMLRunSystem):
             handler="handler",
         )
         project.set_workflow("main", workflow_path)
+
+    def test_remote_workflow_schedule_task_name(self):
+        # Test running remote workflow when the project files are store in a relative path (the subpath)
+        project_source = "git://github.com/mlrun/system-tests.git#main"
+        project_context = "./test_subpath_remote"
+        project_name = "test-remote-workflow-source-with-subpath"
+        self.custom_project_names_to_delete.append(project_name)
+        project = mlrun.load_project(
+            context=project_context,
+            url=project_source,
+            subpath="./test_remote_workflow_subpath",
+            name=project_name,clone=True
+        )
+        name_task = "test-workflow"
+        project.set_workflow(name_task,'workflow.py',schedule="0 * * * *")
+        project.run(name_task, arguments={"x": 1}, engine="remote:kfp", schedule=True)
+        db = mlrun.get_run_db()
+        schedule_task = db.get_schedule(project=project.name,name=name_task)
+        assert schedule_task.name==name_task

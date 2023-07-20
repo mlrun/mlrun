@@ -55,7 +55,8 @@ def api_config_test():
 
     mlrun.api.launcher.initialize_launcher()
 
-    # we need to override the run db container manually because we run all unit tests in the same process
+    # we need to override the run db container manually because we run all unit tests in the same process in CI
+    # so API is imported even when it's not needed
     rundb_factory = mlrun.db.factory.RunDBFactory()
     rundb_factory._rundb_container.override(mlrun.api.rundb.sqldb.SQLRunDBContainer)
 

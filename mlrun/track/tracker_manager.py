@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from os import environ
-from typing import Union
+from typing import Union, Type
 
 from mlrun.execution import MLClientCtx
 
@@ -24,7 +24,7 @@ class TrackerManager:
     def __init__(self):
         self._trackers = []
 
-    def add_tracker(self, tracker: Tracker):
+    def add_tracker(self, tracker: Type[Tracker]):
         """
         adds a Tracker to tracking list
         :param tracker: The tracker class to add
@@ -47,7 +47,7 @@ class TrackerManager:
                 env = tracker.pre_run(context=context)
                 environ.update(env)  # needed in order to set 3rd party experiment id
 
-    def post_run(self, context: Union[MLClientCtx, dict]) -> dict:
+    def post_run(self, context: Union[MLClientCtx, dict]):
         """
         goes over all trackers and calls there post_run function
         :param context: current mlrun context
@@ -60,8 +60,9 @@ class TrackerManager:
         for tracker in self._trackers:
             if tracker.is_enabled():
                 tracker.post_run(context)
+        self.clear_trackers()
 
-        if isinstance(context, dict):
-            return context
-        # context.commit()
-        return context.to_dict()
+    @property
+    def trackers(self):
+        return self._trackers
+

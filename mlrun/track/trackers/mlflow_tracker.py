@@ -26,6 +26,9 @@ from mlrun.track.utils import (
 )
 
 
+
+
+
 class MLFlowTracker(BaseTracker):
     """
     specific tracker to log artifacts, parameters and metrics collected by MLFlow
@@ -35,9 +38,11 @@ class MLFlowTracker(BaseTracker):
 
     def __init__(self):
         super().__init__()
+        self.mlflow_experiment = None
         import mlflow
-
+        self.track_uri = 0
         self._client: mlflow.MlflowClient = None
+
 
     def pre_run(self, context: MLClientCtx) -> dict:
         env = {}
@@ -51,7 +56,7 @@ class MLFlowTracker(BaseTracker):
             context.project,
         )
         env["MLFLOW_EXPERIMENT_ID"] = experiment_id
-        self._run_track_kwargs["mlflow_experiment"] = experiment_id
+        self.mlflow_experiment = experiment_id
         return env
 
     def _apply_post_run_tasks(
@@ -64,7 +69,7 @@ class MLFlowTracker(BaseTracker):
         :param context: current mlrun context
         :param experiment: name of experiment tracked
         """
-        experiment_id = self._run_track_kwargs.get(experiment)
+        experiment_id = self.mlflow_experiment
         runs = self._client.search_runs(
             experiment_id, filter_string=f'tags.mlrun_runid="{context.uid}"'
         )
@@ -158,7 +163,6 @@ class MLFlowTracker(BaseTracker):
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         import mlflow
-
         experiment = "mlflow_experiment"
         self._client = mlflow.MlflowClient()
         self._apply_post_run_tasks(context=context, experiment=experiment)

@@ -26,7 +26,7 @@ from mlflow import log_artifacts, log_metric, log_param
 from sklearn import datasets
 from sklearn.metrics import accuracy_score, f1_score, log_loss
 from sklearn.model_selection import train_test_split
-
+from mlrun.utils import logger
 import mlrun
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
@@ -34,7 +34,8 @@ mpl.use("Agg")
 
 
 # simple general mlflow example of hand logging
-def simple_run():
+def simple_run(context):
+    mlflow.set_tracking_uri(context.artifact_path)
     # Log some random params and metrics
     log_param("param1", randint(0, 100))
     log_metric("foo", random())
@@ -48,7 +49,8 @@ def simple_run():
     test_directory.cleanup()
 
 
-def lgb_run():
+def lgb_run(context):
+    mlflow.set_tracking_uri(context.artifact_path)
     # prepare example dataset
     X, y = datasets.load_iris(return_X_y=True, as_frame=True)
     X_train, X_test, y_train, y_test = train_test_split(X, y)
@@ -65,7 +67,8 @@ def lgb_run():
     print("Logged data and model in run {}".format(run_id))
 
 
-def xgb_run():
+def xgb_run(context):
+    mlflow.set_tracking_uri(context.artifact_path)
     # prepare train and test data
     iris = datasets.load_iris()
     X = iris.data
@@ -125,8 +128,9 @@ def test_is_enabled(rundb_mock):
 def test_run(rundb_mock, handler):
     mlrun.mlconf.tracking.enabled = True
     test_directory = tempfile.TemporaryDirectory()
-    # in order to tell mlflow where to look for logged run for comparison
     mlflow.set_tracking_uri(test_directory.name)
+
+    # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
 
     # Create a project for this tester:
@@ -159,11 +163,14 @@ def _validate_run(run, test_directory, client):
     for experiment in experiments:
         runs.append(client.search_runs(experiment.experiment_id))
     # find the right run
+    run_to_comp = None
     for run_list in runs:
         for mlflow_run in run_list:
             if mlflow_run.info.run_id == run.metadata.labels["mlflow-runid"]:
                 run_to_comp = mlflow_run
-
+    if not run_to_comp:
+        logger.warning("Run not found, test failed")
+        assert False
     # check that values correspond
     for param in run_to_comp.data.params:
         assert run_to_comp.data.params[param] == run.spec.parameters[param]

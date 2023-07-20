@@ -21,39 +21,23 @@ from .trackers import MLFlowTracker
 
 # Add a tracker to this list for it to be added into the global tracker manager:
 _AVAILABLE_TRACKERS = [MLFlowTracker]
-trackers_manager = None
-
-
-def _create_tracking_list(trackers_manager: TrackerManager):
-    """
-    Go over the available trackers list and add them to the manager:
-    """
-    for tracker in _AVAILABLE_TRACKERS:
-        if tracker.is_enabled():
-            logger.debug(f"Added tracker of type: {tracker}")
-            trackers_manager.add_tracker(tracker)
+trackers_manager = TrackerManager()
 
 
 def get_trackers_manager():
     """
-    Initialize a `TrackerManager`, looking for all relevant trackers and adds them to it.
+    Initialize a `TrackerManager`, looking for all relevant trackers and adds them to it if not empty
     :return: instance of TrackerManager with all relevant trackers
     """
     global trackers_manager
-    if trackers_manager:
-        return trackers_manager
-    # Initialize a new tracker manager:
-    trackers_manager = TrackerManager()
-
-    _create_tracking_list(trackers_manager=trackers_manager)
-
+    if not len(trackers_manager.trackers):
+        #  Go over the available trackers list and add them to the manager:
+        for tracker in _AVAILABLE_TRACKERS:
+            if tracker.is_enabled():
+                logger.debug(f"Added tracker of type: {tracker}")
+                trackers_manager.add_tracker(tracker)
     return trackers_manager
 
 
-def update_trackers_manager(manager: TrackerManager):
-    """
-    update the list ot trackers in the manager by removing all of them and re-inspecting the config
-    :param trackers_manager:
-    """
-    manager.clear_trackers()
-    _create_tracking_list(trackers_manager=manager)
+
+

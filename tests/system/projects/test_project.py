@@ -1114,11 +1114,12 @@ class TestProject(TestMLRunSystem):
             context=project_context,
             url=project_source,
             subpath="./test_remote_workflow_subpath",
-            name=project_name,clone=True
+            name=project_name,
+            clone=True,
         )
         name_task = "test-workflow"
-        project.set_workflow(name_task,'workflow.py',schedule="0 * * * *")
+        project.set_workflow(name_task, "workflow.py", schedule="0 * * * *")
         project.run(name_task, arguments={"x": 1}, engine="remote:kfp", schedule=True)
         db = mlrun.get_run_db()
-        schedule_task = db.get_schedule(project=project.name,name=name_task)
-        assert schedule_task.name==name_task
+        schedule_task = db.get_schedule(project=project.name, name=name_task)
+        assert schedule_task.name == name_task

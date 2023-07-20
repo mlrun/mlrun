@@ -820,7 +820,9 @@ class _RemoteRunner(_PipelineRunner):
         namespace=None,
         source=None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.replace(f"{project.name}","")[1:] if project.name in name else name
+        workflow_name = (
+            name.replace(f"{project.name}", "")[1:] if project.name in name else name
+        )
         run_id = None
 
         # If the user provided a source we want to load the project from the source

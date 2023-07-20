@@ -1174,6 +1174,63 @@ class SQLDB(DBInterface):
 
         return results
 
+    def store_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
+        schedule = self.get_schedule(
+            session=session, project=project, name=name, raise_on_not_found=False
+        )
+        schedule_exist = schedule is not None
+
+        if not schedule_exist:
+            schedule = Schedule(
+                project=project,
+                name=name,
+                kind=kind.value,
+                creation_time=datetime.now(timezone.utc),
+                concurrency_limit=concurrency_limit,
+                next_run_time=next_run_time,
+                scheduled_object=scheduled_object,
+                cron_trigger=cron_trigger,
+            )
+            labels = labels or {}
+
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Storing schedule to db",
+            project=project,
+            name=name,
+            kind=kind,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            scheduled_object=scheduled_object,
+        )
+
+        self._upsert(session, [schedule])
+
+        if schedule_exist:
+            return schedule
+
     def create_schedule(
         self,
         session: Session,
@@ -1232,6 +1289,37 @@ class SQLDB(DBInterface):
     ):
         schedule = self._get_schedule_record(session, project, name)
 
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Updating schedule in db",
+            project=project,
+            name=name,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+        self._upsert(session, [schedule])
+
+    @staticmethod
+    def _update_schedule_body(
+        schedule: mlrun.common.schemas.ScheduleRecord,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
             schedule.scheduled_object = scheduled_object
@@ -1252,17 +1340,6 @@ class SQLDB(DBInterface):
             # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
             # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
             schedule.next_run_time = next_run_time.astimezone(pytz.utc)
-
-        logger.debug(
-            "Updating schedule in db",
-            project=project,
-            name=name,
-            cron_trigger=cron_trigger,
-            labels=labels,
-            concurrency_limit=concurrency_limit,
-            next_run_time=next_run_time,
-        )
-        self._upsert(session, [schedule])
 
     def list_schedules(
         self,

@@ -259,6 +259,21 @@ class DBInterface(ABC):
     ):
         pass
 
+    def store_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
+        pass
+
     @abstractmethod
     def list_schedules(
         self,

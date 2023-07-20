@@ -664,7 +664,7 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| MLRunProjectclear_context() | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
+| MLRunProject.clear_context() | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 | MLRunProject object legacy parameters | metadata and spec instead |
 | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | run_local | function.run(local=True) |

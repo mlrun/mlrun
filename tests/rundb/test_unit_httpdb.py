@@ -190,3 +190,50 @@ def test_resolve_artifacts_to_tag_objects():
     assert tag_objects.identifiers[0].iter == 1
     assert tag_objects.identifiers[0].kind == "artifact"
     assert tag_objects.identifiers[0].uid == "some-uid"
+
+
+@pytest.mark.parametrize(
+    "path, call_amount",
+    [
+        (
+            "projects/default/artifacts/uid/tag",
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        (
+            "projects/default/artifacts/8bbaaa9f-919e-4438-8e6c-edbf6d37f3bf/v1",
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        (
+            "/projects/default/artifacts/uid/tag",
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        ("run/default/uid", 1 + mlrun.config.config.http_retry_defaults.max_retries),
+        (
+            "run/default/8bbaaa9f-919e-4438-8e6c-edbf6d37f3bf",
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
+        ("/run/default/uid", 1 + mlrun.config.config.http_retry_defaults.max_retries),
+        ("/not/retriable", 1),
+    ],
+)
+def test_retriable_post_requests(path, call_amount):
+    mlrun.config.config.httpdb.retry_api_call_on_exception = "enabled"
+    db = mlrun.db.httpdb.HTTPRunDB("fake-url")
+    # init the session to make sure it will be reinitialized when needed
+    db.session = db._init_session(False)
+    original_request = requests.Session.request
+    requests.Session.request = unittest.mock.Mock()
+    requests.Session.request.side_effect = ConnectionRefusedError(
+        "Connection refused",
+    )
+
+    # patch sleep to make test faster
+    with unittest.mock.patch("time.sleep"):
+
+        # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
+        # wrapped with MLRunRuntimeError
+        with pytest.raises(ConnectionRefusedError):
+            db.api_call("POST", path)
+
+    assert requests.Session.request.call_count == call_amount
+    requests.Session.request = original_request

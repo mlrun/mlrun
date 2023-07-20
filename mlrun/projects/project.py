@@ -118,6 +118,10 @@ def new_project(
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template
 
+    A new project is created and returned, you can customize the project by placing a project_setup.py file
+    in the project root dir, it will be executed upon project creation or loading.
+
+
     example::
 
         # create a project with local and hub functions, a workflow, and an artifact
@@ -141,6 +145,16 @@ def new_project(
         project.run("main", watch=True)
 
 
+    example using project_setup.py to init the project objects::
+
+            def setup(project):
+                project.set_function('prep_data.py', 'prep-data', image='mlrun/mlrun', handler='prep_data')
+                project.set_function('hub://auto-trainer', 'train')
+                project.set_artifact('data', Artifact(target_path=data_url))
+                project.set_workflow('main', "./myflow.py")
+                return project
+
+
     :param name:         project name
     :param context:      project local directory path (default value = "./")
     :param init_git:     if True, will git init the context dir
@@ -161,6 +175,10 @@ def new_project(
     name = _add_username_to_project_name_if_needed(name, user_project)
 
     if from_template:
+        if subpath:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Unsupported option, cannot use subpath argument with project templates"
+            )
         if from_template.endswith(".yaml"):
             project = _load_project_file(from_template, name, secrets)
         elif from_template.startswith("git://"):
@@ -226,10 +244,9 @@ def new_project(
             context=context,
             save=save,
         )
-        if from_template:
-            # Hook for initializing the project using a project_setup script
-            setup_file_path = path.join(context, "project_setup.py")
-            project = _run_project_setup(project, setup_file_path, save)
+
+    # Hook for initializing the project using a project_setup script
+    project = project.setup(save and mlrun.mlconf.dbpath)
 
     return project
 
@@ -249,13 +266,32 @@ def load_project(
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir
 
-    example::
+    MLRun looks for a project.yaml file with project definition and objects in the project root path
+    and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
+    for further customization.
+
+    Usage example::
 
         # Load the project and run the 'main' workflow.
         # When using git as the url source the context directory must be an empty or
         # non-existent folder as the git repo will be cloned there
         project = load_project("./demo_proj", "git://github.com/mlrun/project-demo.git")
         project.run("main", arguments={'data': data_url})
+
+
+    project_setup.py example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
 
     :param context:         project local directory path (default value = "./")
     :param url:             name (in DB) or git or tar.gz or .zip sources archive path e.g.:
@@ -344,8 +380,7 @@ def load_project(
         project.save()
 
     # Hook for initializing the project using a project_setup script
-    setup_file_path = path.join(context, project.spec.subpath or "", "project_setup.py")
-    project = _run_project_setup(project, setup_file_path, to_save)
+    project = project.setup(to_save)
 
     if to_save:
         project.register_artifacts()
@@ -373,12 +408,31 @@ def get_or_create_project(
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if doesnt exist
 
-    example::
+    MLRun looks for a project.yaml file with project definition and objects in the project root path
+    and use it to initialize the project, in addition it runs the project_setup.py file (if it exists)
+    for further customization.
+
+    Usage example::
 
         # load project from the DB (if exist) or the source repo
         project = get_or_create_project("myproj", "./", "git://github.com/mlrun/demo-xgb-project.git")
         project.pull("development")  # pull the latest code from git
         project.run("main", arguments={'data': data_url})  # run the workflow "main"
+
+
+    project_setup.py example::
+
+        def setup(project):
+            train_function = project.set_function(
+                "src/trainer.py",
+                name="mpi-training",
+                kind="mpijob",
+                image="mlrun/ml-models",
+            )
+            # Set the number of replicas for the training from the project parameter
+            train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
+            return project
+
 
     :param name:         project name
     :param context:      project local directory path (default value = "./")
@@ -1692,6 +1746,21 @@ class MlrunProject(ModelObj):
             project.sync_functions()
         self.__dict__.update(project.__dict__)
         return project
+
+    def setup(self, save: bool = True) -> "MlrunProject":
+        """Run the project setup file if found
+
+        When loading a project MLRun will look for a project_setup.py file, if it is found
+        it will execute the setup(project) handler, which can enrich the project with additional
+        objects, functions, artifacts, etc.
+
+        :param save: save the project after the setup
+        """
+        # Hook for initializing the project using a project_setup script
+        setup_file_path = path.join(
+            self.context, self.spec.subpath or "", "project_setup.py"
+        )
+        return _run_project_setup(self, setup_file_path, save)
 
     def set_function(
         self,

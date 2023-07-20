@@ -495,6 +495,15 @@ def test_enrich_image():
         },
         {
             "image": "mlrun/mlrun",
+            "client_version": "1.5.0",
+            "client_python_version": "3.7.13",
+            "images_tag": None,
+            "version": None,
+            "expected_output": "mlrun/mlrun:1.5.0",
+            "images_to_enrich_registry": "",
+        },
+        {
+            "image": "mlrun/mlrun",
             "client_version": "1.3.0",
             "client_python_version": None,
             "images_tag": None,

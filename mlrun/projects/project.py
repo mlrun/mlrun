@@ -1245,6 +1245,7 @@ class MlrunProject(ModelObj):
         handler=None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl=None,
+        image: str = None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1260,6 +1261,7 @@ class MlrunProject(ModelObj):
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
+        :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
         """
 
@@ -1299,6 +1301,8 @@ class MlrunProject(ModelObj):
         workflow["schedule"] = schedule
         if ttl:
             workflow["ttl"] = ttl
+        if image:
+            workflow["image"] = image
         self.spec.set_workflow(name, workflow)
 
     def set_artifact(

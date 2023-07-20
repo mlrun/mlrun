@@ -17,6 +17,7 @@ from typing import List, Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
@@ -51,8 +52,6 @@ class SQLRunDB(RunDBInterface):
         return self
 
     def store_log(self, uid, project="", body=b"", append=False):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Logs().store_log,
             body,
@@ -73,8 +72,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def store_run(self, struct, uid, project="", iter=0):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().store_run,
             self.session,
@@ -85,8 +82,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def update_run(self, updates: dict, uid, project="", iter=0):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().update_run,
             self.session,
@@ -100,8 +95,6 @@ class SQLRunDB(RunDBInterface):
         raise NotImplementedError()
 
     def read_run(self, uid, project=None, iter=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().get_run,
             self.session,
@@ -133,8 +126,6 @@ class SQLRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().list_runs,
             self.session,
@@ -159,8 +150,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def del_run(self, uid, project=None, iter=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().delete_run,
             self.session,
@@ -170,8 +159,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Runs().delete_runs,
             self.session,
@@ -183,8 +170,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().store_artifact,
             self.session,
@@ -197,8 +182,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def read_artifact(self, key, tag="", iter=None, project=""):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().get_artifact,
             self.session,
@@ -221,8 +204,6 @@ class SQLRunDB(RunDBInterface):
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
     ):
-        import mlrun.api.crud
-
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
 
@@ -242,8 +223,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def del_artifact(self, key, tag="", project=""):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().delete_artifact,
             self.session,
@@ -253,8 +232,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().delete_artifacts,
             self.session,
@@ -265,8 +242,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def store_function(self, function, name, project="", tag="", versioned=False):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Functions().store_function,
             self.session,
@@ -278,8 +253,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def get_function(self, name, project="", tag="", hash_key=""):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Functions().get_function,
             self.session,
@@ -290,8 +263,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def delete_function(self, name: str, project: str = ""):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Functions().delete_function,
             self.session,
@@ -300,8 +271,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def list_functions(self, name=None, project=None, tag=None, labels=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Functions().list_functions,
             db_session=self.session,
@@ -327,8 +296,6 @@ class SQLRunDB(RunDBInterface):
         tag_objects: mlrun.common.schemas.TagObjects,
         replace: bool = False,
     ):
-        import mlrun.api.crud
-
         if replace:
             return self._transform_db_error(
                 mlrun.api.crud.Tags().overwrite_object_tags_with_tag,
@@ -352,8 +319,6 @@ class SQLRunDB(RunDBInterface):
         tag_name: str,
         tag_objects: mlrun.common.schemas.TagObjects,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Tags().delete_tag_from_objects,
             self.session,
@@ -401,8 +366,6 @@ class SQLRunDB(RunDBInterface):
         name: str,
         project: mlrun.common.schemas.Project,
     ) -> mlrun.common.schemas.Project:
-        import mlrun.api.crud
-
         if isinstance(project, dict):
             project = mlrun.common.schemas.Project(**project)
 
@@ -419,8 +382,6 @@ class SQLRunDB(RunDBInterface):
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ) -> mlrun.common.schemas.Project:
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Projects().patch_project,
             self.session,
@@ -433,8 +394,6 @@ class SQLRunDB(RunDBInterface):
         self,
         project: mlrun.common.schemas.Project,
     ) -> mlrun.common.schemas.Project:
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Projects().create_project,
             self.session,
@@ -446,8 +405,6 @@ class SQLRunDB(RunDBInterface):
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Projects().delete_project,
             self.session,
@@ -458,8 +415,6 @@ class SQLRunDB(RunDBInterface):
     def get_project(
         self, name: str = None, project_id: int = None
     ) -> mlrun.common.schemas.Project:
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Projects().get_project,
             self.session,
@@ -473,8 +428,6 @@ class SQLRunDB(RunDBInterface):
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.Projects().list_projects,
             self.session,
@@ -492,8 +445,6 @@ class SQLRunDB(RunDBInterface):
             raise mlrun.db.RunDBError(exc.args)
 
     def create_feature_set(self, feature_set, project="", versioned=True):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().create_feature_set,
             self.session,
@@ -505,8 +456,6 @@ class SQLRunDB(RunDBInterface):
     def get_feature_set(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
-        import mlrun.api.crud
-
         feature_set = self._transform_db_error(
             mlrun.api.crud.FeatureStore().get_feature_set,
             self.session,
@@ -525,8 +474,6 @@ class SQLRunDB(RunDBInterface):
         entities: List[str] = None,
         labels: List[str] = None,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().list_features,
             self.session,
@@ -544,8 +491,6 @@ class SQLRunDB(RunDBInterface):
         tag: str = None,
         labels: List[str] = None,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().list_entities,
             self.session,
@@ -569,8 +514,6 @@ class SQLRunDB(RunDBInterface):
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().list_feature_sets,
             self.session,
@@ -596,8 +539,6 @@ class SQLRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ):
-        import mlrun.api.crud
-
         if isinstance(feature_set, dict):
             feature_set = mlrun.common.schemas.FeatureSet(**feature_set)
 
@@ -617,8 +558,6 @@ class SQLRunDB(RunDBInterface):
     def patch_feature_set(
         self, name, feature_set, project="", tag=None, uid=None, patch_mode="replace"
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().patch_feature_set,
             self.session,
@@ -631,8 +570,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def delete_feature_set(self, name, project="", tag=None, uid=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().delete_feature_set,
             self.session,
@@ -643,8 +580,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().create_feature_vector,
             self.session,
@@ -656,8 +591,6 @@ class SQLRunDB(RunDBInterface):
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().get_feature_vector,
             self.session,
@@ -679,8 +612,6 @@ class SQLRunDB(RunDBInterface):
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().list_feature_vectors,
             self.session,
@@ -704,8 +635,6 @@ class SQLRunDB(RunDBInterface):
         uid=None,
         versioned=True,
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().store_feature_vector,
             self.session,
@@ -726,8 +655,6 @@ class SQLRunDB(RunDBInterface):
         uid=None,
         patch_mode="replace",
     ):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().patch_feature_vector,
             self.session,
@@ -740,8 +667,6 @@ class SQLRunDB(RunDBInterface):
         )
 
     def delete_feature_vector(self, name, project="", tag=None, uid=None):
-        import mlrun.api.crud
-
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().delete_feature_vector,
             self.session,

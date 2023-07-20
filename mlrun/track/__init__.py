@@ -37,7 +37,3 @@ def get_trackers_manager():
                 logger.debug(f"Added tracker of type: {tracker}")
                 trackers_manager.add_tracker(tracker)
     return trackers_manager
-
-
-
-

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from os import environ
-from typing import Union, Type
+from typing import Type, Union
 
 from mlrun.execution import MLClientCtx
 
@@ -65,4 +65,3 @@ class TrackerManager:
     @property
     def trackers(self):
         return self._trackers
-

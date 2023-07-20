@@ -26,9 +26,10 @@ from mlflow import log_artifacts, log_metric, log_param
 from sklearn import datasets
 from sklearn.metrics import accuracy_score, f1_score, log_loss
 from sklearn.model_selection import train_test_split
-from mlrun.utils import logger
+
 import mlrun
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
+from mlrun.utils import logger
 
 mpl.use("Agg")
 

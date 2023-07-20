@@ -177,7 +177,6 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         return context.to_dict()
 
 
-
 class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False

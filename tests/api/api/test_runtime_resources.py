@@ -22,6 +22,7 @@ import sqlalchemy.orm
 
 import mlrun.api.api.endpoints.runtime_resources
 import mlrun.api.crud
+import mlrun.api.runtime_handlers
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 
@@ -238,7 +239,7 @@ def test_list_runtime_resources_filter_by_kind(
     ) = _generate_grouped_by_project_runtime_resources_output()
     filtered_kind = mlrun.runtimes.RuntimeKinds.job
 
-    runtime_handler = mlrun.runtimes.get_runtime_handler(filtered_kind)
+    runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(filtered_kind)
     runtime_handler.list_resources = unittest.mock.Mock(
         return_value=_filter_kind_from_grouped_by_project_runtime_resources_output(
             mlrun.runtimes.RuntimeKinds.job,
@@ -495,7 +496,7 @@ def _mock_runtime_handlers_delete_resources(
             )
 
     for kind in kinds:
-        runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+        runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
         runtime_handler.delete_resources = unittest.mock.Mock(
             side_effect=_assert_delete_resources_label_selector
         )

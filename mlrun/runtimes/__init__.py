@@ -216,37 +216,6 @@ class RuntimeKinds(object):
 
 runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 
-runtime_handler_instances_cache = {}
-
-
-def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
-    global runtime_handler_instances_cache
-    if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = resolve_mpijob_crd_version()
-        crd_version_to_runtime_handler_class = {
-            MPIJobCRDVersions.v1alpha1: MpiV1Alpha1RuntimeHandler,
-            MPIJobCRDVersions.v1: MpiV1RuntimeHandler,
-        }
-        runtime_handler_class = crd_version_to_runtime_handler_class[mpijob_crd_version]
-        if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(
-            mpijob_crd_version
-        ):
-            runtime_handler_instances_cache[RuntimeKinds.mpijob][
-                mpijob_crd_version
-            ] = runtime_handler_class()
-        return runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version]
-
-    kind_runtime_handler_map = {
-        RuntimeKinds.dask: DaskRuntimeHandler,
-        RuntimeKinds.spark: SparkRuntimeHandler,
-        RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
-        RuntimeKinds.job: KubeRuntimeHandler,
-    }
-    runtime_handler_class = kind_runtime_handler_map[kind]
-    if not runtime_handler_instances_cache.get(kind):
-        runtime_handler_instances_cache[kind] = runtime_handler_class()
-    return runtime_handler_instances_cache[kind]
-
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:

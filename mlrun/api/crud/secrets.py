@@ -159,21 +159,14 @@ class Secrets(
             raise mlrun.errors.MLRunInternalServerError(
                 "K8s provider cannot be initialized"
             )
+
+        # ignore the returned action as we don't need to emit an event for auth secrets (they are internal)
         (
             auth_secret_name,
-            action,
+            _,
         ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().store_auth_secret(
             secret.username, secret.access_key
         )
-
-        if action:
-            events_client = events_factory.EventsFactory().get_events_client()
-            event = events_client.generate_auth_secret_event(
-                username=secret.username,
-                secret_name=auth_secret_name,
-                action=action,
-            )
-            events_client.emit(event)
 
         return auth_secret_name
 

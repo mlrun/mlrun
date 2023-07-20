@@ -17,7 +17,7 @@ import typing
 import igz_mgmt.schemas.events
 
 import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.events.base
+import mlrun.api.utils.events.base as base_events
 import mlrun.common.schemas
 from mlrun.utils import logger
 
@@ -28,7 +28,7 @@ PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"
 PROJECT_SECRET_DELETED = "Security.Project.Secret.Deleted"
 
 
-class Client(mlrun.api.utils.events.base.BaseEventClient):
+class Client(base_events.BaseEventClient):
     def __init__(self, access_key: str = None, verbose: bool = None):
         self.access_key = (
             access_key
@@ -60,9 +60,9 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
     ) -> igz_mgmt.Event:
         """
         Generate an auth secret event
-        :param username:  username
-        :param secret_name:  secret name
-        :param action: preformed action
+        :param username:        username
+        :param secret_name:     secret name
+        :param action:          preformed action
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:
@@ -81,10 +81,10 @@ class Client(mlrun.api.utils.events.base.BaseEventClient):
     ) -> igz_mgmt.Event:
         """
         Generate a project secret event
-        :param project: project name
+        :param project:     project name
         :param secret_name: secret name
         :param secret_keys: secret keys, optional, only relevant for created/updated events
-        :param action: preformed action
+        :param action:      preformed action
         :return: event object to emit
         """
         if action == mlrun.common.schemas.SecretEventActions.created:

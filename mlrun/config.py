@@ -297,6 +297,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -467,7 +468,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects

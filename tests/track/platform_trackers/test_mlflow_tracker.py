@@ -62,7 +62,6 @@ def lgb_run():
     y_pred = regressor.predict(X_test)
     f1_score(y_test, y_pred, average="micro")
     run_id = mlflow.last_active_run().info.run_id
-    print("Logged data and model in run {}".format(run_id))
 
 
 def xgb_run():
@@ -125,6 +124,10 @@ def test_is_enabled(rundb_mock):
 def test_run(rundb_mock, handler):
     mlrun.mlconf.tracking.enabled = True
     test_directory = tempfile.TemporaryDirectory()
+    # in order to tell mlflow where to look for logged run for comparison
+    mlflow.set_tracking_uri(test_directory.name)
+    client = mlflow.MlflowClient()
+
     # Create a project for this tester:
     project = mlrun.get_or_create_project(name="default", context=test_directory.name)
 
@@ -137,22 +140,18 @@ def test_run(rundb_mock, handler):
         requirements=["mlflow"],
     )
     # mlflow creates a dir to log the run, this makes it in the tmpdir we create
-    mlflow.set_tracking_uri(test_directory.name)
     try:
         trainer_run = func.run(
             local=True, artifact_path=test_directory.name, handler=handler
         )
-        _validate_run(trainer_run, test_directory)
+        _validate_run(trainer_run, test_directory, client)
     except Exception as e:
         test_directory.cleanup()
         raise e
     test_directory.cleanup()
 
 
-def _validate_run(run, test_directory):
-    # in order to tell mlflow where to look for logged run for comparison
-    mlflow.set_tracking_uri(test_directory.name)
-    client = mlflow.MlflowClient()
+def _validate_run(run, test_directory, client):
     runs = []
     # returns a list of mlflow.entities.Experiment
     experiments = client.search_experiments()

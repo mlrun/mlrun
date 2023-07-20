@@ -102,7 +102,7 @@ class ClientSpec(
             feature_store_data_prefixes=self._get_config_value_if_not_default(
                 "feature_store.data_prefixes"
             ),
-            tracking=config.tracking,
+            tracking=self._get_config_value_if_not_default("tracking"),
         )
 
     @staticmethod

@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import mlrun.api.launcher
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -32,6 +33,7 @@ import mlrun.api.utils.singletons.logs_dir
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
+import mlrun.db.factory
 from mlrun import mlconf
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
@@ -52,6 +54,10 @@ def api_config_test():
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
 
     mlrun.api.launcher.initialize_launcher()
+
+    # we need to override the run db container manually because we run all unit tests in the same process
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.override(mlrun.api.rundb.sqldb.SQLRunDBContainer)
 
 
 @pytest.fixture()

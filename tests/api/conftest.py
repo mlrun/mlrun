@@ -127,12 +127,12 @@ class K8sSecretsMock:
 
     def store_auth_secret(
         self, username: str, access_key: str, namespace=""
-    ) -> (str, mlrun.common.schemas.SecretEventActions):
+    ) -> (str, bool):
         secret_ref = self.get_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
-        return secret_ref, mlrun.common.schemas.SecretEventActions.created
+        return secret_ref, True
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -165,12 +165,10 @@ class K8sSecretsMock:
         ]
         return username, access_key
 
-    def store_project_secrets(
-        self, project, secrets, namespace=""
-    ) -> (str, mlrun.common.schemas.SecretEventActions):
+    def store_project_secrets(self, project, secrets, namespace="") -> (str, bool):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
         secret_name = project
-        return secret_name, mlrun.common.schemas.SecretEventActions.created
+        return secret_name, True
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         if not secrets:

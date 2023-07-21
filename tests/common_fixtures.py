@@ -165,30 +165,6 @@ def running_as_api():
     mlrun.config.is_running_as_api = old_is_running_as_api
 
 
-<<<<<<< HEAD
-=======
-@pytest.fixture()
-def chdir_to_test_location(request):
-    """
-    Fixture to change the working directory for tests,
-    It allows seamless access to files relative to the test file.
-
-    Because the working directory inside the dockerized test is '/mlrun',
-    this fixture allows to automatically modify the cwd to the test file directory,
-    to ensure the workflow files are located,
-    and modify it back after the test case for other tests
-
-    """
-    original_working_dir = os.getcwd()
-    test_file_path = os.path.dirname(inspect.getfile(request.function))
-    os.chdir(test_file_path)
-
-    yield
-
-    os.chdir(original_working_dir)
-
-
->>>>>>> 7e1e75b2 ([Tests] Revert makefile so that `test-dockerized` runs on all tests (#3920))
 @pytest.fixture
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:
@@ -534,9 +510,6 @@ class RunDBMock:
             return self._functions[function_name]
 
         return list(self._functions.values())[0]
-
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        pass
 
 
 @pytest.fixture()

@@ -13,10 +13,12 @@
 # limitations under the License.
 import pathlib
 
+from sqlalchemy.orm import Session
+
 import mlrun.projects
 from mlrun.__main__ import load_notification
+from mlrun.api.db.base import DBInterface
 from mlrun.artifacts.plots import ChartArtifact
-from mlrun.lists import ArtifactList
 
 
 def test_add_notification_to_cli_from_file():
@@ -50,16 +52,21 @@ def test_add_notification_to_cli_from_dict():
     )
 
 
-def test_cli_get_artifacts_with_uri():
-    artifacts = []
-    for i in range(5):
-        artifact_key = f"artifact_test_{i}"
-        artifact_uid = f"artifact_uid_{i}"
-        artifact_kind = ChartArtifact.kind
-        artifacts.append(
-            generate_artifact(artifact_key, kind=artifact_kind, uid=artifact_uid)
-        )
-    artifacts = ArtifactList(artifacts)
+def test_cli_get_artifacts_with_uri(db: DBInterface, db_session: Session):
+    artifact_key = "artifact_test"
+    artifact_uid = "artifact_uid"
+    artifact_kind = ChartArtifact.kind
+    artifact = generate_artifact(artifact_key, kind=artifact_kind)
+
+    db.store_artifact(
+        db_session,
+        artifact_key,
+        artifact,
+        artifact_uid,
+    )
+
+    artifacts = db.list_artifacts(db_session)
+    assert len(artifacts) == 1
 
     # this is the function called when executing the get artifacts cli command
     df = artifacts.to_df()
@@ -70,7 +77,7 @@ def test_cli_get_artifacts_with_uri():
 
 def generate_artifact(name, uid=None, kind=None):
     artifact = {
-        "metadata": {"key": name, "iter": 0},
+        "metadata": {"name": name},
         "spec": {"src_path": "/some/path"},
         "kind": kind,
         "status": {"bla": "blabla"},

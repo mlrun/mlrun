@@ -316,5 +316,5 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 ```
 
 ```{admonition} Note
-If your values have fixed mlrun service versions (e..g: mlrun:1.2.1) then you might want to remove it from the values file to allow newer chart defaults to kick in
+If your values have fixed mlrun service versions (e..g: mlrun:1.4.0) then you might want to remove it from the values file to allow newer chart defaults to kick in
 ```

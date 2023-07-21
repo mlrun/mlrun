@@ -821,7 +821,7 @@ class _RemoteRunner(_PipelineRunner):
         source=None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = (
-            name.replace(f"{project.name}", "")[1:] if project.name in name else name
+            name.lstrip(f"{project.name}").lstrip("-") if project.name in name else name
         )
         run_id = None
 

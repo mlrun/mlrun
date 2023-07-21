@@ -1117,7 +1117,7 @@ class TestProject(TestMLRunSystem):
             name=project_name,
             clone=True,
         )
-        name_task = "test-workflow"
+        name_task = "name-workflow"
         project.set_workflow(name_task, "workflow.py", schedule="0 * * * *")
         project.run(name_task, arguments={"x": 1}, engine="remote:kfp", schedule=True)
         db = mlrun.get_run_db()

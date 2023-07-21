@@ -511,6 +511,9 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
+    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
+        pass
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:

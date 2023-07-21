@@ -1102,7 +1102,7 @@ class BaseRuntimeHandler(ABC):
     def _resolve_kind_from_class(mlrun_class: str) -> str:
         class_to_kind_map = {}
         for kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
             class_values = runtime_handler._get_possible_mlrun_class_label_values()
             for value in class_values:
                 class_to_kind_map[value] = kind

@@ -30,22 +30,17 @@ from mlrun.runtimes.utils import (
     resolve_spark_operator_version,
 )
 
-from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  # noqa
+from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
-from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
+from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .function import RemoteRuntime
-from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
+from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import (  # noqa
-    MpiRuntimeV1,
-    MpiRuntimeV1Alpha1,
-    MpiV1Alpha1RuntimeHandler,
-    MpiV1RuntimeHandler,
-)
+from .mpijob import MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook
-from .remotesparkjob import RemoteSparkRuntime, RemoteSparkRuntimeHandler
+from .remotesparkjob import RemoteSparkRuntime
 from .serving import ServingRuntime, new_v2_model_server
-from .sparkjob import Spark3Runtime, SparkRuntimeHandler
+from .sparkjob import Spark3Runtime
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip

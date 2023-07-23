@@ -456,14 +456,13 @@ class DatabricksRuntime(KubejobRuntime):
             returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         if isinstance(runspec, RunObject):
-            print(runspec.to_dict())
-        elif isinstance(runspec, dict):
-            print(runspec)
+            print(f"runspec: {runspec.to_dict()}")
         else:
-            print(runspec)
-        if isinstance(runspec, RunObject) and not runspec.metadata.project:
-            if not project:
-                project = mlrun.get_current_project().name
+            print(f"runspec: {runspec}")
+        if not project:
+            current_project = mlrun.get_current_project(silent=True)
+            if current_project:
+                project = current_project
         return super().run(runspec=runspec, handler=handler, name=name, project=project, params=params, inputs=inputs,
                            out_path=out_path, workdir=workdir, artifact_path=artifact_path, watch=watch,
                            schedule=schedule, hyperparams=hyperparams, hyper_param_options=hyper_param_options,

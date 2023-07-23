@@ -760,7 +760,9 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
+        workflow_name = (
+            name.lstrip(f"{project.name}").lstrip("-") if project.name in name else name
+        )
         workflow_id = None
 
         # The returned engine for this runner is the engine of the workflow.

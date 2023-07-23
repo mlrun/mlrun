@@ -76,7 +76,6 @@ forbidden_modules=
     mlrun.api
 
 ignore_imports =
-    mlrun.feature_store.ingestion -> mlrun.api.api.utils
     mlrun.utils.notifications.notification_pusher -> mlrun.api.db.session
     mlrun.utils.notifications.notification_pusher -> mlrun.api.db.base
     mlrun.runtimes.base -> mlrun.api.crud

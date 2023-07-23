@@ -592,12 +592,6 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
-@click.option(
-    "--dashboard",
-    "-d",
-    default="",
-    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
-)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")
@@ -616,7 +610,6 @@ def deploy(
     spec,
     source,
     func_url,
-    dashboard,
     project,
     model,
     tag,
@@ -677,16 +670,8 @@ def deploy(
             function.set_env(k, v)
     function.verbose = verbose
 
-    if dashboard:
-        warnings.warn(
-            "'--dashboard' is deprecated in 1.3.0, and will be removed in 1.5.0, "
-            "Keep '--dashboard' value empty to allow auto-detection by MLRun API.",
-            # TODO: Remove in 1.5.0
-            FutureWarning,
-        )
-
     try:
-        addr = function.deploy(dashboard=dashboard, project=project, tag=tag)
+        addr = function.deploy(project=project, tag=tag)
     except Exception as err:
         print(f"deploy error: {err_to_str(err)}")
         exit(1)
@@ -1005,12 +990,6 @@ def logs(uid, project, offset, db, watch):
 @click.option(
     "--env-file", default="", help="path to .env file to load config/variables from"
 )
-# TODO: Remove --ensure-project in 1.5.0
-@click.option(
-    "--ensure-project",
-    is_flag=True,
-    help="ensure the project exists, if not, create project",
-)
 @click.option(
     "--save/--no-save",
     default=True,
@@ -1024,13 +1003,6 @@ def logs(uid, project, offset, db, watch):
     "for help see: "
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
-)
-# TODO: Remove in 1.5.0
-@click.option(
-    "--overwrite-schedule",
-    "-os",
-    is_flag=True,
-    help="Overwrite a schedule when submitting a new one with the same name.",
 )
 @click.option(
     "--save-secrets",
@@ -1069,23 +1041,14 @@ def project(
     local,
     env_file,
     timeout,
-    ensure_project,
     schedule,
     notifications,
-    overwrite_schedule,
     save_secrets,
     save,
 ):
     """load and/or run a project"""
     if env_file:
         mlrun.set_env_from_file(env_file)
-
-    if ensure_project:
-        warnings.warn(
-            "'ensure_project' is deprecated and will be removed in 1.5.0, use 'save' (True by default) instead. ",
-            # TODO: Remove this in 1.5.0
-            FutureWarning,
-        )
 
     if db:
         mlconf.dbpath = db
@@ -1169,7 +1132,6 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
-                overwrite=overwrite_schedule,
             )
         except Exception as err:
             print(traceback.format_exc())

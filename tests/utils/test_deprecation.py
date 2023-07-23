@@ -15,22 +15,30 @@
 import unittest.mock
 import warnings
 
+import deprecated
 import pytest
 
 import mlrun
 
 
 def test_deprecated_decorator_warning_is_shown():
-    mlrun._mount_v3io_extended = unittest.mock.MagicMock()
     with warnings.catch_warnings(record=True) as w:
-        mlrun.mount_v3io_legacy()
+
+        @deprecated.deprecated(
+            version="1.4.0",
+            reason="I am deprecated",
+            category=FutureWarning,
+        )
+        def deprecated_function():
+            pass
+
+        deprecated_function()
 
         assert len(w) == 1
         assert issubclass(w[-1].category, FutureWarning)
         assert (
-            "Call to deprecated function (or staticmethod) mount_v3io_legacy. "
-            "('mount_v3io_legacy' will be removed in 1.5.0, use 'mount_v3io' instead) -- "
-            "Deprecated since version 1.3.0." in str(w[-1].message)
+            "Call to deprecated function (or staticmethod) deprecated_function. "
+            "(I am deprecated) -- Deprecated since version 1.4.0." in str(w[-1].message)
         )
 
 

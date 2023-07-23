@@ -220,16 +220,6 @@ class ArtifactList(list):
         """return as a list of artifact objects"""
         return [dict_to_artifact(artifact) for artifact in self]
 
-    def objects(self) -> List[Artifact]:
-        """return as a list of artifact objects"""
-        warnings.warn(
-            "'objects' is deprecated in 1.3.0 and will be removed in 1.5.0. "
-            "Use 'to_objects' instead.",
-            # TODO: remove in 1.5.0
-            FutureWarning,
-        )
-        return [dict_to_artifact(artifact) for artifact in self]
-
     def dataitems(self) -> List["mlrun.DataItem"]:
         """return as a list of DataItem objects"""
         dataitems = []

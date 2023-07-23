@@ -455,8 +455,10 @@ class DatabricksRuntime(KubejobRuntime):
             notifications: Optional[List[mlrun.model.Notification]] = None,
             returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
-        if not project:
-            project = mlrun.get_current_project().name
+        print(runspec.__dict__)
+        if isinstance(runspec, RunObject) and not runspec.metadata.project:
+            if not project:
+                project = mlrun.get_current_project().name
         return super().run(runspec=runspec, handler=handler, name=name, project=project, params=params, inputs=inputs,
                            out_path=out_path, workdir=workdir, artifact_path=artifact_path, watch=watch,
                            schedule=schedule, hyperparams=hyperparams, hyper_param_options=hyper_param_options,

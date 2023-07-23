@@ -48,7 +48,7 @@ class RunDBFactory(
                 "Could not detect path to API server, not connected to API server!"
             )
             logger.warning(
-                "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API server"
+                "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API server"
                 " in order to connect"
             )
             self._run_db = self._rundb_container.nop(url)

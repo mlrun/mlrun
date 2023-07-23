@@ -31,7 +31,7 @@ class NopDB(RunDBInterface):
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):
             env_var_message = (
-                "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API "
+                "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API "
                 "server in order to connect"
             )
             if config.httpdb.nop_db.raise_error:

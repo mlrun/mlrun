@@ -3924,9 +3924,8 @@ class SQLDB(DBInterface):
     ):
         """
         Create or replace a datastore profile.
-        :param profile: name of the profile
-        :param public_info: JSON string that contains all the public information (like enpoint url) of the profile
-        :project: Name of the project
+        :param session: SQLAlchemy session
+        :param info: datastore profile
         :returns: None
         """
         info.project = info.project or config.default_project
@@ -3954,8 +3953,9 @@ class SQLDB(DBInterface):
     ):
         """
         get a datastore profile.
+        :param session: SQLAlchemy session
         :param profile: name of the profile
-        :project: Name of the project
+        :param project: Name of the project
         :returns: None
         """
         project = project or config.default_project
@@ -3965,7 +3965,7 @@ class SQLDB(DBInterface):
             return mlrun.common.schemas.DatastoreProfile(**r)
         else:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Datastore profile not found: project={project}, profile={profile}"
+                f"Datastore profile '{profile}' not found in project '{project}'"
             )
 
     def delete_datastore_profile(
@@ -3981,7 +3981,7 @@ class SQLDB(DBInterface):
             session.commit()
         else:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Datastore profile not found: project={project}, profile={profile}"
+                f"Datastore profile '{profile}' not found in project '{project}'"
             )
 
     def list_datastore_profiles(
@@ -3990,10 +3990,10 @@ class SQLDB(DBInterface):
         project: str,
     ):
         """
-        get a datastore profile.
-        :param profile: name of the profile
-        :project: Name of the project
-        :returns: None
+        list all datastore profiles for a project.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: List of DatatoreProfile objects (only the public portion of it)
         """
         project = project or config.default_project
         query_results = self._query(session, DatastoreProfile, project=project)
@@ -4008,8 +4008,8 @@ class SQLDB(DBInterface):
         project: str,
     ):
         """
-        delete all  datastore profiles.
-        :project: Name of the project
+        Delete all  datastore profiles.
+        :param project: Name of the project
         :returns: None
         """
         project = project or config.default_project

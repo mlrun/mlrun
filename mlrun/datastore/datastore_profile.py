@@ -114,14 +114,17 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         }
         if decoded_dict["type"] == "redis":
             return DatastoreProfileRedis.parse_obj(decoded_dict)
-        return None
+        else:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Datastore profie failed to create from json: Unexpected or missing type"
+            )
 
 
 def datastore_profile_read(url):
     parsed_url = urlparse(url)
     if parsed_url.scheme.lower() != "ds":
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"resource {url} does not have datastore profile format"
+            f"resource URL '{url}' cannot be read as a datastore profile because its scheme is not 'ds'"
         )
 
     profile_name = parsed_url.hostname

@@ -1098,9 +1098,8 @@ def _create_resources_of_all_kinds(
         body="datastore_test_profile_body",
         project=project,
     )
-    db.store_datastore_profile(db_session, ds_profile)
-
     # create a datasource profile
+    db.store_datastore_profile(db_session, ds_profile)
 
 
 def _assert_resources_in_project(

@@ -2128,7 +2128,7 @@ class TestFeatureStore(TestMLRunSystem):
         if target_redis.startswith("ds"):
             project = mlrun.get_or_create_project(self.project_name)
             profile = DatastoreProfileRedis(
-                name="dsname", endpoint_url=mlrun.mlconf.redis.url
+                name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url
             )
             project.register_datastore_profile(profile)
 

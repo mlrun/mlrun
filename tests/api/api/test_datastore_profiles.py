@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,25 +21,25 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.schemas
 
-PROJECT = "prj"
-DATASTORE = {
+project = "prj"
+datastore = {
     "project": "prj",
     "name": "ds",
     "type": "nosql",
     "body": "body or url ds://host:1234",
 }
-LEGACY_API_PROJECTS_PATH = "projects"
-API_DATASTORE_PATH = "/api/v1/projects/{project}/datastore_profiles"
+legacy_api_projects_path = "projects"
+api_datastore_path = "/api/v1/projects/{project}/datastore_profiles"
 
 
-def _create_project(client: TestClient, project_name: str = PROJECT):
+def _create_project(client: TestClient, project_name: str = project):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
-    resp = client.post(LEGACY_API_PROJECTS_PATH, json=project.dict())
+    resp = client.post(legacy_api_projects_path, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
 
@@ -47,15 +47,39 @@ def _create_project(client: TestClient, project_name: str = PROJECT):
 def test_datastore_profile_create_ok(db: Session, client: TestClient):
     _create_project(client)
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
-        data=json.dumps(DATASTORE),
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore),
     )
     assert resp.status_code == HTTPStatus.OK.value
 
-    expected_return = {"project": PROJECT, **DATASTORE}
+    expected_return = {"project": project, **datastore}
 
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    assert json.loads(resp._content) == expected_return
+
+
+def test_datastore_profile_update_ok(db: Session, client: TestClient):
+    _create_project(client)
+    resp = client.post(
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+    datastore_updated = datastore
+    datastore_updated["body"] = "another version of body"
+    resp = client.post(
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore_updated),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    expected_return = {"project": project, **datastore_updated}
+
+    resp = client.get(
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.OK.value
     assert json.loads(resp._content) == expected_return
@@ -64,15 +88,15 @@ def test_datastore_profile_create_ok(db: Session, client: TestClient):
 def test_datastore_profile_create_fail(db: Session, client: TestClient):
     # No project created
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
-        data=json.dumps(DATASTORE),
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
     # Empty data
     _create_project(client)
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
+        api_datastore_path.format(project=project),
         data={},
     )
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
@@ -81,18 +105,18 @@ def test_datastore_profile_create_fail(db: Session, client: TestClient):
 def test_datastore_profile_get_fail(db: Session, client: TestClient):
     # No project created
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
     # Not existing profile
     _create_project(client)
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
+        api_datastore_path.format(project=project),
         data={},
     )
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/invalid",
+        api_datastore_path.format(project=project) + "/invalid",
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
@@ -100,39 +124,39 @@ def test_datastore_profile_get_fail(db: Session, client: TestClient):
 def test_datastore_profile_delete(db: Session, client: TestClient):
     # No project created
     resp = client.delete(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
     # Not existing profile
     _create_project(client)
     resp = client.delete(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
     # Create the profile
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
-        data=json.dumps(DATASTORE),
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore),
     )
     assert resp.status_code == HTTPStatus.OK.value
 
     # Get the profile OK
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.OK.value
 
     # Delete the profile
     resp = client.delete(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.OK.value
 
-    # Get the non existing project
+    # Get the nonexistent profile
     resp = client.delete(
-        API_DATASTORE_PATH.format(project=PROJECT) + "/" + DATASTORE["name"],
+        api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
@@ -140,28 +164,28 @@ def test_datastore_profile_delete(db: Session, client: TestClient):
 def test_datastore_profile_list(db: Session, client: TestClient):
     # No project created
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT),
+        api_datastore_path.format(project=project),
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
     # Project with no datasource profiles
     _create_project(client)
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT),
+        api_datastore_path.format(project=project),
     )
     assert resp.status_code == HTTPStatus.OK.value
     assert json.loads(resp._content) == []
 
     # Create the profile
     resp = client.post(
-        API_DATASTORE_PATH.format(project=PROJECT),
-        data=json.dumps(DATASTORE),
+        api_datastore_path.format(project=project),
+        data=json.dumps(datastore),
     )
 
-    expected_return = [{"project": PROJECT, **DATASTORE}]
+    expected_return = [{"project": project, **datastore}]
 
     resp = client.get(
-        API_DATASTORE_PATH.format(project=PROJECT),
+        api_datastore_path.format(project=project),
     )
     assert resp.status_code == HTTPStatus.OK.value
     assert json.loads(resp._content) == expected_return

@@ -46,7 +46,7 @@ class RedisStore(DataStore):
                 self.endpoint = self.endpoint[len("redis://") :]
                 self.secure = False
             elif self.endpoint == "":
-                raise NotImplementedError(f"invalid endpoint: {endpoint}")
+                raise NotImplementedError(f"invalid endpoint: {self.endpoint}")
 
             self._redis_url = f"{schema}://{self.endpoint}"
 

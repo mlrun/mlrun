@@ -329,7 +329,8 @@ class WorkflowRunners(
 
         :param project:     MLRun project
         :param source:      the source of the project, needs to be a remote URL that contains the project yaml file.
-        :param load_only:   if we only load the project, the project must be saved.
+        :param load_only:   if we only load the project, it must be saved to ensure we are not running a pipeline
+                            without a project as it's not supported.
 
         :returns: True if the project need to be saved afterward.
         """

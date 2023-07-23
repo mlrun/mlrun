@@ -15,7 +15,7 @@
 import os
 import time
 import warnings
-
+from typing import Callable, Dict, List, Optional, Union
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
@@ -26,7 +26,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
-from ..model import RunObject
+from ..model import RunObject, HyperParamOptions
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
@@ -425,9 +425,44 @@ class DatabricksRuntime(KubejobRuntime):
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters['internal_handler'] = runspec.spec.handler
-        runspec.spec.parameters['current_mlrun_project'] = mlrun.get_current_project().name
+        runspec.spec.parameters['current_mlrun_project'] = runspec.metadata.project
         runspec.spec.handler = 'print_test'
         print(f'pre run handler: {runspec.spec.handler}')
+
+    def run(
+            self,
+            runspec: Optional[
+                Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+            ] = None,
+            handler: Optional[Union[str, Callable]] = None,
+            name: Optional[str] = "",
+            project: Optional[str] = "",
+            params: Optional[dict] = None,
+            inputs: Optional[Dict[str, str]] = None,
+            out_path: Optional[str] = "",
+            workdir: Optional[str] = "",
+            artifact_path: Optional[str] = "",
+            watch: Optional[bool] = True,
+            schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+            hyperparams: Optional[Dict[str, list]] = None,
+            hyper_param_options: Optional[HyperParamOptions] = None,
+            verbose: Optional[bool] = None,
+            scrape_metrics: Optional[bool] = None,
+            local: Optional[bool] = False,
+            local_code_path: Optional[str] = None,
+            auto_build: Optional[bool] = None,
+            param_file_secrets: Optional[Dict[str, str]] = None,
+            notifications: Optional[List[mlrun.model.Notification]] = None,
+            returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    ) -> RunObject:
+        if not project:
+            project = mlrun.get_current_project().name
+        return super().run(runspec=runspec, handler=handler, name=name, project=project, params=params, inputs=inputs,
+                           out_path=out_path, workdir=workdir, artifact_path=artifact_path, watch=watch,
+                           schedule=schedule, hyperparams=hyperparams, hyper_param_options=hyper_param_options,
+                           verbose=verbose, scrape_metrics=scrape_metrics, local=local, local_code_path=local_code_path,
+                           auto_build=auto_build, param_file_secrets=param_file_secrets, notifications=notifications,
+                           returns=returns)
 
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):

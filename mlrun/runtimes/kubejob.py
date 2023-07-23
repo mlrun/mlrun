@@ -438,4 +438,5 @@ _databricks_code_addition = """
 
 def print_test(internal_handler):
     print(f'this is the print_test, internal_handler: {internal_handler}')
+    print(f'project_name: {mlrun.mlrun.get_current_project().name}')
 """

@@ -59,7 +59,7 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+            self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
@@ -85,10 +85,10 @@ class KubejobRuntime(KubeResource):
 
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
-            self.spec.build.base_image
-            and not self.spec.build.commands
-            and pull_at_runtime
-            and not self.spec.image
+                self.spec.build.base_image
+                and not self.spec.build.commands
+                and pull_at_runtime
+                and not self.spec.image
         ):
             # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
@@ -98,21 +98,21 @@ class KubejobRuntime(KubeResource):
             self.spec.image = ""
 
     def build_config(
-        self,
-        image="",
-        base_image=None,
-        commands: list = None,
-        secret=None,
-        source=None,
-        extra=None,
-        load_source_on_run=None,
-        with_mlrun=None,
-        auto_build=None,
-        requirements=None,
-        overwrite=False,
-        verify_base_image=False,
-        prepare_image_for_deploy=True,
-        requirements_file=None,
+            self,
+            image="",
+            base_image=None,
+            commands: list = None,
+            secret=None,
+            source=None,
+            extra=None,
+            load_source_on_run=None,
+            with_mlrun=None,
+            auto_build=None,
+            requirements=None,
+            overwrite=False,
+            verify_base_image=False,
+            prepare_image_for_deploy=True,
+            requirements_file=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -166,14 +166,14 @@ class KubejobRuntime(KubeResource):
             self.prepare_image_for_deploy()
 
     def deploy(
-        self,
-        watch=True,
-        with_mlrun=None,
-        skip_deployed=False,
-        is_kfp=False,
-        mlrun_version_specifier=None,
-        builder_env: dict = None,
-        show_on_failure: bool = False,
+            self,
+            watch=True,
+            with_mlrun=None,
+            skip_deployed=False,
+            is_kfp=False,
+            mlrun_version_specifier=None,
+            builder_env: dict = None,
+            show_on_failure: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -196,16 +196,16 @@ class KubejobRuntime(KubeResource):
                 with_mlrun = build.with_mlrun
             else:
                 with_mlrun = build.base_image and not (
-                    build.base_image.startswith("mlrun/")
-                    or "/mlrun/" in build.base_image
+                        build.base_image.startswith("mlrun/")
+                        or "/mlrun/" in build.base_image
                 )
 
         if (
-            not build.source
-            and not build.commands
-            and not build.requirements
-            and not build.extra
-            and with_mlrun
+                not build.source
+                and not build.commands
+                and not build.requirements
+                and not build.extra
+                and with_mlrun
         ):
             logger.info(
                 "running build to add mlrun package, set "
@@ -284,13 +284,13 @@ class KubejobRuntime(KubeResource):
         return self.status.state
 
     def deploy_step(
-        self,
-        image=None,
-        base_image=None,
-        commands: list = None,
-        secret_name="",
-        with_mlrun=True,
-        skip_deployed=False,
+            self,
+            image=None,
+            base_image=None,
+            commands: list = None,
+            secret_name="",
+            with_mlrun=True,
+            skip_deployed=False,
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -429,9 +429,11 @@ class DatabricksRuntime(KubejobRuntime):
         runspec.spec.handler = 'print_test'
         print(f'pre run handler: {runspec.spec.handler}')
 
+
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks-job"
     class_modes = {RuntimeClassMode.run: "databricks-job"}
+
 
 _databricks_code_addition = """
 

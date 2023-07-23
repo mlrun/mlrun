@@ -149,7 +149,7 @@ default_config = {
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600"},
+            "operations": {"migrations": "3600", "load_project": "60"},
             "runtimes": {"dask": "600"},
         },
     },
@@ -286,6 +286,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -456,7 +457,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -515,7 +516,11 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
-    "default_workflow_runner_name": "workflow-runner-{}",
+    "workflows": {
+        "default_workflow_runner_name": "workflow-runner-{}",
+        # Default timeout seconds for retrieving workflow id after execution:
+        "timeouts": {"local": 120, "kfp": 30},
+    },
     "log_collector": {
         "address": "localhost:8282",
         # log collection mode can be one of: "sidecar", "legacy", "best-effort"

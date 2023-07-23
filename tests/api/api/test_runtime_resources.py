@@ -45,16 +45,21 @@ def test_list_runtimes_resources_opa_filtering(
 
     _mock_list_resources(monkeypatch, grouped_by_project_runtime_resources_output)
     _mock_opa_filter_and_assert_list_response(
-        client, grouped_by_project_runtime_resources_output, [project_1, project_2]
+        monkeypatch,
+        client,
+        grouped_by_project_runtime_resources_output,
+        [project_1, project_2],
     )
 
     _mock_opa_filter_and_assert_list_response(
+        monkeypatch,
         client,
         grouped_by_project_runtime_resources_output,
         [project_3],
     )
 
     _mock_opa_filter_and_assert_list_response(
+        monkeypatch,
         client,
         grouped_by_project_runtime_resources_output,
         [project_2],
@@ -291,7 +296,7 @@ def test_delete_runtime_resources_no_resources(
 
 
 def test_delete_runtime_resources_opa_filtering(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    monkeypatch, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
         project_1,
@@ -304,16 +309,17 @@ def test_delete_runtime_resources_opa_filtering(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_output()
 
-    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
-        return_value=grouped_by_project_runtime_resources_output
-    )
-
     allowed_projects = [project_1, project_2]
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
-        return_value=allowed_projects
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
     )
     _mock_runtime_handlers_delete_resources(
-        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
+        monkeypatch,
+        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(),
+        allowed_projects,
     )
     response = client.delete(
         "projects/*/runtime-resources",
@@ -324,7 +330,7 @@ def test_delete_runtime_resources_opa_filtering(
 
 
 def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    monkeypatch, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
         project_1,
@@ -333,18 +339,20 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
         grouped_by_project_runtime_resources_output,
     ) = _generate_grouped_by_project_runtime_resources_with_legacy_builder_output()
 
-    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
-        return_value=grouped_by_project_runtime_resources_output
+    allowed_projects = []
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
+    )
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
     )
 
-    allowed_projects = []
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
-        return_value=allowed_projects
-    )
     # no projects are allowed, but there is a non project runtime resource (the legacy builder pod)
     # therefore delete resources will be called, but without filter on project in the label selector
     _mock_runtime_handlers_delete_resources(
-        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(), allowed_projects
+        monkeypatch,
+        mlrun.runtimes.RuntimeKinds.runtime_with_handlers(),
+        allowed_projects,
     )
     response = client.delete(
         "projects/*/runtime-resources",
@@ -355,7 +363,7 @@ def test_delete_runtime_resources_with_legacy_builder_pod_opa_filtering(
 
 
 def test_delete_runtime_resources_with_kind(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    monkeypatch, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
         project_1,
@@ -374,15 +382,15 @@ def test_delete_runtime_resources_with_kind(
             kind, grouped_by_project_runtime_resources_output
         )
     )
-    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
-        return_value=grouped_by_project_runtime_resources_output
-    )
 
     allowed_projects = [project_1, project_3]
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
-        return_value=allowed_projects
+    _mock_list_resources(
+        monkeypatch, return_value=grouped_by_project_runtime_resources_output
     )
-    _mock_runtime_handlers_delete_resources([kind], allowed_projects)
+    _mock_filter_project_resources_by_permissions(
+        monkeypatch, return_value=allowed_projects
+    )
+    _mock_runtime_handlers_delete_resources(monkeypatch, [kind], allowed_projects)
     response = client.delete(
         "projects/*/runtime-resources",
         params={"kind": kind},
@@ -402,7 +410,7 @@ def test_delete_runtime_resources_with_kind(
 
 
 def test_delete_runtime_resources_with_object_id(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    monkeypatch, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     (
         project_1,
@@ -424,15 +432,11 @@ def test_delete_runtime_resources_with_object_id(
         .pod_resources[0]
         .name
     )
-    mlrun.api.crud.RuntimeResources().list_runtime_resources = unittest.mock.Mock(
-        return_value=mock_list_runtimes_output
-    )
+    _mock_list_resources(monkeypatch, return_value=mock_list_runtimes_output)
 
     # allow all
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
-        side_effect=lambda _, resources, *args, **kwargs: resources
-    )
-    _mock_runtime_handlers_delete_resources([kind], [project_1])
+    _mock_filter_project_resources_by_permissions(monkeypatch)
+    _mock_runtime_handlers_delete_resources(monkeypatch, [kind], [project_1])
     response = client.delete(
         "projects/*/runtime-resources",
         params={"kind": kind, "object-id": object_id},
@@ -452,6 +456,7 @@ def test_delete_runtime_resources_with_object_id(
 
 
 def _mock_runtime_handlers_delete_resources(
+    monkeypatch,
     kinds: typing.List[str],
     allowed_projects: typing.List[str],
 ):
@@ -472,8 +477,8 @@ def _mock_runtime_handlers_delete_resources(
 
     for kind in kinds:
         runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
-        runtime_handler.delete_resources = unittest.mock.Mock(
-            side_effect=_assert_delete_resources_label_selector
+        monkeypatch.setattr(
+            runtime_handler, "delete_resources", _assert_delete_resources_label_selector
         )
 
 
@@ -635,13 +640,12 @@ def _generate_grouped_by_project_runtime_resources_output():
 
 
 def _mock_opa_filter_and_assert_list_response(
+    monkeypatch,
     client: fastapi.testclient.TestClient,
     grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     opa_filter_response,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions = unittest.mock.AsyncMock(
-        return_value=opa_filter_response
-    )
+    _mock_filter_project_resources_by_permissions(monkeypatch, opa_filter_response)
     response = client.get(
         "projects/*/runtime-resources",
         params={

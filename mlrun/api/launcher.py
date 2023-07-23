@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Union
 
 from dependency_injector import containers, providers
 
-import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
@@ -28,6 +27,7 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
+from mlrun.api.api.utils import apply_enrichment_and_validation_on_function
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -174,9 +174,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         client side enrichment as minimal as possible.
         """
         if self._auth_info:
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                runtime, self._auth_info
-            )
+            apply_enrichment_and_validation_on_function(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (

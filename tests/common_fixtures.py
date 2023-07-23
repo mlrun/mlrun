@@ -32,6 +32,7 @@ from aioresponses import aioresponses as aioresponses_
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
+import mlrun.db.factory
 import mlrun.k8s_utils
 import mlrun.projects.project
 import mlrun.utils
@@ -92,6 +93,10 @@ def config_test_base():
     # revert change of default project after project creation
     mlrun.mlconf.default_project = "default"
     mlrun.projects.project.pipeline_context.set(None)
+
+    # reset run db overrides
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.reset_override()
 
 
 @pytest.fixture

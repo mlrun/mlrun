@@ -22,6 +22,7 @@ import sqlalchemy.orm
 import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.model_monitoring.helpers
+import mlrun.api.rundb.sqldb
 import mlrun.artifacts
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -203,7 +204,7 @@ class ModelEndpoints:
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         model_obj: mlrun.artifacts.ModelArtifact,
         db_session: sqlalchemy.orm.Session,
-        run_db: mlrun.db.sqldb.SQLDB,
+        run_db: mlrun.api.rundb.sqldb.SQLRunDB,
     ):
         """
         Create monitoring feature set with the relevant parquet target.

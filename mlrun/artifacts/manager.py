@@ -17,7 +17,6 @@ from os.path import isdir
 
 import mlrun.config
 
-from ..db import RunDBInterface
 from ..utils import (
     is_legacy_artifact,
     is_relative_path,
@@ -111,7 +110,7 @@ def dict_to_artifact(struct: dict) -> Artifact:
 class ArtifactManager:
     def __init__(
         self,
-        db: RunDBInterface = None,
+        db: "mlrun.db.RunDBInterface" = None,
         calc_hash=True,
     ):
         self.calc_hash = calc_hash

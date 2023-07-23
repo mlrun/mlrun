@@ -30,6 +30,7 @@ from nuclio.build import mlrun_footer
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.errors
 import mlrun.launcher.factory
 import mlrun.utils.helpers
@@ -41,7 +42,6 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 
 from ..config import config
 from ..datastore import store_manager
-from ..db import RunDBError, get_or_set_dburl, get_run_db
 from ..errors import err_to_str
 from ..kfpops import mlrun_op
 from ..lists import RunList
@@ -227,14 +227,16 @@ class BaseRuntime(ModelObj):
         )
 
     def _ensure_run_db(self):
-        self.spec.rundb = self.spec.rundb or get_or_set_dburl()
+        self.spec.rundb = self.spec.rundb or mlrun.db.get_or_set_dburl()
 
     def _get_db(self):
         # TODO: remove this function and use the launcher db instead
         self._ensure_run_db()
         if not self._db_conn:
             if self.spec.rundb:
-                self._db_conn = get_run_db(self.spec.rundb, secrets=self._secrets)
+                self._db_conn = mlrun.db.get_run_db(
+                    self.spec.rundb, secrets=self._secrets
+                )
         return self._db_conn
 
     # This function is different than the auto_mount function, as it mounts to runtimes based on the configuration.
@@ -373,7 +375,7 @@ class BaseRuntime(ModelObj):
             iter = task.metadata.iteration
             try:
                 return self._get_db().read_run(uid, project, iter=iter)
-            except RunDBError:
+            except mlrun.db.RunDBError:
                 return None
         if task:
             return task.to_dict()

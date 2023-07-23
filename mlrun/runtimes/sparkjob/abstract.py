@@ -21,11 +21,11 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.db
 import mlrun.errors
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.config import config
-from mlrun.db import get_run_db
 from mlrun.errors import err_to_str
 from mlrun.runtimes.base import BaseRuntimeHandler
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
@@ -242,7 +242,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
-        get_run_db().delete_function(name=sj.metadata.name)
+        mlrun.db.get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         driver_limits = self.spec.driver_resources.get("limits")
@@ -292,7 +292,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         :return True if the function is ready (deployed)
         """
         # connect will populate the config from the server config
-        get_run_db()
+        mlrun.db.get_run_db()
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._default_image
         return super().deploy(

@@ -74,9 +74,9 @@ class BaseLauncher(abc.ABC):
         """run the function from the server/client[local/remote]"""
         pass
 
-    @staticmethod
     @abc.abstractmethod
     def enrich_runtime(
+        self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
     ):

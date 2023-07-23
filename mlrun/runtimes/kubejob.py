@@ -425,7 +425,7 @@ class DatabricksRuntime(KubejobRuntime):
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters['internal_handler'] = runspec.spec.handler
-        runspec.spec.parameters['current_mlrun_project'] = mlrun.get_current_project()
+        runspec.spec.parameters['current_mlrun_project'] = mlrun.get_current_project().name
         runspec.spec.handler = 'print_test'
         print(f'pre run handler: {runspec.spec.handler}')
 

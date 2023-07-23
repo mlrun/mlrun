@@ -25,7 +25,6 @@ import requests
 import semver
 import urllib3
 import v3io
-from deprecated import deprecated
 
 import mlrun.errors
 from mlrun.config import config as mlconf

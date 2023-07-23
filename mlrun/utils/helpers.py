@@ -35,7 +35,6 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 

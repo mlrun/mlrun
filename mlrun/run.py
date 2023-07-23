@@ -19,7 +19,6 @@ import socket
 import tempfile
 import time
 import uuid
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -64,7 +63,6 @@ from .utils import (
     extend_hub_uri_if_needed,
     get_in,
     logger,
-    new_pipe_metadata,
     retry_until_successful,
     run_keys,
     update_in,

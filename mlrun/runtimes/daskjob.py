@@ -19,7 +19,6 @@ import typing
 from os import environ
 from typing import Dict, List, Optional, Union
 
-from deprecated import deprecated
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 

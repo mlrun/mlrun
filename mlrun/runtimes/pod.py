@@ -20,7 +20,6 @@ from enum import Enum
 import dotenv
 import kfp.dsl
 import kubernetes.client as k8s_client
-from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex

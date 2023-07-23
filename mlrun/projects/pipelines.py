@@ -19,7 +19,6 @@ import tempfile
 import traceback
 import typing
 import uuid
-import warnings
 
 import kfp.compiler
 from kfp import dsl

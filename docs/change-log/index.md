@@ -10,7 +10,7 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.4.0
+## v1.4.0 (23 July 2023)
 
 ### New and updated features
 
@@ -114,7 +114,7 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 | ML-4129 | Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).
 
 
-## v1.3.3
+## v1.3.3 (7 Jun 2023)
 
 ### Closed issues
 
@@ -122,7 +122,7 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 | --- | ----------------------------------------------------------------- |
 | ML-3940 | MLRun does not initiate log collection for runs in aborted state. [View in Git](https://github.com/mlrun/mlrun/pull/3698). |
 
-## v1.3.2
+## v1.3.2 (4 Jun 2023)
 
 ### Closed issues
 
@@ -133,7 +133,7 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 | ML-3917 | Reduced number of logs. [View in Git](https://github.com/mlrun/mlrun/pull/3674). |
 | ML-3934 | Logs are no longer collected for run pods in an unknown state. [View in Git](https://github.com/mlrun/mlrun/pull/3690). |
 
-## v1.3.1
+## v1.3.1 (18 May 2023)
 
 ### Closed issues
 
@@ -147,7 +147,7 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 ###  Documentation
 New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
 
-## v1.3.0
+## v1.3.0 (22 March 2023)
 
 ### Client/server matrix, prerequisites, and installing
 
@@ -294,7 +294,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 | ML-3446 | Fix: Failed MLRun Nuclio deploy needs better error messages. [View in Git](https://github.com/mlrun/mlrun/pull/3241). |
 | ML-3482 | Fixed model-monitoring incompatibility issue with mlrun client running v1.1.x and a server running v1.2.x. [View in Git](https://github.com/mlrun/mlrun/pull/3180). |
 
-## v1.2.3
+## v1.2.3 (15 May 2023)
 
 ### Closed issues
 
@@ -304,7 +304,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 | ML-3801 | Optimized `/projects` endpoint to work faster [View in Git](https://github.com/mlrun/ui/pull/1715). |
 | ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). |
 
-## v1.2.2
+## v1.2.2 (8 May 2023)
 
 ### Closed issues
 
@@ -312,7 +312,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 | --- | ----------------------------------------------------------------- |
 | ML-3797, ML-3798 | Fixed presenting and serving large-sized projects. [View in Git](https://github.com/mlrun/mlrun/pull/3477). |
 
-## v1.2.1
+## v1.2.1 (8 January 2023)
 
 ### New and updated features
 
@@ -340,7 +340,7 @@ DB to connect to. [View in Git](https://github.com/mlrun/mlrun/pull/2856).
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.2.1)
 
 
-## v1.2.0
+## v1.2.0 (1 December 2022)
 
 ### New and updated features
 
@@ -423,7 +423,7 @@ was closed before the task was done. [View in Git](https://github.com/mlrun/mlru
 
 
 
-## v1.1.3
+## v1.1.3 (28 December 2022)
 
 ### Closed issues
 
@@ -437,7 +437,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.3)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.3)
 
-## v1.1.2
+## v1.1.2 (20 November 2022)
 
 ### New and updated features
 
@@ -449,7 +449,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.2)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.2-rc3)
 
-## v1.1.1
+## v1.1.1 (18 October 2022)
 
 ### New and updated features
 
@@ -464,7 +464,7 @@ API-client connections. [View in Git](https://github.com/mlrun/mlrun/pull/2613).
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.1)
 
 
-## v1.1.0
+## v1.1.0 (6 September 2022)
 
 ### New and updated features
 
@@ -503,7 +503,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.1.0)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.1.0)
 
-## v1.0.6
+## v1.0.6 (16 August 2022)
 
 ### Closed issues
 - Import from mlrun fails with "ImportError: cannot import name dataclass_transform".
@@ -517,7 +517,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.6)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.6)
 
-## v1.0.5
+## v1.0.5 (11 August 2022)
 
 ### Closed issues
 - MLRun: remove root permissions. [View in Git](https://github.com/mlrun/mlrun/pull/).
@@ -528,7 +528,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.5)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.5)
 
-## v1.0.4
+## v1.0.4 (13 June 2022)
 
 ### New and updated features
 - Bump storey to 1.0.6.
@@ -546,7 +546,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.4)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.4)
 
-## v1.0.3
+## v1.0.3 (7 June 2022)
 
 ### New and updated features
 - Jupyter Image: Relax `artifact_path` settings and add README notebook. [View in Git](https://github.com/mlrun/mlrun/pull/2011).
@@ -561,7 +561,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.3)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.3)
 
-## v1.0.2
+## v1.0.2 (19 May 2022)
 
 ### New and updated features
 
@@ -580,7 +580,7 @@ capabilities of Iguazio, and provide quick access to common tasks.
 - [MLRun change log in GitHub](https://github.com/mlrun/mlrun/releases/tag/v1.0.2)
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.2)
 
-## v1.0.0
+## v1.0.0 (22 April 2022)
 
 ### New and updated features
 

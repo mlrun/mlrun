@@ -42,7 +42,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py39_4.12.0-Linu
     rm ~/installconda.sh && \
     conda init bash
 
-ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PIP_VERSION=23.2.1
 ARG MLRUN_PYTHON_VERSION=3.9
 ARG OMPI_VERSION=4.1.4
 

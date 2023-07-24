@@ -497,6 +497,19 @@ class SQLDB(DBInterface):
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
+
+        # handle link artifacts separately
+        if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:
+            return self._mark_best_iteration_artifact(
+                session,
+                project,
+                key,
+                artifact,
+                uid,
+                iter,
+                tag,
+            )
+
         original_uid = uid
 
         # record with the given tag/uid
@@ -806,22 +819,39 @@ class SQLDB(DBInterface):
 
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
-        if iter:
-            query = query.filter(ArtifactV2.iteration == iter)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
 
-        # TODO: handle the case where iter==0 and we don't have a link artifact - find the best iteration artifact
+        # keep the query without the iteration filter for later error handling
+        query_without_iter = query
+        if iter:
+            query = query.filter(ArtifactV2.iteration == iter)
 
         db_artifacts = query.all()
+
+        if len(db_artifacts) == 0:
+            # if the artifact was not found and iter==0, we might be looking for a link artifact
+            # in this case, we need to look for the artifact with the best iteration
+            fail = True
+            if iter == 0:
+                query_without_iter = query_without_iter.filter(
+                    ArtifactV2.best_iteration
+                )
+                db_artifacts = query_without_iter.all()
+                if len(db_artifacts) != 0:
+                    # we found something, so we can continue
+                    fail = False
+
+            if fail:
+                artifact_uri = generate_artifact_uri(project, key, tag, iter)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Artifact {artifact_uri} not found"
+                )
+
         if len(db_artifacts) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "More than one artifact matches the query"
             )
-
-        if len(db_artifacts) == 0:
-            artifact_uri = generate_artifact_uri(project, key, tag, iter)
-            raise mlrun.errors.MLRunNotFoundError(f"Artifact {artifact_uri} not found")
 
         artifact = db_artifacts[0].full_object
 
@@ -1094,6 +1124,56 @@ class SQLDB(DBInterface):
             # which was produced by the user
             if not existed and tag != "latest":
                 self.tag_artifacts(session, [art], project, "latest")
+
+    def _mark_best_iteration_artifact(
+        self,
+        session,
+        project,
+        key,
+        link_artifact,
+        uid,
+        iteration,
+        tag,
+    ):
+        # get the artifact record from the db
+        link_tree = link_artifact.get("link_tree")
+        link_key = link_artifact.get("link_key")
+        if link_key:
+            key = link_key
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.iteration == iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
+        if uid:
+            query = query.filter(ArtifactV2.uid == uid)
+
+        artifact_record = query.one_or_none()
+        if not artifact_record:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Best iteration artifact not found - {project}/{key}:{iteration}",
+            )
+
+        # update the artifact record with best iteration
+        artifact_record.best_iteration = True
+
+        # remove the best iteration flag from all other artifacts
+        query = self._query(session, ArtifactV2).filter(
+            ArtifactV2.project == project,
+            ArtifactV2.key == key,
+            ArtifactV2.iteration != iteration,
+        )
+        if link_tree:
+            query = query.filter(ArtifactV2.producer_id == link_tree)
+
+        artifacts_to_commit = [artifact_record]
+        for artifact in query.all():
+            artifact.best_iteration = False
+            artifacts_to_commit.append(artifact)
+
+        self._upsert(session, artifacts_to_commit)
 
     def _update_artifact_record_from_dict(
         self,

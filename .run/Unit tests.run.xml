@@ -3,8 +3,7 @@
     <module name="mlrun" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
-    <option name="SDK_HOME" value="$USER_HOME$/anaconda3/envs/mlrun/bin/python" />
-    <option name="SDK_NAME" value="mlrun" />
+    <option name="SDK_HOME" value="" />
     <option name="WORKING_DIRECTORY" value="" />
     <option name="IS_MODULE_SDK" value="false" />
     <option name="ADD_CONTENT_ROOTS" value="true" />

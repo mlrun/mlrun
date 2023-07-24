@@ -460,7 +460,7 @@ class DatabricksRuntime(KubejobRuntime):
         else:
             print(f"runspec: {runspec}")
         if not project:
-            current_project = mlrun.get_current_project(silent=True)
+            current_project = mlrun.get_current_project(silent=True).name
             if current_project:
                 project = current_project
         return super().run(runspec=runspec, handler=handler, name=name, project=project, params=params, inputs=inputs,

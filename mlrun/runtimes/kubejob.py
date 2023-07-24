@@ -421,7 +421,12 @@ class DatabricksRuntime(KubejobRuntime):
 
     @staticmethod
     def get_code_addition():
-        return _databricks_code_addition
+        current_file = os.path.abspath(__file__)
+        current_dir = os.path.dirname(current_file)
+        databricks_runtime_wrap_path = os.path.join(current_dir, 'databricks_runtime_wrap.py')
+        with open(databricks_runtime_wrap_path, 'r') as databricks_runtime_wrap_file:
+            wrap_code = databricks_runtime_wrap_file.read()
+        return wrap_code
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters['internal_handler'] = runspec.spec.handler
@@ -473,14 +478,3 @@ class DatabricksRuntime(KubejobRuntime):
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks-job"
     class_modes = {RuntimeClassMode.run: "databricks-job"}
-
-
-_databricks_code_addition = """
-
-def print_test(context, internal_handler):
-    print(f'this is the print_test, internal_handler: {internal_handler}')
-    print(f'context type: {type(context)} context: {context}')
-    try:
-        print(f'context project: {context.project}')
-    except Exception as e:
-        print(f'there was a exception: {e}')"""

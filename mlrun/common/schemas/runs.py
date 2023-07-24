@@ -15,10 +15,9 @@
 import typing
 
 import pydantic
-from typing_extensions import Literal
 
 
 class RunIdentifier(pydantic.BaseModel):
-    kind: Literal["run"] = "run"
+    kind: typing.Literal["run"] = "run"
     uid: typing.Optional[str]
     iter: typing.Optional[int]

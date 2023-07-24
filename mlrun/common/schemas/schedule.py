@@ -13,10 +13,9 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel
-from typing_extensions import Literal
 
 import mlrun.common.types
 from mlrun.common.schemas.auth import Credentials

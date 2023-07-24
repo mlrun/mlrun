@@ -108,7 +108,7 @@ class WorkflowRunners(
 
         if workflow_request.notifications:
             run_spec.spec.notifications = [
-                mlrun.model.Notification.from_dict(notification)
+                mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications
             ]
 
@@ -230,7 +230,7 @@ class WorkflowRunners(
         notifications = None
         if workflow_request.notifications:
             notifications = [
-                mlrun.model.Notification.from_dict(notification)
+                mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications
             ]
 

@@ -39,7 +39,12 @@ from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.utils import fill_object_hash, is_legacy_artifact, is_link_artifact, logger
+from mlrun.utils import (
+    fill_artifact_object_hash,
+    is_legacy_artifact,
+    is_link_artifact,
+    logger,
+)
 
 
 def init_data(
@@ -662,7 +667,7 @@ def _migrate_artifacts_batch(
 
         # uid - calculate as the hash of the artifact object
         tag = artifact_metadata.get("tag", "")
-        uid = fill_object_hash(artifact_dict, "uid", tag)
+        uid = fill_artifact_object_hash(artifact_dict, "uid")
         new_artifact.uid = uid
 
         # project - copy as is

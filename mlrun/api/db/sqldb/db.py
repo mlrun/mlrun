@@ -72,6 +72,7 @@ from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
+    fill_artifact_object_hash,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -493,19 +494,62 @@ class SQLDB(DBInterface):
         iter=None,
         tag="",
         project="",
-        versioned=True,
+        best_iteration=False,
         always_overwrite=False,
     ) -> str:
-        return self._store_tagged_object(
-            session,
-            ArtifactV2,
-            project,
-            key,
-            artifact,
-            tag=tag,
-            uid=uid,
-            versioned=True,
-            always_overwrite=always_overwrite,
+        original_uid = uid
+
+        # record with the given tag/uid
+        _, _, existing_artifact = self._get_record_by_name_tag_and_uid(
+            session, ArtifactV2, project, key, tag, uid
+        )
+
+        artifact_dict = artifact.dict(exclude_none=True)
+
+        # calculate uid
+        uid = fill_artifact_object_hash(artifact, "uid")
+
+        # If object was referenced by UID, the request cannot modify it
+        if original_uid and uid != original_uid:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Changing uid for an object referenced by its uid"
+            )
+
+        # for easier querying, we mark artifacts without iteration as best iteration
+        if not best_iteration and (iter is None or iter == 0):
+            best_iteration = True
+
+        # if the object is not new, we need to check if we need to update it
+        if existing_artifact:
+            if uid == existing_artifact.uid or always_overwrite:
+                db_artifact = existing_artifact
+            else:
+                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
+                # was found - Check If an object with the same computed uid but different tag already exists
+                # and re-tag it.
+                if self._re_tag_existing_object(
+                    session, ArtifactV2, project, key, tag, uid
+                ):
+                    return uid
+
+                db_artifact = ArtifactV2(project=project)
+
+            self._update_artifact_record_from_dict(
+                db_artifact, artifact_dict, uid, iter
+            )
+            self._upsert(session, [db_artifact])
+            if tag:
+                self.tag_objects_v2(session, [db_artifact], project, tag)
+            return uid
+
+        # Object with the given tag/uid doesn't exist
+        # Check if this is a re-tag of existing object - search by uid only
+        if self._re_tag_existing_object(session, ArtifactV2, project, key, tag, uid):
+            return uid
+
+        artifact.metadata.tag = tag
+        return self._create_artifact(
+            session, project, artifact, key, uid, iter, best_iteration
         )
 
     def list_artifacts(
@@ -1050,6 +1094,69 @@ class SQLDB(DBInterface):
             # which was produced by the user
             if not existed and tag != "latest":
                 self.tag_artifacts(session, [art], project, "latest")
+
+    def _update_artifact_record_from_dict(
+        self,
+        artifact_record,
+        artifact_dict: dict,
+        uid: str,
+        iter: int = None,
+        best_iteration: bool = False,
+    ):
+        artifact_record.iteration = iter
+        artifact_record.kind = artifact_dict.get("kind")
+        artifact_record.producer_id = artifact_dict["metadata"].get("tree")
+        updated_datetime = datetime.now(timezone.utc)
+        artifact_record.updated = updated_datetime
+        if not artifact_record.created:
+            artifact_record.created = artifact_dict["metadata"].pop(
+                "created", None
+            ) or datetime.now(timezone.utc)
+        if best_iteration:
+            artifact_record.best_iteration = True
+
+        artifact_record.uid = uid
+
+        artifact_dict["metadata"]["updated"] = str(updated_datetime)
+        artifact_dict["metadata"]["created"] = str(artifact_record.created)
+
+        artifact_record.full_object = artifact_dict
+
+        # labels are stored in a separate table
+        labels = artifact_dict["metadata"].pop("labels", {}) or {}
+        update_labels(artifact_record, labels)
+
+    def _create_artifact(
+        self,
+        session,
+        project,
+        artifact,
+        key,
+        tag="",
+        uid=None,
+        iteration=None,
+        best_iteration=False,
+    ):
+        # check if the object already exists
+        existing_object = self._get_class_instance_by_uid(
+            session, ArtifactV2, key, project, uid
+        )
+        if existing_object:
+            object_uri = generate_object_uri(project, key, tag)
+            raise mlrun.errors.MLRunConflictError(
+                f"Adding an already-existing {ArtifactV2.__name__} - {object_uri}"
+            )
+
+        db_artifact = ArtifactV2(project=project, key=key)
+        self._update_artifact_record_from_dict(
+            db_artifact, artifact, uid, iteration, best_iteration
+        )
+
+        self._upsert(session, [db_artifact])
+        if tag:
+            self.tag_objects_v2(session, [db_artifact], project, tag)
+
+        return uid
 
     def _list_artifacts_for_tagging(
         self,
@@ -2382,6 +2489,8 @@ class SQLDB(DBInterface):
         uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
+        if cls == ArtifactV2:
+            query = self._query(session, cls, key=name, project=project)
         computed_tag = tag or "latest"
         object_tag_uid = None
         if tag or not uid:
@@ -2926,7 +3035,6 @@ class SQLDB(DBInterface):
         db_object,
         common_object_dict: dict,
         uid,
-        cls,
     ):
         db_object.name = common_object_dict["metadata"]["name"]
         updated_datetime = datetime.now(timezone.utc)
@@ -2945,12 +3053,6 @@ class SQLDB(DBInterface):
         # the uid DB field has to be set, since it's used for uniqueness in the DB.
         if uid.startswith(unversioned_tagged_object_uid_prefix):
             common_object_dict["metadata"].pop("uid", None)
-
-        # artifacts have other fields that are not in the common object
-        if cls == ArtifactV2:
-            db_object.kind = common_object_dict["kind"]
-            db_object.iter = common_object_dict["metadata"].get("iter", None)
-            db_object.producer_id = common_object_dict["metadata"].get("tree", None)
 
         db_object.full_object = common_object_dict
 
@@ -3026,7 +3128,7 @@ class SQLDB(DBInterface):
                 db_tagged_object = cls(project=project)
 
             self._update_db_record_from_object_dict(
-                db_tagged_object, tagged_object_dict, uid, cls
+                db_tagged_object, tagged_object_dict, uid
             )
 
             if cls == FeatureSet:
@@ -3065,7 +3167,7 @@ class SQLDB(DBInterface):
         db_tagged_object = cls(project=project)
 
         self._update_db_record_from_object_dict(
-            db_tagged_object, tagged_object_dict, uid, cls
+            db_tagged_object, tagged_object_dict, uid
         )
 
         self._upsert(session, [db_tagged_object])

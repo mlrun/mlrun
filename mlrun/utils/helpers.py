@@ -893,6 +893,24 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
+def fill_artifact_object_hash(object_dict, uid_property_name):
+    # get key, iter, tree
+    hash_dict = {
+        "key": object_dict["metadata"].get("key"),
+        "iter": object_dict["metadata"].get("iter"),
+        "tree": object_dict["metadata"].get("tree"),
+    }
+
+    # calc hash and fill
+    data = json.dumps(hash_dict, sort_keys=True, default=str).encode()
+    h = hashlib.sha1()
+    h.update(data)
+    uid = h.hexdigest()
+
+    object_dict["metadata"][uid_property_name] = uid
+    return uid
+
+
 def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 

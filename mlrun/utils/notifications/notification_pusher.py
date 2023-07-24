@@ -36,9 +36,9 @@ from .notification import NotificationBase, NotificationTypes
 class NotificationPusher(object):
 
     messages = {
-        "completed": "Run completed",
-        "error": "Run failed",
-        "aborted": "Run aborted",
+        "completed": "{resource} completed",
+        "error": "{resource} failed",
+        "aborted": "{resource} aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -187,7 +187,13 @@ class NotificationPusher(object):
         custom_message = (
             f": {notification_object.message}" if notification_object.message else ""
         )
-        message = self.messages.get(run.state(), "") + custom_message
+
+        resource = "Run"
+        if "workflow" in run.metadata.labels:
+            resource = "Workflow"
+            custom_message = f" (workflow: {run.metadata.labels['workflow']})"
+
+        message = self.messages.get(run.state(), "").format(resource=resource) + custom_message
 
         severity = (
             notification_object.severity

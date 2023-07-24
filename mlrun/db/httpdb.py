@@ -3123,6 +3123,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3157,6 +3158,10 @@ class HTTPRunDB(RunDBInterface):
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+
+        if notifications:
+            req["notifications"] = [notification.to_dict() for notification in notifications]
+
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{name}/submit",

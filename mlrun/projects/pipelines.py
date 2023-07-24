@@ -494,6 +494,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -571,7 +572,19 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
+
+        # fallback to old notification behavior
+        if notifications:
+            logger.warning(
+                "Setting notifications on kfp pipeline runner uses old notification behavior. "
+                "Notifications will only be sent if you wait for pipeline completion. "
+                "To use the new notification behavior, use the remote pipeline runner."
+            )
+            for notification in notifications:
+                project.notifiers.add_notification(notification.kind, notification.params)
+
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
@@ -682,7 +695,13 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
+
+        # fallback to old notification behavior
+        for notification in notifications or []:
+            project.notifiers.add_notification(notification.kind, notification.params)
+
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
@@ -759,7 +778,13 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
+
+        # for start message, fallback to old notification behavior
+        for notification in notifications or []:
+            project.notifiers.add_notification(notification.kind, notification.params)
+
         workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
         workflow_id = None
 
@@ -778,6 +803,7 @@ class _RemoteRunner(_PipelineRunner):
                     workflow_name
                 ),
                 namespace=namespace,
+                notifications=notifications,
             )
             if workflow_spec.schedule:
                 return
@@ -903,6 +929,7 @@ def load_and_run(
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
     load_only: bool = False,
+    notifications: typing.List[mlrun.api.schemas.Notification] = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -997,7 +1024,15 @@ def load_and_run(
         cleanup_ttl=cleanup_ttl or ttl,
         engine=engine,
         local=local,
+        notifications=notifications,
     )
     context.log_result(key="workflow_id", value=run.run_id)
 
     context.log_result(key="engine", value=run._engine.engine, commit=True)
+
+    pipeline_state = run.wait_for_completion()
+    context.log_result(key="workflow-state", value=pipeline_state, commit=True)
+    if pipeline_state.lower() != "succeeded":
+        raise RuntimeError(
+            f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+        )

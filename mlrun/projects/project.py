@@ -2213,6 +2213,7 @@ class MlrunProject(ModelObj):
         overwrite: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2336,6 +2337,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             source=source,
+            notifications=notifications,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:

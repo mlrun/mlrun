@@ -105,6 +105,13 @@ class WorkflowRunners(
         )
         workflow_spec = workflow_request.spec
         schedule = workflow_spec.schedule
+
+        if workflow_request.notifications:
+            run_spec.spec.notifications = [
+                mlrun.model.Notification.from_dict(notification)
+                for notification in workflow_request.notifications
+            ]
+
         scheduled_object = {
             "task": run_spec.to_dict(),
             "schedule": schedule,
@@ -220,10 +227,18 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
+        notifications = None
+        if workflow_request.notifications:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification)
+                for notification in workflow_request.notifications
+            ]
+
         artifact_path = workflow_request.artifact_path if workflow_request else ""
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
+            notifications=notifications,
             local=False,
             watch=False,
         )

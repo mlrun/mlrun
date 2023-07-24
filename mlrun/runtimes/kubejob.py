@@ -478,7 +478,8 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
 
 _databricks_code_addition = """
 
-def print_test(internal_handler, current_mlrun_project):
+def print_test(context, internal_handler, current_mlrun_project):
     print(f'this is the print_test, internal_handler: {internal_handler}')
     print(f'project_name: {current_mlrun_project}')
+    print(f'context type: {type(context)} context: {context}')
 """

@@ -1283,6 +1283,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
+
+
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",

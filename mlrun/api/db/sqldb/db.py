@@ -504,7 +504,7 @@ class SQLDB(DBInterface):
             artifact,
             tag=tag,
             uid=uid,
-            versioned=versioned,
+            versioned=True,
             always_overwrite=always_overwrite,
         )
 
@@ -667,6 +667,7 @@ class SQLDB(DBInterface):
             category,
             iter,
             uid,
+            best_iteration=best_iteration,
         )
         if as_records:
             if best_iteration:
@@ -765,6 +766,8 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.iteration == iter)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
+
+        # TODO: handle the case where iter==0 and we don't have a link artifact - find the best iteration artifact
 
         db_artifacts = query.all()
         if len(db_artifacts) > 1:
@@ -1339,6 +1342,7 @@ class SQLDB(DBInterface):
         iter=None,
         uid=None,
         producer_id=None,
+        best_iteration=False,
     ):
         if category and kind:
             message = "Category and Kind filters can't be given together"
@@ -1360,6 +1364,8 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.key == name)
         if iter:
             query = query.filter(ArtifactV2.iteration == iter)
+        if best_iteration:
+            query = query.filter(ArtifactV2.best_iteration == best_iteration)
         if producer_id:
             query = query.filter(ArtifactV2.producer_id == producer_id)
         if labels:

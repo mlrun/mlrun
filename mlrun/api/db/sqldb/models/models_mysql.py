@@ -186,6 +186,7 @@ with warnings.catch_warnings():
         kind = Column(String(255, collation=SQLCollationUtil.collation()))
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
         iteration = Column(Integer)
+        best_iteration = Column(BOOLEAN, default=False, index=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),

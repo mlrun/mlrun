@@ -42,6 +42,7 @@ def upgrade():
         sa.Column("kind", sa.String(length=255), nullable=True),
         sa.Column("producer_id", sa.String(length=255), nullable=True),
         sa.Column("iteration", sa.Integer(), nullable=True),
+        sa.Column("best_iteration", sa.BOOLEAN(), nullable=True),
         sa.Column("object", sa.BLOB(), nullable=True),
         sa.Column("created", sa.TIMESTAMP(), nullable=True),
         sa.Column("updated", sa.TIMESTAMP(), nullable=True),

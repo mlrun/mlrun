@@ -338,9 +338,17 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
+            config.feature_store.data_prefixes.default = (
+                server_cfg.get("feature_store_data_prefixes.default")
+                or config.feature_store.data_prefixes.default
+            )
+            config.feature_store.data_prefixes.nosql = (
+                server_cfg.get("feature_store_data_prefixes.nosql")
+                or config.feature_store.data_prefixes.nosql
+            )
+            config.feature_store.data_prefixes.redisnosql = (
+                server_cfg.get("feature_store_data_prefixes.redisnosql")
+                or config.feature_store.data_prefixes.redisnosql
             )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"

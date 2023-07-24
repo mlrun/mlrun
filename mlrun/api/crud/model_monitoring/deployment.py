@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import math
 import pathlib
 import typing
 
@@ -29,6 +28,7 @@ import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
+from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 from mlrun.utils import logger
 
 _MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
@@ -38,16 +38,6 @@ _STREAM_PROCESSING_FUNCTION_PATH = (
 _MONITORING_BATCH_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch.py"
 )
-
-
-Seconds = typing.NewType("Seconds", int)
-Minutes = typing.NewType("Minutes", int)
-
-_SECONDS_IN_MINUTE = 60
-
-
-def _seconds2minutes(seconds: Seconds) -> Minutes:
-    return math.ceil(seconds / _SECONDS_IN_MINUTE)
 
 
 class MonitoringDeployment:
@@ -235,7 +225,7 @@ class MonitoringDeployment:
             "task": task.to_dict(),
             "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(
                 tracking_policy.default_batch_intervals,
-                minute_delay=_seconds2minutes(tracking_offset),
+                minute_delay=seconds2minutes(tracking_offset),
             ),
         }
 

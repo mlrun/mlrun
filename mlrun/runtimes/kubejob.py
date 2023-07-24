@@ -425,7 +425,6 @@ class DatabricksRuntime(KubejobRuntime):
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters['internal_handler'] = runspec.spec.handler
-        runspec.spec.parameters['current_mlrun_project'] = runspec.metadata.project
         runspec.spec.handler = 'print_test'
         print(f'pre run handler: {runspec.spec.handler}')
 
@@ -478,9 +477,8 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
 
 _databricks_code_addition = """
 
-def print_test(context, internal_handler, current_mlrun_project):
+def print_test(context, internal_handler):
     print(f'this is the print_test, internal_handler: {internal_handler}')
-    print(f'project_name: {current_mlrun_project}')
     print(f'context type: {type(context)} context: {context}')
     try:
         print(f'context project: {context.project}')

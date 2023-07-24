@@ -49,7 +49,8 @@ def get_batching_interval_param(intervals_list: typing.List):
 
 def convert_to_cron_string(
     cron_trigger: mlrun.common.schemas.schedule.ScheduleCronTrigger,
-):
+    minute_delay: int = 0,
+) -> str:
     """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
     return "{} {} {} * *".format(
         cron_trigger.minute, cron_trigger.hour, cron_trigger.day

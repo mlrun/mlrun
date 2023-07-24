@@ -359,10 +359,8 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.clone_target_dir:
             workdir = workdir or ""
-            if workdir.startswith("./"):
-                # TODO: use 'removeprefix' when we drop python 3.7 support
-                # workdir.removeprefix("./")
-                workdir = workdir[2:]
+            workdir.removeprefix("./")
+
             return os.path.join(self.spec.clone_target_dir, workdir)
 
         return workdir

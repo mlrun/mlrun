@@ -27,7 +27,6 @@ import copy
 import json
 import os
 import typing
-import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser

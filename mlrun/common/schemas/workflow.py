@@ -16,8 +16,8 @@ import typing
 
 import pydantic
 
-from .schedule import ScheduleCronTrigger
 from .notification import Notification
+from .schedule import ScheduleCronTrigger
 
 
 class WorkflowSpec(pydantic.BaseModel):

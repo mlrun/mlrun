@@ -191,9 +191,14 @@ class NotificationPusher(object):
         resource = "Run"
         if "workflow" in run.metadata.labels:
             resource = "Workflow"
-            custom_message = f" (workflow: {run.metadata.labels['workflow']})"
+            custom_message = (
+                f"(workflow: {run.metadata.labels['workflow']}){custom_message}"
+            )
 
-        message = self.messages.get(run.state(), "").format(resource=resource) + custom_message
+        message = (
+            self.messages.get(run.state(), "").format(resource=resource)
+            + custom_message
+        )
 
         severity = (
             notification_object.severity

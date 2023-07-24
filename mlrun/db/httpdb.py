@@ -3160,7 +3160,9 @@ class HTTPRunDB(RunDBInterface):
         req["spec"]["image"] = image
 
         if notifications:
-            req["notifications"] = [notification.to_dict() for notification in notifications]
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
 
         response = self.api_call(
             "POST",

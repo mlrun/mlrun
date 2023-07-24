@@ -583,7 +583,9 @@ class _KFPRunner(_PipelineRunner):
                 "To use the new notification behavior, use the remote pipeline runner."
             )
             for notification in notifications:
-                project.notifiers.add_notification(notification.kind, notification.params)
+                project.notifiers.add_notification(
+                    notification.kind, notification.params
+                )
 
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(

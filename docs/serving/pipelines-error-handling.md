@@ -1,39 +1,35 @@
 (pipelines-error-handling)=
 # Error handling
    
-Graph steps might raise an exception. If you want to have an error handling flow, you can specify an exception handling 
-step/branch that is triggered on error. The error handler step receives the event that entered the failed step, 
-with two extra attributes: `event.origin_state` indicates the name of the failed step; and `event.error` holds the error string.
+Graph steps might raise an exception. You can define exception handling (an error handling flow) that is triggered on error. The exception can be on a:
+* step: The error handler is appended to the step that, if it fails, triggers the error handling. If you want 
+the graph to continue after an error handler execution, specify the next step in the `before` parameter. 
+If you want the graph to complete after an error handler execution, omit the `before` parameter.
+* graph: When set on the graph object, the graph completes after the error handler execution.
 
-Use the `graph.error_handler()` (apply to all steps) or `step.error_handler()` (apply to a specific step) 
-if you want the error from the graph or the step to be fed into a specific step (catcher).
 
-Example of setting an error catcher per step:
+Example of an exception on a step that only runs when/if the "pre-process" step fails:
 ```
-graph.add_step("MyClass", name="my-class", after="pre-process").error_handler("catcher")
-graph.add_step("ErrHandler", name="catcher", full_event=True, after="")
-```
-```{admonition} Note
-Additional steps can follow the catcher step.
-```
-Using the example in [Model serving graph](./model-serving-get-started.html#flow), you can add an error handler as follows:
-```
-graph2_enrich.error_handler("catcher")
-graph2.add_step("ErrHandler", name="catcher", full_event=True, after="")
-```
-```
-<mlrun.serving.states.TaskStep at 0x7fd46e557750>
+graph = function.set_topology('flow', engine='async')
+graph.to(name='pre-process', handler='raising_step').error_handler(name='catcher', handler='handle_error', full_event=True, before='echo')
+
+# Add another step after pre-process step or the error handling
+graph.add_step(name="echo", handler='echo', after="pre-process").respond()
+graph
 ```
 
-Now, display the graph again:
+Example of an exception on a graph:
 ```
-graph2.plot(rankdir='LR')
+graph = function.set_topology('flow', engine='async')
+graph.error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
+graph.to(name='raise', handler='raising_step').to(name="echo", handler='echo', after="raise").respond()
 ```
-```
-<mlrun.serving.states.TaskStep at 0x7fd46e557750>
-```
+
+See full parameter description in {py:class}`~mlrun.serving.states.BaseStep.error_handler`.
+
 
 ## Exception stream
+    
 The graph errors/exceptions can be pushed into a special error stream. This is very convenient in the case of 
 distributed and production graphs.
 

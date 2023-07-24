@@ -600,7 +600,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
 
 class NumPyNumberPackager(DefaultPackager):
     """
-    ``numpy.number`` packager. It is also used for all `number` inheriting numpy objects (`float32`, uint8, etc).
+    ``numpy.number`` packager. It is also used for all `number` inheriting numpy objects (`float32`, uint8, etc.).
     """
 
     PACKABLE_OBJECT_TYPE = np.number

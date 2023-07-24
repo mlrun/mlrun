@@ -25,10 +25,10 @@ import numpy as np
 
 import mlrun
 import mlrun.common.model_monitoring
-import mlrun.common.schemas
-import mlrun.utils.model_monitoring
-from mlrun.utils import logger, now_date, parse_versioned_object_uri
+import mlrun.common.schemas.model_monitoring
+from mlrun.utils import logger, now_date
 
+from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from .server import GraphServer
 from .utils import RouterToDict, _extract_input_data, _update_result_body
@@ -1066,13 +1066,13 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=mlrun.common.model_monitoring.ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
                     if voting_ensemble.context.server.track_models
-                    else mlrun.common.model_monitoring.ModelMonitoringMode.disabled,
+                    else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
                 ),
                 status=mlrun.common.schemas.ModelEndpointStatus(
                     children=list(voting_ensemble.routes.keys()),
-                    endpoint_type=mlrun.common.model_monitoring.EndpointType.ROUTER,
+                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.ROUTER,
                     children_uids=children_uids,
                 ),
             )
@@ -1091,7 +1091,7 @@ def _init_endpoint_record(
                     project=project, endpoint_id=model_endpoint
                 )
                 current_endpoint.status.endpoint_type = (
-                    mlrun.common.model_monitoring.EndpointType.LEAF_EP
+                    mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
                 )
                 db.create_model_endpoint(
                     project=project,

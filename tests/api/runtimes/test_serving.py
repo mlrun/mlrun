@@ -27,8 +27,8 @@ from sqlalchemy.orm import Session
 import mlrun.api.api.utils
 import mlrun.api.crud.runtimes.nuclio.function
 from mlrun import mlconf, new_function
+from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
-from mlrun.db import SQLDB
 from mlrun.runtimes.function import NuclioStatus
 
 from .assets.serving_child_functions import *  # noqa
@@ -85,9 +85,13 @@ class TestServingRuntime(TestNuclioRuntime):
                 }
             }
 
-        # Since we're in a test, the RunDB is of type SQLDB, not HTTPDB as it would usually be.
-        SQLDB.remote_builder = unittest.mock.Mock(side_effect=_remote_db_mock_function)
-        SQLDB.get_builder_status = unittest.mock.Mock(return_value=("text", "last_log"))
+        # Since we're in a test, the RunDB is of type SQLRunDB, not HTTPDB as it would usually be.
+        SQLRunDB.remote_builder = unittest.mock.Mock(
+            side_effect=_remote_db_mock_function
+        )
+        SQLRunDB.get_builder_status = unittest.mock.Mock(
+            return_value=("text", "last_log")
+        )
 
     def _create_serving_function(self):
         function = self._generate_runtime(self.runtime_kind)

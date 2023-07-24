@@ -11,19 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
 from tempfile import mkdtemp
 
 import pytest
 
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
+import mlrun.db.factory
 import mlrun.errors
-from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
+from mlrun.api.rundb import sqldb
 from mlrun.api.utils.singletons.db import initialize_db
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
-from mlrun.db import SQLDB, sqldb
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
 
@@ -45,7 +48,7 @@ def db(request):
         init_data()
         initialize_db()
         db_session = create_session()
-        db = SQLDB(dsn, session=db_session)
+        db = sqldb.SQLRunDB(dsn, session=db_session)
     else:
         assert False, f"unknown db type - {request.param}"
 
@@ -101,7 +104,7 @@ def test_runs(db: RunDBInterface):
         assert label not in run["metadata"]["labels"], "del_runs"
 
 
-def test_update_run(db: sqldb.SQLDB):
+def test_update_run(db: RunDBInterface):
     uid = "uid83"
     run = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
     db.store_run(run, uid)
@@ -126,12 +129,12 @@ def test_artifacts(db: RunDBInterface):
     db.store_artifact(k3, art3, u3, project=prj)
 
     arts = db.list_artifacts(project=prj, tag="*")
-    expected = 2 if isinstance(db, SQLDB) else 4  # FIXME
+    expected = 2
     assert expected == len(arts), "list artifacts length"
     assert {2, 3} == {a["a"] for a in arts}, "list artifact a"
 
     db.del_artifact(key=k1)
-    with pytest.raises((sqldb.RunDBError, mlrun.errors.MLRunNotFoundError)):
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.read_artifact(k1)
 
 
@@ -147,3 +150,9 @@ def test_list_runs(db: RunDBInterface):
 
     runs = list(db.list_runs(uid=uid, iter=True))
     assert 5 == len(runs), "iter=True"
+
+
+def test_container_override():
+    factory = mlrun.db.factory.RunDBFactory()
+    run_db = factory.create_run_db(url="mock://")
+    assert isinstance(run_db, mlrun.api.rundb.sqldb.SQLRunDB)

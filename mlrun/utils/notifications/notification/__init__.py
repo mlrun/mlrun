@@ -22,6 +22,7 @@ from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification
 from .slack import SlackNotification
+from .webhook import WebhookNotification
 
 
 class NotificationTypes(str, enum.Enum):
@@ -29,6 +30,7 @@ class NotificationTypes(str, enum.Enum):
     git = NotificationKind.git.value
     ipython = NotificationKind.ipython.value
     slack = NotificationKind.slack.value
+    webhook = NotificationKind.webhook.value
 
     def get_notification(self) -> typing.Type[NotificationBase]:
         return {
@@ -36,6 +38,7 @@ class NotificationTypes(str, enum.Enum):
             self.git: GitNotification,
             self.ipython: IPythonNotification,
             self.slack: SlackNotification,
+            self.webhook: WebhookNotification,
         }.get(self)
 
     def inverse_dependencies(self) -> typing.List[str]:
@@ -56,5 +59,6 @@ class NotificationTypes(str, enum.Enum):
                 cls.git,
                 cls.ipython,
                 cls.slack,
+                cls.webhook,
             ]
         )

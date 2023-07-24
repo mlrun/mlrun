@@ -69,12 +69,12 @@ class HTTPSessionWithRetry(requests.Session):
     ):
         """
         Initialize a new HTTP session with retry logic.
-        :param max_retries: Maximum number of retries to attempt.
-        :param retry_backoff_factor: Wait interval retries in seconds.
-        :param retry_on_exception: Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
-        :param retry_on_status: Retry on error status codes. defaults to True.
-        :param retry_on_post: Retry on POST requests. defaults to False.
-        :param verbose: Print debug messages.
+        :param max_retries:             Maximum number of retries to attempt.
+        :param retry_backoff_factor:    Wait interval retries in seconds.
+        :param retry_on_exception:      Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
+        :param retry_on_status:         Retry on error status codes. defaults to True.
+        :param retry_on_post:           Retry on POST requests. defaults to False.
+        :param verbose:                 Print debug messages.
         """
         super().__init__()
 
@@ -192,6 +192,7 @@ class HTTPSessionWithRetry(requests.Session):
         self, retry_on_post: bool = False
     ) -> typing.FrozenSet[str]:
         methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
+        methods = methods.union({"PATCH"})
         if retry_on_post:
             methods = methods.union({"POST"})
         return frozenset(methods)

@@ -20,12 +20,10 @@ from datetime import datetime, timezone
 import pandas as pd
 import sqlalchemy as db
 
-import mlrun
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.model_monitoring.model_endpoint
-import mlrun.utils.model_monitoring
-import mlrun.utils.v3io_clients
-from mlrun.api.db.sqldb.session import create_session, get_engine
+import mlrun.common.model_monitoring.helpers
+import mlrun.common.schemas.model_monitoring
+import mlrun.model_monitoring.helpers
+from mlrun.common.db.sql_session import create_session, get_engine
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
@@ -59,10 +57,14 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         self.sql_connection_string = (
             sql_connection_string
-            or mlrun.utils.model_monitoring.get_connection_string(project=self.project)
+            or mlrun.model_monitoring.helpers.get_connection_string(
+                project=self.project
+            )
         )
 
-        self.table_name = model_monitoring_constants.EventFieldType.MODEL_ENDPOINTS
+        self.table_name = (
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS
+        )
 
         self._engine = get_engine(dsn=self.sql_connection_string)
         self.ModelEndpointsTable = get_ModelEndpointsTable(
@@ -84,10 +86,10 @@ class SQLModelEndpointStore(ModelEndpointStore):
         with self._engine.connect() as connection:
             # Adjust timestamps fields
             endpoint[
-                model_monitoring_constants.EventFieldType.FIRST_REQUEST
+                mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST
             ] = datetime.now(timezone.utc)
             endpoint[
-                model_monitoring_constants.EventFieldType.LAST_REQUEST
+                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST
             ] = datetime.now(timezone.utc)
 
             # Convert the result into a pandas Dataframe and write it into the database
@@ -112,7 +114,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
         # Update the model endpoint record using sqlalchemy ORM
         with create_session(dsn=self.sql_connection_string) as session:
             # Remove endpoint id (foreign key) from the update query
-            attributes.pop(model_monitoring_constants.EventFieldType.ENDPOINT_ID, None)
+            attributes.pop(
+                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID, None
+            )
 
             # Generate and commit the update session query
             session.query(self.ModelEndpointsTable).filter(
@@ -201,32 +205,36 @@ class SQLModelEndpointStore(ModelEndpointStore):
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=self.model_endpoints_table,
-                    key_filter=model_monitoring_constants.EventFieldType.MODEL,
+                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.MODEL,
                     filtered_values=[model],
                 )
             if function:
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=self.model_endpoints_table,
-                    key_filter=model_monitoring_constants.EventFieldType.FUNCTION,
+                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION,
                     filtered_values=[function],
                 )
             if uids:
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=self.model_endpoints_table,
-                    key_filter=model_monitoring_constants.EventFieldType.UID,
+                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.UID,
                     filtered_values=uids,
                     combined=False,
                 )
             if top_level:
-                node_ep = str(mlrun.common.model_monitoring.EndpointType.NODE_EP.value)
-                router_ep = str(mlrun.common.model_monitoring.EndpointType.ROUTER.value)
+                node_ep = str(
+                    mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP.value
+                )
+                router_ep = str(
+                    mlrun.common.schemas.model_monitoring.EndpointType.ROUTER.value
+                )
                 endpoint_types = [node_ep, router_ep]
                 query = self._filter_values(
                     query=query,
                     model_endpoints_table=self.model_endpoints_table,
-                    key_filter=model_monitoring_constants.EventFieldType.ENDPOINT_TYPE,
+                    key_filter=mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE,
                     filtered_values=endpoint_types,
                     combined=False,
                 )
@@ -303,7 +311,9 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         # Convert endpoint labels into dictionary
         endpoint_labels = json.loads(
-            endpoint_dict.get(model_monitoring_constants.EventFieldType.LABELS)
+            endpoint_dict.get(
+                mlrun.common.schemas.model_monitoring.EventFieldType.LABELS
+            )
         )
 
         for label in labels:
@@ -331,7 +341,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         for endpoint_dict in endpoints:
             # Delete model endpoint record from SQL table
             self.delete_model_endpoint(
-                endpoint_dict[model_monitoring_constants.EventFieldType.UID],
+                endpoint_dict[mlrun.common.schemas.model_monitoring.EventFieldType.UID],
             )
 
     def get_endpoint_real_time_metrics(

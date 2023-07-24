@@ -14,11 +14,11 @@
 #
 import typing
 
-import mlrun.api.utils.events.base
+import mlrun.api.utils.events.base as base_events
 import mlrun.common.schemas
 
 
-class NopClient(mlrun.api.utils.events.base.BaseEventClient):
+class NopClient(base_events.BaseEventClient):
     def emit(self, event):
         return
 

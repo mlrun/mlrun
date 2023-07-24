@@ -1,5 +1,3 @@
-#databricks_runtime_wrap.py
-
 def run_mlrun_databricks_job(context, internal_handler, is_local_code: bool, token_key="DATABRICKS_TOKEN", **kwargs):
     import mlrun
     from databricks.sdk.service.jobs import Run, SubmitTask, SparkPythonTask

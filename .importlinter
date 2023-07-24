@@ -80,13 +80,6 @@ ignore_imports =
     mlrun.feature_store.ingestion -> mlrun.api.api.utils
     mlrun.utils.notifications.notification_pusher -> mlrun.api.db.session
     mlrun.utils.notifications.notification_pusher -> mlrun.api.db.base
-    mlrun.runtimes.base -> mlrun.api.crud
-    mlrun.runtimes.base -> mlrun.api.constants
-    mlrun.runtimes.base -> mlrun.api.db.base
     mlrun.runtimes.daskjob -> mlrun.api.utils.singletons.k8s
-    mlrun.runtimes.daskjob -> mlrun.api.db.base
-    mlrun.runtimes.mpijob.v1 -> mlrun.api.db.base
-    mlrun.runtimes.mpijob.v1alpha1 -> mlrun.api.db.base
-    mlrun.runtimes.sparkjob.abstract -> mlrun.api.db.base
     mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s
     mlrun.model_monitoring.helpers -> mlrun.api.crud.secrets

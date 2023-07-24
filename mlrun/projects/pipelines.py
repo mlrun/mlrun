@@ -931,7 +931,7 @@ def load_and_run(
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
     load_only: bool = False,
-    notifications: typing.List[mlrun.api.schemas.Notification] = None,
+    notifications: typing.List[mlrun.common.schemas.Notification] = None,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.

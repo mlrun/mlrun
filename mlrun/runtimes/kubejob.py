@@ -359,7 +359,7 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.clone_target_dir:
             workdir = workdir or ""
-            workdir.removeprefix("./")
+            workdir = workdir.removeprefix("./")
 
             return os.path.join(self.spec.clone_target_dir, workdir)
 

@@ -1176,6 +1176,63 @@ class SQLDB(DBInterface):
 
         return results
 
+    def store_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
+        schedule = self.get_schedule(
+            session=session, project=project, name=name, raise_on_not_found=False
+        )
+        schedule_exist = schedule is not None
+
+        if not schedule_exist:
+            schedule = Schedule(
+                project=project,
+                name=name,
+                kind=kind.value,
+                creation_time=datetime.now(timezone.utc),
+                concurrency_limit=concurrency_limit,
+                next_run_time=next_run_time,
+                scheduled_object=scheduled_object,
+                cron_trigger=cron_trigger,
+            )
+            labels = labels or {}
+
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Storing schedule to db",
+            project=project,
+            name=name,
+            kind=kind,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            scheduled_object=scheduled_object,
+        )
+
+        self._upsert(session, [schedule])
+
+        if schedule_exist:
+            return schedule
+
     def create_schedule(
         self,
         session: Session,
@@ -1234,6 +1291,37 @@ class SQLDB(DBInterface):
     ):
         schedule = self._get_schedule_record(session, project, name)
 
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Updating schedule in db",
+            project=project,
+            name=name,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+        self._upsert(session, [schedule])
+
+    @staticmethod
+    def _update_schedule_body(
+        schedule: mlrun.common.schemas.ScheduleRecord,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
             schedule.scheduled_object = scheduled_object
@@ -1254,17 +1342,6 @@ class SQLDB(DBInterface):
             # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
             # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
             schedule.next_run_time = next_run_time.astimezone(pytz.utc)
-
-        logger.debug(
-            "Updating schedule in db",
-            project=project,
-            name=name,
-            cron_trigger=cron_trigger,
-            labels=labels,
-            concurrency_limit=concurrency_limit,
-            next_run_time=next_run_time,
-        )
-        self._upsert(session, [schedule])
 
     def list_schedules(
         self,
@@ -1288,19 +1365,23 @@ class SQLDB(DBInterface):
         return schedules
 
     def get_schedule(
-        self, session: Session, project: str, name: str
-    ) -> mlrun.common.schemas.ScheduleRecord:
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
+    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedule from db", project=project, name=name)
-        schedule_record = self._get_schedule_record(session, project, name)
+        schedule_record = self._get_schedule_record(
+            session, project, name, raise_on_not_found
+        )
+        if not schedule_record:
+            return
         schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
-        self, session: Session, project: str, name: str
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
-        if not schedule_record:
+        if not schedule_record and raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
             )
@@ -2867,32 +2948,50 @@ class SQLDB(DBInterface):
         def _try_commit_obj():
             try:
                 session.commit()
-            except SQLAlchemyError as err:
+            except SQLAlchemyError as sql_err:
                 session.rollback()
-                cls = objects[0].__class__.__name__
-                if "database is locked" in str(err):
+                classes = list(set([object_.__class__.__name__ for object_ in objects]))
+
+                # if the database is locked, we raise a retryable error
+                if "database is locked" in str(sql_err):
                     logger.warning(
-                        "Database is locked. Retrying", cls=cls, err=str(err)
+                        "Database is locked. Retrying",
+                        classes_to_commit=classes,
+                        err=str(sql_err),
                     )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
-                    ) from err
+                    ) from sql_err
+
+                # the error is not retryable, so we try to identify weather there was a conflict or not
+                # either way - we wrap the error with a fatal error so the retry mechanism will stop
                 logger.warning(
-                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                    "Failed committing changes to DB",
+                    classes=classes,
+                    err=err_to_str(sql_err),
                 )
                 if not ignore:
+                    # get the identifiers of the objects that failed to commit, for logging purposes
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
-                    # We want to retry only when database is locked so for any other scenario escalate to fatal failure
+
+                    mlrun_error = mlrun.errors.MLRunRuntimeError(
+                        f"Failed committing changes to DB. classes={classes} objects={identifiers}"
+                    )
+
+                    # check if the error is a conflict error
+                    if any([message in str(sql_err) for message in conflict_messages]):
+                        mlrun_error = mlrun.errors.MLRunConflictError(
+                            f"Conflict - at least one of the objects already exists: {identifiers}"
+                        )
+
+                    # we want to keep the exception stack trace, but we also want the retry mechanism to stop
+                    # so, we raise a new indicative exception from the original sql exception (this keeps
+                    # the stack trace intact), and then wrap it with a fatal error (which stops the retry mechanism).
+                    # Note - this way, the exception is raised from this code section, and not from the retry function.
                     try:
-                        if any([message in str(err) for message in conflict_messages]):
-                            raise mlrun.errors.MLRunConflictError(
-                                f"Conflict - {cls} already exists: {identifiers}"
-                            ) from err
-                        raise mlrun.errors.MLRunRuntimeError(
-                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
-                        ) from err
+                        raise mlrun_error from sql_err
                     except (
                         mlrun.errors.MLRunRuntimeError,
                         mlrun.errors.MLRunConflictError,

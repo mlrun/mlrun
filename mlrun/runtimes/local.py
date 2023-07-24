@@ -420,7 +420,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
     if runobj.spec.verbose:
         logger.set_logger_level("DEBUG")
 
-    # Prepare the inputs type hints (user may pass type hints as part of the inputs keys):
+    # Prepare the inputs type hints (user may pass type hints as part of the input keys):
     runobj.spec.extract_type_hints_from_inputs()
     # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
     kwargs = get_func_arg(handler, runobj, context)

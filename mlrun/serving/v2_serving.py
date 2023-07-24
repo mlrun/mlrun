@@ -17,13 +17,13 @@ import time
 import traceback
 from typing import Dict, Union
 
-import mlrun
 import mlrun.common.model_monitoring
-import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring
 from mlrun.artifacts import ModelArtifact  # noqa: F401
 from mlrun.config import config
-from mlrun.utils import logger, now_date, parse_versioned_object_uri
+from mlrun.utils import logger, now_date
 
+from ..common.helpers import parse_versioned_object_uri
 from .server import GraphServer
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
@@ -516,12 +516,12 @@ def _init_endpoint_record(
                         project=project, kind="stream"
                     ),
                     active=True,
-                    monitoring_mode=mlrun.common.model_monitoring.ModelMonitoringMode.enabled
+                    monitoring_mode=mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled
                     if model.context.server.track_models
-                    else mlrun.common.model_monitoring.ModelMonitoringMode.disabled,
+                    else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
                 ),
                 status=mlrun.common.schemas.ModelEndpointStatus(
-                    endpoint_type=mlrun.common.model_monitoring.EndpointType.NODE_EP
+                    endpoint_type=mlrun.common.schemas.model_monitoring.EndpointType.NODE_EP
                 ),
             )
 

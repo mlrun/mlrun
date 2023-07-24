@@ -23,6 +23,8 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.launcher
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -31,10 +33,11 @@ import mlrun.api.utils.singletons.logs_dir
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
+import mlrun.db.factory
 from mlrun import mlconf
-from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
@@ -49,6 +52,13 @@ def api_config_test():
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+
+    mlrun.api.launcher.initialize_launcher()
+
+    # we need to override the run db container manually because we run all unit tests in the same process in CI
+    # so API is imported even when it's not needed
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.override(mlrun.api.rundb.sqldb.SQLRunDBContainer)
 
 
 @pytest.fixture()
@@ -141,12 +151,12 @@ class K8sSecretsMock:
 
     def store_auth_secret(
         self, username: str, access_key: str, namespace=""
-    ) -> (str, bool):
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         secret_ref = self.get_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
-        return secret_ref, True
+        return secret_ref, mlrun.common.schemas.SecretEventActions.created
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -179,10 +189,12 @@ class K8sSecretsMock:
         ]
         return username, access_key
 
-    def store_project_secrets(self, project, secrets, namespace="") -> (str, bool):
+    def store_project_secrets(
+        self, project, secrets, namespace=""
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
         secret_name = project
-        return secret_name, True
+        return secret_name, mlrun.common.schemas.SecretEventActions.created
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         if not secrets:

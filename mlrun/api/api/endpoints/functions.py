@@ -34,7 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
+import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
 import mlrun.api.launcher
@@ -44,19 +44,22 @@ import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
+from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
 from mlrun.runtimes.utils import get_item_name
-from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
+from mlrun.utils import get_in, logger, update_in
 
 router = APIRouter()
 
@@ -725,11 +728,13 @@ def _build_function(
                             model_monitoring_access_key = _process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
 
-                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
-                                project=fn.metadata.project
+                            stream_path = (
+                                mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=fn.metadata.project
+                                )
                             )
 
                             if stream_path.startswith("v3io://"):
@@ -742,19 +747,15 @@ def _build_function(
 
                         if fn.spec.tracking_policy:
                             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-                            fn.spec.tracking_policy = (
-                                mlrun.utils.model_monitoring.TrackingPolicy.from_dict(
-                                    fn.spec.tracking_policy
-                                )
+                            fn.spec.tracking_policy = TrackingPolicy.from_dict(
+                                fn.spec.tracking_policy
                             )
                         else:
                             # Initialize tracking policy with default values
-                            fn.spec.tracking_policy = (
-                                mlrun.utils.model_monitoring.TrackingPolicy()
-                            )
+                            fn.spec.tracking_policy = TrackingPolicy()
 
                         # deploy both model monitoring stream and model monitoring batch job
-                        mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
+                        mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             db_session=db_session,
                             auth_info=auth_info,

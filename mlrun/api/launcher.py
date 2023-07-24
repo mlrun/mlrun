@@ -27,7 +27,9 @@ import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
-from mlrun.api.api.utils import apply_enrichment_and_validation_on_function
+
+# must be at the bottom to avoid circular import conflicts and can't use 'from' notation because unit tests mock this
+import mlrun.api.api.utils  # isort:skip
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
@@ -174,7 +176,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         client side enrichment as minimal as possible.
         """
         if self._auth_info:
-            apply_enrichment_and_validation_on_function(runtime, self._auth_info)
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                runtime, self._auth_info
+            )
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (

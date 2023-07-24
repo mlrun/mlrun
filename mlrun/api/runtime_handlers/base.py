@@ -212,6 +212,7 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     "Failed monitoring runtime resource. Continuing",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
+                    project_name=project,
                     namespace=namespace,
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),

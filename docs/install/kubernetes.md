@@ -69,7 +69,7 @@ kubectl create namespace mlrun
 Add the Community Edition helm chart repo:
 
 ```bash
-helm repo add mlrun https://mlrun.github.io/ce
+helm repo add mlrun-ce https://mlrun.github.io/ce
 ```
 
 Run the following command to ensure that the repo is installed and available:

@@ -13,17 +13,13 @@
 # limitations under the License.
 import typing
 from copy import deepcopy
-from datetime import datetime
 
 from kubernetes import client
-from sqlalchemy.orm import Session
 
 import mlrun.runtimes.pod
-from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
-from mlrun.runtimes.base import BaseRuntimeHandler, RunStates, RuntimeClassMode
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1CleanPodPolicies
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime, MPIResourceSpec
 from mlrun.utils import get_in, update_in
@@ -310,78 +306,6 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
             selector += ",mpi-job-role=launcher"
 
         return selector
-
-    @staticmethod
-    def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return (
-            MpiRuntimeV1.crd_group,
-            MpiRuntimeV1.crd_version,
-            MpiRuntimeV1.crd_plural,
-        )
-
-
-class MpiV1RuntimeHandler(BaseRuntimeHandler):
-    kind = "mpijob"
-    class_modes = {
-        RuntimeClassMode.run: "mpijob",
-    }
-
-    def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
-    ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
-        """
-        https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L29
-        https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
-        """
-        launcher_status = (
-            crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
-        )
-        # the launcher status also has running property, but it's empty for
-        # short period after the creation, so we're
-        # checking terminal state by the completion time existence
-        in_terminal_state = (
-            crd_object.get("status", {}).get("completionTime", None) is not None
-        )
-        desired_run_state = RunStates.running
-        completion_time = None
-        if in_terminal_state:
-            completion_time = datetime.fromisoformat(
-                crd_object.get("status", {})
-                .get("completionTime")
-                .replace("Z", "+00:00")
-            )
-            desired_run_state = (
-                RunStates.error
-                if launcher_status.get("failed", 0) > 0
-                else RunStates.completed
-            )
-        return in_terminal_state, completion_time, desired_run_state
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_main_runtime_resource_label_selector() -> str:
-        """
-        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
-        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
-        :return: the label selector
-        """
-        return "mpi-job-role=launcher"
-
-    @staticmethod
-    def _get_run_completion_updates(run: dict) -> dict:
-
-        # TODO: add a 'workers' section in run objects state, each worker will update its state while
-        #  the run state will be resolved by the server.
-        # update the run object state if empty so that it won't default to 'created' state
-        update_in(run, "status.state", "running", append=False, replace=False)
-        return {}
 
     @staticmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:

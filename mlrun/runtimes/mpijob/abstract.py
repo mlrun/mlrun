@@ -25,7 +25,7 @@ from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.runtimes.utils import RunError, get_k8s
-from mlrun.utils import get_in, logger
+from mlrun.utils import get_in, logger, update_in
 
 
 class MPIResourceSpec(KubeResourceSpec):
@@ -137,6 +137,15 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
     @abc.abstractmethod
     def _get_crd_info() -> typing.Tuple[str, str, str]:
         pass
+
+    @staticmethod
+    def _get_run_completion_updates(run: dict) -> dict:
+
+        # TODO: add a 'workers' section in run objects state, each worker will update its state while
+        #  the run state will be resolved by the server.
+        # update the run object state if empty so that it won't default to 'created' state
+        update_in(run, "status.state", "running", append=False, replace=False)
+        return {}
 
     def _pretty_print_jobs(self, items: typing.List):
         print(f"{'status':10} {'name':20} {'start':21} end")

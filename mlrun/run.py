@@ -38,7 +38,6 @@ from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
 from .datastore import store_manager
-from .db import get_or_set_dburl, get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
@@ -474,7 +473,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     if url.startswith("db://"):
         url = url[5:]
         _project, name, tag, hash_key = parse_versioned_object_uri(url)
-        db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
+        db = mlrun.db.get_run_db(db or mlrun.db.get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
             raise KeyError(f"function {name}:{tag} not found in the DB")

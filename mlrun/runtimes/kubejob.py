@@ -20,10 +20,10 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.errors
 from mlrun.runtimes.base import BaseRuntimeHandler
 
-from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
@@ -257,7 +257,7 @@ class KubejobRuntime(KubeResource):
         offset = 0
         try:
             text, _ = db.get_builder_status(self, 0, logs=logs)
-        except RunDBError:
+        except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 
         def print_log(text):

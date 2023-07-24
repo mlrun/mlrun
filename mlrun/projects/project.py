@@ -375,7 +375,7 @@ def load_project(
         except Exception:
             pass
 
-    to_save = save and mlrun.mlconf.dbpath
+    to_save = bool(save and mlrun.mlconf.dbpath)
     if to_save:
         project.save()
 

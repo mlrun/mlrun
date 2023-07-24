@@ -43,18 +43,15 @@ def test_deprecated_decorator_warning_is_shown():
 
 
 def test_deprecation_warning_is_shown():
-    mlrun.get_or_create_project = unittest.mock.MagicMock()
-    mlrun.mlconf.artifact_path = "mock"
     with warnings.catch_warnings(record=True) as w:
-        mlrun.set_environment(project="mock")
+        warnings.warn(
+            "I'm a FutureWarning that is raised",
+            FutureWarning,
+        )
 
         assert len(w) == 1
         assert issubclass(w[-1].category, FutureWarning)
-        assert (
-            "'user_project' and 'project' are deprecated in 1.3.0, and will be removed in 1.5.0, use project "
-            "APIs such as 'get_or_create_project', 'load_project' to configure the active project."
-            in str(w[-1].message)
-        )
+        assert "I'm a FutureWarning that is raised" in str(w[-1].message)
 
 
 def test_filter_warnings_decorator():

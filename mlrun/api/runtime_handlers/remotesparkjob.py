@@ -12,7 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
+from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
+from mlrun.runtimes.base import RuntimeClassMode
 
-from .v1 import MpiRuntimeV1
-from .v1alpha1 import MpiRuntimeV1Alpha1
+
+class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
+    kind = "remote-spark"
+    class_modes = {RuntimeClassMode.run: "remote-spark"}
+
+    @staticmethod
+    def _are_resources_coupled_to_run_object() -> bool:
+        return True
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f"mlrun/uid={object_id}"

@@ -22,13 +22,12 @@ from kubernetes.client.rest import ApiException
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-from mlrun.runtimes.base import BaseRuntimeHandler
 
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError, RuntimeClassMode
+from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import get_k8s
 
@@ -390,24 +389,3 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         ]
 
     return pod_spec
-
-
-class KubeRuntimeHandler(BaseRuntimeHandler):
-    kind = "job"
-    class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
-
-    @staticmethod
-    def _expect_pods_without_uid() -> bool:
-        """
-        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
-        don't have the uid in their labels
-        """
-        return True
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"

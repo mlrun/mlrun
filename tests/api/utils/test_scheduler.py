@@ -38,7 +38,7 @@ import tests.api.conftest
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes.base import RunStates
+from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 
 

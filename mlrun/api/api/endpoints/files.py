@@ -16,7 +16,6 @@ import mimetypes
 from http import HTTPStatus
 
 import fastapi
-from deprecated import deprecated
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
@@ -33,12 +32,12 @@ router = fastapi.APIRouter()
 
 
 # TODO: Remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead, 'mount_v3io' instead",
-    category=FutureWarning,
+@router.get(
+    "/files",
+    deprecated=True,
+    description="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead"
+    "use /projects/{project}/runs/{uid} instead",
 )
-@router.get("/files")
 def get_files(
     schema: str = "",
     objpath: str = fastapi.Query("", alias="path"),
@@ -52,12 +51,6 @@ def get_files(
     return _get_files(schema, objpath, user, size, offset, auth_info)
 
 
-# TODO: Remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead, 'mount_v3io' instead",
-    category=FutureWarning,
-)
 @router.get("/projects/{project}/files")
 async def get_files_with_project_secrets(
     project: str,
@@ -87,12 +80,12 @@ async def get_files_with_project_secrets(
 
 
 # TODO: Remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead, 'mount_v3io' instead",
-    category=FutureWarning,
+@router.get(
+    "/filestat",
+    deprecated=True,
+    description="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead"
+    "use /projects/{project}/runs/{uid} instead",
 )
-@router.get("/filestat")
 def get_filestat(
     schema: str = "",
     path: str = "",
@@ -104,12 +97,6 @@ def get_filestat(
     return _get_filestat(schema, path, user, auth_info)
 
 
-# TODO: Remove in 1.7.0
-@deprecated(
-    version="1.5.0",
-    reason="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead, 'mount_v3io' instead",
-    category=FutureWarning,
-)
 @router.get("/projects/{project}/filestat")
 async def get_filestat_with_project_secrets(
     project: str,

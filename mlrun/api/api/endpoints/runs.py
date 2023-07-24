@@ -31,6 +31,7 @@ from mlrun.utils.helpers import datetime_from_iso
 router = APIRouter(prefix="/projects/{project}/runs")
 
 
+# TODO: remove /run/{project}/{uid} in 1.7.0
 @router.post(
     "/run/{project}/{uid}",
     deprecated=True,
@@ -76,6 +77,7 @@ async def store_run(
     return {}
 
 
+# TODO: remove /run/{project}/{uid} in 1.7.0
 @router.patch(
     "/run/{project}/{uid}",
     deprecated=True,
@@ -115,6 +117,7 @@ async def update_run(
     return {}
 
 
+# TODO: remove /run/{project}/{uid} in 1.7.0
 @router.get(
     "/run/{project}/{uid}",
     deprecated=True,
@@ -144,6 +147,7 @@ async def get_run(
     }
 
 
+# TODO: remove /run/{project}/{uid} in 1.7.0
 @router.delete(
     "/run/{project}/{uid}",
     deprecated=True,
@@ -175,6 +179,7 @@ async def delete_run(
     return {}
 
 
+# TODO: remove /runs in 1.7.0
 @router.get(
     "/runs",
     deprecated=True,
@@ -252,6 +257,7 @@ async def list_runs(
     }
 
 
+# TODO: remove /runs in 1.7.0
 @router.delete(
     "/runs",
     deprecated=True,

@@ -24,6 +24,7 @@ import mlrun.common.schemas
 router = fastapi.APIRouter()
 
 
+# TODO: remove /log/{project}/{uid} in 1.7.0
 @router.post(
     "/log/{project}/{uid}",
     deprecated=True,
@@ -58,6 +59,7 @@ async def store_log(
     return {}
 
 
+# TODO: remove /log/{project}/{uid} in 1.7.0
 @router.get(
     "/log/{project}/{uid}",
     deprecated=True,

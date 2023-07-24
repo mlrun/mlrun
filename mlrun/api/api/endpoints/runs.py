@@ -28,10 +28,10 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.utils.helpers import datetime_from_iso
 
-router = APIRouter()
+router = APIRouter(prefix="/projects/{project}/runs")
 
 
-@router.post("/run/{project}/{uid}")
+@router.post("/{uid}")
 async def store_run(
     request: Request,
     project: str,
@@ -70,7 +70,7 @@ async def store_run(
     return {}
 
 
-@router.patch("/run/{project}/{uid}")
+@router.patch("/{uid}")
 async def update_run(
     request: Request,
     project: str,
@@ -103,7 +103,7 @@ async def update_run(
     return {}
 
 
-@router.get("/run/{project}/{uid}")
+@router.get("/{uid}")
 async def get_run(
     project: str,
     uid: str,
@@ -126,7 +126,7 @@ async def get_run(
     }
 
 
-@router.delete("/run/{project}/{uid}")
+@router.delete("/{uid}")
 async def delete_run(
     project: str,
     uid: str,
@@ -151,7 +151,7 @@ async def delete_run(
     return {}
 
 
-@router.get("/runs")
+@router.get("")
 async def list_runs(
     project: str = None,
     name: str = None,
@@ -222,7 +222,7 @@ async def list_runs(
     }
 
 
-@router.delete("/runs")
+@router.delete("")
 async def delete_runs(
     project: str = None,
     name: str = None,
@@ -286,7 +286,7 @@ async def delete_runs(
 
 
 @router.put(
-    "/projects/{project}/runs/{uid}/notifications",
+    "/{uid}/notifications",
     status_code=HTTPStatus.OK.value,
 )
 async def set_run_notifications(

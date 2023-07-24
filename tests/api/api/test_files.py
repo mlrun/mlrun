@@ -27,6 +27,7 @@ from tests.common_fixtures import (  # noqa: F401
 )
 
 
+# TODO: remove in 1.7.0
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_files_forbidden(db: Session, client: TestClient) -> None:
     validate_files_status_code(client, HTTPStatus.FORBIDDEN.value)

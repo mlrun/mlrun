@@ -21,7 +21,7 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 
-router = fastapi.APIRouter(prefix="/log/{project}")
+router = fastapi.APIRouter(prefix="/projects/{project}/logs")
 
 
 @router.post("/{uid}")

@@ -134,9 +134,10 @@ jobs:
     name: Publish package to pypi
     runs-on: ubuntu-latest
 
+    # TODO: TBD whether to ignore if feature branch is set.
     # skip releasing to pypi for feature branches. installing mlrun can be done by:
     # pip install 'mlrun[complete] @ git+https://github.com/mlrun/mlrun@feature/branch'
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
+    # if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
 
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]

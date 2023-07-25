@@ -862,7 +862,7 @@ def code_to_function(
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
-            "value": mlrun.mlconf.httpdb.nuclio.explicit_ack == "enabled",
+            "value": mlrun.mlconf.is_explicit_ack(),
         }
     )
     spec_kind = get_in(spec, "kind", "")

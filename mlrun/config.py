@@ -1077,6 +1077,11 @@ class Config:
 
         return storage_options
 
+    def is_explicit_ack(self) -> bool:
+        return self.httpdb.nuclio.explicit_ack == "enabled" and (
+            not self.nuclio_version or self.nuclio_version >= "1.11.20"
+        )
+
 
 # Global configuration
 config = Config.from_dict(default_config)

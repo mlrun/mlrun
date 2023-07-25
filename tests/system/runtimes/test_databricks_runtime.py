@@ -56,7 +56,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def setup_class(self):
         for key, value in config["env"].items():
-            os.environ[key] = value
+            if value is not None:
+                os.environ[key] = value
 
     def test_with_function_reference(self):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)

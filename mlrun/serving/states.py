@@ -1516,7 +1516,7 @@ def _init_async_objects(context, steps):
     source_args = context.get_param("source_args", {})
     default_source = storey.SyncEmitSource(
         context=context,
-        explicit_ack=mlrun.mlconf.httpdb.nuclio.explicit_ack == "enabled",
+        explicit_ack=mlrun.mlconf.is_explicit_ack(),
         **source_args,
     )
     return default_source, wait_for_result

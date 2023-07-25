@@ -82,6 +82,7 @@ handler_arguments = json.loads(handler_arguments)
     try:
         cluster_id = os.environ.get('CLUSTER_ID')
         if cluster_id:
+            logger.info(f"run with exists cluster_id: {cluster_id}")
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[
@@ -94,6 +95,7 @@ handler_arguments = json.loads(handler_arguments)
                 ],
             )
         else:
+            logger.info(f"run with new cluster_id")
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[

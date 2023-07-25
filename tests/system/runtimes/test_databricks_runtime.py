@@ -52,16 +52,14 @@ def is_databricks_env_configured():
 )
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
-    mandatory_enterprise_env_vars = tests.system.base.TestMLRunSystem.mandatory_enterprise_env_vars + [
-        "DATABRICKS_TOKEN", "DATABRICKS_HOST"]
     project_name = "databricks-system-test"
 
-    # def test_test(self):
-    #     print(os.environ)
-    #     print()
+    def setup_class(self):
+        for key, value in config["env"].items():
+            os.environ[key] = value
 
     def test_with_function_reference(self):
-        cluster_id = os.environ["DATABRICKS_CLUSTER_ID"]
+        cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id:
             raise KeyError(
                 f"The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test.")
@@ -90,7 +88,7 @@ def print_args(**kwargs):
         function_ref = FunctionReference(
             kind="databricks-job",
             code=code,
-            image="tomermamia855/mlrun-api:tomer-databricks-runtime", #  TODO replace it after PR
+            image="tomermamia855/mlrun-api:tomer-databricks-runtime",  # TODO replace it after PR
             name="databricks-test",
         )
 

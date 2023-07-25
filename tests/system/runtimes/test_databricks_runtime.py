@@ -76,7 +76,7 @@ def print_args(**kwargs):
 
         job_env = {
             "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
-            "DATABRICKS_CLUSTER_ID": os.environ["DATABRICKS_CLUSTER_ID"]
+            "DATABRICKS_CLUSTER_ID": cluster_id
         }
 
         secrets = {

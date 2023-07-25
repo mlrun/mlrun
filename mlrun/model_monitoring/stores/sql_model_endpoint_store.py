@@ -61,7 +61,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         self.sql_connection_string = (
             sql_connection_string
             or mlrun.model_monitoring.helpers.get_connection_string(
-                project=self.project, secret_provider=secret_provider
+                secret_provider=secret_provider
             )
         )
 

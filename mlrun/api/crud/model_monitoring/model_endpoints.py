@@ -156,7 +156,9 @@ class ModelEndpoints:
         # Write the new model endpoint
         model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=model_endpoint.metadata.project
+            ),
         )
         model_endpoint_store.write_model_endpoint(endpoint=model_endpoint.flat_dict())
 
@@ -186,7 +188,9 @@ class ModelEndpoints:
         # Generate a model endpoint store object and apply the update process
         model_endpoint_store = get_model_endpoint_store(
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=project
+            ),
         )
         model_endpoint_store.update_model_endpoint(
             endpoint_id=endpoint_id, attributes=attributes
@@ -316,7 +320,9 @@ class ModelEndpoints:
         """
         model_endpoint_store = get_model_endpoint_store(
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=project
+            ),
         )
 
         model_endpoint_store.delete_model_endpoint(endpoint_id=endpoint_id)
@@ -367,7 +373,9 @@ class ModelEndpoints:
         model_endpoint_store = get_model_endpoint_store(
             project=project,
             access_key=auth_info.data_session,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=project
+            ),
         )
 
         model_endpoint_record = model_endpoint_store.get_model_endpoint(
@@ -462,7 +470,9 @@ class ModelEndpoints:
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=project
+            ),
         )
 
         endpoint_dictionary_list = endpoint_store.list_model_endpoints(
@@ -533,7 +543,9 @@ class ModelEndpoints:
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,
             project=project_name,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string,
+            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_connection_string(
+                project=project_name
+            ),
         )
         endpoints = endpoint_store.list_model_endpoints()
 

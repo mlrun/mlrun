@@ -188,7 +188,7 @@ class DBInterface(ABC):
     def del_artifacts(self, session, name="", project="", tag="", labels=None):
         pass
 
-    # Artifact v2 APIs
+    # Artifact v2 APIs - Delete when v1 is deprecated!
     def store_artifact_v2(
         self,
         session,

@@ -110,7 +110,6 @@ class FunctionReference(ModelObj):
         elif self.code is not None:
             code = self.code
             code = mlrun.runtimes.get_runtime_class(kind).get_code_addition() + code
-            print(f"after wrap code: {code}")
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )

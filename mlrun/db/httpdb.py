@@ -3190,7 +3190,7 @@ class HTTPRunDB(RunDBInterface):
             params["engine"] = engine
         response = self.api_call(
             "GET",
-            f"projects/{project}/workflows/{name}/references/{run_id}",
+            f"projects/{project}/workflows/{name}/runs/{run_id}",
             params=params,
         )
         return mlrun.common.schemas.GetWorkflowResponse(**response.json())

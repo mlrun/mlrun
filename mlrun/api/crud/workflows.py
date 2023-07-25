@@ -110,34 +110,16 @@ class WorkflowRunners(
             "schedule": schedule,
         }
 
-        if workflow_request.spec.override:
-            get_scheduler().store_schedule(
-                db_session=db_session,
-                auth_info=auth_info,
-                project=project.metadata.name,
-                name=workflow_spec.name,
-                scheduled_object=scheduled_object,
-                cron_trigger=schedule,
-                labels=runner.metadata.labels,
-                kind=mlrun.common.schemas.ScheduleKinds.job,
-            )
-        else:
-            try:
-                get_scheduler().create_schedule(
-                    db_session=db_session,
-                    auth_info=auth_info,
-                    project=project.metadata.name,
-                    name=workflow_spec.name,
-                    kind=mlrun.common.schemas.ScheduleKinds.job,
-                    scheduled_object=scheduled_object,
-                    cron_trigger=schedule,
-                    labels=runner.metadata.labels,
-                )
-            except mlrun.errors.MLRunConflictError:
-                raise mlrun.errors.MLRunConflictError(
-                    f"There is already a schedule for workflow {workflow_spec.name}."
-                    " If you want to override this schedule use override=True (SDK) or --override-workflow (CLI)"
-                )
+        get_scheduler().store_schedule(
+            db_session=db_session,
+            auth_info=auth_info,
+            project=project.metadata.name,
+            name=workflow_spec.name,
+            scheduled_object=scheduled_object,
+            cron_trigger=schedule,
+            labels=runner.metadata.labels,
+            kind=mlrun.common.schemas.ScheduleKinds.job,
+        )
 
     def _prepare_run_object_for_scheduling(
         self,
@@ -173,6 +155,7 @@ class WorkflowRunners(
                     engine=workflow_spec.engine,
                     local=workflow_spec.run_local,
                     save=save,
+                    subpath=project.spec.subpath,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
@@ -312,6 +295,7 @@ class WorkflowRunners(
                     ttl=workflow_spec.ttl,
                     engine=workflow_spec.engine,
                     local=workflow_spec.run_local,
+                    subpath=project.spec.subpath,
                 )
             )
 

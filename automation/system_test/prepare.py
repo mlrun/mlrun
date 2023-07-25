@@ -199,6 +199,7 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
+        suppress_error_strings: list = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -232,7 +233,17 @@ class SystemTestPreparer:
                     verbose,
                 )
             if exit_status != 0 and not suppress_errors:
-                raise RuntimeError(f"Command failed with exit status: {exit_status}")
+
+                if suppress_error_strings:
+                    for suppress_error_string in suppress_error_strings:
+                        if suppress_error_string in stderr:
+                            self._logger.log("warning", "Suppressing error", stderr=stderr, suppress_error_string=suppress_error_string)
+                            continue
+                    else:
+                        raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                else:
+                    raise RuntimeError(f"Command failed with exit status: {exit_status}")
+
         except (paramiko.SSHException, RuntimeError) as exc:
             err_log_kwargs = {
                 "error": str(exc),
@@ -610,23 +621,19 @@ class SystemTestPreparer:
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
 
         # best effort to delete the db (possibly already deleted if a previous preparation failed)
-        try:
-            out, err = self._run_kubectl_command(
-                args=[
-                    "exec",
-                    "-n",
-                    self.Constants.namespace,
-                    "-it",
-                    mlrun_db_pod_name_cmd,
-                    "--",
-                    drop_db_cmd,
-                ],
-                verbose=False,
-            )
-        except Exception as exc:
-            self._logger.log(
-                "warning", "Failed to delete mlrun db", exc=exc, err=err, out=out
-            )
+        self._run_kubectl_command(
+            args=[
+                "exec",
+                "-n",
+                self.Constants.namespace,
+                "-it",
+                mlrun_db_pod_name_cmd,
+                "--",
+                drop_db_cmd,
+            ],
+            verbose=False,
+            suppress_error_strings=["database doesn't exist"],
+        )
 
     def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])
@@ -667,11 +674,12 @@ class SystemTestPreparer:
             ]
         )
 
-    def _run_kubectl_command(self, args, verbose=True):
+    def _run_kubectl_command(self, args, verbose=True, suppress_error_strings=None):
         return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,
+            suppress_error_strings=suppress_error_strings,
         )
 
     def _serialize_env_config(self, allow_none_values: bool = False):

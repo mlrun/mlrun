@@ -61,3 +61,4 @@ setuptools~=65.5
 deprecated~=1.2
 jinja2~=3.1
 astor~=0.8.1
+databricks-sdk~=0.1.8

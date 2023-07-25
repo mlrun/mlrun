@@ -235,7 +235,7 @@ class SystemTestPreparer:
                 )
             if exit_status != 0 and not suppress_errors:
                 for suppress_error_string in suppress_error_strings:
-                    if suppress_error_string in stderr:
+                    if suppress_error_string in str(stderr):
                         self._logger.log(
                             "warning",
                             "Suppressing error",

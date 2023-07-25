@@ -24,12 +24,11 @@ import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
-from ..api.runtime_handlers import KubeRuntimeHandler
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import HyperParamOptions, RunObject
 from ..utils import get_in, logger
-from .base import RunError, RuntimeClassMode
+from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import get_k8s
 
@@ -464,8 +463,3 @@ class DatabricksRuntime(KubejobRuntime):
             notifications=notifications,
             returns=returns,
         )
-
-
-class DatabricksRuntimeHandler(KubeRuntimeHandler):
-    kind = "databricks-job"
-    class_modes = {RuntimeClassMode.run: "databricks-job"}

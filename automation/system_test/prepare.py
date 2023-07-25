@@ -199,9 +199,11 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
+        suppress_error_strings: list = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
+        suppress_error_strings = suppress_error_strings or []
 
         log_command_location = "locally" if local else "on data cluster"
 
@@ -232,7 +234,20 @@ class SystemTestPreparer:
                     verbose,
                 )
             if exit_status != 0 and not suppress_errors:
-                raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                for suppress_error_string in suppress_error_strings:
+                    if suppress_error_string in stderr:
+                        self._logger.log(
+                            "warning",
+                            "Suppressing error",
+                            stderr=stderr,
+                            suppress_error_string=suppress_error_string,
+                        )
+                        continue
+                else:
+                    raise RuntimeError(
+                        f"Command failed with exit status: {exit_status}"
+                    )
+
         except (paramiko.SSHException, RuntimeError) as exc:
             err_log_kwargs = {
                 "error": str(exc),
@@ -608,6 +623,7 @@ class SystemTestPreparer:
             password = f"-p {self._mysql_password} "
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
+
         self._run_kubectl_command(
             args=[
                 "exec",
@@ -619,6 +635,7 @@ class SystemTestPreparer:
                 drop_db_cmd,
             ],
             verbose=False,
+            suppress_error_strings=["database doesn't exist"],
         )
 
     def _get_pod_name_command(self, labels):
@@ -660,11 +677,12 @@ class SystemTestPreparer:
             ]
         )
 
-    def _run_kubectl_command(self, args, verbose=True):
+    def _run_kubectl_command(self, args, verbose=True, suppress_error_strings=None):
         return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,
+            suppress_error_strings=suppress_error_strings,
         )
 
     def _serialize_env_config(self, allow_none_values: bool = False):

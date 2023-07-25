@@ -624,7 +624,6 @@ class SystemTestPreparer:
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
 
-        # best effort to delete the db (possibly already deleted if a previous preparation failed)
         self._run_kubectl_command(
             args=[
                 "exec",

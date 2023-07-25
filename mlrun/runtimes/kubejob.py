@@ -16,6 +16,7 @@ import os
 import time
 import warnings
 from typing import Callable, Dict, List, Optional, Union
+
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
@@ -26,7 +27,7 @@ from mlrun.runtimes.base import BaseRuntimeHandler
 from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
-from ..model import RunObject, HyperParamOptions
+from ..model import HyperParamOptions, RunObject
 from ..utils import get_in, logger
 from .base import RunError, RuntimeClassMode
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
@@ -59,7 +60,7 @@ class KubejobRuntime(KubeResource):
         return False
 
     def with_source_archive(
-            self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
     ):
         """load the code from git/tar/zip archive at runtime or build
 
@@ -85,10 +86,10 @@ class KubejobRuntime(KubeResource):
 
         self.spec.build.load_source_on_run = pull_at_runtime
         if (
-                self.spec.build.base_image
-                and not self.spec.build.commands
-                and pull_at_runtime
-                and not self.spec.image
+            self.spec.build.base_image
+            and not self.spec.build.commands
+            and pull_at_runtime
+            and not self.spec.image
         ):
             # if we load source from repo and don't need a full build use the base_image as the image
             self.spec.image = self.spec.build.base_image
@@ -98,21 +99,21 @@ class KubejobRuntime(KubeResource):
             self.spec.image = ""
 
     def build_config(
-            self,
-            image="",
-            base_image=None,
-            commands: list = None,
-            secret=None,
-            source=None,
-            extra=None,
-            load_source_on_run=None,
-            with_mlrun=None,
-            auto_build=None,
-            requirements=None,
-            overwrite=False,
-            verify_base_image=False,
-            prepare_image_for_deploy=True,
-            requirements_file=None,
+        self,
+        image="",
+        base_image=None,
+        commands: list = None,
+        secret=None,
+        source=None,
+        extra=None,
+        load_source_on_run=None,
+        with_mlrun=None,
+        auto_build=None,
+        requirements=None,
+        overwrite=False,
+        verify_base_image=False,
+        prepare_image_for_deploy=True,
+        requirements_file=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -166,14 +167,14 @@ class KubejobRuntime(KubeResource):
             self.prepare_image_for_deploy()
 
     def deploy(
-            self,
-            watch=True,
-            with_mlrun=None,
-            skip_deployed=False,
-            is_kfp=False,
-            mlrun_version_specifier=None,
-            builder_env: dict = None,
-            show_on_failure: bool = False,
+        self,
+        watch=True,
+        with_mlrun=None,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        builder_env: dict = None,
+        show_on_failure: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -196,16 +197,16 @@ class KubejobRuntime(KubeResource):
                 with_mlrun = build.with_mlrun
             else:
                 with_mlrun = build.base_image and not (
-                        build.base_image.startswith("mlrun/")
-                        or "/mlrun/" in build.base_image
+                    build.base_image.startswith("mlrun/")
+                    or "/mlrun/" in build.base_image
                 )
 
         if (
-                not build.source
-                and not build.commands
-                and not build.requirements
-                and not build.extra
-                and with_mlrun
+            not build.source
+            and not build.commands
+            and not build.requirements
+            and not build.extra
+            and with_mlrun
         ):
             logger.info(
                 "running build to add mlrun package, set "
@@ -284,13 +285,13 @@ class KubejobRuntime(KubeResource):
         return self.status.state
 
     def deploy_step(
-            self,
-            image=None,
-            base_image=None,
-            commands: list = None,
-            secret_name="",
-            with_mlrun=True,
-            skip_deployed=False,
+        self,
+        image=None,
+        base_image=None,
+        commands: list = None,
+        secret_name="",
+        with_mlrun=True,
+        skip_deployed=False,
     ):
         function_name = self.metadata.name or "function"
         name = f"deploy_{function_name}"
@@ -422,51 +423,70 @@ class DatabricksRuntime(KubejobRuntime):
     def get_code_addition():
         current_file = os.path.abspath(__file__)
         current_dir = os.path.dirname(current_file)
-        databricks_runtime_wrap_path = os.path.join(current_dir, 'databricks_runtime_wrap.py')
-        with open(databricks_runtime_wrap_path, 'r') as databricks_runtime_wrap_file:
+        databricks_runtime_wrap_path = os.path.join(
+            current_dir, "databricks_runtime_wrap.py"
+        )
+        with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
             wrap_code = databricks_runtime_wrap_file.read()
         return wrap_code
 
     def _pre_run(self, runspec: RunObject, execution):
-        runspec.spec.parameters['internal_handler'] = runspec.spec.handler
-        runspec.spec.handler = 'run_mlrun_databricks_job'
+        runspec.spec.parameters["internal_handler"] = runspec.spec.handler
+        runspec.spec.handler = "run_mlrun_databricks_job"
 
     def run(
-            self,
-            runspec: Optional[
-                Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-            ] = None,
-            handler: Optional[Union[str, Callable]] = None,
-            name: Optional[str] = "",
-            project: Optional[str] = "",
-            params: Optional[dict] = None,
-            inputs: Optional[Dict[str, str]] = None,
-            out_path: Optional[str] = "",
-            workdir: Optional[str] = "",
-            artifact_path: Optional[str] = "",
-            watch: Optional[bool] = True,
-            schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-            hyperparams: Optional[Dict[str, list]] = None,
-            hyper_param_options: Optional[HyperParamOptions] = None,
-            verbose: Optional[bool] = None,
-            scrape_metrics: Optional[bool] = None,
-            local: Optional[bool] = False,
-            local_code_path: Optional[str] = None,
-            auto_build: Optional[bool] = None,
-            param_file_secrets: Optional[Dict[str, str]] = None,
-            notifications: Optional[List[mlrun.model.Notification]] = None,
-            returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        self,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> RunObject:
         if not project:
             current_project = mlrun.get_current_project(silent=True)
             if current_project:
                 project = current_project.name
-        return super().run(runspec=runspec, handler=handler, name=name, project=project, params=params, inputs=inputs,
-                           out_path=out_path, workdir=workdir, artifact_path=artifact_path, watch=watch,
-                           schedule=schedule, hyperparams=hyperparams, hyper_param_options=hyper_param_options,
-                           verbose=verbose, scrape_metrics=scrape_metrics, local=local, local_code_path=local_code_path,
-                           auto_build=auto_build, param_file_secrets=param_file_secrets, notifications=notifications,
-                           returns=returns)
+        return super().run(
+            runspec=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+        )
 
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):

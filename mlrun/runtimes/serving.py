@@ -16,9 +16,10 @@ import json
 import os
 from copy import deepcopy
 from typing import List, Union
-from nuclio.build import mlrun_footer
+
 import nuclio
 from nuclio import KafkaTrigger
+from nuclio.build import mlrun_footer
 
 import mlrun
 import mlrun.common.schemas
@@ -230,6 +231,7 @@ class ServingRuntime(RemoteRuntime):
     @staticmethod
     def get_code_addition():
         return mlrun_footer.format(serving_subkind)
+
     @property
     def spec(self) -> ServingSpec:
         return self._spec

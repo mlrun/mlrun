@@ -177,6 +177,7 @@ class BaseRuntime(ModelObj):
     @staticmethod
     def get_code_addition():
         return ""
+
     def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn

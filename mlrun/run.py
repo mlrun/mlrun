@@ -54,7 +54,7 @@ from .runtimes import (
     RuntimeKinds,
     ServingRuntime,
     Spark3Runtime,
-    get_runtime_class,
+    get_runtime_class, DatabricksRuntime,
 )
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
@@ -715,6 +715,7 @@ def code_to_function(
     LocalRuntime,
     Spark3Runtime,
     RemoteSparkRuntime,
+    DatabricksRuntime
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 

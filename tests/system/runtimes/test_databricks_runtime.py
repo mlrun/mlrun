@@ -14,14 +14,15 @@
 #
 import datetime
 import os
-from sys import executable
 from pathlib import Path
+from sys import executable
+
 import pytest
 import yaml
 
 import mlrun
-from mlrun.runtimes.function_reference import FunctionReference
 import tests.system.base
+from mlrun.runtimes.function_reference import FunctionReference
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "assets" / "test_databricks_runtime.yml"
@@ -63,7 +64,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id:
             raise KeyError(
-                f"The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test.")
+                f"The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
+            )
         code = """
 
 def print_args(**kwargs):
@@ -71,16 +73,16 @@ def print_args(**kwargs):
         """
         # **Databricks cluster credentials**
 
-        project = mlrun.get_or_create_project("databricks-proj", context="./", user_project=False)
+        project = mlrun.get_or_create_project(
+            "databricks-proj", context="./", user_project=False
+        )
 
         job_env = {
             "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
-            "DATABRICKS_CLUSTER_ID": cluster_id
+            "DATABRICKS_CLUSTER_ID": cluster_id,
         }
 
-        secrets = {
-            "DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]
-        }
+        secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
 
         project.set_secrets(secrets)
 
@@ -96,14 +98,11 @@ def print_args(**kwargs):
         function = function_ref.to_function()
 
         for name, val in job_env.items():
-            function.spec.env.append({
-                'name': name,
-                'value': val
-            })
+            function.spec.env.append({"name": name, "value": val})
 
         run = function.run(
             handler="print_args",
             auto_build=True,
-            params={"param1": "value1", "param2": "value2"}
+            params={"param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"

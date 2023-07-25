@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import datetime
 import os
 from pathlib import Path
 from sys import executable
@@ -64,7 +63,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id:
             raise KeyError(
-                f"The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
+                "The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
             )
         code = """
 

@@ -44,6 +44,7 @@ from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
+    DatabricksRuntime,
     HandlerRuntime,
     KubejobRuntime,
     LocalRuntime,
@@ -54,7 +55,7 @@ from .runtimes import (
     RuntimeKinds,
     ServingRuntime,
     Spark3Runtime,
-    get_runtime_class, DatabricksRuntime,
+    get_runtime_class,
 )
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
@@ -715,7 +716,7 @@ def code_to_function(
     LocalRuntime,
     Spark3Runtime,
     RemoteSparkRuntime,
-    DatabricksRuntime
+    DatabricksRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 

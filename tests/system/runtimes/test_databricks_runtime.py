@@ -100,8 +100,9 @@ def print_args(**kwargs):
                 'value': val
             })
 
-        function.run(
+        run = function.run(
             handler="print_args",
             auto_build=True,
             params={"param1": "value1", "param2": "value2"}
         )
+        assert run.status.state == "completed"

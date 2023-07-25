@@ -446,7 +446,6 @@ class BaseRuntime(ModelObj):
             args = ["run", "--name", runobj.metadata.name, "--from-env"]
             if runobj.spec.handler:
                 args += ["--handler", runobj.spec.handler]
-                print(f"handler: {runobj.spec.handler}")
             if self.spec.mode:
                 args += ["--mode", self.spec.mode]
             if self.spec.build.origin_filename:

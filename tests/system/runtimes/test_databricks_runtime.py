@@ -18,6 +18,8 @@ from sys import executable
 from pathlib import Path
 import pytest
 import yaml
+
+import mlrun
 from mlrun.runtimes.function_reference import FunctionReference
 import tests.system.base
 
@@ -69,12 +71,6 @@ def print_args(**kwargs):
     print(f"kwargs: {kwargs}")
         """
         # **Databricks cluster credentials**
-
-        import os
-
-        # In[7]:
-        # **Set Databricks cluster address and token in mlrun**
-        import mlrun
 
         project = mlrun.get_or_create_project("databricks-proj", context="./", user_project=False)
 

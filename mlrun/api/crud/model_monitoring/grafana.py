@@ -149,7 +149,7 @@ async def grafana_list_endpoints(
         if (
             filter_router
             and endpoint.status.endpoint_type
-            == mlrun.common.model_monitoring.EndpointType.ROUTER
+            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
         ):
             continue
         row = [

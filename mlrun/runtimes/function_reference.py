@@ -15,8 +15,6 @@
 import os
 from base64 import b64encode
 
-from nuclio.build import mlrun_footer
-
 import mlrun
 
 from ..model import ModelObj

@@ -85,7 +85,8 @@ handler_arguments = json.loads(handler_arguments)
 
     now = datetime.datetime.now()
     formatted_date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
-    script_path_on_dbfs = f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/sample_{formatted_date_time}_{uuid.uuid4()}.py"  # todo return this
+    script_path_on_dbfs = f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_run" \
+                          f"time/sample_{formatted_date_time}_{uuid.uuid4()}.py"
 
     if is_local_code:
         upload_file(

@@ -23,6 +23,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import v3io
 import v3io.dataplane
 import v3io_frames
 
@@ -803,7 +804,7 @@ class BatchProcessor:
 
             if not mlrun.mlconf.is_ce_mode():
                 # Update drift results in TSDB
-                self._update_drift_in_input_stream(
+                self._update_drift_in_v3io_tsdb(
                     endpoint_id=endpoint[
                         mlrun.common.schemas.model_monitoring.EventFieldType.UID
                     ],
@@ -812,11 +813,15 @@ class BatchProcessor:
                     drift_result=drift_result,
                     timestamp=timestamp,
                 )
-                logger.info(
-                    "Done updating drift measures",
+
+            else:
+                # Update drift results in Prometheus
+                self._update_drift_in_prometheus(
                     endpoint_id=endpoint[
                         mlrun.common.schemas.model_monitoring.EventFieldType.UID
                     ],
+                    drift_status=drift_status,
+                    drift_result=drift_result,
                 )
 
         except Exception as e:
@@ -824,6 +829,12 @@ class BatchProcessor:
                 f"Exception for endpoint {endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
             )
             self.exception = e
+        logger.info(
+            "Done updating drift measures",
+            endpoint_id=endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.UID
+            ],
+        )
 
     def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
@@ -852,7 +863,7 @@ class BatchProcessor:
             pair_list = pair.split(":")
             self.batch_dict[pair_list[0]] = float(pair_list[1])
 
-    def _update_drift_in_input_stream(
+    def _update_drift_in_v3io_tsdb(
         self,
         endpoint_id: str,
         drift_status: DriftStatus,
@@ -919,6 +930,63 @@ class BatchProcessor:
                 tsdb_path=self.tsdb_path,
                 endpoint=endpoint_id,
             )
+
+    def _update_drift_in_prometheus(
+        self,
+        endpoint_id: str,
+        drift_status: DriftStatus,
+        drift_result: Dict[str, Dict[str, Any]],
+    ):
+        """Push drift metrics to Prometheus registry. Please note that the metrics are being pushed through HTTP
+        to the monitoring stream pod that writes them into a local registry. Afterwards, Prometheus wil scrape these
+        metrics that will be available in the Grafana charts.
+
+        :param endpoint_id:   The unique id of the model endpoint.
+        :param drift_status:  Drift status result. Possible values can be found under DriftStatus enum class.
+        :param drift_result:  A dictionary that includes the drift results for each feature.
+
+
+        """
+        stream_http_path = (
+            mlrun.mlconf.model_endpoint_monitoring.default_http_sink.format(
+                project=self.project
+            )
+        )
+
+        statistical_metrics = ["hellinger_mean", "tvd_mean", "kld_mean"]
+        metrics = []
+        for metric in statistical_metrics:
+            metrics.append(
+                {
+                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+                    mlrun.common.schemas.model_monitoring.EventFieldType.METRIC: metric,
+                    mlrun.common.schemas.model_monitoring.EventFieldType.VALUE: drift_result[
+                        metric
+                    ],
+                }
+            )
+
+        http_session = mlrun.utils.HTTPSessionWithRetry(
+            retry_on_post=True,
+            verbose=True,
+        )
+
+        http_session.request(
+            method="POST",
+            url=stream_http_path + "/monitoring-batch-metrics",
+            data=json.dumps(metrics),
+        )
+
+        drift_status_dict = {
+            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+            mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
+        }
+
+        http_session.request(
+            method="POST",
+            url=stream_http_path + "/monitoring-drift-status",
+            data=json.dumps(drift_status_dict),
+        )
 
 
 def handler(context: mlrun.run.MLClientCtx):

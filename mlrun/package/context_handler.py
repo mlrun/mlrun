@@ -24,7 +24,7 @@ from mlrun.run import get_or_create_ctx
 
 from .errors import MLRunPackageCollectionError, MLRunPackagePackingError
 from .packagers_manager import PackagersManager
-from .utils import ArtifactType, LogHintKey, LogHintUtils, TypeHintUtils
+from .utils import LogHintUtils, TypeHintUtils
 
 
 class ContextHandler:

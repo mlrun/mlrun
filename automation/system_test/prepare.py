@@ -203,6 +203,7 @@ class SystemTestPreparer:
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
+        suppress_error_strings = suppress_error_strings or []
 
         log_command_location = "locally" if local else "on data cluster"
 
@@ -233,16 +234,19 @@ class SystemTestPreparer:
                     verbose,
                 )
             if exit_status != 0 and not suppress_errors:
-
-                if suppress_error_strings:
-                    for suppress_error_string in suppress_error_strings:
-                        if suppress_error_string in stderr:
-                            self._logger.log("warning", "Suppressing error", stderr=stderr, suppress_error_string=suppress_error_string)
-                            continue
-                    else:
-                        raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                for suppress_error_string in suppress_error_strings:
+                    if suppress_error_string in stderr:
+                        self._logger.log(
+                            "warning",
+                            "Suppressing error",
+                            stderr=stderr,
+                            suppress_error_string=suppress_error_string,
+                        )
+                        continue
                 else:
-                    raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                    raise RuntimeError(
+                        f"Command failed with exit status: {exit_status}"
+                    )
 
         except (paramiko.SSHException, RuntimeError) as exc:
             err_log_kwargs = {

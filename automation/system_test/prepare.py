@@ -608,18 +608,25 @@ class SystemTestPreparer:
             password = f"-p {self._mysql_password} "
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
-        self._run_kubectl_command(
-            args=[
-                "exec",
-                "-n",
-                self.Constants.namespace,
-                "-it",
-                mlrun_db_pod_name_cmd,
-                "--",
-                drop_db_cmd,
-            ],
-            verbose=False,
-        )
+
+        # best effort to delete the db (possibly already deleted if a previous preparation failed)
+        try:
+            out, err = self._run_kubectl_command(
+                args=[
+                    "exec",
+                    "-n",
+                    self.Constants.namespace,
+                    "-it",
+                    mlrun_db_pod_name_cmd,
+                    "--",
+                    drop_db_cmd,
+                ],
+                verbose=False,
+            )
+        except Exception as exc:
+            self._logger.log(
+                "warning", "Failed to delete mlrun db", exc=exc, err=err, out=out
+            )
 
     def _get_pod_name_command(self, labels):
         labels_selector = ",".join([f"{k}={v}" for k, v in labels.items()])

@@ -267,6 +267,7 @@ class MonitoringDeployment:
         stream_processor = mlrun.model_monitoring.stream_processing.EventStreamProcessor(
             project=project,
             parquet_batching_max_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+            parquet_batching_timeout_secs=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             parquet_target=parquet_target,
             model_monitoring_access_key=model_monitoring_access_key,
         )

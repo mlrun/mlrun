@@ -102,7 +102,7 @@ handler_arguments = json.loads(handler_arguments)
         logger.info(f'workflow intermediate status: {", ".join(statuses)}')
 
     try:
-        cluster_id = os.environ.get("CLUSTER_ID")
+        cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID")
         if cluster_id:
             logger.info(f"run with exists cluster_id: {cluster_id}")
             waiter = workspace.jobs.submit(

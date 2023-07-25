@@ -18,3 +18,4 @@ env:
   # databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
   # - it is not for use)
   DATABRICKS_HOST:
+  DATABRICKS_CLUSTER_ID:

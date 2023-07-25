@@ -894,22 +894,33 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
 
 
 def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None):
-    # get key, iteration, tree
-    hash_dict = {
-        "key": object_dict["metadata"].get("key"),
-        "iteration": iteration
-        if iteration is not None
-        else object_dict["metadata"].get("iter"),
-        "tree": object_dict["metadata"].get("tree"),
-    }
+    # remove tag, hash, date from calculation
+    object_dict.setdefault("metadata", {})
+    tag = object_dict["metadata"].get("tag")
+    status = object_dict.setdefault("status", {})
+    object_dict["metadata"]["tag"] = ""
+    object_dict["metadata"][uid_property_name] = ""
+    object_dict["status"] = None
+    object_dict["metadata"]["updated"] = None
+    object_created_timestamp = object_dict["metadata"].pop("created", None)
+
+    # make sure we have a key and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
 
     # calc hash and fill
-    data = json.dumps(hash_dict, sort_keys=True, default=str).encode()
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
 
+    # restore original values
+    object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
+    object_dict["status"] = status
+    if object_created_timestamp:
+        object_dict["metadata"]["created"] = object_created_timestamp
     return uid
 
 

@@ -509,8 +509,6 @@ class SQLDB(DBInterface):
                 key,
                 artifact,
                 uid,
-                iter,
-                tag,
             )
 
         original_uid = uid
@@ -701,7 +699,6 @@ class SQLDB(DBInterface):
         name=None,
         project=None,
         tag=None,
-        uid=None,
         labels=None,
         since=None,
         until=None,
@@ -710,6 +707,8 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        use_tag_as_uid: bool = None,
+        uid=None,
     ):
         project = project or config.default_project
 
@@ -808,10 +807,10 @@ class SQLDB(DBInterface):
         self,
         session,
         key: str,
-        project: str = None,
-        iter: int = None,
-        producer_id: str = None,
         tag: str = None,
+        iter: int = None,
+        project: str = None,
+        producer_id: str = None,
         uid: str = None,
         raise_on_not_found: bool = True,
     ):
@@ -895,8 +894,8 @@ class SQLDB(DBInterface):
             session.delete(artifact)
         session.commit()
 
-    def delete_artifact_v2(
-        self, session, project, key, tag=None, uid=None, producer_id=None
+    def del_artifact_v2(
+        self, session, key, tag=None, project=None, uid=None, producer_id=None
     ):
         self._delete_tagged_object(
             session, ArtifactV2, project, key, tag, uid, producer_id
@@ -917,8 +916,8 @@ class SQLDB(DBInterface):
         for key in distinct_keys:
             self.del_artifact(session, key, "", project)
 
-    def delete_artifacts_v2(
-        self, session, project, name="", tag=None, ids=None, labels=None
+    def del_artifacts_v2(
+        self, session, name="", project="", tag=None, labels=None, ids=None
     ):
         project = project or config.default_project
         distinct_keys = {
@@ -928,7 +927,7 @@ class SQLDB(DBInterface):
             )
         }
         for key in distinct_keys:
-            self.delete_artifact_v2(session, project, key, tag)
+            self.del_artifact_v2(session, key, tag, project)
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         # found a bug in here, which is being exposed for when have multi-param execution.
@@ -1075,6 +1074,24 @@ class SQLDB(DBInterface):
             )
         self.tag_artifacts(session, artifacts, project, name=tag)
 
+    @retry_on_conflict
+    def append_tag_to_artifacts_v2(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self._list_artifacts_for_tagging_v2(
+                session,
+                project_name=project,
+                identifier=identifier,
+            )
+        self.tag_objects_v2(session, artifacts, project, tag, obj_name_attribute="key")
+
     def delete_tag_from_artifacts(
         self,
         session: Session,
@@ -1146,18 +1163,19 @@ class SQLDB(DBInterface):
         key,
         link_artifact,
         uid=None,
-        iteration=None,
-        tag=None,
     ):
         # get the artifact record from the db
-        link_tree = link_artifact.get("link_tree")
-        link_key = link_artifact.get("link_key")
+        link_iteration = link_artifact.get("spec", {}).get("link_iteration")
+        link_tree = link_artifact.get("spec", {}).get("link_tree") or link_artifact.get(
+            "metadata", {}
+        ).get("tree")
+        link_key = link_artifact.get("spec", {}).get("link_key")
         if link_key:
             key = link_key
         query = self._query(session, ArtifactV2).filter(
             ArtifactV2.project == project,
             ArtifactV2.key == key,
-            ArtifactV2.iteration == iteration,
+            ArtifactV2.iteration == link_iteration,
         )
         if link_tree:
             query = query.filter(ArtifactV2.producer_id == link_tree)
@@ -1167,7 +1185,7 @@ class SQLDB(DBInterface):
         artifact_record = query.one_or_none()
         if not artifact_record:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Best iteration artifact not found - {project}/{key}:{iteration}",
+                f"Best iteration artifact not found - {project}/{key}:{link_iteration}",
             )
 
         # update the artifact record with best iteration
@@ -1177,13 +1195,13 @@ class SQLDB(DBInterface):
         query = self._query(session, ArtifactV2).filter(
             ArtifactV2.project == project,
             ArtifactV2.key == key,
-            ArtifactV2.iteration != iteration,
+            ArtifactV2.iteration != link_iteration,
         )
         if link_tree:
             query = query.filter(ArtifactV2.producer_id == link_tree)
 
         artifacts_to_commit = [artifact_record]
-        for artifact in query.all():
+        for artifact in query:
             artifact.best_iteration = False
             artifacts_to_commit.append(artifact)
 
@@ -1201,7 +1219,8 @@ class SQLDB(DBInterface):
     ):
         artifact_record.project = project
         artifact_record.iteration = iter
-        artifact_record.kind = artifact_dict.get("kind", "artifact")
+        kind = artifact_dict.get("kind") or "artifact"
+        artifact_record.kind = kind
         artifact_record.producer_id = artifact_dict["metadata"].get("tree")
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
@@ -1219,6 +1238,7 @@ class SQLDB(DBInterface):
 
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
         artifact_dict["metadata"]["created"] = str(artifact_record.created)
+        artifact_dict["kind"] = kind
         if tag:
             artifact_dict["metadata"]["tag"] = tag
 
@@ -1561,7 +1581,7 @@ class SQLDB(DBInterface):
         self,
         session,
         project,
-        ids,
+        ids=None,
         tag=None,
         labels=None,
         since=None,
@@ -1584,10 +1604,13 @@ class SQLDB(DBInterface):
         if ids:
             query = query.filter(ArtifactV2.id.in_(ids))
         if tag and tag != "*":
-            obj_id_tags = self._get_records_to_tags_map(
-                session, ArtifactV2, project, tag, name
+            obj_name = name or None
+            object_tag_uids = self._resolve_class_tag_uids(
+                session, ArtifactV2, project, tag, obj_name
             )
-            query = query.filter(ArtifactV2.id.in_(obj_id_tags.keys()))
+            if not object_tag_uids:
+                return []
+            query = query.filter(ArtifactV2.uid.in_(object_tag_uids))
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if name:
@@ -3449,8 +3472,9 @@ class SQLDB(DBInterface):
                 return
             object_id = object_record.id
         elif tag:
+            obj_name = name or None
             tag_record = self._query(
-                session, cls.Tag, project=project, name=tag, obj_name=name
+                session, cls.Tag, project=project, name=tag, obj_name=obj_name
             ).one_or_none()
             if tag_record is None:
                 return

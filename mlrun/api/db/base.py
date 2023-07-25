@@ -234,13 +234,13 @@ class DBInterface(ABC):
     ):
         pass
 
-    def delete_artifact_v2(
-        self, session, project, key, tag=None, uid=None, producer_id=None
+    def del_artifact_v2(
+        self, session, key, tag="", project="", uid=None, producer_id=None
     ):
         pass
 
-    def delete_artifacts_v2(
-        self, session, project, name="", tag=None, ids=None, labels=None
+    def del_artifacts_v2(
+        self, session, name="", project="", tag=None, labels=None, ids=None
     ):
         pass
 
@@ -255,6 +255,15 @@ class DBInterface(ABC):
         project,
         tag,
         identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        pass
+
+    def append_tag_to_artifacts_v2(
+        self,
+        session,
+        project: str,
+        tag: str,
+        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
     ):
         pass
 

@@ -22,6 +22,7 @@ import warnings
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 import kfp
 import requests
@@ -30,6 +31,7 @@ import semver
 import mlrun
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
+import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
@@ -106,11 +108,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?run\/.+\/.+",
     ]
 
-    def __init__(self, base_url, user="", password="", token=""):
-        self.base_url = base_url
-        self.user = user
-        self.password = password
-        self.token = token
+    def __init__(self, url):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -118,6 +116,33 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
         self.python_version = str(version.Version().get_python_version())
+
+        self._enrich_and_validate(url)
+
+    def _enrich_and_validate(self, url):
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        username = parsed_url.username or config.httpdb.user
+        password = parsed_url.password or config.httpdb.password
+
+        username, password, token = mlrun.platforms.add_or_refresh_credentials(
+            parsed_url.hostname, username, password, config.httpdb.token
+        )
+
+        self.base_url = base_url
+        self.user = username
+        self.password = password
+        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__

@@ -13,18 +13,14 @@
 # limitations under the License.
 import typing
 from copy import deepcopy
-from datetime import datetime
 
 from kubernetes import client
-from sqlalchemy.orm import Session
 
 import mlrun.runtimes.pod
-from mlrun.api.db.base import DBInterface
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.model import RunObject
-from mlrun.runtimes.base import BaseRuntimeHandler, RunStates, RuntimeClassMode
-from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States
+from mlrun.runtimes.constants import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
 
@@ -156,72 +152,3 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
             MpiRuntimeV1Alpha1.crd_version,
             MpiRuntimeV1Alpha1.crd_plural,
         )
-
-
-class MpiV1Alpha1RuntimeHandler(BaseRuntimeHandler):
-    kind = "mpijob"
-    class_modes = {
-        RuntimeClassMode.run: "mpijob",
-    }
-
-    def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
-    ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
-        """
-        https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1alpha1/types.go#L115
-        """
-        launcher_status = crd_object.get("status", {}).get("launcherStatus", "")
-        in_terminal_state = launcher_status in MPIJobV1Alpha1States.terminal_states()
-        desired_run_state = MPIJobV1Alpha1States.mpijob_state_to_run_state(
-            launcher_status
-        )
-        completion_time = None
-        if in_terminal_state:
-            completion_time = datetime.fromisoformat(
-                crd_object.get("status", {})
-                .get("completionTime")
-                .replace("Z", "+00:00")
-            )
-            desired_run_state = {
-                "Succeeded": RunStates.completed,
-                "Failed": RunStates.error,
-            }[launcher_status]
-        return in_terminal_state, completion_time, desired_run_state
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_main_runtime_resource_label_selector() -> str:
-        """
-        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
-        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
-        :return: the label selector
-        """
-        return "mpi_role_type=launcher"
-
-    @staticmethod
-    def _get_run_completion_updates(run: dict) -> dict:
-
-        # TODO: add a 'workers' section in run objects state, each worker will update its state while
-        #  the run state will be resolved by the server.
-        # update the run object state if empty so that it won't default to 'created' state
-        update_in(run, "status.state", "running", append=False, replace=False)
-        return {}
-
-    @staticmethod
-    def _get_crd_info() -> typing.Tuple[str, str, str]:
-        return (
-            MpiRuntimeV1Alpha1.crd_group,
-            MpiRuntimeV1Alpha1.crd_version,
-            MpiRuntimeV1Alpha1.crd_plural,
-        )
-
-    @staticmethod
-    def _get_crd_object_status(crd_object) -> str:
-        return crd_object.get("status", {}).get("launcherStatus", "")

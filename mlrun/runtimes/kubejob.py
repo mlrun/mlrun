@@ -23,8 +23,8 @@ from kubernetes.client.rest import ApiException
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-from ..api.runtime_handlers import KubeRuntimeHandler
 
+from ..api.runtime_handlers import KubeRuntimeHandler
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import HyperParamOptions, RunObject
@@ -389,27 +389,6 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         ]
 
     return pod_spec
-
-
-# class KubeRuntimeHandler(BaseRuntimeHandler):
-#     kind = "job"
-#     class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
-#
-#     @staticmethod
-#     def _expect_pods_without_uid() -> bool:
-#         """
-#         builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
-#         don't have the uid in their labels
-#         """
-#         return True
-#
-#     @staticmethod
-#     def _are_resources_coupled_to_run_object() -> bool:
-#         return True
-#
-#     @staticmethod
-#     def _get_object_label_selector(object_id: str) -> str:
-#         return f"mlrun/uid={object_id}"
 
 
 class DatabricksRuntime(KubejobRuntime):

@@ -62,6 +62,11 @@ def _add_minutes_offset(
     minute: typing.Optional[typing.Union[int, str]],
     offset: Minutes,
 ) -> typing.Optional[typing.Union[int, str]]:
+    """
+    :param minute: the minute specification in the cron schedule, e.g. "0".
+    :param offset: the offset in minutes to add to the cron minute specification.
+    :return: the minute cron with the offset applied (if supported).
+    """
     if minute and (
         (isinstance(minute, str) and str.isdigit(minute)) or isinstance(minute, int)
     ):

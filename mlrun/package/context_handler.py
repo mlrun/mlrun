@@ -211,7 +211,8 @@ class ContextHandler:
                     self._packagers_manager.pack(obj=obj, log_hint=log_hint)
                 except (MLRunInvalidArgumentError, MLRunPackagePackingError) as error:
                     self._context.logger.warn(
-                        f"Skipping logging an object with the log hint '{log_hint}' due to the following error:\n{error}"
+                        f"Skipping logging an object with the log hint '{log_hint}' "
+                        f"due to the following error:\n{error}"
                     )
             # Link packages:
             self._packagers_manager.link_packages(

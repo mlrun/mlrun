@@ -232,8 +232,6 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     #: The default artifact type to unpack from.
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
 
-    _ORIGINAL_DOC = __doc__
-
     @classmethod
     def get_default_packing_artifact_type(cls, obj: Any) -> str:
         """

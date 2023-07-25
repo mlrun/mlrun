@@ -38,7 +38,7 @@ import tests.api.conftest
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes.base import RunStates
+from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
 
 
@@ -411,7 +411,7 @@ async def test_create_schedule_failure_already_exists(
 
     with pytest.raises(
         mlrun.errors.MLRunConflictError,
-        match=rf"Conflict - Schedule already exists: {project}/{schedule_name}",
+        match=rf"Conflict - at least one of the objects already exists: {project}/{schedule_name}",
     ):
         scheduler.create_schedule(
             db,

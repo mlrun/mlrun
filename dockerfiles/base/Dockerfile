@@ -53,7 +53,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH /opt/conda/bin:$PATH
 
-ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PIP_VERSION=23.2.1
 RUN conda config --add channels conda-forge && \
     conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

@@ -28,11 +28,11 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
 from mlrun.common.schemas import AuthInfo
-from mlrun.db import RunDBError
 
 from ..config import config as mlconf
 from ..errors import err_to_str
@@ -603,7 +603,7 @@ class RemoteRuntime(KubeResource):
                 text, last_log_timestamp = db.get_builder_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
-            except RunDBError:
+            except mlrun.db.RunDBError:
                 raise ValueError("function or deploy process not found")
             state = self.status.state
             if text:
@@ -714,7 +714,7 @@ class RemoteRuntime(KubeResource):
             text, last_log_timestamp = self._get_db().get_builder_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
-        except RunDBError:
+        except mlrun.db.RunDBError:
             if raise_on_exception:
                 return "", "", None
             raise ValueError("function or deploy process not found")
@@ -725,8 +725,8 @@ class RemoteRuntime(KubeResource):
         runtime_env = {
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
         }
-        if self.spec.rundb or mlconf.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
+        if mlconf.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:

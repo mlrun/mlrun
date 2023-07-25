@@ -21,15 +21,14 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.errors
-from mlrun.runtimes.base import BaseRuntimeHandler
 
-from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import HyperParamOptions, RunObject
 from ..utils import get_in, logger
-from .base import RunError, RuntimeClassMode
+from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import get_k8s
 
@@ -258,7 +257,7 @@ class KubejobRuntime(KubeResource):
         offset = 0
         try:
             text, _ = db.get_builder_status(self, 0, logs=logs)
-        except RunDBError:
+        except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 
         def print_log(text):
@@ -361,10 +360,8 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.clone_target_dir:
             workdir = workdir or ""
-            if workdir.startswith("./"):
-                # TODO: use 'removeprefix' when we drop python 3.7 support
-                # workdir.removeprefix("./")
-                workdir = workdir[2:]
+            workdir = workdir.removeprefix("./")
+
             return os.path.join(self.spec.clone_target_dir, workdir)
 
         return workdir

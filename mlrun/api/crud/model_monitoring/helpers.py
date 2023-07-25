@@ -27,12 +27,12 @@ import mlrun.errors
 Seconds = typing.NewType("Seconds", int)
 Minutes = typing.NewType("Minutes", int)
 
-_SECONDS_IN_MINUTE: Seconds = 60
-_MINUTES_IN_HOUR: Minutes = 60
+_SECONDS_IN_MINUTE: Seconds = Seconds(60)
+_MINUTES_IN_HOUR: Minutes = Minutes(60)
 
 
 def seconds2minutes(seconds: Seconds) -> Minutes:
-    return math.ceil(seconds / _SECONDS_IN_MINUTE)
+    return Minutes(math.ceil(seconds / _SECONDS_IN_MINUTE))
 
 
 def get_batching_interval_param(intervals_list: typing.List):

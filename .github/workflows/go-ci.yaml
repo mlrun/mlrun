@@ -39,7 +39,7 @@ env:
 
 jobs:
   go-lint:
-    name: Lint code (GO)
+    name: Lint code
     runs-on: ubuntu-latest
     steps:
       - name: Dump runner context
@@ -63,7 +63,7 @@ jobs:
         run: make lint-go
 
   go-unit-tests:
-    name: Run GO Unit Tests
+    name: Run Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -72,7 +72,7 @@ jobs:
           make test-go-unit-dockerized
 
   go-integration-tests:
-    name: Run GO Integration Tests in Kubernetes Environment
+    name: Run Integration Tests in Kubernetes Environment
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3

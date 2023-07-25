@@ -15,7 +15,7 @@
 
 name: Release
 
-run-name: Releasing ${{ inputs.version }}
+run-name: Releasing ${{ inputs.version }} (${{ github.ref_name }})
 
 permissions:
 
@@ -42,13 +42,13 @@ on:
         required: false
         default: ''
       skip_publish_pypi:
-        description: 'Whether to skip publishing the python package to Pypi'
+        description: 'Whether to skip publishing the python package to Pypi (Auto skip for feature branch)'
         required: false
         default: 'false'
         type: choice
         options: ['true', 'false']
       skip_create_tag_release:
-        description: 'Whether to skip creating tag & release in Github'
+        description: 'Whether to skip creating tag & release in Github (Auto skip for feature branch)'
         required: false
         default: 'false'
         type: choice
@@ -89,6 +89,7 @@ jobs:
           fi
 
           echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version) " >> $GITHUB_OUTPUT
+          echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
@@ -133,6 +134,11 @@ jobs:
     name: Publish package to pypi
     runs-on: ubuntu-latest
 
+    # skip releasing to pypi for feature branches. installing mlrun can be done by:
+    # pip install 'mlrun[complete] @ git+https://github.com/mlrun/mlrun@feature/branch'
+    # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
+    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
+
     # publishing to pypi is (kind of) irreversible, therefore do it only if both previous steps finished successfully
     needs: [ prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building ]
     steps:
@@ -158,6 +164,7 @@ jobs:
   create-releases:
     name: Create release & tag v${{ needs.prepare-inputs.outputs.version }}
     runs-on: ubuntu-latest
+    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
     needs: [ prepare-inputs, publish-to-pypi ]
     steps:
       - uses: ncipollo/release-action@v1
@@ -176,6 +183,26 @@ jobs:
           token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
           # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
           # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}
+
+  create-tag:
+    name: Create tag v${{ needs.prepare-inputs.outputs.version }}
+    runs-on: ubuntu-latest
+
+    # run this specific job for feature branch only as we wont have a github release for it
+    # the tag would be useful to track feature branch released versions
+    if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
+    needs: prepare-inputs
+    steps:
+      - name: Create feature branch tag
+        uses: actions/github-script@v5
+        with:
+          script: |
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/v${{ needs.prepare-inputs.outputs.version }}',
+              sha: context.sha
+            })
 
   update-release-notes:
     name: Update release notes

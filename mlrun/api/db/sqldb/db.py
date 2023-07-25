@@ -463,6 +463,7 @@ class SQLDB(DBInterface):
         run_dict.setdefault("status", {})["state"] = state
 
     # ---- Artifacts ----
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     @retry_on_conflict
     def store_artifact(
         self,
@@ -490,13 +491,15 @@ class SQLDB(DBInterface):
         session,
         key,
         artifact,
-        uid,
+        uid=None,
         iter=None,
         tag="",
         project="",
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
+        project = project or config.default_project
+        tag = tag or "latest"
 
         # handle link artifacts separately
         if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:
@@ -513,14 +516,17 @@ class SQLDB(DBInterface):
         original_uid = uid
 
         # record with the given tag/uid
-        _, _, existing_artifact = self._get_record_by_name_tag_and_uid(
-            session, ArtifactV2, project, key, tag, uid
+        _, _, existing_artifact = self._get_existing_artifact(
+            session, project, key, tag, uid
         )
 
-        artifact_dict = artifact.dict(exclude_none=True)
+        if isinstance(artifact, dict):
+            artifact_dict = artifact
+        else:
+            artifact_dict = artifact.to_dict()
 
         # calculate uid
-        uid = fill_artifact_object_hash(artifact, "uid")
+        uid = fill_artifact_object_hash(artifact_dict, "uid", iter)
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -532,39 +538,40 @@ class SQLDB(DBInterface):
         if not best_iteration and (iter is None or iter == 0):
             best_iteration = True
 
-        # if the object is not new, we need to check if we need to update it
+        # if the object is not new, we need to check if we need to update it or create a new one
         if existing_artifact:
-            if uid == existing_artifact.uid or always_overwrite:
+            if (
+                self._should_update_artifact(
+                    session, project, existing_artifact, uid, tag, iter
+                )
+                or always_overwrite
+            ):
                 db_artifact = existing_artifact
             else:
-                # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
-                # was found - Check If an object with the same computed uid but different tag already exists
-                # and re-tag it.
-                if self._re_tag_existing_object(
-                    session, ArtifactV2, project, key, tag, uid
-                ):
-                    return uid
-
-                db_artifact = ArtifactV2(project=project)
+                db_artifact = ArtifactV2(project=project, key=key)
 
             self._update_artifact_record_from_dict(
-                db_artifact, artifact_dict, uid, iter
+                db_artifact, artifact_dict, project, uid, iter, best_iteration, tag
             )
             self._upsert(session, [db_artifact])
             if tag:
-                self.tag_objects_v2(session, [db_artifact], project, tag)
+                self.tag_objects_v2(
+                    session, [db_artifact], project, tag, obj_name_attribute="key"
+                )
             return uid
 
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by uid only
-        if self._re_tag_existing_object(session, ArtifactV2, project, key, tag, uid):
+        if self._re_tag_existing_object(
+            session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
+        ):
             return uid
 
-        artifact.metadata.tag = tag
         return self._create_artifact(
-            session, project, artifact, key, uid, iter, best_iteration
+            session, project, artifact, key, tag, uid, iter, best_iteration
         )
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     def list_artifacts(
         self,
         session,
@@ -757,6 +764,7 @@ class SQLDB(DBInterface):
 
         return artifacts
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     def read_artifact(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
         ids = self._resolve_tag(session, Artifact, project, tag)
@@ -799,23 +807,28 @@ class SQLDB(DBInterface):
     def read_artifact_v2(
         self,
         session,
-        project: str,
         key: str,
+        project: str = None,
         iter: int = None,
         producer_id: str = None,
         tag: str = None,
         uid: str = None,
+        raise_on_not_found: bool = True,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
 
         computed_tag = tag or "latest"
         artifact_tag_uid = None
-        if tag or not uid:
+        if tag and not uid:
             artifact_tag_uid = self._resolve_class_tag_uid(
                 session, ArtifactV2, project, key, computed_tag
             )
-            if artifact_tag_uid:
-                uid = artifact_tag_uid
+            if not artifact_tag_uid:
+                artifact_uri = generate_artifact_uri(project, key, tag, iter)
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Artifact {artifact_uri} not found"
+                )
+            uid = artifact_tag_uid
 
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
@@ -827,9 +840,9 @@ class SQLDB(DBInterface):
         if iter:
             query = query.filter(ArtifactV2.iteration == iter)
 
-        db_artifacts = query.all()
+        db_artifact = query.one_or_none()
 
-        if len(db_artifacts) == 0:
+        if not db_artifact:
             # if the artifact was not found and iter==0, we might be looking for a link artifact
             # in this case, we need to look for the artifact with the best iteration
             fail = True
@@ -837,29 +850,27 @@ class SQLDB(DBInterface):
                 query_without_iter = query_without_iter.filter(
                     ArtifactV2.best_iteration
                 )
-                db_artifacts = query_without_iter.all()
-                if len(db_artifacts) != 0:
+                db_artifact = query_without_iter.all()
+                if len(db_artifact) != 0:
                     # we found something, so we can continue
                     fail = False
 
             if fail:
-                artifact_uri = generate_artifact_uri(project, key, tag, iter)
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Artifact {artifact_uri} not found"
-                )
+                if raise_on_not_found:
+                    artifact_uri = generate_artifact_uri(project, key, tag, iter)
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Artifact {artifact_uri} not found"
+                    )
+                return None
 
-        if len(db_artifacts) > 1:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "More than one artifact matches the query"
-            )
-
-        artifact = db_artifacts[0].full_object
+        artifact = db_artifact.full_object
 
         # If connected to a tag add it to metadata
         if artifact_tag_uid:
-            self._set_tag_in_artifact_struct(artifact, artifact_tag_uid)
+            self._set_tag_in_artifact_struct(artifact, computed_tag)
         return artifact
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     def del_artifact(self, session, key, tag="", project=""):
         project = project or config.default_project
 
@@ -891,6 +902,7 @@ class SQLDB(DBInterface):
             session, ArtifactV2, project, key, tag, uid, producer_id
         )
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     def del_artifacts(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
         ids = "*"
@@ -945,6 +957,7 @@ class SQLDB(DBInterface):
             tag.obj_id = artifact.id
             self._upsert(session, [tag], ignore=True)
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
@@ -994,6 +1007,7 @@ class SQLDB(DBInterface):
 
         return results
 
+    # TODO: remove this method once the endpoints are updated to use the v2 method
     @retry_on_conflict
     def overwrite_artifacts_with_tag(
         self,
@@ -1131,9 +1145,9 @@ class SQLDB(DBInterface):
         project,
         key,
         link_artifact,
-        uid,
-        iteration,
-        tag,
+        uid=None,
+        iteration=None,
+        tag=None,
     ):
         # get the artifact record from the db
         link_tree = link_artifact.get("link_tree")
@@ -1179,19 +1193,25 @@ class SQLDB(DBInterface):
         self,
         artifact_record,
         artifact_dict: dict,
+        project: str,
         uid: str,
         iter: int = None,
         best_iteration: bool = False,
+        tag: str = None,
     ):
+        artifact_record.project = project
         artifact_record.iteration = iter
-        artifact_record.kind = artifact_dict.get("kind")
+        artifact_record.kind = artifact_dict.get("kind", "artifact")
         artifact_record.producer_id = artifact_dict["metadata"].get("tree")
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         if not artifact_record.created:
-            artifact_record.created = artifact_dict["metadata"].pop(
-                "created", None
-            ) or datetime.now(timezone.utc)
+            created = artifact_dict["metadata"].pop("created", None)
+            artifact_record.created = (
+                datetime.strptime(created, "%Y-%m-%d %H:%M:%S.%f%z")
+                if created
+                else datetime.now(timezone.utc)
+            )
         if best_iteration:
             artifact_record.best_iteration = True
 
@@ -1199,6 +1219,8 @@ class SQLDB(DBInterface):
 
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
         artifact_dict["metadata"]["created"] = str(artifact_record.created)
+        if tag:
+            artifact_dict["metadata"]["tag"] = tag
 
         artifact_record.full_object = artifact_dict
 
@@ -1218,9 +1240,8 @@ class SQLDB(DBInterface):
         best_iteration=False,
     ):
         # check if the object already exists
-        existing_object = self._get_class_instance_by_uid(
-            session, ArtifactV2, key, project, uid
-        )
+        query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
+        existing_object = query.one_or_none()
         if existing_object:
             object_uri = generate_object_uri(project, key, tag)
             raise mlrun.errors.MLRunConflictError(
@@ -1229,12 +1250,20 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
-            db_artifact, artifact, uid, iteration, best_iteration
+            db_artifact, artifact, project, uid, iteration, best_iteration, tag
         )
 
         self._upsert(session, [db_artifact])
         if tag:
-            self.tag_objects_v2(session, [db_artifact], project, tag)
+            self.tag_objects_v2(
+                session, [db_artifact], project, tag, obj_name_attribute="key"
+            )
+
+            # we want to tag the artifact also as "latest" if it's the first time we store it
+            if tag != "latest":
+                self.tag_objects_v2(
+                    session, [db_artifact], project, "latest", obj_name_attribute="key"
+                )
 
         return uid
 
@@ -1421,6 +1450,20 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
+    def _add_artifact_name_query(self, query, name=None):
+        if not name:
+            return query
+
+        if name.startswith("~"):
+            # Escape special chars (_,%) since we still need to do a like query because of the iter.
+            exact_name = self._escape_characters_for_like_query(name)
+            # Use Like query to find substring matches
+            return query.filter(
+                ArtifactV2.key.ilike(f"%{exact_name[1:]}%", escape="\\")
+            )
+
+        return query.filter(ArtifactV2.key == name)
+
     def _add_artifact_name_and_iter_query(self, query, name=None, iter=None):
         if not name and not iter:
             return query
@@ -1540,7 +1583,7 @@ class SQLDB(DBInterface):
 
         if ids:
             query = query.filter(ArtifactV2.id.in_(ids))
-        if tag:
+        if tag and tag != "*":
             obj_id_tags = self._get_records_to_tags_map(
                 session, ArtifactV2, project, tag, name
             )
@@ -1548,8 +1591,8 @@ class SQLDB(DBInterface):
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if name:
-            query = query.filter(ArtifactV2.key == name)
-        if iter:
+            query = self._add_artifact_name_query(query, name)
+        if iter is not None:
             query = query.filter(ArtifactV2.iteration == iter)
         if best_iteration:
             query = query.filter(ArtifactV2.best_iteration == best_iteration)
@@ -1568,9 +1611,10 @@ class SQLDB(DBInterface):
             query = query.filter(ArtifactV2.kind == kind)
         elif category:
             kinds, exclude = category.to_kinds_filter()
-            query = query.filter(ArtifactV2.kind.in_(kinds))
             if exclude:
-                query = query.filter(ArtifactV2.kind.notin_(exclude))
+                query = query.filter(ArtifactV2.kind.notin_(kinds))
+            else:
+                query = query.filter(ArtifactV2.kind.in_(kinds))
 
         return query.all()
 
@@ -1645,6 +1689,55 @@ class SQLDB(DBInterface):
             return resp
         finally:
             pass
+
+    def _get_existing_artifact(
+        self,
+        session,
+        project: str,
+        name: str,
+        tag: str = None,
+        uid: str = None,
+    ):
+        query = self._query(session, ArtifactV2, key=name, project=project)
+        computed_tag = tag or "latest"
+        object_tag_uid = None
+        if tag and not uid:
+            object_tag_uid = self._resolve_class_tag_uid(
+                session, ArtifactV2, project, name, computed_tag
+            )
+            if object_tag_uid is None:
+                return None, None, None
+            uid = object_tag_uid
+        if uid:
+            query = query.filter(ArtifactV2.uid == uid)
+        return computed_tag, object_tag_uid, query.one_or_none()
+
+    def _should_update_artifact(
+        self,
+        session: Session,
+        project: str,
+        existing_artifact: ArtifactV2,
+        uid=None,
+        tag=None,
+        iteration=None,
+    ):
+        # we should create a new artifact if we got a new iteration or tag,
+        # otherwise we should update the existing artifact
+        if uid is not None and existing_artifact.uid != uid:
+            return False
+        if iteration is not None and existing_artifact.iteration != iteration:
+            return False
+        if tag:
+            tag = self._query(
+                session,
+                ArtifactV2.Tag,
+                project=project,
+                obj_name=existing_artifact.key,
+                name=tag,
+            )
+            if tag.one_or_none() is None:
+                return False
+        return True
 
     # ---- Functions ----
     @retry_on_conflict
@@ -2110,15 +2203,26 @@ class SQLDB(DBInterface):
             ).all()
         ]
 
-    def tag_objects_v2(self, session, objs, project: str, name: str):
+    def tag_objects_v2(
+        self, session, objs, project: str, name: str, obj_name_attribute: str = "name"
+    ):
         tags = []
         for obj in objs:
             query = self._query(
-                session, obj.Tag, name=name, project=project, obj_name=obj.name
+                session,
+                obj.Tag,
+                name=name,
+                project=project,
+                obj_name=obj.__getattribute__(obj_name_attribute),
             )
+
             tag = query.one_or_none()
             if not tag:
-                tag = obj.Tag(project=project, name=name, obj_name=obj.name)
+                tag = obj.Tag(
+                    project=project,
+                    name=name,
+                    obj_name=obj.__getattribute__(obj_name_attribute),
+                )
             tag.obj_id = obj.id
             tags.append(tag)
         self._upsert(session, tags)
@@ -2569,8 +2673,6 @@ class SQLDB(DBInterface):
         uid: str = None,
     ):
         query = self._query(session, cls, name=name, project=project)
-        if cls == ArtifactV2:
-            query = self._query(session, cls, key=name, project=project)
         computed_tag = tag or "latest"
         object_tag_uid = None
         if tag or not uid:
@@ -3173,7 +3275,6 @@ class SQLDB(DBInterface):
         tagged_object: typing.Union[
             mlrun.common.schemas.FeatureVector,
             mlrun.common.schemas.FeatureSet,
-            dict,
         ],
         tag=None,
         uid=None,
@@ -3255,12 +3356,21 @@ class SQLDB(DBInterface):
 
         return uid
 
-    def _re_tag_existing_object(self, session, cls, project, name, tag, uid):
-        _, _, existing_object = self._get_record_by_name_tag_and_uid(
-            session, cls, project, name, None, uid
-        )
+    def _re_tag_existing_object(
+        self, session, cls, project, name, tag, uid, obj_name_attribute: str = "name"
+    ):
+        if cls == ArtifactV2:
+            _, _, existing_object = self._get_existing_artifact(
+                session, project, name, None, uid
+            )
+        else:
+            _, _, existing_object = self._get_record_by_name_tag_and_uid(
+                session, cls, project, name, None, uid
+            )
         if existing_object:
-            self.tag_objects_v2(session, [existing_object], project, tag)
+            self.tag_objects_v2(
+                session, [existing_object], project, tag, obj_name_attribute
+            )
             return existing_object
 
         return None

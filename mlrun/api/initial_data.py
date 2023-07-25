@@ -665,11 +665,6 @@ def _migrate_artifacts_batch(
             old_uid = artifact_metadata.get("tree", None)
         new_artifact.producer_id = old_uid
 
-        # uid - calculate as the hash of the artifact object
-        tag = artifact_metadata.get("tag", "")
-        uid = fill_artifact_object_hash(artifact_dict, "uid")
-        new_artifact.uid = uid
-
         # project - copy as is
         new_artifact.project = artifact_metadata.get("project", None)
 
@@ -688,6 +683,10 @@ def _migrate_artifacts_batch(
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False
+
+        # uid - calculate as the hash of the artifact object
+        uid = fill_artifact_object_hash(artifact_dict, "uid", iteration)
+        new_artifact.uid = uid
 
         # kind - doesn't exist in v1, will be set to "artifact" by default
         new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
@@ -709,6 +708,7 @@ def _migrate_artifacts_batch(
         last_migrated_artifact_id = artifact.id
 
         # save the artifact's tags and labels to migrate them later
+        tag = artifact_metadata.get("tag", "")
         if tag:
             artifacts_tags_to_migrate.append((new_artifact, tag))
         labels = artifact_metadata.get("labels", {})

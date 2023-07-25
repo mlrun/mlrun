@@ -893,11 +893,13 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
-def fill_artifact_object_hash(object_dict, uid_property_name):
-    # get key, iter, tree
+def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None):
+    # get key, iteration, tree
     hash_dict = {
         "key": object_dict["metadata"].get("key"),
-        "iter": object_dict["metadata"].get("iter"),
+        "iteration": iteration
+        if iteration is not None
+        else object_dict["metadata"].get("iter"),
         "tree": object_dict["metadata"].get("tree"),
     }
 

@@ -188,6 +188,76 @@ class DBInterface(ABC):
     def del_artifacts(self, session, name="", project="", tag="", labels=None):
         pass
 
+    # Artifact v2 APIs
+    def store_artifact_v2(
+        self,
+        session,
+        key,
+        artifact,
+        uid=None,
+        iter=None,
+        tag="",
+        project="",
+        best_iteration=False,
+        always_overwrite=False,
+    ):
+        pass
+
+    def list_artifacts_v2(
+        self,
+        session,
+        name=None,
+        project=None,
+        tag=None,
+        uid=None,
+        labels=None,
+        since=None,
+        until=None,
+        kind=None,
+        category: mlrun.common.schemas.ArtifactCategories = None,
+        iter: int = None,
+        best_iteration: bool = False,
+        as_records: bool = False,
+    ):
+        pass
+
+    def read_artifact_v2(
+        self,
+        session,
+        key: str,
+        project: str = None,
+        iter: int = None,
+        producer_id: str = None,
+        tag: str = None,
+        uid: str = None,
+        raise_on_not_found: bool = True,
+    ):
+        pass
+
+    def delete_artifact_v2(
+        self, session, project, key, tag=None, uid=None, producer_id=None
+    ):
+        pass
+
+    def delete_artifacts_v2(
+        self, session, project, name="", tag=None, ids=None, labels=None
+    ):
+        pass
+
+    def list_artifact_tags_v2(
+        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
+    ):
+        pass
+
+    def overwrite_artifacts_with_tag_v2(
+        self,
+        session,
+        project,
+        tag,
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        pass
+
     # TODO: Make these abstract once filedb implements them
     def store_metric(
         self, session, uid, project="", keyvals=None, timestamp=None, labels=None

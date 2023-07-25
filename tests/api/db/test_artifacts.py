@@ -25,6 +25,7 @@ import mlrun.api.db.sqldb.models
 import mlrun.api.initial_data
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils
 from mlrun.api.db.base import DBInterface
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
@@ -35,68 +36,66 @@ from mlrun.common.schemas.artifact import ArtifactCategories
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_name_2 = "artifact_name_2"
-    artifact_1 = _generate_artifact(artifact_name_1)
-    artifact_2 = _generate_artifact(artifact_name_2)
-    uid = "artifact_uid"
+    tree = "artifact_tree"
+    artifact_1 = _generate_artifact(artifact_name_1, tree=tree)
+    artifact_2 = _generate_artifact(artifact_name_2, tree=tree)
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_name_1,
         artifact_1,
-        uid,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_name_2,
         artifact_2,
-        uid,
     )
-    artifacts = db.list_artifacts(db_session)
+    artifacts = db.list_artifacts_v2(db_session)
     assert len(artifacts) == 2
 
-    artifacts = db.list_artifacts(db_session, name=artifact_name_1)
+    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_1)
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_1
+    assert artifacts[0]["metadata"]["key"] == artifact_name_1
 
-    artifacts = db.list_artifacts(db_session, name=artifact_name_2)
+    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_2)
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_2
+    assert artifacts[0]["metadata"]["key"] == artifact_name_2
 
-    artifacts = db.list_artifacts(db_session, name="~artifact_name")
+    artifacts = db.list_artifacts_v2(db_session, name="~artifact_name")
     assert len(artifacts) == 2
 
 
 def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_name_2 = "artifact_name_2"
-    artifact_1 = _generate_artifact(artifact_name_1)
-    artifact_2 = _generate_artifact(artifact_name_2)
-    uid = "artifact_uid"
+    tree = "artifact_tree"
+    artifact_1 = _generate_artifact(artifact_name_1, tree=tree)
+    artifact_2 = _generate_artifact(artifact_name_2, tree=tree)
 
     # Use iters with multiple digits, to make sure filtering them via regex works
     test_iters = [0, 5, 9, 42, 219, 2102]
     for iter in test_iters:
         artifact_1["iter"] = artifact_2["iter"] = iter
-        db.store_artifact(db_session, artifact_name_1, artifact_1, uid, iter)
-        db.store_artifact(db_session, artifact_name_2, artifact_2, uid, iter)
+        db.store_artifact_v2(db_session, artifact_name_1, artifact_1, iter=iter)
+        db.store_artifact_v2(db_session, artifact_name_2, artifact_2, iter=iter)
 
     # No filter on iter. All are expected
-    artifacts = db.list_artifacts(db_session)
+    artifacts = db.list_artifacts_v2(db_session)
     assert len(artifacts) == len(test_iters) * 2
 
     # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
     for iter in test_iters:
-        artifacts = db.list_artifacts(db_session, iter=iter)
+        artifacts = db.list_artifacts_v2(db_session, iter=iter)
         assert len(artifacts) == 2
         for artifact in artifacts:
             assert artifact["iter"] == iter
 
     # Negative test
-    artifacts = db.list_artifacts(db_session, iter=666)
+    artifacts = db.list_artifacts_v2(db_session, iter=666)
     assert len(artifacts) == 0
 
     # Iter filter and a name filter, make sure query composition works
-    artifacts = db.list_artifacts(db_session, name=artifact_name_1, iter=2102)
+    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_1, iter=2102)
     assert len(artifacts) == 1
 
 
@@ -105,32 +104,30 @@ def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_kind_1 = ChartArtifact.kind
     artifact_name_2 = "artifact_name_2"
     artifact_kind_2 = PlotArtifact.kind
-    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1)
-    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2)
-    uid = "artifact_uid"
+    tree = "artifact_tree"
+    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1, tree=tree)
+    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2, tree=tree)
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_name_1,
         artifact_1,
-        uid,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_name_2,
         artifact_2,
-        uid,
     )
-    artifacts = db.list_artifacts(db_session)
+    artifacts = db.list_artifacts_v2(db_session)
     assert len(artifacts) == 2
 
-    artifacts = db.list_artifacts(db_session, kind=artifact_kind_1)
+    artifacts = db.list_artifacts_v2(db_session, kind=artifact_kind_1)
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_1
+    assert artifacts[0]["metadata"]["key"] == artifact_name_1
 
-    artifacts = db.list_artifacts(db_session, kind=artifact_kind_2)
+    artifacts = db.list_artifacts_v2(db_session, kind=artifact_kind_2)
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_2
+    assert artifacts[0]["metadata"]["key"] == artifact_name_2
 
 
 def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
@@ -142,115 +139,112 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
     artifact_kind_3 = ModelArtifact.kind
     artifact_name_4 = "artifact_name_4"
     artifact_kind_4 = DatasetArtifact.kind
-    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1)
-    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2)
-    artifact_3 = _generate_artifact(artifact_name_3, kind=artifact_kind_3)
-    artifact_4 = _generate_artifact(artifact_name_4, kind=artifact_kind_4)
-    uid = "artifact_uid"
+    tree = "artifact_tree"
+    artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1, tree=tree)
+    artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2, tree=tree)
+    artifact_3 = _generate_artifact(artifact_name_3, kind=artifact_kind_3, tree=tree)
+    artifact_4 = _generate_artifact(artifact_name_4, kind=artifact_kind_4, tree=tree)
 
-    db.store_artifact(
-        db_session,
-        artifact_name_1,
-        artifact_1,
-        uid,
-    )
-    db.store_artifact(
-        db_session,
-        artifact_name_2,
-        artifact_2,
-        uid,
-    )
-    db.store_artifact(
-        db_session,
-        artifact_name_3,
-        artifact_3,
-        uid,
-    )
-    db.store_artifact(
-        db_session,
-        artifact_name_4,
-        artifact_4,
-        uid,
-    )
-    artifacts = db.list_artifacts(db_session)
+    for artifact_name, artifact_object in [
+        (artifact_name_1, artifact_1),
+        (artifact_name_2, artifact_2),
+        (artifact_name_3, artifact_3),
+        (artifact_name_4, artifact_4),
+    ]:
+        db.store_artifact_v2(
+            db_session,
+            artifact_name,
+            artifact_object,
+        )
+
+    artifacts = db.list_artifacts_v2(db_session)
     assert len(artifacts) == 4
 
-    artifacts = db.list_artifacts(
+    artifacts = db.list_artifacts_v2(
         db_session, category=mlrun.common.schemas.ArtifactCategories.model
     )
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_3
+    assert artifacts[0]["metadata"]["key"] == artifact_name_3
 
-    artifacts = db.list_artifacts(
+    artifacts = db.list_artifacts_v2(
         db_session, category=mlrun.common.schemas.ArtifactCategories.dataset
     )
     assert len(artifacts) == 1
-    assert artifacts[0]["metadata"]["name"] == artifact_name_4
+    assert artifacts[0]["metadata"]["key"] == artifact_name_4
 
-    artifacts = db.list_artifacts(
+    artifacts = db.list_artifacts_v2(
         db_session, category=mlrun.common.schemas.ArtifactCategories.other
     )
     assert len(artifacts) == 2
-    assert artifacts[0]["metadata"]["name"] == artifact_name_1
-    assert artifacts[1]["metadata"]["name"] == artifact_name_2
+    assert artifacts[0]["metadata"]["key"] == artifact_name_1
+    assert artifacts[1]["metadata"]["key"] == artifact_name_2
 
 
 def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     artifact_1_key = "artifact_key_1"
-    artifact_1_body = _generate_artifact(artifact_1_key)
+    artifact_1_tree = "artifact_tree"
+    artifact_1_tag = "artifact_tag_1"
+    artifact_1_body = _generate_artifact(artifact_1_key, tree=artifact_1_tree)
     artifact_1_kind = ChartArtifact.kind
-    artifact_1_with_kind_body = _generate_artifact(artifact_1_key, kind=artifact_1_kind)
-    artifact_1_uid = "artifact_uid"
-    artifact_1_with_kind_uid = "artifact_uid_2"
+    artifact_1_with_kind_tree = "artifact_tree_2"
+    artifact_2_tag = "artifact_tag_2"
+    artifact_1_with_kind_body = _generate_artifact(
+        artifact_1_key, kind=artifact_1_kind, tree=artifact_1_with_kind_tree
+    )
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_1_key,
         artifact_1_body,
-        artifact_1_uid,
+        tag=artifact_1_tag,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_1_key,
         artifact_1_with_kind_body,
-        artifact_1_with_kind_uid,
+        tag=artifact_2_tag,
     )
-    artifact = db.read_artifact(db_session, artifact_1_key, tag="latest")
+    artifact = db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_1_tag)
     assert artifact["kind"] == artifact_1_kind
-    artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_uid)
-    assert artifact.get("kind") is None
-    artifacts = db.list_artifacts(db_session, artifact_1_key, tag="latest")
+    artifact = db.read_artifact_v2(
+        db_session, artifact_1_key, tag="latest", raise_on_not_found=False
+    )
+    assert artifact is None
+    artifacts = db.list_artifacts_v2(db_session, artifact_1_key, tag=artifact_2_tag)
     assert len(artifacts) == 1
-    artifacts = db.list_artifacts(db_session, artifact_1_key, tag=artifact_1_uid)
-    assert len(artifacts) == 1
+    artifacts = db.list_artifacts_v2(db_session, artifact_1_key, tag="latest")
+    assert len(artifacts) == 0
 
 
 def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
     artifact_key = "artifact_key_1"
-    artifact_1_uid = "artifact_uid_1"
-    artifact_2_uid = "artifact_uid_2"
-    artifact_1_body = _generate_artifact(artifact_key, uid=artifact_1_uid)
-    artifact_2_body = _generate_artifact(artifact_key, uid=artifact_2_uid)
+    artifact_1_tree = "artifact_tree_1"
+    artifact_2_tree = "artifact_tree_2"
+    artifact_1_body = _generate_artifact(artifact_key, tree=artifact_1_tree)
+    artifact_2_body = _generate_artifact(artifact_key, tree=artifact_2_tree)
     artifact_1_tag = "artifact-tag-1"
     artifact_2_tag = "artifact-tag-2"
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_key,
         artifact_1_body,
-        artifact_1_uid,
         tag=artifact_1_tag,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_key,
         artifact_2_body,
-        artifact_2_uid,
         tag=artifact_2_tag,
     )
-    artifacts = db.list_artifacts(db_session, artifact_key, tag="*")
+    artifacts = db.list_artifacts_v2(db_session, artifact_key, tag="*")
     assert len(artifacts) == 3  # also latest is returned
-    expected_uids = [artifact_1_uid, artifact_2_uid]
+
+    # ids are auto generated using this util function
+    expected_uids = [
+        mlrun.utils.fill_artifact_object_hash(artifact_body, "uid")
+        for artifact_body in [artifact_1_body, artifact_2_body]
+    ]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
     assert (
         deepdiff.DeepDiff(
@@ -270,11 +264,11 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         )
         == {}
     )
-    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
-    assert artifact["metadata"]["uid"] == artifact_1_uid
+    artifact = db.read_artifact_v2(db_session, artifact_key, tag=artifact_1_tag)
+    assert artifact["metadata"]["uid"] == expected_uids[0]
     assert artifact["metadata"]["tag"] == artifact_1_tag
-    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
-    assert artifact["metadata"]["uid"] == artifact_2_uid
+    artifact = db.read_artifact_v2(db_session, artifact_key, tag=artifact_2_tag)
+    assert artifact["metadata"]["uid"] == expected_uids[1]
     assert artifact["metadata"]["tag"] == artifact_2_tag
 
 
@@ -286,70 +280,66 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     """
     artifact_1_key = "artifact_key_1"
     artifact_2_key = "artifact_key_2"
-    artifact_uid = "artifact_uid_1"
-    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_uid)
-    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_uid)
+    artifact_tree = "artifact_uid_1"
+    artifact_1_body = _generate_artifact(artifact_1_key, tree=artifact_tree)
+    artifact_2_body = _generate_artifact(artifact_2_key, tree=artifact_tree)
     artifact_1_tag = "artifact-tag-1"
     artifact_2_tag = "artifact-tag-2"
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_1_key,
         artifact_1_body,
-        artifact_uid,
         tag=artifact_1_tag,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_2_key,
         artifact_2_body,
-        artifact_uid,
         tag=artifact_2_tag,
     )
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact(db_session, artifact_1_key, artifact_2_tag)
+        db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_2_tag)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact(db_session, artifact_2_key, artifact_1_tag)
+        db.read_artifact_v2(db_session, artifact_2_key, tag=artifact_1_tag)
     # just verifying it's not raising
-    db.read_artifact(db_session, artifact_1_key, artifact_1_tag)
-    db.read_artifact(db_session, artifact_2_key, artifact_2_tag)
+    db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_1_tag)
+    db.read_artifact_v2(db_session, artifact_2_key, tag=artifact_2_tag)
     # check list
-    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
+    artifacts = db.list_artifacts_v2(db_session, tag=artifact_1_tag)
     assert len(artifacts) == 1
-    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
+    artifacts = db.list_artifacts_v2(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 1
 
 
 def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_1_key = "artifact_key_1"
     artifact_2_key = "artifact_key_2"
-    artifact_1_uid = "artifact_uid_1"
-    artifact_2_uid = "artifact_uid_2"
-    artifact_1_body = _generate_artifact(artifact_1_key, uid=artifact_1_uid)
-    artifact_2_body = _generate_artifact(artifact_2_key, uid=artifact_2_uid)
+    artifact_1_tree = "artifact_tree_1"
+    artifact_2_tree = "artifact_tree_2"
+    artifact_1_body = _generate_artifact(artifact_1_key, tree=artifact_1_tree)
+    artifact_2_body = _generate_artifact(artifact_2_key, tree=artifact_2_tree)
     artifact_1_tag = "artifact-tag-one"
     artifact_2_tag = "artifact-tag-two"
 
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_1_key,
         artifact_1_body,
-        artifact_1_uid,
         tag=artifact_1_tag,
     )
-    db.store_artifact(
+    db.store_artifact_v2(
         db_session,
         artifact_2_key,
         artifact_2_body,
-        artifact_2_uid,
         tag=artifact_2_tag,
     )
-    db.del_artifacts(db_session, tag=artifact_1_tag)
+    db.delete_artifacts_v2(db_session, tag=artifact_1_tag)
     artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
     assert len(artifacts) == 0
     artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 1
-    db.del_artifacts(db_session, tag=artifact_2_uid)
+    db.del_artifacts(db_session, tag=artifact_2_tag)
     artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 0
 
@@ -998,9 +988,9 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             db.read_artifact(db_session, expected["key"], project=expected["project"])
 
 
-def _generate_artifact(name, uid=None, kind=None):
+def _generate_artifact(name, uid=None, kind=None, tree=None):
     artifact = {
-        "metadata": {"name": name},
+        "metadata": {"key": name},
         "spec": {"src_path": "/some/path"},
         "kind": kind,
         "status": {"bla": "blabla"},
@@ -1009,5 +999,7 @@ def _generate_artifact(name, uid=None, kind=None):
         artifact["kind"] = kind
     if uid:
         artifact["metadata"]["uid"] = uid
+    if tree:
+        artifact["metadata"]["tree"] = tree
 
     return artifact

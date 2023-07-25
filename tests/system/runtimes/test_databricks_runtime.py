@@ -22,7 +22,7 @@ from mlrun.runtimes.function_reference import FunctionReference
 import tests.system.base
 
 here = Path(__file__).absolute().parent
-config_file_path = here / "test-dbfs-store.yml"
+config_file_path = here.parent / "assets" / "test-databricks_runtime.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 

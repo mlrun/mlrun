@@ -59,6 +59,10 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     #     print()
 
     def test_with_function_reference(self):
+        cluster_id = os.environ["DATABRICKS_CLUSTER_ID"]
+        if not cluster_id:
+            raise KeyError(
+                f"The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test.")
         code = """
 
 def print_args(**kwargs):

@@ -149,7 +149,7 @@ default_config = {
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600"},
+            "operations": {"migrations": "3600", "load_project": "60"},
             "runtimes": {"dask": "600"},
         },
     },
@@ -286,6 +286,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -416,7 +417,7 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.common.schemas.ModelEndpointStoreType for available options
+        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -456,7 +457,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -515,7 +516,11 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
-    "default_workflow_runner_name": "workflow-runner-{}",
+    "workflows": {
+        "default_workflow_runner_name": "workflow-runner-{}",
+        # Default timeout seconds for retrieving workflow id after execution:
+        "timeouts": {"local": 120, "kfp": 30},
+    },
     "log_collector": {
         "address": "localhost:8282",
         # log collection mode can be one of: "sidecar", "legacy", "best-effort"
@@ -775,7 +780,6 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-
         # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
         #  importing mlrun.api
         if config.function.spec.security_context.enrichment_mode == "disabled":
@@ -1042,6 +1046,40 @@ class Config:
         # True if the setup is in CE environment
         return isinstance(mlrun.mlconf.ce, mlrun.config.Config) and any(
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
+        )
+
+    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+        """
+        Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
+        graph uses this method for generating the storage options for S3 parquet target path.
+        :return: A storage options dictionary in which each key-value pair  represents a particular configuration,
+        such as endpoint_url or aws access key.
+        """
+        key = mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+
+        force_non_anonymous = mlrun.get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = mlrun.get_secret_or_env("AWS_PROFILE")
+
+        storage_options = dict(
+            anon=not (force_non_anonymous or (key and secret)),
+            key=key,
+            secret=secret,
+        )
+
+        endpoint_url = mlrun.get_secret_or_env("S3_ENDPOINT_URL")
+        if endpoint_url:
+            client_kwargs = {"endpoint_url": endpoint_url}
+            storage_options["client_kwargs"] = client_kwargs
+
+        if profile:
+            storage_options["profile"] = profile
+
+        return storage_options
+
+    def is_explicit_ack(self) -> bool:
+        return self.httpdb.nuclio.explicit_ack == "enabled" and (
+            not self.nuclio_version or self.nuclio_version >= "1.11.20"
         )
 
 

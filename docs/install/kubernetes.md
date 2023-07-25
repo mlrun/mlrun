@@ -69,7 +69,7 @@ kubectl create namespace mlrun
 Add the Community Edition helm chart repo:
 
 ```bash
-helm repo add mlrun https://mlrun.github.io/ce
+helm repo add mlrun-ce https://mlrun.github.io/ce
 ```
 
 Run the following command to ensure that the repo is installed and available:
@@ -316,5 +316,5 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 ```
 
 ```{admonition} Note
-If your values have fixed mlrun service versions (e..g: mlrun:1.2.1) then you might want to remove it from the values file to allow newer chart defaults to kick in
+If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in
 ```

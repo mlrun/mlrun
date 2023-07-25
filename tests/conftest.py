@@ -37,8 +37,7 @@ root_path = str(Path(tests_root_directory).parent)
 examples_path = Path(tests_root_directory).parent.joinpath("examples")
 pytest_plugins = ["tests.common_fixtures"]
 
-# import package stuff after setting env vars so it will take effect
-from mlrun.utils.db import run_time_fmt  # noqa: E402
+run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def check_docker():

@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import enum
 import hashlib
 from dataclasses import dataclass
 from typing import Optional
 
+import mlrun.common.helpers
 import mlrun.utils
 
 
@@ -49,6 +49,7 @@ class EventFieldType:
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    METRIC = "metric"
     METRICS = "metrics"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
@@ -71,6 +72,7 @@ class EventFieldType:
     MONITOR_CONFIGURATION = "monitor_configuration"
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
+    VALUE = "value"
 
 
 class EventLiveStats:
@@ -129,27 +131,13 @@ class EndpointType(enum.IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
-def create_model_endpoint_uid(function_uri: str, versioned_model: str):
-    function_uri = FunctionURI.from_string(function_uri)
-    versioned_model = VersionedModel.from_string(versioned_model)
-
-    if (
-        not function_uri.project
-        or not function_uri.function
-        or not versioned_model.model
-    ):
-        raise ValueError("Both function_uri and versioned_model have to be initialized")
-
-    uid = EndpointUID(
-        function_uri.project,
-        function_uri.function,
-        function_uri.tag,
-        function_uri.hash_key,
-        versioned_model.model,
-        versioned_model.version,
-    )
-
-    return uid
+class PrometheusMetric:
+    PREDICTIONS_TOTAL = "predictions_total"
+    MODEL_LATENCY_SECONDS = "model_latency_seconds"
+    INCOME_FEATURES = "income_features"
+    ERRORS_TOTAL = "errors_total"
+    DRIFT_METRICS = "drift_metrics"
+    DRIFT_STATUS = "drift_status"
 
 
 @dataclass
@@ -161,7 +149,7 @@ class FunctionURI:
 
     @classmethod
     def from_string(cls, function_uri):
-        project, uri, tag, hash_key = mlrun.utils.parse_versioned_object_uri(
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
             function_uri
         )
         return cls(

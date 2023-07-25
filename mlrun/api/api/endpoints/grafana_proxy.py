@@ -21,11 +21,10 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
+import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.model_monitoring.grafana
-import mlrun.api.utils.auth.verifier
-import mlrun.common.model_monitoring
-import mlrun.common.schemas
+import mlrun.api.crud.model_monitoring.helpers
+import mlrun.common.schemas.model_monitoring.grafana
 from mlrun.api.api import deps
 
 router = APIRouter(prefix="/grafana-proxy/model-endpoints")
@@ -53,7 +52,7 @@ def grafana_proxy_model_endpoints_check_connection(
     connectivity.
     """
     if not mlrun.mlconf.is_ce_mode():
-        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+        mlrun.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     return Response(status_code=HTTPStatus.OK.value)
 
 
@@ -77,7 +76,7 @@ async def grafana_proxy_model_endpoints_search(
     :return: List of results. e.g. list of available project names.
     """
     if not mlrun.mlconf.is_ce_mode():
-        mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+        mlrun.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     body = await request.json()
     query_parameters = mlrun.api.crud.model_monitoring.grafana.parse_search_parameters(
         body
@@ -104,8 +103,8 @@ async def grafana_proxy_model_endpoints_search(
     "/query",
     response_model=List[
         Union[
-            mlrun.common.schemas.GrafanaTable,
-            mlrun.common.schemas.GrafanaTimeSeriesTarget,
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
         ]
     ],
 )
@@ -114,7 +113,8 @@ async def grafana_proxy_model_endpoints_query(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ) -> List[
     Union[
-        mlrun.common.schemas.GrafanaTable, mlrun.common.schemas.GrafanaTimeSeriesTarget
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaTable,
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget,
     ]
 ]:
     """

@@ -142,14 +142,14 @@ class Scheduler:
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
         get_db().create_schedule(
-            db_session,
-            project,
-            name,
-            kind,
-            scheduled_object,
-            cron_trigger,
-            concurrency_limit,
-            labels,
+            session=db_session,
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
+            labels=labels,
         )
         job = self._create_schedule_in_scheduler(
             project,
@@ -217,13 +217,13 @@ class Scheduler:
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
         get_db().update_schedule(
-            db_session,
-            project,
-            name,
-            scheduled_object,
-            cron_trigger,
-            labels,
-            concurrency_limit,
+            session=db_session,
+            project=project,
+            name=name,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
         )
         db_schedule = get_db().get_schedule(db_session, project, name)
 
@@ -302,6 +302,89 @@ class Scheduler:
                 db_session, schedule.project, schedule.name
             )
         get_db().delete_schedules(db_session, project)
+
+    @mlrun.api.utils.helpers.ensure_running_on_chief
+    def store_schedule(
+        self,
+        db_session: Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        project: str,
+        name: str,
+        scheduled_object: Union[Dict, Callable] = None,
+        cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        labels: Dict = None,
+        concurrency_limit: int = None,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+    ):
+        if isinstance(cron_trigger, str):
+            cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
+                cron_trigger
+            )
+
+        if cron_trigger is not None:
+            self._validate_cron_trigger(cron_trigger)
+
+        logger.debug(
+            "Storing schedule",
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+        )
+
+        if not kind:
+            # TODO: Need to think of a way to not use `get_schedule`
+            #  in this function or in `get_db().store_function()` in this flow
+            #  because we must have kind to ensure that auth info has access key.
+            db_schedule = get_db().get_schedule(
+                db_session, project, name, raise_on_not_found=False
+            )
+            kind = db_schedule.kind
+
+        self._ensure_auth_info_has_access_key(auth_info, kind)
+        secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
+        labels = self._append_access_key_secret_to_labels(labels, secret_name)
+        self._enrich_schedule_notifications(project, name, scheduled_object)
+
+        db_schedule = get_db().store_schedule(
+            session=db_session,
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+        )
+        if db_schedule:
+            updated_schedule = self._transform_and_enrich_db_schedule(
+                db_session, db_schedule
+            )
+
+            job = self._update_schedule_in_scheduler(
+                project,
+                name,
+                updated_schedule.kind,
+                updated_schedule.scheduled_object,
+                updated_schedule.cron_trigger,
+                updated_schedule.concurrency_limit,
+                auth_info,
+            )
+        else:
+            job = self._create_schedule_in_scheduler(
+                project,
+                name,
+                kind,
+                scheduled_object,
+                cron_trigger,
+                concurrency_limit,
+                auth_info,
+            )
+
+        self.update_schedule_next_run_time(db_session, name, project, job)
 
     def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
         self._remove_schedule_from_scheduler(project, name)

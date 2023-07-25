@@ -32,6 +32,7 @@ from aioresponses import aioresponses as aioresponses_
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
+import mlrun.db.factory
 import mlrun.k8s_utils
 import mlrun.projects.project
 import mlrun.utils
@@ -50,7 +51,6 @@ session_maker: Callable
 @pytest.fixture(autouse=True)
 # if we'll just call it config it may be overridden by other fixtures with the same name
 def config_test_base():
-
     # recreating the test results path on each test instead of running it on conftest since
     # it is not a threadsafe operation. if we'll run it on conftest it will be called multiple times
     # in parallel and may cause errors.
@@ -94,11 +94,14 @@ def config_test_base():
     mlrun.mlconf.default_project = "default"
     mlrun.projects.project.pipeline_context.set(None)
 
+    # reset run db overrides
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.reset_override()
+
 
 @pytest.fixture
 def aioresponses_mock():
     with aioresponses_() as aior:
-
         # handy function to get how many times requests were made using this specific mock
         aior.called_times = lambda: len(list(aior.requests.values())[0])
         yield aior

@@ -27,19 +27,17 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
-import mlrun
-import mlrun.api.crud
 import mlrun.api.utils.clients.iguazio
-import mlrun.common.model_monitoring as model_monitoring_constants
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants
 import mlrun.model_monitoring.stores
 from mlrun.api.crud.model_monitoring.grafana import (
     parse_query_parameters,
     validate_query_parameters,
 )
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
 from tests.api.api.test_model_endpoints import _mock_random_endpoint
 
@@ -84,7 +82,6 @@ def test_grafana_proxy_model_endpoints_check_connection(
     reason=_build_skip_message(),
 )
 def test_grafana_list_endpoints(db: Session, client: TestClient):
-
     endpoints_in = [_mock_random_endpoint("active") for _ in range(5)]
 
     # Initialize endpoint store target object
@@ -359,13 +356,13 @@ def cleanup_endpoints(db: Session, client: TestClient):
     if not _is_env_params_dont_exist():
         kv_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=model_monitoring_constants.ModelMonitoringStoreKinds.ENDPOINTS,
+            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.ENDPOINTS,
         )
         _, kv_container, kv_path = parse_model_endpoint_store_prefix(kv_path)
 
         tsdb_path = config.model_endpoint_monitoring.store_prefixes.default.format(
             project=TEST_PROJECT,
-            kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+            kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS,
         )
         _, tsdb_container, tsdb_path = parse_model_endpoint_store_prefix(tsdb_path)
 
@@ -415,7 +412,7 @@ def cleanup_endpoints(db: Session, client: TestClient):
 def test_grafana_incoming_features(db: Session, client: TestClient):
     path = config.model_endpoint_monitoring.store_prefixes.default.format(
         project=TEST_PROJECT,
-        kind=model_monitoring_constants.ModelMonitoringStoreKinds.EVENTS,
+        kind=mlrun.common.schemas.model_monitoring.ModelMonitoringStoreKinds.EVENTS,
     )
     _, container, path = parse_model_endpoint_store_prefix(path)
 
@@ -433,7 +430,7 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         e.spec.feature_names = ["f0", "f1", "f2", "f3"]
 
     # Initialize endpoint store target object
-    store_type_object = mlrun.model_monitoring.stores.ModelEndpointStoreType(
+    store_type_object = mlrun.model_monitoring.ModelEndpointStoreType(
         value="v3io-nosql"
     )
     endpoint_store = store_type_object.to_endpoint_store(
@@ -485,4 +482,4 @@ def test_grafana_incoming_features(db: Session, client: TestClient):
         assert targets == ["f0", "f1", "f2", "f3"]
 
         lens = [t["datapoints"] for t in response]
-        assert all(map(lambda l: len(l) == 10, lens))
+        assert all(map(lambda length: len(length) == 10, lens))

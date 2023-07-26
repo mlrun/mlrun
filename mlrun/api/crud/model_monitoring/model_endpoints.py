@@ -22,6 +22,7 @@ import sqlalchemy.orm
 import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.model_monitoring.helpers
+import mlrun.api.crud.secrets
 import mlrun.api.rundb.sqldb
 import mlrun.artifacts
 import mlrun.common.helpers
@@ -156,7 +157,7 @@ class ModelEndpoints:
         # Write the new model endpoint
         model_endpoint_store = get_model_endpoint_store(
             project=model_endpoint.metadata.project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=model_endpoint.metadata.project
             ),
         )
@@ -188,7 +189,7 @@ class ModelEndpoints:
         # Generate a model endpoint store object and apply the update process
         model_endpoint_store = get_model_endpoint_store(
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=project
             ),
         )
@@ -320,7 +321,7 @@ class ModelEndpoints:
         """
         model_endpoint_store = get_model_endpoint_store(
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=project
             ),
         )
@@ -373,7 +374,7 @@ class ModelEndpoints:
         model_endpoint_store = get_model_endpoint_store(
             project=project,
             access_key=auth_info.data_session,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=project
             ),
         )
@@ -470,7 +471,7 @@ class ModelEndpoints:
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,
             project=project,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=project
             ),
         )
@@ -543,7 +544,7 @@ class ModelEndpoints:
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,
             project=project_name,
-            secret_provider=mlrun.api.crud.model_monitoring.helpers.get_project_secret_provider(
+            secret_provider=mlrun.api.crud.secrets.get_project_secret_provider(
                 project=project_name
             ),
         )

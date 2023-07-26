@@ -31,7 +31,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 
 API_V1 = "/api/v1"
-RUNS_API_V1 = f"{API_V1}" + "/projects/{project}/runs"
+RUNS_API_V1 = f"{API_V1}/projects/{{project}}/runs"
 
 
 def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:

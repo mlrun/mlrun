@@ -281,7 +281,7 @@ fn.spec.max_replicas = 2
 # Scaling to zero in case of 30 minutes (idle-time duration)
 fn.set_config(key="spec.scaleToZero.scaleResources",
               value=[{"metricName":"nuclio_processor_handled_events_total",
-                      "windowSize" : "30m",     # default value are 1m, 2m, 5m, 10m, 30m
+                      "windowSize" : "30m",     # default values are 1m, 2m, 5m, 10m, 30m
                       "threshold" : 0}])
 ```
 

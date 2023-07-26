@@ -16,16 +16,123 @@ import inspect
 from types import MethodType
 from typing import Any, List, Tuple, Type, Union
 
+import docstring_parser
+
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.utils import logger
 
 from ..errors import MLRunPackagePackingError, MLRunPackageUnpackingError
-from ..packager import Packager
+from ..packager import Packager, _PackagerMeta
 from ..utils import DEFAULT_PICKLE_MODULE, ArtifactType, Pickler, TypeHintUtils
 
 
-class DefaultPackager(Packager):
+class _DefaultPackagerMeta(_PackagerMeta):
+    """
+    Metaclass for `DefaultPackager` to override `__doc__` attribute into a class property. This way sphinx will get a
+    dynamically generated docstring that will include a summary of the packager.
+    """
+
+    def __new__(mcls, name: str, bases: tuple, namespace: dict, **kwargs):
+        """
+        Create a new DefaultPackager metaclass that saves the original packager docstring to another attribute named
+        `_packager_doc`.
+
+        :param name:      A string representing the name of the class being instantiated.
+        :param bases:     A tuple of classes from which the class will inherit.
+        :param namespace: The namespace of the class holding its attributes (from here the docstring will be taken).
+        """
+        # Save the original doc string to a separate class variable as it will be overriden later on by the metaclass
+        # property `__doc__`:
+        namespace["_packager_doc"] = namespace.get("__doc__", "")
+
+        # Continue creating the metaclass:
+        return super().__new__(mcls, name, bases, namespace, **kwargs)
+
+    @property
+    def __doc__(cls) -> str:
+        """
+        Override the `__doc__` attribute of a `DefaultPackager` to be a property in order to auto-summarize the
+        packager's class docstring. The summary is concatenated after the original class doc string.
+
+        The summary will be in the following structure:
+
+        <cls._packager_doc>
+
+        .. rubric:: Packager Summary
+
+        **Packing Type**: ``<cls.PACKABLE_OBJECT_TYPE>``
+
+        **Packing Sub-Classes**: True / False
+
+        **Artifact Types**:
+
+        * **type 1**: ...
+
+          * configuration 1 - ...
+          * configuration 2 - ...
+
+        * **type 2**: ...
+
+          * configuration 1: ...
+          * configuration 2: ...
+
+        :returns: The original docstring with the generated packager summary.
+        """
+        # Get the original packager class doc string:
+        packager_doc_string = cls._packager_doc.split("\n")
+        packager_doc_string = "\n".join(line[4:] for line in packager_doc_string)
+
+        # Parse the packable type section:
+        type_name = (
+            "Any type"
+            if cls.PACKABLE_OBJECT_TYPE is ...
+            else (
+                f"``{str(cls.PACKABLE_OBJECT_TYPE)}``"
+                if TypeHintUtils.is_typing_type(type_hint=cls.PACKABLE_OBJECT_TYPE)
+                else f"``{cls.PACKABLE_OBJECT_TYPE.__module__}.{cls.PACKABLE_OBJECT_TYPE.__name__}``"
+            )
+        )
+        packing_type = f"**Packing Type**: {type_name}"
+
+        # Subclasses support section:
+        packing_sub_classes = f"**Packing Sub-Classes**: {cls.PACK_SUBCLASSES}"
+
+        # Artifact types section:
+        artifact_types = "**Artifact Types**:"
+        for artifact_type in cls.get_supported_artifact_types():
+            # Get the packing method docstring:
+            method_doc = docstring_parser.parse(
+                getattr(cls, f"pack_{artifact_type}").__doc__
+            )
+            # Add the artifact type bullet:
+            artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
+                "\n", ""
+            )
+            artifact_types += f"\n\n* **{artifact_type}** - " + artifact_type_doc
+            # Add the artifact type configurations (ignoring the `obj` and `key` parameters):
+            configurations_doc = "\n\n  * ".join(
+                "{} - {}".format(
+                    parameter.arg_name, parameter.description.replace("\n", "")
+                )
+                for parameter in method_doc.params[2:]
+            )
+            if configurations_doc:
+                artifact_types += f"\n\n  * {configurations_doc}"
+
+        # Construct the final doc string and return:
+        doc = (
+            f"{packager_doc_string}"
+            "\n\n.. rubric:: Packager Summary"
+            f"\n\n{packing_type}"
+            f"\n\n{packing_sub_classes}"
+            f"\n\n{artifact_types}"
+            f"\n\n"
+        )
+        return doc
+
+
+class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     """
     A default packager that handles all types and pack them as pickle files.
 
@@ -89,7 +196,7 @@ class DefaultPackager(Packager):
 
     Important to remember (from the ``Packager`` docstring):
 
-    * Linking artifacts ("extra data"): In order to link between packages (using the extra data or metrics spec
+    * **Linking artifacts** ("extra data"): In order to link between packages (using the extra data or metrics spec
       attributes of an artifact), you should use the key as if it exists and as value ellipses (...). The manager will
       link all packages once it is done packing.
 
@@ -98,9 +205,9 @@ class DefaultPackager(Packager):
           artifact = Artifact(key="my_artifact")
           artifact.spec.extra_data = {key: ... for key in extra_data}
 
-    * Clearing outputs: Some packagers may produce files and temporary directories that should be deleted once done with
-      logging the artifact. The packager can mark paths of files and directories to delete after logging using the class
-      method ``future_clear``.
+    * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted once done
+      with logging the artifact. The packager can mark paths of files and directories to delete after logging using the
+      class method ``future_clear``.
 
       For example, in the following packager's ``pack`` method we can write a text file, create an Artifact and then
       mark the text file to be deleted once the artifact is logged::
@@ -110,15 +217,19 @@ class DefaultPackager(Packager):
           artifact = Artifact(key="my_artifact")
           cls.future_clear(path="./some_file.txt")
           return artifact, None
+
     """
 
-    # The type of object this packager can pack and unpack:
+    #: The type of object this packager can pack and unpack.
     PACKABLE_OBJECT_TYPE: Type = ...
-    # A flag for indicating whether to pack all subclasses of the `PACKABLE_OBJECT_TYPE` as well:
+
+    #: A flag for indicating whether to pack all subclasses of the `PACKABLE_OBJECT_TYPE` as well.
     PACK_SUBCLASSES = False
-    # The default artifact type to pack as:
+
+    #: The default artifact type to pack as.
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
-    # The default artifact type to unpack from:
+
+    #: The default artifact type to unpack from.
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
 
     @classmethod

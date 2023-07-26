@@ -397,16 +397,9 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         )
 
 
-def test_workflow_name():
+@pytest.mark.parametrize("workflow_name",[("test-test"),("new-1-main"),("test")])
+def test_workflow_name(workflow_name):
     project_name = "test"
-    workflow_name = "test-test"
-    # When creating a schedule workflow we adding the project name to the workflow name.
-    before_renaming = f"{project_name}-{workflow_name}"
-    assert workflow_name == mlrun.utils.normalize_workflow_name(
-        before_renaming, project_name
-    )
-    project_name = "test"
-    workflow_name = "new-1-main"
     # When creating a schedule workflow we adding the project name to the workflow name.
     before_renaming = f"{project_name}-{workflow_name}"
     assert workflow_name == mlrun.utils.normalize_workflow_name(

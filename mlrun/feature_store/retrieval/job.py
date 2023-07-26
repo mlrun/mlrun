@@ -66,8 +66,7 @@ def run_merge_job(
         function.with_code(body=default_code)
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "When passing `run_config` to `get_offline_features`, specifying"
-            " the `handler` parameter of the `run_config` is not allowed."
+            "get_offline_features does not support run_config with a handler"
         )
 
     function.metadata.project = vector.metadata.project

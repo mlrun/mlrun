@@ -40,8 +40,7 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
     """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
     configurations.
 
-    :param secret_provider: An optional secret provider which in this case is a callable function that handles the
-                            connection string secret in the API side.
+    :param secret_provider: An optional secret provider to get the connection string secret.
 
     :return:                Valid SQL connection string.
 

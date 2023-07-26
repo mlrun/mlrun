@@ -48,8 +48,7 @@ class ModelEndpointStoreType(enum.Enum):
                                           e.g. A root user with password 1234, tries to connect a schema called
                                           mlrun within a local MySQL DB instance:
                                           'mysql+pymysql://root:1234@localhost:3306/mlrun'.
-        :param secret_provider:           An optional secret provider which in this case is a callable function that
-                                          handles the connection string secret in the API side.
+        :param secret_provider:           An optional secret provider to get the connection string secret.
 
         :return: `ModelEndpointStore` object.
 
@@ -95,8 +94,7 @@ def get_model_endpoint_store(
 
     :param project:         The name of the project.
     :param access_key:      Access key with permission to the DB table.
-    :param secret_provider: An optional secret provider which in this case is a callable function that handles the
-                            connection string secret in the API side.
+    :param secret_provider: An optional secret provider to get the connection string secret.
 
     :return: `ModelEndpointStore` object. Using this object, the user can apply different operations on the
              model endpoint record such as write, update, get and delete.

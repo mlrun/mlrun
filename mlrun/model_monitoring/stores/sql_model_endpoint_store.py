@@ -52,8 +52,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
 
         :param project:               The name of the project.
         :param sql_connection_string: Valid connection string or a path to SQL database with model endpoints table.
-        :param secret_provider:       An optional secret provider which in this case is a callable function that
-                                      handles the connection string secret in the API side.
+        :param secret_provider:       An optional secret provider to get the connection string secret.
         """
 
         super().__init__(project=project)

@@ -296,7 +296,6 @@ class JoinGraph(ModelObj):
         is_first_fs = (
             join_type == JoinGraph.first_join_type or left_all_feature_sets == self.name
         )
-
         # create_new_step
         new_step = _JoinStep(
             f"step_{first_key_num}",

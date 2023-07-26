@@ -80,4 +80,3 @@ ignore_imports =
     mlrun.utils.notifications.notification_pusher -> mlrun.api.db.base
     mlrun.runtimes.daskjob -> mlrun.api.utils.singletons.k8s
     mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s
-    mlrun.model_monitoring.helpers -> mlrun.api.crud.secrets

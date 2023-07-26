@@ -1028,7 +1028,7 @@ class SQLDB(DBInterface):
         # not committing the session here because we want to do it atomic with the next query
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
         # tag artifacts with tag
-        self.tag_artifacts(session, artifacts, project, name=tag) @ retry_on_conflict
+        self.tag_artifacts(session, artifacts, project, name=tag)
 
     @retry_on_conflict
     def overwrite_artifacts_with_tag_v2(
@@ -3390,6 +3390,8 @@ class SQLDB(DBInterface):
         self._update_db_record_from_object_dict(
             db_tagged_object, tagged_object_dict, uid
         )
+        if cls == FeatureSet:
+            self._update_feature_set_spec(db_tagged_object, tagged_object_dict)
 
         self._upsert(session, [db_tagged_object])
         self.tag_objects_v2(session, [db_tagged_object], project, tag)

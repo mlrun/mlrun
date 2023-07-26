@@ -65,6 +65,8 @@ jobs:
     name: Prepare inputs
     runs-on: ubuntu-latest
     outputs:
+      is_stable_version: ${{ steps.resolve.outputs.is_stable_version }}
+      is_feature_branch: ${{ steps.resolve.outputs.is_feature_branch }}
       version: ${{ steps.resolve.outputs.version }}
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}

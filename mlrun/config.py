@@ -29,6 +29,7 @@ import os
 import typing
 import urllib.parse
 from collections.abc import Mapping
+from datetime import timedelta
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
@@ -417,7 +418,7 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        "parquet_batching_timeout_secs": 30 * 60,  # Default 30 minutes
+        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",

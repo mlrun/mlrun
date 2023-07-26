@@ -29,7 +29,13 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
-from mlrun.utils import get_ui_url, logger, new_pipe_metadata, retry_until_successful
+from mlrun.utils import (
+    get_ui_url,
+    logger,
+    new_pipe_metadata,
+    normalize_workflow_name,
+    retry_until_successful,
+)
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
@@ -760,7 +766,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
+        workflow_name = normalize_workflow_name(name)
         workflow_id = None
 
         # The returned engine for this runner is the engine of the workflow.

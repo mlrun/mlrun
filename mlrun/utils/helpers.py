@@ -1445,3 +1445,10 @@ class DeprecationHelper(object):
     def __getattr__(self, attr):
         self._warn()
         return getattr(self._new_target, attr)
+
+
+def normalize_workflow_name(name, project_name):
+    workflow_name = (
+        name.lstrip(project_name).lstrip("-") if project_name in name else name
+    )
+    return workflow_name

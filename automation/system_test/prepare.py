@@ -242,7 +242,7 @@ class SystemTestPreparer:
                             stderr=stderr,
                             suppress_error_string=suppress_error_string,
                         )
-                        continue
+                        break
                 else:
                     raise RuntimeError(
                         f"Command failed with exit status: {exit_status}"

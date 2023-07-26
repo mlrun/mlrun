@@ -65,7 +65,6 @@ def run_merge_job(
     if not run_config.handler:
         function.with_code(body=default_code)
     else:
-        # The user shouldn't have to provide a handler
         raise mlrun.errors.MLRunInvalidArgumentError(
             "When passing `run_config` to `get_offline_features`, specifying"
             " the `handler` parameter of the `run_config` is not allowed."

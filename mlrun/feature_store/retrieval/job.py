@@ -43,11 +43,6 @@ def run_merge_job(
     end_time=None,
     timestamp_for_filtering=None,
 ):
-    if run_config.function:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"When passing `run_config` to `get_offline_features`, specifying"
-            f" the `function` parameter of the `run_config` is not allowed."
-        )
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
@@ -56,19 +51,25 @@ def run_merge_job(
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind
     default_code = _default_merger_handler.replace("{{{engine}}}", merger.__name__)
-    function_ref = vector.spec.function.copy()
-    if function_ref.is_empty():
-        function_ref = FunctionReference(name=name, kind=kind)
-    if not function_ref.url:
-        function_ref.code = default_code
-    run_config.function = function_ref
+    if not run_config.function:
+        function_ref = vector.spec.function.copy()
+        if function_ref.is_empty():
+            function_ref = FunctionReference(name=name, kind=kind)
+        if not function_ref.url:
+            function_ref.code = default_code
+        run_config.function = function_ref
 
     function = run_config.to_function(kind, merger.get_default_image(kind))
 
     # Avoid overriding a handler that was provided by the user
-    # The user shouldn't have to provide a handler, but we leave this option open just in case
     if not run_config.handler:
         function.with_code(body=default_code)
+    else:
+        # The user shouldn't have to provide a handler
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"When passing `run_config` to `get_offline_features`, specifying"
+            f" the `handler` parameter of the `run_config` is not allowed."
+        )
 
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name

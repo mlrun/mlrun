@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import os
 import tempfile
 
@@ -226,16 +227,17 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     artifact_1_tag = "artifact-tag-1"
     artifact_2_tag = "artifact-tag-2"
 
+    # we use deepcopy to avoid changing the original dict
     db.store_artifact_v2(
         db_session,
         artifact_key,
-        artifact_1_body,
+        copy.deepcopy(artifact_1_body),
         tag=artifact_1_tag,
     )
     db.store_artifact_v2(
         db_session,
         artifact_key,
-        artifact_2_body,
+        copy.deepcopy(artifact_2_body),
         tag=artifact_2_tag,
     )
     artifacts = db.list_artifacts_v2(db_session, artifact_key, tag="*")
@@ -362,10 +364,12 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
         (artifact_2_key, artifact_2_body, artifact_2_tag),
         (artifact_2_key, artifact_2_body, artifact_2_tag_2),
     ]:
+        # we copy the artifact body to avoid changing the original dict
+        artifact = copy.deepcopy(artifact_body)
         db.store_artifact_v2(
             db_session,
             artifact_key,
-            artifact_body,
+            artifact,
             tag=artifact_tag,
             project=project,
         )
@@ -928,13 +932,13 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             "key": artifact_key,
             "uid": artifact_uid,
             "project": project,
-            "iter": 2,
+            "iteration": 2,
         },
         {
             "key": legacy_artifact_key,
             "uid": legacy_artifact_uid,
             "project": None,
-            "iter": None,
+            "iteration": None,
         },
     ]:
         # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
@@ -948,7 +952,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         assert artifact.key == expected["key"]
         assert artifact.producer_id == expected["uid"]
         assert artifact.project == expected["project"]
-        assert artifact.iter == expected["iter"]
+        assert artifact.iteration == expected["iteration"]
 
         artifact_dict = artifact.full_object
         assert len(artifact_dict) > 0

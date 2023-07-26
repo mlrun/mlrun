@@ -994,7 +994,7 @@ class TestProject(TestMLRunSystem):
             context=project_context,
             url=project_source,
             subpath="./test_remote_workflow_subpath",
-            name=project_name,clone=True
+            name=project_name,
         )
         project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)

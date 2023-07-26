@@ -396,14 +396,19 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                             tests.projects.assets.remote_pipeline_with_overridden_resources.overridden_affinity
                         )
 
+
 def test_workflow_name():
-    project_name= "test"
+    project_name = "test"
     workflow_name = "test-test"
-    #When creating a schedule workflow we adding the project name to the workflow name.
+    # When creating a schedule workflow we adding the project name to the workflow name.
     before_renaming = f"{project_name}-{workflow_name}"
-    assert workflow_name==mlrun.utils.normalize_workflow_name(before_renaming,project_name)
+    assert workflow_name == mlrun.utils.normalize_workflow_name(
+        before_renaming, project_name
+    )
     project_name = "test"
     workflow_name = "new-1-main"
     # When creating a schedule workflow we adding the project name to the workflow name.
     before_renaming = f"{project_name}-{workflow_name}"
-    assert workflow_name == mlrun.utils.normalize_workflow_name(before_renaming, project_name)
+    assert workflow_name == mlrun.utils.normalize_workflow_name(
+        before_renaming, project_name
+    )

@@ -293,13 +293,14 @@ class JoinGraph(ModelObj):
             self.last_step_name,
             self.all_feature_sets_names,
         )
+        is_first_fs = join_type != JoinGraph.first_join_type or left_all_feature_sets == self.name
 
         # create_new_step
         new_step = _JoinStep(
             f"step_{first_key_num}",
-            left_last_step_name if join_type != JoinGraph.first_join_type else "",
+            left_last_step_name if not is_first_fs else "",
             other_operand,
-            left_all_feature_sets if join_type != JoinGraph.first_join_type else [],
+            left_all_feature_sets if not is_first_fs else [],
             other_operand,
             join_type,
             asof_join,

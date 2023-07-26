@@ -354,7 +354,7 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config._iguazio_api_url = api_url
+    mlrun.config.config.iguazio_api_url = api_url
     return api_url
 
 

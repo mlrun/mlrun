@@ -27,7 +27,6 @@ import copy
 import json
 import os
 import typing
-import urllib.parse
 from collections.abc import Mapping
 from distutils.util import strtobool
 from os.path import expanduser
@@ -936,36 +935,6 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 
-    @property
-    def iguazio_api_url(self):
-        """
-        we want to be able to run with old versions of the service who runs the API (which doesn't configure this
-        value) so we're doing best effort to try and resolve it from other configurations
-        TODO: Remove this hack when 0.6.x is old enough
-        """
-        if not self._iguazio_api_url:
-            if self.httpdb.builder.docker_registry and self.igz_version:
-                return self._extract_iguazio_api_from_docker_registry_url()
-        return self._iguazio_api_url
-
-    def _extract_iguazio_api_from_docker_registry_url(self):
-        docker_registry_url = self.httpdb.builder.docker_registry
-        # add schema otherwise parsing go wrong
-        if "://" not in docker_registry_url:
-            docker_registry_url = f"http://{docker_registry_url}"
-        parsed_registry_url = urllib.parse.urlparse(docker_registry_url)
-        registry_hostname = parsed_registry_url.hostname
-        # replace the first domain section (app service name) with dashboard
-        first_dot_index = registry_hostname.find(".")
-        if first_dot_index < 0:
-            # if not found it's not the format we know - can't resolve the api url from the registry url
-            return ""
-        return f"https://dashboard{registry_hostname[first_dot_index:]}"
-
-    @iguazio_api_url.setter
-    def iguazio_api_url(self, value):
-        self._iguazio_api_url = value
-
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1128,12 +1097,6 @@ def _do_populate(env=None, skip_errors=False):
     data = read_env(env)
     if data:
         config.update(data, skip_errors=skip_errors)
-
-    # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
-    # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
-    # underscore
-    config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
-    del config._cfg["iguazio_api_url"]
 
     _validate_config(config)
 

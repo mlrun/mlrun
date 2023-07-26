@@ -271,6 +271,20 @@ fn.spec.min_replicas = 1
 fn.spec.max_replicas = 4
 ```
 
+#### Scale to zero
+
+```python
+# Nuclio/serving scaling
+fn.spec.min_replicas = 0    # zero value is mandatory for scale to zero
+fn.spec.max_replicas = 2
+
+# Scaling to zero in case of 30 minutes (idle-time duration)
+fn.set_config(key="spec.scaleToZero.scaleResources",
+              value=[{"metricName":"nuclio_processor_handled_events_total",
+                      "windowSize" : "30m",     # default values are 1m, 2m, 5m, 10m, 30m
+                      "threshold" : 0}])
+```
+
 #### Mount persistent storage
 
 ```python
@@ -318,7 +332,7 @@ serve.add_trigger("cron_schedule", spec=nuclio.CronTrigger(schedule="0 9 * * *")
 ```
 
 ```{admonition} Note
-The worker uses separate worker scope. This means that each worker has a copy of the variable, 
+The worker uses separate worker scope. This means that each worker has a copy of the variables, 
 and all changes are kept within the worker (change by worker x, do not affect worker y).
 ```
 

@@ -51,13 +51,14 @@ def run_merge_job(
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind
     default_code = _default_merger_handler.replace("{{{engine}}}", merger.__name__)
-    if not run_config.function:
-        function_ref = vector.spec.function.copy()
-        if function_ref.is_empty():
-            function_ref = FunctionReference(name=name, kind=kind)
-        if not function_ref.url:
-            function_ref.code = default_code
-        run_config.function = function_ref
+    if run_config.function:
+        logger.warn("Ignoring run_config.function and set function to default merger handler")
+    function_ref = vector.spec.function.copy()
+    if function_ref.is_empty():
+        function_ref = FunctionReference(name=name, kind=kind)
+    if not function_ref.url:
+        function_ref.code = default_code
+    run_config.function = function_ref
 
     function = run_config.to_function(kind, merger.get_default_image(kind))
 

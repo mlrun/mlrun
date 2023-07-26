@@ -28,7 +28,7 @@ from mlrun.api.api import deps
 from mlrun.api.api.utils import log_and_raise
 from mlrun.utils.helpers import datetime_from_iso
 
-router = APIRouter(prefix="/projects/{project}/runs")
+router = APIRouter()
 
 
 # TODO: remove /run/{project}/{uid} in 1.7.0
@@ -38,7 +38,7 @@ router = APIRouter(prefix="/projects/{project}/runs")
     description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.post("/{uid}")
+@router.post("/projects/{project}/runs/{uid}")
 async def store_run(
     request: Request,
     project: str,
@@ -84,7 +84,7 @@ async def store_run(
     description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.patch("/{uid}")
+@router.patch("/projects/{project}/runs/{uid}")
 async def update_run(
     request: Request,
     project: str,
@@ -124,7 +124,7 @@ async def update_run(
     description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.get("/{uid}")
+@router.get("/projects/{project}/runs/{uid}")
 async def get_run(
     project: str,
     uid: str,
@@ -154,7 +154,7 @@ async def get_run(
     description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.delete("/{uid}")
+@router.delete("/projects/{project}/runs/{uid}")
 async def delete_run(
     project: str,
     uid: str,
@@ -186,7 +186,7 @@ async def delete_run(
     description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.get("")
+@router.get("/projects/{project}/runs")
 async def list_runs(
     project: str = None,
     name: str = None,
@@ -264,7 +264,7 @@ async def list_runs(
     description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
-@router.delete("")
+@router.delete("/projects/{project}/runs")
 async def delete_runs(
     project: str = None,
     name: str = None,
@@ -328,7 +328,7 @@ async def delete_runs(
 
 
 @router.put(
-    "/{uid}/notifications",
+    "/projects/{project}/runs/{uid}/notifications",
     status_code=HTTPStatus.OK.value,
 )
 async def set_run_notifications(

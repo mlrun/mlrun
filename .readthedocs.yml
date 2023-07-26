@@ -21,7 +21,7 @@ sphinx:
 formats: all
 
 python:
-  version: 3.9
+  version: 3.7
   install:
     - requirements: requirements.txt
     - requirements: dev-requirements.txt

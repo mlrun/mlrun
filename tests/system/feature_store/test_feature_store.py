@@ -3609,6 +3609,7 @@ class TestFeatureStore(TestMLRunSystem):
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
+            relations={"department_id": 'a', }
         )
         mini_employees_set.set_targets()
         fstore.ingest(mini_employees_set, employees_with_class)

@@ -38,6 +38,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
+        tree: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         # In case project is an empty string the setdefault won't catch it
@@ -47,7 +48,7 @@ class Artifacts(
         if data["project"] != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Artifact with conflicting project name - {data['project']} while request project : {project}."
-                f"key={key}, uid={uid}, data={data}"
+                f"key={key}, tree={tree}, data={data}"
             )
         mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -57,6 +58,7 @@ class Artifacts(
             iter,
             tag,
             project,
+            tree,
         )
 
     def get_artifact(
@@ -67,6 +69,8 @@ class Artifacts(
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        tree: str = None,
+        uid: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
@@ -75,6 +79,8 @@ class Artifacts(
             tag,
             iter,
             project,
+            tree,
+            uid,
         )
         if format_ == mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
             return _transform_artifact_struct_to_legacy_format(artifact)
@@ -94,6 +100,7 @@ class Artifacts(
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
+        tree: str = None,
     ) -> typing.List:
         project = project or mlrun.mlconf.default_project
         if labels is None:
@@ -110,6 +117,7 @@ class Artifacts(
             category,
             iter,
             best_iteration,
+            producer_id=tree,
         )
         if format_ != mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
             return artifacts
@@ -135,10 +143,12 @@ class Artifacts(
         key: str,
         tag: str = "latest",
         project: str = mlrun.mlconf.default_project,
+        uid: str = None,
+        tree: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().del_artifact(
-            db_session, key, tag, project
+            db_session, key, tag, project, uid, producer_id=tree
         )
 
     def delete_artifacts(

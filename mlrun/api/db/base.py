@@ -154,11 +154,24 @@ class DBInterface(ABC):
         iter=None,
         tag="",
         project="",
+        tree=None,
+        best_iteration=False,
+        always_overwrite=False,
     ):
         pass
 
     @abstractmethod
-    def read_artifact(self, session, key, tag="", iter=None, project=""):
+    def read_artifact(
+        self,
+        session,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        producer_id: str = None,
+        uid: str = None,
+        raise_on_not_found: bool = True,
+    ):
         pass
 
     @abstractmethod
@@ -177,11 +190,15 @@ class DBInterface(ABC):
         best_iteration: bool = False,
         as_records: bool = False,
         use_tag_as_uid: bool = None,
+        uid=None,
+        producer_id=None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, session, key, tag="", project=""):
+    def del_artifact(
+        self, session, key, tag="", project="", uid=None, producer_id=None
+    ):
         pass
 
     @abstractmethod
@@ -189,7 +206,7 @@ class DBInterface(ABC):
         pass
 
     # Artifact v2 APIs - Delete when v1 is deprecated!
-    def store_artifact_v2(
+    def store_artifact_v1(
         self,
         session,
         key,
@@ -203,7 +220,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def list_artifacts_v2(
+    def list_artifacts_v1(
         self,
         session,
         name=None,
@@ -221,7 +238,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def read_artifact_v2(
+    def read_artifact_v1(
         self,
         session,
         key: str,
@@ -234,22 +251,22 @@ class DBInterface(ABC):
     ):
         pass
 
-    def del_artifact_v2(
+    def del_artifact_v1(
         self, session, key, tag="", project="", uid=None, producer_id=None
     ):
         pass
 
-    def del_artifacts_v2(
+    def del_artifacts_v1(
         self, session, name="", project="", tag=None, labels=None, ids=None
     ):
         pass
 
-    def list_artifact_tags_v2(
+    def list_artifact_tags_v1(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ):
         pass
 
-    def overwrite_artifacts_with_tag_v2(
+    def overwrite_artifacts_with_tag_v1(
         self,
         session,
         project,
@@ -258,7 +275,7 @@ class DBInterface(ABC):
     ):
         pass
 
-    def append_tag_to_artifacts_v2(
+    def append_tag_to_artifacts_v1(
         self,
         session,
         project: str,

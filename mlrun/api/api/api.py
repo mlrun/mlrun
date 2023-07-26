@@ -18,6 +18,7 @@ import mlrun.api.api.deps
 import mlrun.config
 from mlrun.api.api.endpoints import (
     artifacts,
+    artifacts_v2,
     auth,
     background_tasks,
     client_spec,
@@ -149,5 +150,12 @@ api_router.include_router(
 api_router.include_router(
     workflows.router,
     tags=["workflows"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+
+api_v2_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
+api_v2_router.include_router(
+    artifacts_v2.router,
+    tags=["artifacts"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

@@ -46,7 +46,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger
+from mlrun.utils import get_in, is_legacy_artifact, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -1001,3 +1001,14 @@ def parse_reference(reference: str):
     else:
         uid = regex_match.string
     return tag, uid
+
+
+# Extract project and resource name from legacy artifact structure as well as from new format
+def artifact_project_and_resource_name_extractor(artifact):
+    if is_legacy_artifact(artifact):
+        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
+    else:
+        return (
+            artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+            artifact.get("spec")["db_key"],
+        )

@@ -465,7 +465,7 @@ class SQLDB(DBInterface):
     # ---- Artifacts ----
     # TODO: remove this method once the endpoints are updated to use the v2 method
     @retry_on_conflict
-    def store_artifact(
+    def store_artifact_v1(
         self,
         session,
         key,
@@ -486,7 +486,7 @@ class SQLDB(DBInterface):
         )
 
     @retry_on_conflict
-    def store_artifact_v2(
+    def store_artifact(
         self,
         session,
         key,
@@ -495,6 +495,7 @@ class SQLDB(DBInterface):
         iter=None,
         tag="",
         project="",
+        tree=None,
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
@@ -509,6 +510,7 @@ class SQLDB(DBInterface):
                 key,
                 artifact,
                 uid,
+                tree,
             )
 
         original_uid = uid
@@ -561,7 +563,7 @@ class SQLDB(DBInterface):
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by uid only
         if self._re_tag_existing_object(
-            session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
+            session, ArtifactV2, project, key, tag, uid, tree, obj_name_attribute="key"
         ):
             return uid
 
@@ -570,7 +572,7 @@ class SQLDB(DBInterface):
         )
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
-    def list_artifacts(
+    def list_artifacts_v1(
         self,
         session,
         name=None,
@@ -693,7 +695,7 @@ class SQLDB(DBInterface):
 
         return artifacts
 
-    def list_artifacts_v2(
+    def list_artifacts(
         self,
         session,
         name=None,
@@ -709,6 +711,7 @@ class SQLDB(DBInterface):
         as_records: bool = False,
         use_tag_as_uid: bool = None,
         uid=None,
+        producer_id=None,
     ):
         project = project or config.default_project
 
@@ -717,7 +720,7 @@ class SQLDB(DBInterface):
                 "best-iteration cannot be used when iter is specified"
             )
 
-        artifact_records = self._find_artifacts_v2(
+        artifact_records = self._find_artifacts(
             session,
             project,
             None,  # id is None because we are in "list" mode
@@ -730,6 +733,7 @@ class SQLDB(DBInterface):
             category,
             iter,
             uid,
+            producer_id,
             best_iteration=best_iteration,
         )
         if as_records:
@@ -764,7 +768,7 @@ class SQLDB(DBInterface):
         return artifacts
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
-    def read_artifact(self, session, key, tag="", iter=None, project=""):
+    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
         project = project or config.default_project
         ids = self._resolve_tag(session, Artifact, project, tag)
         if iter:
@@ -803,7 +807,7 @@ class SQLDB(DBInterface):
             self._set_tag_in_artifact_struct(artifact_struct, db_tag)
         return artifact_struct
 
-    def read_artifact_v2(
+    def read_artifact(
         self,
         session,
         key: str,
@@ -870,7 +874,7 @@ class SQLDB(DBInterface):
         return artifact
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
-    def del_artifact(self, session, key, tag="", project=""):
+    def del_artifact_v1(self, session, key, tag="", project=""):
         project = project or config.default_project
 
         query = session.query(Artifact).filter(
@@ -894,7 +898,7 @@ class SQLDB(DBInterface):
             session.delete(artifact)
         session.commit()
 
-    def del_artifact_v2(
+    def del_artifact(
         self, session, key, tag=None, project=None, uid=None, producer_id=None
     ):
         self._delete_tagged_object(
@@ -902,7 +906,7 @@ class SQLDB(DBInterface):
         )
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
-    def del_artifacts(self, session, name="", project="", tag="*", labels=None):
+    def del_artifacts_v1(self, session, name="", project="", tag="*", labels=None):
         project = project or config.default_project
         ids = "*"
         if tag and tag != "*":
@@ -916,18 +920,18 @@ class SQLDB(DBInterface):
         for key in distinct_keys:
             self.del_artifact(session, key, "", project)
 
-    def del_artifacts_v2(
+    def del_artifacts(
         self, session, name="", project="", tag=None, labels=None, ids=None
     ):
         project = project or config.default_project
         distinct_keys = {
             artifact.key
-            for artifact in self._find_artifacts_v2(
+            for artifact in self._find_artifacts(
                 session, project, ids, tag, labels, name=name
             )
         }
         for key in distinct_keys:
-            self.del_artifact_v2(session, key, tag, project)
+            self.del_artifact(session, key, tag, project)
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         # found a bug in here, which is being exposed for when have multi-param execution.
@@ -957,7 +961,7 @@ class SQLDB(DBInterface):
             self._upsert(session, [tag], ignore=True)
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
-    def list_artifact_tags(
+    def list_artifact_tags_v1(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
@@ -984,13 +988,13 @@ class SQLDB(DBInterface):
 
         return results
 
-    def list_artifact_tags_v2(
+    def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ) -> typing.List[typing.Tuple[str, str, str]]:
         """
         :return: a list of Tuple of (project, artifact.key, tag)
         """
-        artifacts = self.list_artifacts_v2(session, project=project, category=category)
+        artifacts = self.list_artifacts(session, project=project, category=category)
         results = []
         for artifact in artifacts:
             if is_legacy_artifact(artifact):
@@ -1008,6 +1012,29 @@ class SQLDB(DBInterface):
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
     @retry_on_conflict
+    def overwrite_artifacts_with_tag_v1(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self._list_artifacts_for_tagging_v1(
+                session,
+                project_name=project,
+                identifier=identifier,
+            )
+        # TODO remove duplicates artifacts entries
+        # delete related tags from artifacts identifiers
+        # not committing the session here because we want to do it atomic with the next query
+        self._delete_artifacts_tags_v1(session, project, artifacts, commit=False)
+        # tag artifacts with tag
+        self.tag_artifacts(session, artifacts, project, name=tag)
+
+    @retry_on_conflict
     def overwrite_artifacts_with_tag(
         self,
         session: Session,
@@ -1019,19 +1046,20 @@ class SQLDB(DBInterface):
         artifacts = []
         for identifier in identifiers:
             artifacts += self._list_artifacts_for_tagging(
-                session,
-                project_name=project,
-                identifier=identifier,
+                session, project_name=project, identifier=identifier
             )
-        # TODO remove duplicates artifacts entries
+
+        # TODO: remove duplicates artifacts entries
+
         # delete related tags from artifacts identifiers
         # not committing the session here because we want to do it atomic with the next query
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
+
         # tag artifacts with tag
-        self.tag_artifacts(session, artifacts, project, name=tag)
+        self.tag_objects_v2(session, artifacts, project, name=tag)
 
     @retry_on_conflict
-    def overwrite_artifacts_with_tag_v2(
+    def append_tag_to_artifacts_v1(
         self,
         session: Session,
         project: str,
@@ -1041,20 +1069,12 @@ class SQLDB(DBInterface):
         # query all artifacts which match the identifiers
         artifacts = []
         for identifier in identifiers:
-            artifacts += self._list_artifacts_for_tagging_v2(
+            artifacts += self._list_artifacts_for_tagging_v1(
                 session,
                 project_name=project,
                 identifier=identifier,
             )
-
-        # TODO: remove duplicates artifacts entries
-
-        # delete related tags from artifacts identifiers
-        # not committing the session here because we want to do it atomic with the next query
-        self._delete_artifacts_tags_v2(session, project, artifacts, commit=False)
-
-        # tag artifacts with tag
-        self.tag_objects_v2(session, artifacts, project, name=tag)
+        self.tag_artifacts(session, artifacts, project, name=tag)
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -1068,27 +1088,7 @@ class SQLDB(DBInterface):
         artifacts = []
         for identifier in identifiers:
             artifacts += self._list_artifacts_for_tagging(
-                session,
-                project_name=project,
-                identifier=identifier,
-            )
-        self.tag_artifacts(session, artifacts, project, name=tag)
-
-    @retry_on_conflict
-    def append_tag_to_artifacts_v2(
-        self,
-        session: Session,
-        project: str,
-        tag: str,
-        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
-        # query all artifacts which match the identifiers
-        artifacts = []
-        for identifier in identifiers:
-            artifacts += self._list_artifacts_for_tagging_v2(
-                session,
-                project_name=project,
-                identifier=identifier,
+                session, project_name=project, identifier=identifier
             )
         self.tag_objects_v2(session, artifacts, project, tag, obj_name_attribute="key")
 
@@ -1163,12 +1163,15 @@ class SQLDB(DBInterface):
         key,
         link_artifact,
         uid=None,
+        tree=None,
     ):
         # get the artifact record from the db
         link_iteration = link_artifact.get("spec", {}).get("link_iteration")
-        link_tree = link_artifact.get("spec", {}).get("link_tree") or link_artifact.get(
-            "metadata", {}
-        ).get("tree")
+        link_tree = (
+            tree
+            or link_artifact.get("spec", {}).get("link_tree", None)
+            or link_artifact.get("metadata", {}).get("tree", None)
+        )
         link_key = link_artifact.get("spec", {}).get("link_key")
         if link_key:
             key = link_key
@@ -1216,12 +1219,13 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         tag: str = None,
+        tree: str = None,
     ):
         artifact_record.project = project
         artifact_record.iteration = iter
         kind = artifact_dict.get("kind") or "artifact"
         artifact_record.kind = kind
-        artifact_record.producer_id = artifact_dict["metadata"].get("tree")
+        artifact_record.producer_id = tree or artifact_dict["metadata"].get("tree")
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         if not artifact_record.created:
@@ -1257,20 +1261,12 @@ class SQLDB(DBInterface):
         tag="",
         uid=None,
         iteration=None,
+        tree=None,
         best_iteration=False,
     ):
-        # check if the object already exists
-        query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
-        existing_object = query.one_or_none()
-        if existing_object:
-            object_uri = generate_object_uri(project, key, tag)
-            raise mlrun.errors.MLRunConflictError(
-                f"Adding an already-existing {ArtifactV2.__name__} - {object_uri}"
-            )
-
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
-            db_artifact, artifact, project, uid, iteration, best_iteration, tag
+            db_artifact, artifact, project, uid, iteration, best_iteration, tag, tree
         )
 
         self._upsert(session, [db_artifact])
@@ -1287,7 +1283,7 @@ class SQLDB(DBInterface):
 
         return uid
 
-    def _list_artifacts_for_tagging(
+    def _list_artifacts_for_tagging_v1(
         self,
         session: Session,
         project_name: str,
@@ -1312,13 +1308,13 @@ class SQLDB(DBInterface):
             use_tag_as_uid=bool(identifier.uid),
         )
 
-    def _list_artifacts_for_tagging_v2(
+    def _list_artifacts_for_tagging(
         self,
         session: Session,
         project_name: str,
         identifier: mlrun.common.schemas.ArtifactIdentifier,
     ):
-        return self.list_artifacts_v2(
+        return self.list_artifacts(
             session,
             project=project_name,
             name=identifier.key,
@@ -1424,7 +1420,7 @@ class SQLDB(DBInterface):
             .all()
         )
 
-    def _delete_artifacts_tags(
+    def _delete_artifacts_tags_v1(
         self,
         session,
         project: str,
@@ -1448,7 +1444,7 @@ class SQLDB(DBInterface):
         if commit:
             session.commit()
 
-    def _delete_artifacts_tags_v2(
+    def _delete_artifacts_tags(
         self,
         session,
         project: str,
@@ -1534,7 +1530,7 @@ class SQLDB(DBInterface):
             )
         )
 
-    def _find_artifacts(
+    def _find_artifacts_v1(
         self,
         session,
         project,
@@ -1594,7 +1590,7 @@ class SQLDB(DBInterface):
         else:
             return query.all()
 
-    def _find_artifacts_v2(
+    def _find_artifacts(
         self,
         session,
         project,
@@ -1737,6 +1733,7 @@ class SQLDB(DBInterface):
         name: str,
         tag: str = None,
         uid: str = None,
+        tree: str = None,
     ):
         query = self._query(session, ArtifactV2, key=name, project=project)
         computed_tag = tag or "latest"
@@ -1750,6 +1747,8 @@ class SQLDB(DBInterface):
             uid = object_tag_uid
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
+        if tree:
+            query = query.filter(ArtifactV2.producer_id == tree)
         return computed_tag, object_tag_uid, query.one_or_none()
 
     def _should_update_artifact(
@@ -3399,7 +3398,15 @@ class SQLDB(DBInterface):
         return uid
 
     def _re_tag_existing_object(
-        self, session, cls, project, name, tag, uid, obj_name_attribute: str = "name"
+        self,
+        session,
+        cls,
+        project,
+        name,
+        tag,
+        uid,
+        tree=None,
+        obj_name_attribute: str = "name",
     ):
         if cls == ArtifactV2:
             _, _, existing_object = self._get_existing_artifact(

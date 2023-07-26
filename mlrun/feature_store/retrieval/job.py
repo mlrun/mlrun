@@ -43,6 +43,11 @@ def run_merge_job(
     end_time=None,
     timestamp_for_filtering=None,
 ):
+    if run_config.function:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"When passing `run_config` to `get_offline_features`, specifying"
+            f" the function parameter is not allowed.`\n {run_config}"
+        )
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):
         raise mlrun.errors.MLRunInvalidArgumentError("target object must be specified")
@@ -51,8 +56,6 @@ def run_merge_job(
     kind = run_config.kind or ("spark" if engine == "spark" else "job")
     run_config.kind = kind
     default_code = _default_merger_handler.replace("{{{engine}}}", merger.__name__)
-    if run_config.function:
-        logger.warn("Ignoring run_config.function and set function to default merger handler")
     function_ref = vector.spec.function.copy()
     if function_ref.is_empty():
         function_ref = FunctionReference(name=name, kind=kind)

@@ -397,7 +397,7 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         )
 
 
-@pytest.mark.parametrize("workflow_name",[("test-test"),("new-1-main"),("test")])
+@pytest.mark.parametrize("workflow_name", [("test-test"), ("new-1-main"), ("test")])
 def test_workflow_name(workflow_name):
     project_name = "test"
     # When creating a schedule workflow we adding the project name to the workflow name.

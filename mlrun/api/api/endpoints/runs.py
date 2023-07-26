@@ -31,7 +31,14 @@ from mlrun.utils.helpers import datetime_from_iso
 router = APIRouter()
 
 
-@router.post("/run/{project}/{uid}")
+# TODO: remove /run/{project}/{uid} in 1.7.0
+@router.post(
+    "/run/{project}/{uid}",
+    deprecated=True,
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.post("/projects/{project}/runs/{uid}")
 async def store_run(
     request: Request,
     project: str,
@@ -70,7 +77,14 @@ async def store_run(
     return {}
 
 
-@router.patch("/run/{project}/{uid}")
+# TODO: remove /run/{project}/{uid} in 1.7.0
+@router.patch(
+    "/run/{project}/{uid}",
+    deprecated=True,
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.patch("/projects/{project}/runs/{uid}")
 async def update_run(
     request: Request,
     project: str,
@@ -103,7 +117,14 @@ async def update_run(
     return {}
 
 
-@router.get("/run/{project}/{uid}")
+# TODO: remove /run/{project}/{uid} in 1.7.0
+@router.get(
+    "/run/{project}/{uid}",
+    deprecated=True,
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.get("/projects/{project}/runs/{uid}")
 async def get_run(
     project: str,
     uid: str,
@@ -126,7 +147,14 @@ async def get_run(
     }
 
 
-@router.delete("/run/{project}/{uid}")
+# TODO: remove /run/{project}/{uid} in 1.7.0
+@router.delete(
+    "/run/{project}/{uid}",
+    deprecated=True,
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.delete("/projects/{project}/runs/{uid}")
 async def delete_run(
     project: str,
     uid: str,
@@ -151,7 +179,14 @@ async def delete_run(
     return {}
 
 
-@router.get("/runs")
+# TODO: remove /runs in 1.7.0
+@router.get(
+    "/runs",
+    deprecated=True,
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.get("/projects/{project}/runs")
 async def list_runs(
     project: str = None,
     name: str = None,
@@ -222,7 +257,14 @@ async def list_runs(
     }
 
 
-@router.delete("/runs")
+# TODO: remove /runs in 1.7.0
+@router.delete(
+    "/runs",
+    deprecated=True,
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/runs/{uid} instead",
+)
+@router.delete("/projects/{project}/runs")
 async def delete_runs(
     project: str = None,
     name: str = None,

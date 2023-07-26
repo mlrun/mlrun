@@ -27,7 +27,6 @@ from tests.common_fixtures import (  # noqa: F401
 )
 
 
-# TODO: remove in 1.7.0
 @pytest.mark.usefixtures("patch_file_forbidden")
 def test_files_forbidden(db: Session, client: TestClient) -> None:
     validate_files_status_code(client, HTTPStatus.FORBIDDEN.value)
@@ -39,13 +38,13 @@ def test_files_not_found(db: Session, client: TestClient) -> None:
 
 
 def validate_files_status_code(client: TestClient, status_code: int):
-    resp = client.get("files?schema=v3io&path=mybucket/files.txt")
+    resp = client.get("projects/{project}/files?schema=v3io&path=mybucket/files.txt")
     assert resp.status_code == status_code
 
-    resp = client.get("files?schema=v3io&path=mybucket/")
+    resp = client.get("projects/{project}/files?schema=v3io&path=mybucket/")
     assert resp.status_code == status_code
 
-    resp = client.get("filestat?schema=v3io&path=mybucket/files.txt")
+    resp = client.get("projects/{project}/filestat?schema=v3io&path=mybucket/files.txt")
     assert resp.status_code == status_code
 
 

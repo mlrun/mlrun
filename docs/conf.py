@@ -55,6 +55,7 @@ extensions = [
     "myst_nb",
     "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
@@ -142,7 +143,7 @@ myst_all_links_external = True
 myst_substitutions = {
     "version": "version",
     "ceversion": "v1.2.1",
-    "releasedocumentation": "docs.mlrun.org/en/v1.2.1/index.html",
+    "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
 }
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
@@ -157,7 +158,13 @@ autodoc_mock_imports = [
     "torch",
     "lightgbm",
     "xgboost",
+    "onnx",
 ]
+
+
+# -- Autosummary -------------------------------------------------------------
+
+autosummary_generate = True
 
 
 def copy_doc(src, dest, title=""):

@@ -55,7 +55,6 @@ def test_list_pipelines_empty_list(
 
 
 def test_list_pipelines_formats(
-    db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
@@ -66,9 +65,7 @@ def test_list_pipelines_formats(
     ]:
         runs = _generate_list_runs_mocks()
         expected_runs = [run.to_dict() for run in runs]
-        expected_runs = mlrun.api.crud.Pipelines()._format_runs(
-            db, expected_runs, format_
-        )
+        expected_runs = mlrun.api.crud.Pipelines()._format_runs(expected_runs, format_)
         _mock_list_runs(kfp_client_mock, runs)
         response = client.get(
             "projects/*/pipelines",
@@ -81,7 +78,6 @@ def test_list_pipelines_formats(
 
 
 def test_get_pipeline_formats(
-    db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
@@ -98,7 +94,7 @@ def test_get_pipeline_formats(
             params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
 
@@ -134,7 +130,6 @@ def test_get_pipeline_no_project_opa_validation(
 
 
 def test_get_pipeline_specific_project(
-    db: sqlalchemy.orm.Session,
     client: fastapi.testclient.TestClient,
     kfp_client_mock: kfp.Client,
 ) -> None:
@@ -155,7 +150,7 @@ def test_get_pipeline_specific_project(
             params={"format": format_},
         )
         expected_run = mlrun.api.crud.Pipelines()._format_run(
-            db, api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
+            api_run_detail.to_dict()["run"], format_, api_run_detail.to_dict()
         )
         _assert_get_pipeline_response(expected_run, response)
 

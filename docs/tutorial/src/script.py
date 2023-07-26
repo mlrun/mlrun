@@ -41,7 +41,7 @@ train_df = clean_df(train_df)
 # To Compute Haversine distance
 def sphere_dist(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     """
-    Return distance along great radius between pickup and dropoff coordinates.
+    Return distance along great radius between pickup and drop-off coordinates.
     """
     # Define earth radius (km)
     R_earth = 6371
@@ -63,7 +63,7 @@ def sphere_dist(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
 
 def sphere_dist_bear(pickup_lat, pickup_lon, dropoff_lat, dropoff_lon):
     """
-    Return distance along great radius between pickup and dropoff coordinates.
+    Return distance along great radius between pickup and drop-off coordinates.
     """
     # Convert degrees to radians
     pickup_lat, pickup_lon, dropoff_lat, dropoff_lon = map(
@@ -90,7 +90,7 @@ def radian_conv(degree):
 
 def add_airport_dist(dataset):
     """
-    Return minumum distance from pickup or dropoff coordinates to each airport.
+    Return minimum distance from pickup or drop-off coordinates to each airport.
     JFK: John F. Kennedy International Airport
     EWR: Newark Liberty International Airport
     LGA: LaGuardia Airport

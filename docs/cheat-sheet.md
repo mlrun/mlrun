@@ -117,7 +117,7 @@ fn = project.set_function(
 
 #### Overview
 
-Docs: [CI/CD integration](./projects/ci-integration.html)
+Docs: [CD/CD automation with Git](./projects/ci-cd-automate.html), [Run pipelines with Github Actions, GitLab](./projects/ci-integration.html)
 
 Best practice for working with CI/CD is using [MLRun Projects](./projects/project.html) with a combination of the following:
 - **Git:** Single source of truth for source code and deployments via infrastructure as code. Allows for collaboration between multiple developers. An MLRun project can (and should) be tied to a Git repo. One project maps to one Git repo.
@@ -475,7 +475,7 @@ context.log_dataset(key="model", df=df, format="csv", index=False)
 ### Track returning values using `hints` and `returns`
 
 - Pass type hints into the inputs parameter of the run method. Inputs are automatically parsed to their hinted type. If type hints are 
-not in code, they can be passed in the inputs keys. Hints use the structure: `key : type_hint`
+not in code, they can be passed in the input keys. Hints use the structure: `key : type_hint`
 - Pass log hints: how to log the returning values from a handler. The log hints are passed via the returns parameter in the run method. 
 A log hint can be passed as a string or a dictionary.
 - Use the `returns` argument to specify how to log a function's returned values.
@@ -988,6 +988,8 @@ class ClassifierModel(mlrun.serving.V2ModelServer):
 
 ### Advanced data processing and serving ensemble
 
+Docs: {ref}`graph-example`
+
 ```python
 fn = project.set_function(
     name="advanced", func="demo.py", 
@@ -995,9 +997,10 @@ fn = project.set_function(
 )
 graph = function.set_topology("flow", engine="async")
 
-# use built-in storey class or our custom Echo class to create and link Task steps
+# use built-in storey class or our custom Echo class to create and link Task steps. Add an error 
+# handling step that runs only if the "Echo" step fails
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
+     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler(name='catcher', handler='handle_error', full_event=True)
 
 # add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
@@ -1006,9 +1009,6 @@ router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
 # add the final step (after the router), which handles post-processing and response to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
-
-# add error handling step, run only when/if the "pre-process" step fails (keep after="")  
-graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 ```
 ![](./_static/images/graph-flow.svg)
 

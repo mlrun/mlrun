@@ -449,31 +449,6 @@ def test_overriding_config_not_remain_for_next_tests_tester():
     assert old_config_value == mlconf.config.httpdb.data_volume
 
 
-def test_iguazio_api_url_resolution():
-    # nothing configured should return nothing
-    assert mlconf.config.iguazio_api_url == ""
-    # only docker registry configured (as in open source) - can't resolve
-    mlconf.config.httpdb.builder.docker_registry = "index.docker.io/some-user"
-    assert mlconf.config.iguazio_api_url == ""
-    # unknown format for docker registry configured - can't resolve
-    mlconf.config.httpdb.builder.docker_registry = "io/some-user"
-    mlconf.config.igz_version = "1.2.3"
-    assert mlconf.config.iguazio_api_url == ""
-    # known format docker registry configured - can resolve
-    mlconf.config.httpdb.builder.docker_registry = (
-        "docker-registry.default-tenant.app.hedingber-301-1.iguazio-cd2.com:80"
-    )
-    mlconf.config.igz_version = "1.2.3"
-    assert (
-        mlconf.config.iguazio_api_url
-        == "https://dashboard.default-tenant.app.hedingber-301-1.iguazio-cd2.com"
-    )
-    # value configured - no resolution needed
-    url = "some-url"
-    mlconf.config._iguazio_api_url = url
-    assert mlconf.config.iguazio_api_url == url
-
-
 def test_resolve_kfp_url():
     mlconf.config.igz_version = ""
     mlconf.config.namespace = ""

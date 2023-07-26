@@ -37,12 +37,12 @@ import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
-from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict

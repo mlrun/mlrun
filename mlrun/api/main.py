@@ -36,8 +36,8 @@ import mlrun.utils.version
 from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
-from mlrun.api.launcher import initialize_launcher
 from mlrun.api.middlewares import init_middlewares
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -53,7 +53,7 @@ from mlrun.api.utils.singletons.project_member import (
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -141,7 +141,6 @@ async def startup_event():
 
     initialize_logs_dir()
     initialize_db()
-    initialize_launcher()
 
     if (
         config.httpdb.clusterization.worker.sync_with_chief.mode

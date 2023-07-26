@@ -315,22 +315,59 @@ async def test_git_notification(monkeypatch, params, expected_url, expected_head
     git_notification = mlrun.utils.notifications.GitNotification("git", params)
     expected_body = "[info] git: test-message"
 
-    response_json_future = asyncio.Future()
-    response_json_future.set_result({"id": "response-id"})
-    response_mock = unittest.mock.MagicMock()
-    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
+    requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
 
-    request_future = asyncio.Future()
-    request_future.set_result(response_mock)
-
-    requests_mock = unittest.mock.MagicMock(return_value=request_future)
-    monkeypatch.setattr(aiohttp.ClientSession, "post", requests_mock)
     await git_notification.push("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
         expected_url,
         headers=expected_headers,
         json={"body": expected_body},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("test_method", ["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def test_webhook_notification(monkeypatch, test_method):
+    requests_mock = _mock_async_response(monkeypatch, test_method.lower(), None)
+
+    test_url = "https://test-url"
+    test_headers = {"test-header": "test-value"}
+    test_override_body = {
+        "test-key": "test-value",
+    }
+    test_message = "test-message"
+    test_severity = "info"
+    test_runs_info = ["some-run"]
+    webhook_notification = mlrun.utils.notifications.WebhookNotification(
+        "webhook",
+        {
+            "url": test_url,
+            "method": test_method,
+            "headers": test_headers,
+        },
+    )
+
+    await webhook_notification.push(test_message, test_severity, test_runs_info)
+
+    requests_mock.assert_called_once_with(
+        test_url,
+        headers=test_headers,
+        json={
+            "message": test_message,
+            "severity": test_severity,
+            "runs": test_runs_info,
+        },
+    )
+
+    webhook_notification.params["override_body"] = test_override_body
+
+    await webhook_notification.push("test-message", "info", ["some-run"])
+
+    requests_mock.assert_called_with(
+        test_url,
+        headers=test_headers,
+        json=test_override_body,
     )
 
 
@@ -659,3 +696,18 @@ def test_notification_name_uniqueness_validation(
             notifications=[notification1, notification2],
             local=True,
         )
+
+
+def _mock_async_response(monkeypatch, method, result):
+    response_json_future = asyncio.Future()
+    response_json_future.set_result(result)
+    response_mock = unittest.mock.MagicMock()
+    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
+
+    request_future = asyncio.Future()
+    request_future.set_result(response_mock)
+
+    requests_mock = unittest.mock.MagicMock(return_value=request_future)
+    monkeypatch.setattr(aiohttp.ClientSession, method, requests_mock)
+
+    return requests_mock

@@ -171,3 +171,9 @@ from .secret import (
     UserSecretCreationRequest,
 )
 from .tag import Tag, TagObjects
+from .workflow import (
+    GetWorkflowResponse,
+    WorkflowRequest,
+    WorkflowResponse,
+    WorkflowSpec,
+)

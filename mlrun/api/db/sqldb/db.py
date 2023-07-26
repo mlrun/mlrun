@@ -752,7 +752,7 @@ class SQLDB(DBInterface):
             artifact_struct = artifact.full_object
 
             # set the tags in the artifact struct
-            artifacts_with_tag = self._add_tags_to_artifact_struct(
+            artifacts_with_tag = self._add_tags_to_artifact_struct_v2(
                 session,
                 artifact_struct,
                 artifact.id,
@@ -1378,6 +1378,23 @@ class SQLDB(DBInterface):
             artifact["metadata"]["tag"] = tag
 
     def _add_tags_to_artifact_struct(
+        self, session, artifact_struct, artifact_id, tag=None
+    ):
+        artifacts = []
+        if tag and tag != "*":
+            self._set_tag_in_artifact_struct(artifact_struct, tag)
+            artifacts.append(artifact_struct)
+        else:
+            tag_results = self._query(session, Artifact.Tag, obj_id=artifact_id).all()
+            if not tag_results:
+                return [artifact_struct]
+            for tag_object in tag_results:
+                artifact_with_tag = deepcopy(artifact_struct)
+                self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
+                artifacts.append(artifact_with_tag)
+        return artifacts
+
+    def _add_tags_to_artifact_struct_v2(
         self, session, artifact_struct, artifact_id, cls=Artifact, tag=None
     ):
         artifacts = []
@@ -2199,11 +2216,11 @@ class SQLDB(DBInterface):
             self.delete_schedule(session, project, schedule.name)
 
     def _get_schedule_record(
-        self, session: Session, project: str, name: str
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
-        if not schedule_record:
+        if not schedule_record and raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
             )

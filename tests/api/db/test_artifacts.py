@@ -878,7 +878,6 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     # create an artifact in the old format
     artifact_body = _generate_artifact(artifact_key, artifact_uid, "artifact")
     artifact_body["metadata"]["key"] = artifact_key
-    artifact_body["metadata"].pop("name")
     artifact_body["metadata"]["iter"] = 2
     artifact_body["metadata"]["project"] = project
     db.store_artifact(

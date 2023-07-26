@@ -13,6 +13,8 @@
 # limitations under the License.
 from typing import Dict, List, Optional, Union
 
+from dependency_injector import containers, providers
+
 import mlrun.api.crud
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
@@ -26,19 +28,24 @@ import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
 
-
-def initialize_launcher():
-    """Set the factory custom launcher to the server side launcher"""
-    mlrun.launcher.factory.LauncherFactory().set_launcher(ServerSideLauncher)
+# must be at the bottom to avoid circular import conflicts and can't use 'from' notation because unit tests mock this
+import mlrun.api.api.utils  # isort:skip
 
 
 class ServerSideLauncher(launcher.BaseLauncher):
-    def __init__(self, local: bool = False, **kwargs):
+    def __init__(
+        self,
+        local: bool = False,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         if local:
             raise mlrun.errors.MLRunInternalServerError(
                 "Launch of local run inside the server is not allowed"
             )
+
+        self._auth_info = auth_info
 
     def launch(
         self,
@@ -158,15 +165,21 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
-    @staticmethod
     def enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
     ):
         """
         Enrich the runtime object with the project spec and metadata.
         This is done only on the server side, since it's the source of truth for the project, and we want to keep the
         client side enrichment as minimal as possible.
         """
+        if self._auth_info:
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                runtime, self._auth_info
+            )
+
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
             project_name
@@ -207,3 +220,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
+
+
+# Once this file is imported it will set the container server side launcher
+@containers.override(mlrun.launcher.factory.LauncherContainer)
+class ServerSideLauncherContainer(containers.DeclarativeContainer):
+    server_side_launcher = providers.Factory(ServerSideLauncher)

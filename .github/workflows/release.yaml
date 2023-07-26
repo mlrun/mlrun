@@ -98,37 +98,37 @@ jobs:
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
           VERSION_INPUT: ${{ github.event.inputs.version }}
-
-  trigger-and-wait-for-mlrun-image-building:
-    name: Trigger build workflow in mlrun/mlrun and wait to finish
-    needs: prepare-inputs
-    uses: ./.github/workflows/build-internal.yaml
-    with:
-      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
-      version: ${{ needs.prepare-inputs.outputs.version }}
-      skip_images: ${{ github.event.inputs.skip_images }}
-    secrets: inherit
-
-  # TODO: Move to reuseable-workflow too.
-  # Requires cross-repo validation for passing github token as secret
-  trigger-and-wait-for-ui-image-building:
-    name: Trigger build workflow in mlrun/ui and wait to finish
-    runs-on: ubuntu-latest
-    needs: prepare-inputs
-    steps:
-      - uses: convictional/trigger-workflow-and-wait@v1.6.5
-
-        # since some steps relay on the ui image, we need to wait for it to finish building
-        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
-        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-        with:
-          owner: ${{ github.repository_owner }}
-          repo: ui
-          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
-          workflow_file_name: build.yaml
-          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
-          wait_interval: 60
-          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
+#
+#  trigger-and-wait-for-mlrun-image-building:
+#    name: Trigger build workflow in mlrun/mlrun and wait to finish
+#    needs: prepare-inputs
+#    uses: ./.github/workflows/build-internal.yaml
+#    with:
+#      docker_registries: "ghcr.io/,quay.io/,registry.hub.docker.com/"
+#      version: ${{ needs.prepare-inputs.outputs.version }}
+#      skip_images: ${{ github.event.inputs.skip_images }}
+#    secrets: inherit
+#
+#  # TODO: Move to reuseable-workflow too.
+#  # Requires cross-repo validation for passing github token as secret
+#  trigger-and-wait-for-ui-image-building:
+#    name: Trigger build workflow in mlrun/ui and wait to finish
+#    runs-on: ubuntu-latest
+#    needs: prepare-inputs
+#    steps:
+#      - uses: convictional/trigger-workflow-and-wait@v1.6.5
+#
+#        # since some steps relay on the ui image, we need to wait for it to finish building
+#        # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
+#        if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
+#        with:
+#          owner: ${{ github.repository_owner }}
+#          repo: ui
+#          github_token: ${{ secrets.RELEASE_GITHUB_ACCESS_TOKEN }}
+#          workflow_file_name: build.yaml
+#          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
+#          wait_interval: 60
+#          client_payload: '{"docker_registries": "ghcr.io/,quay.io/,registry.hub.docker.com/", "version": "${{ needs.prepare-inputs.outputs.version }}"}'
 
   publish-to-pypi:
     name: Publish package to pypi

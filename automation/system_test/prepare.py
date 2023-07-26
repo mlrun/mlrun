@@ -635,7 +635,7 @@ class SystemTestPreparer:
                 drop_db_cmd,
             ],
             verbose=False,
-            suppress_error_strings=["database doesn't exist"],
+            suppress_error_strings=["database doesn\\'t exist"],
         )
 
     def _get_pod_name_command(self, labels):

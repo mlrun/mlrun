@@ -17,11 +17,11 @@ import json
 import os
 import re
 import unittest.mock
-from kubernetes import client
 from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import pytest
+from kubernetes import client
 
 import mlrun
 import mlrun.api.api.utils
@@ -993,6 +993,7 @@ def _mock_default_service_account(monkeypatch, service_account):
         resolve_project_default_service_account_mock,
     )
 
+
 @pytest.mark.parametrize(
     "builder_env,source,commands,project_secrets",
     [
@@ -1093,11 +1094,16 @@ def test_make_kaniko_pod_command_using_build_args(builder_env):
     [
         ("--arg1 value1", {"--arg1": ["value1"]}),
         ("--arg1 value1 --arg2 value2", {"--arg1": ["value1"], "--arg2": ["value2"]}),
-        ("--arg1 value1 value2 value3 --arg2 value4 value5",
-         {"--arg1": ["value1", "value2", "value3"], "--arg2": ["value4", "value5"]}),
+        (
+            "--arg1 value1 value2 value3 --arg2 value4 value5",
+            {"--arg1": ["value1", "value2", "value3"], "--arg2": ["value4", "value5"]},
+        ),
         ("--arg1 --arg2", {"--arg1": [], "--arg2": []}),
         ("--arg1 value1 --arg1 value2", {"--arg1": ["value1", "value2"]}),
-        ("--arg1 value1 --arg2 value2 --arg1 value3", {"--arg1": ["value1", "value3"], "--arg2": ["value2"]}),
+        (
+            "--arg1 value1 --arg2 value2 --arg1 value3",
+            {"--arg1": ["value1", "value3"], "--arg2": ["value2"]},
+        ),
         ("", {}),
     ],
 )
@@ -1147,7 +1153,6 @@ def test_validate_extra_args(extra_args, expected):
         mlrun.api.utils.builder.validate_extra_args(extra_args)
 
 
-
 @pytest.mark.parametrize(
     "args, extra_args, expected_result",
     [
@@ -1155,17 +1160,40 @@ def test_validate_extra_args(extra_args, expected):
         (
             ["--arg1", "--arg2", "value2"],
             "--build-arg KEY1=VALUE1 --build-arg KEY2=VALUE2",
-            ["--arg1", "--arg2", "value2", "--build-arg", "KEY1=VALUE1", "--build-arg", "KEY2=VALUE2"],
+            [
+                "--arg1",
+                "--arg2",
+                "value2",
+                "--build-arg",
+                "KEY1=VALUE1",
+                "--build-arg",
+                "KEY2=VALUE2",
+            ],
         ),
         (
             ["--arg1", "--arg2", "value2"],
             "--build-arg KEY1=VALUE1 --arg1 new_value1 --build-arg KEY2=new_value2",
-            ['--arg1', '--arg2', 'value2', '--build-arg', 'KEY1=VALUE1', '--build-arg', 'KEY2=new_value2'],
+            [
+                "--arg1",
+                "--arg2",
+                "value2",
+                "--build-arg",
+                "KEY1=VALUE1",
+                "--build-arg",
+                "KEY2=new_value2",
+            ],
         ),
         (
             ["--arg1", "value1"],
             "--build-arg KEY1=VALUE1 --build-arg KEY2=VALUE2",
-            ["--arg1", "value1", "--build-arg", "KEY1=VALUE1", "--build-arg", "KEY2=VALUE2"],
+            [
+                "--arg1",
+                "value1",
+                "--build-arg",
+                "KEY1=VALUE1",
+                "--build-arg",
+                "KEY2=VALUE2",
+            ],
         ),
         (
             ["--arg1", "--build-arg", "KEY1=VALUE1"],
@@ -1190,7 +1218,13 @@ def test_validate_extra_args(extra_args, expected):
     ],
 )
 def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_result):
-    assert mlrun.api.utils.builder._validate_and_merge_args_with_extra_args(args, extra_args) == expected_result
+    assert (
+        mlrun.api.utils.builder._validate_and_merge_args_with_extra_args(
+            args, extra_args
+        )
+        == expected_result
+    )
+
 
 @pytest.mark.parametrize(
     "extra_args, expected_result",
@@ -1200,18 +1234,35 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
         ("--build-arg KEY=VALUE --build-arg ANOTHER=123", ["KEY=VALUE", "ANOTHER=123"]),
         ("--build-arg name=John_age=30", ["name=John_age=30"]),
         ("--build-arg _var=value1 --build-arg var2=val2", ["_var=value1", "var2=val2"]),
-
         # Test cases with invalid --build-arg values
-        ("--build-arg KEY", pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY")),
-        ("--build-arg =VALUE", pytest.raises(ValueError, match=r"Invalid --build-arg value: =VALUE")),
-        ("--build-arg 123=456", pytest.raises(ValueError, match=r"Invalid --build-arg value: 123=456")),
-        ("--build-arg KEY==VALUE", pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY==VALUE")),
-        ("--build-arg KEY==", pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY==")),
+        (
+            "--build-arg KEY",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY"),
+        ),
+        (
+            "--build-arg =VALUE",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: =VALUE"),
+        ),
+        (
+            "--build-arg 123=456",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: 123=456"),
+        ),
+        (
+            "--build-arg KEY==VALUE",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY==VALUE"),
+        ),
+        (
+            "--build-arg KEY==",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY=="),
+        ),
     ],
 )
 def test_parse_args_for_dockerfile(extra_args, expected_result):
     if isinstance(expected_result, list):
-        assert mlrun.api.utils.builder._parse_args_for_dockerfile(extra_args) == expected_result
+        assert (
+            mlrun.api.utils.builder._parse_args_for_dockerfile(extra_args)
+            == expected_result
+        )
     else:
         with expected_result:
             mlrun.api.utils.builder._parse_args_for_dockerfile(extra_args)

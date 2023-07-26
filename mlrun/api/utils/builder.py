@@ -19,7 +19,6 @@ import textwrap
 import typing
 from base64 import b64decode, b64encode
 from collections import defaultdict
-from itertools import groupby
 from os import path
 from urllib.parse import urlparse
 
@@ -883,9 +882,6 @@ def validate_extra_args(extra_args: str):
                     f"Invalid arguments format: '{','.join(invalid_build_arg_values)}'."
                     " Please make sure all arguments are in a valid format"
                 )
-
-
-
 
 
 # def _parse_extra_args(extra_args: str) -> dict:

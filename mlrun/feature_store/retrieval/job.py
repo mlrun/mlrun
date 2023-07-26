@@ -46,7 +46,7 @@ def run_merge_job(
     if run_config.function:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"When passing `run_config` to `get_offline_features`, specifying"
-            f" the function parameter is not allowed.`\n {run_config}"
+            f" the `function` parameter of the `run_config` is not allowed."
         )
     name = vector.metadata.name
     if not target or not hasattr(target, "to_dict"):

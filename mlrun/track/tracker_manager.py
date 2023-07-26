@@ -16,6 +16,7 @@ from os import environ
 from typing import Type, Union
 
 from mlrun.execution import MLClientCtx
+from mlrun.utils import logger
 
 from .tracker import Tracker
 
@@ -30,6 +31,7 @@ class TrackerManager:
         :param tracker: The tracker class to add
         """
         self._trackers.append(tracker())
+        logger.debug(f"Added tracker: {tracker}")
 
     def clear_trackers(self):
         """

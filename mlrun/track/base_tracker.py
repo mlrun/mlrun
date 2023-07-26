@@ -16,44 +16,55 @@ import importlib
 from abc import abstractmethod
 
 import mlrun
+from mlrun.execution import MLClientCtx
 
 from ..utils import logger
 from .tracker import Tracker
 
 
 class BaseTracker(Tracker):
+    """
+    a base class for specific trackers, starts to implement class functions
+    """
+
+    # The module name this tracker will look for.
     TRACKED_MODULE_NAME = ...
 
     def __init__(self):
         super().__init__()
         self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
         self._run_track_kwargs = {}
+        # will add artifacts in mlrun format to here
         self._artifacts = {}
 
     @classmethod
     def is_enabled(cls) -> bool:
-        is_module_found = False
-        # Check for user configuration - defaulted to False if not configured:
-        if (
-            mlrun.mlconf.tracking.enabled
-            and getattr(mlrun.mlconf.tracking, cls.TRACKED_MODULE_NAME).mode
-            == "enabled"
-        ):
-            try:
-                # Check if the module is available - can be imported:
-                importlib.import_module(cls.TRACKED_MODULE_NAME)
+        # Check the tracker's configuration:
+        if getattr(mlrun.mlconf.tracking, cls.TRACKED_MODULE_NAME).mode != "enabled":
+            return False
 
-                is_module_found = True
-            except (ModuleNotFoundError, ImportError) as e:
-                logger.warning(
-                    f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but unable to import module "
-                    f"due to the following exception: {str(e)}"
-                )
+        # Check if the module to track is available in the interpreter:
+        try:
+            importlib.import_module(cls.TRACKED_MODULE_NAME)
+        except ModuleNotFoundError as module_not_found_error:
+            # The module is missing in the interpreter:
+            logger.warning(
+                f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but the module was not found  "
+                f"in the interpreter: {str(module_not_found_error)}"
+            )
+            return False
+        except ImportError as import_error:
+            # There was an error during the import of the module:
+            logger.warning(
+                f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but MLRun was unable to import the "
+                f"module due to the following error: {str(import_error)}"
+            )
+            return False
 
-        return is_module_found
+        return True
 
     @abstractmethod
-    def log_model(self, model_uri, context):
+    def log_model(self, model_uri: str, context: MLClientCtx):
         """
         zips model dir and logs it and all artifacts
         :param model_uri: uri of model to log
@@ -62,20 +73,21 @@ class BaseTracker(Tracker):
         pass
 
     @abstractmethod
-    def log_artifact(self, context, full_path, artifact):
+    def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
+        # todo add hint for TRACKED_MODULE_NAME artifact
         """
-        logs 3rd party artifacts, turns into mlrun artifacts and then stores them in list
+        logs 3rd party artifacts, turns into mlrun artifacts and then stores them in list to log with the model later
         :param context: run context in which we log the model
-        :param full_path:
-        :param artifact:
+        :param local_path: path to artifact to log
+        :param artifact:  artifact of module self.TRACKED_MODULE_NAME
         """
         pass
 
     @abstractmethod
-    def log_dataset(self, dataset_path, context):
+    def log_dataset(self, dataset_path: str, context: MLClientCtx):
         """
         zips model dir and logs it and all artifacts
-        :param model_uri: uri of model to log
+        :param dataset_path: dataset_path of dataset to log
         :param context: run context in which we log the model
         """
         pass

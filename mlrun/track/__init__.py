@@ -13,7 +13,8 @@
 # limitations under the License.
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from ..utils import logger
+import mlrun
+
 from .base_tracker import BaseTracker
 from .tracker import Tracker
 from .tracker_manager import TrackerManager
@@ -21,19 +22,21 @@ from .trackers import MLFlowTracker
 
 # Add a tracker to this list for it to be added into the global tracker manager:
 _AVAILABLE_TRACKERS = [MLFlowTracker]
-trackers_manager = TrackerManager()
+_TRACKERS_MANAGER = TrackerManager()
 
 
-def get_trackers_manager():
+def get_trackers_manager() -> TrackerManager:
     """
     Initialize a `TrackerManager`, looking for all relevant trackers and adds them to it if not empty
     :return: instance of TrackerManager with all relevant trackers
     """
-    global trackers_manager
-    if not len(trackers_manager.trackers):
-        #  Go over the available trackers list and add them to the manager:
+    global _TRACKERS_MANAGER
+    # check general config for tracking usage, if false we return an empty manager
+    if not mlrun.mlconf.tracking.enabled:
+        return _TRACKERS_MANAGER
+    # else, if manager is empty we add all relevant and enabled trackers
+    if not len(_TRACKERS_MANAGER.trackers):
         for tracker in _AVAILABLE_TRACKERS:
             if tracker.is_enabled():
-                logger.debug(f"Added tracker of type: {tracker}")
-                trackers_manager.add_tracker(tracker)
-    return trackers_manager
+                _TRACKERS_MANAGER.add_tracker(tracker)
+    return _TRACKERS_MANAGER

@@ -24,19 +24,17 @@ class Tracker(abc.ABC):
     in order to log 3rd party vendor's artifacts into MLRun
     """
 
-    # The name of the module to be tracked by this tracker:
-    TRACKED_MODULE_NAME = ...
-
     def __init__(self):
         self._tracked_platform = None  # assuming only one is being used every time
         self._client = None
 
+    @abc.abstractmethod
     def is_enabled(self):
         """
         Checks if tracker is enabled.
         :return: True if the feature is enabled, False otherwise.
         """
-        return True
+        pass
 
     @abc.abstractmethod
     def pre_run(self, context: MLClientCtx) -> dict:
@@ -45,6 +43,7 @@ class Tracker(abc.ABC):
         This function sets up the necessary components and resources to enable tracking of params, artifacts,
         or metrics within the module.
         :param context: current mlrun context
+
         :return: env containing environment data to log and track 3-rd party runs
         """
         pass

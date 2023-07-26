@@ -59,12 +59,10 @@ class MLFlowTracker(BaseTracker):
     def _apply_post_run_tasks(
         self,
         context: Union[MLClientCtx, dict],
-        experiment: str = None,
     ):
         """
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
         :param context: current mlrun context
-        :param experiment: name of experiment tracked
         """
         experiment_id = self.mlflow_experiment
         runs = self._client.search_runs(
@@ -83,7 +81,7 @@ class MLFlowTracker(BaseTracker):
             for run in runs:  # each run gets logged separately
                 self._log_run(context, run)
 
-    def _log_run(self, context, run):
+    def _log_run(self, context: MLClientCtx, run):
         """
         after mlrun function's run is done, copy all data logged by third party app tracker
         :param context: current mlrun context
@@ -117,7 +115,7 @@ class MLFlowTracker(BaseTracker):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
         tmp_dir = tempfile.TemporaryDirectory()
-        model_zip = f"{tmp_dir.name}model.zip"
+        model_zip = f"{tmp_dir.name}-model.zip"
         zip_folder(model_uri, model_zip)
         key = model_info.artifact_path
         inputs = outputs = None
@@ -151,19 +149,19 @@ class MLFlowTracker(BaseTracker):
         except Exception:
             tmp_dir.cleanup()
 
-    def log_artifact(self, context, full_path, artifact):
+    def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
         artifact = context.log_artifact(
             item=pathlib.Path(artifact.path).name.replace(".", "_"),
-            local_path=full_path,
+            local_path=local_path,
         )
         self._artifacts[artifact.key] = artifact
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         import mlflow
 
-        experiment = "mlflow_experiment"
         self._client = mlflow.MlflowClient()
-        self._apply_post_run_tasks(context=context, experiment=experiment)
+        self._apply_post_run_tasks(context=context)
 
+    # todo actually implement this
     def log_dataset(self, dataset_path, context):
         pass

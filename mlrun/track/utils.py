@@ -42,11 +42,12 @@ def zip_folder(folder_path: str, output_path: str):
                 zipf.write(file_path, os.path.relpath(file_path, folder_path))
 
 
-def schema_to_feature(schema, utils) -> list:
+def schema_to_feature(schema, utils) -> list:  # todo add hints here
     """
     changes the features from a scheme (usually tensor) to a list
     :param schema: features as made by mlflow
     :param utils: CommonUtils.convert_np_dtype_to_value_type, can't import here
+
     :return: list of features to log
     """
     is_tensor = schema.is_tensor_spec()

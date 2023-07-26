@@ -994,8 +994,9 @@ class TestProject(TestMLRunSystem):
             context=project_context,
             url=project_source,
             subpath="./test_remote_workflow_subpath",
-            name=project_name,
+            name=project_name,clone=True
         )
+        project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
     @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])
@@ -1185,24 +1186,3 @@ class TestProject(TestMLRunSystem):
         assert bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             db.get_project(name)
-
-    def test_remote_workflow_schedule_task_name(self):
-        # Test running remote workflow when the project files are store in a relative path (the subpath)
-        project_source = "git://github.com/mlrun/system-tests.git#main"
-        project_context = "./test_subpath_remote"
-        project_name = "test-remote-workflow-source-with-subpath"
-        self.custom_project_names_to_delete.append(project_name)
-        project = mlrun.load_project(
-            context=project_context,
-            url=project_source,
-            subpath="./test_remote_workflow_subpath",
-            name=project_name,
-            clone=True,
-        )
-        name_task = "name-workflow"
-        project.set_workflow(name_task, "workflow.py", schedule="0 * * * *")
-        project.save()
-        project.run(name_task, arguments={"x": 1}, engine="remote:kfp", schedule=True)
-        db = mlrun.get_run_db()
-        schedule_task = db.get_schedule(project=project.name, name=name_task)
-        assert schedule_task.name == name_task

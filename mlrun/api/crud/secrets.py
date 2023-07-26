@@ -543,7 +543,7 @@ def get_project_secret_provider(project: str) -> typing.Callable:
     :return: A secret provider function.
     """
 
-    def _secret_provider(key: str):
+    def secret_provider(key: str):
         return mlrun.api.crud.secrets.Secrets().get_project_secret(
             project=project,
             provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
@@ -551,4 +551,4 @@ def get_project_secret_provider(project: str) -> typing.Callable:
             secret_key=key,
         )
 
-    return _secret_provider
+    return secret_provider

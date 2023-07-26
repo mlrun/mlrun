@@ -621,3 +621,6 @@ class RunDBInterface(ABC):
         notifications: typing.List[mlrun.model.Notification],
     ):
         pass
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        pass

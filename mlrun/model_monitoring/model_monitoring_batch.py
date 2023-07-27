@@ -672,7 +672,7 @@ class BatchProcessor:
             )
 
             # Getting batch interval start time and end time
-            start_time, end_time = self._get_interval_range()
+            start_time, end_time = self._get_interval_range(endpoint)
 
             try:
                 df = m_fs.to_dataframe(
@@ -853,17 +853,31 @@ class BatchProcessor:
         )
 
     def _get_latest_analyzed_time(self, endpoint: dict) -> Optional[datetime.datetime]:
-        """Return the latest analyzed time (end)"""
+        """Return the latest analyzed time (end) if exists"""
         return self.db.get_model_endpoint(
             endpoint_id=endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.UID
             ]
         ).get(mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED)
 
-    def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+    def _get_interval_start_time(self, endpoint: dict) -> datetime.datetime:
+        """Return the start time. This time should always be in the past."""
+        latest_analyzed = self._get_latest_analyzed_time(endpoint)
+        if latest_analyzed:
+            start_time = latest_analyzed
+            logger.info("Found latest analyzed time {}", start_time)
+        else:
+            start_time = datetime.datetime.now() - self._interval_len
+            logger.info(
+                "No latest analyzed time was found, probably as this is the first run "
+                "of the batch monitoring job. Starting at {}", start_time
+            )
+        return start_time
+
+    def _get_interval_range(self, endpoint: dict) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
-        end_time = datetime.datetime.now()
-        start_time = end_time - self._interval_len
+        start_time = self._get_interval_start_time(endpoint)
+        end_time = start_time + self._interval_len
         return start_time, end_time
 
     def _update_drift_in_v3io_tsdb(

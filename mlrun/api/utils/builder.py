@@ -25,8 +25,6 @@ from urllib.parse import urlparse
 from kubernetes import client
 
 import mlrun.api.utils.singletons.k8s
-
-# import mlrun.api.crud
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
@@ -53,14 +51,14 @@ def make_dockerfile(
 
     builder_env = builder_env or []
     project_secrets = project_secrets or {}
-    extra_args = _parse_extra_args_for_dockerfile(extra_args) if extra_args else []
+    extra_args = _parse_extra_args_for_dockerfile(extra_args)
 
     # combine a list of all args (including builder_env, project_secrets and extra_args)
     # to add in each of the Dockerfile stages.
     all_args = (
-        [f"{env.name}" for env in builder_env]
-        + [f"{key}" for key, val in project_secrets.items()]
-        + [arg.split("=")[0] for arg in extra_args]
+        [f"{env.name}_ARG" for env in builder_env]
+        + [f"{arg}_ARG" for arg in project_secrets]
+        + [f"{arg}_ARG" for arg in extra_args]
     )
     args = ""
 
@@ -70,14 +68,13 @@ def make_dockerfile(
 
     envs = ""
     for env in builder_env:
-        envs += f"ENV {env.name}=${env.name}\n"
+        envs += f"ENV {env.name}=${env.name}_ARG\n"
 
-    for key, value in project_secrets.items():
-        envs += f"ENV {key}=${key}\n"
+    for env in project_secrets:
+        envs += f"ENV {env}=${env}_ARG\n"
 
     for env in extra_args:
-        key = env.split("=")[0]
-        envs += f"ENV {key}=${key}\n"
+        envs += f"ENV {env}=${env}_ARG\n"
     dock += envs
 
     if config.is_pip_ca_configured():
@@ -126,18 +123,6 @@ def make_dockerfile(
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
 
-    # Add all args including the project secrets and extra_args at the top of the dockerfile to define their values
-    args = ""
-    for env in builder_env:
-        args += f"ARG {env.name}={env.value}\n"
-
-    for key, value in project_secrets.items():
-        args += f"ARG {key}={value}\n"
-
-    for arg in extra_args:
-        args += f"ARG {arg}\n"
-
-    dock = args + dock
     return dock
 
 
@@ -213,17 +198,9 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
-    builder_env = builder_env or []
-    project_secrets = project_secrets or {}
-
-    for env in builder_env:
-        args += ["--build-arg", f"{env.name}={env.value}"]
-
-    for key, value in project_secrets.items():
-        args += ["--build-arg", f"{key}={value}"]
-
-    # add extra_args to args
-    args = _validate_and_merge_args_with_extra_args(args, extra_args)
+    args = _add_kaniko_args_with_all_build_args(
+        args, builder_env, project_secrets, extra_args
+    )
 
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
     # from finishing successfully (destructive), since we're not allowing to override the default
@@ -501,7 +478,11 @@ def build_image(
 
     provider = mlrun.common.schemas.SecretProviderName.kubernetes
     project_secrets = (
-        Secrets().list_project_secrets(project=project, provider=provider).secrets
+        Secrets()
+        .list_project_secrets(
+            project=project, provider=provider, allow_secrets_from_k8s=True
+        )
+        .secrets
     )
     validate_extra_args(extra_args)
 
@@ -794,8 +775,30 @@ def _generate_builder_env(
     return env
 
 
+def _add_kaniko_args_with_all_build_args(
+    args, builder_env, project_secrets, extra_args
+):
+
+    builder_env = builder_env or []
+    project_secrets = project_secrets or {}
+
+    for env in builder_env:
+        args.extend(["--build-arg", f"{env.name}_ARG={env.value}"])
+
+    for key, value in project_secrets.items():
+        args.extend(["--build-arg", f"{key}_ARG={value}"])
+
+    # add extra_args to args
+    args = _validate_and_merge_args_with_extra_args(args, extra_args)
+
+    return args
+
+
 def _parse_extra_args_for_dockerfile(extra_args: str) -> list:
-    build_arg_values = []
+    if not extra_args:
+        return {}
+
+    build_arg_values = {}
     is_build_arg = False
 
     for arg in extra_args.split():
@@ -804,9 +807,14 @@ def _parse_extra_args_for_dockerfile(extra_args: str) -> list:
         elif arg.startswith("--"):
             is_build_arg = False
         elif is_build_arg:
+            # Ensure 'arg' is in a valid format: starts with a letter or underscore,
+            # followed by alphanumerics and an equal sign
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=[^=]+$", arg):
                 raise ValueError(f"Invalid --build-arg value: {arg}")
-            build_arg_values.append(arg)
+            key, val = arg.split("=")
+            build_arg_values[key] = val
+        else:
+            is_build_arg = False
 
     return build_arg_values
 
@@ -852,6 +860,8 @@ def _resolve_build_requirements(
 
 
 def _parse_extra_args(extra_args: str) -> dict:
+    if not extra_args:
+        return {}
     extra_args = extra_args.split()
     args = defaultdict(list)
 
@@ -872,6 +882,8 @@ def validate_extra_args(extra_args: str):
 
     :raises ValueError: If the extra_args sequence is invalid or contains incorrectly formatted '--build-arg' values.
     """
+    if not extra_args:
+        return
 
     if not extra_args.startswith("--"):
         raise ValueError(
@@ -905,7 +917,8 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
 
     :raises ValueError: If an arg in 'extra_args' is duplicated with different values then in the 'args'.
     """
-
+    if not extra_args:
+        return args
     extra_args = _parse_extra_args(extra_args)
     # Create a set to store the keys from the --build-arg flags in args
     build_arg_keys = {
@@ -923,8 +936,9 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
         if flag == "--build-arg":
             for value in values:
                 key, val = value.split("=")
+                key = f"{key}_ARG"
                 if key not in build_arg_keys:
-                    merged_args.extend([flag, value])
+                    merged_args.extend([flag, f"{key}={val}"])
                     build_arg_keys[key] = val
                 else:
                     if build_arg_keys[key] != val:

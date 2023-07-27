@@ -811,6 +811,9 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     )
     dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
     dockerfile_lines = dockerfile.splitlines()
+    dockerfile_lines = [
+        line for line in list(dockerfile_lines) if not line.startswith(("ARG", "ENV"))
+    ]
     expected_workdir_re = re.compile(expected_workdir)
     assert expected_workdir_re.match(dockerfile_lines[1])
 
@@ -851,6 +854,11 @@ def test_builder_source(monkeypatch, source, expectation):
 
         dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         dockerfile_lines = dockerfile.splitlines()
+        dockerfile_lines = [
+            line
+            for line in list(dockerfile_lines)
+            if not line.startswith(("ARG", "ENV"))
+        ]
 
         expected_source = source
         if "://" in source:
@@ -860,7 +868,7 @@ def test_builder_source(monkeypatch, source, expectation):
             expected_output_re = re.compile(
                 rf"COPY {expected_source} .*/tmp.*/mlrun/source"
             )
-            expected_line_index = 4
+            expected_line_index = 3
 
         else:
             expected_output_re = re.compile(rf"ADD {expected_source} .*/tmp.*/mlrun")
@@ -995,7 +1003,7 @@ def _mock_default_service_account(monkeypatch, service_account):
 
 
 @pytest.mark.parametrize(
-    "builder_env,source,commands,project_secrets,extra_args,expected_args,expected_in_stage",
+    "builder_env,source,commands,project_secrets,extra_args,expected_in_stage",
     [
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
@@ -1003,16 +1011,15 @@ def _mock_default_service_account(monkeypatch, service_account):
             ["git+https://${GIT_TOKEN}@github.com/GiladShapira94/new-mlrun.git}"],
             {"SECRET": "secret"},
             "--build-arg A=b C=d --test",
-            ["ARG GIT_TOKEN=blakjhuy", "ARG SECRET=secret", "ARG A=b", "ARG C=d"],
             [
-                "ARG GIT_TOKEN",
-                "ARG SECRET",
-                "ARG A",
-                "ARG C",
-                "ENV GIT_TOKEN=$GIT_TOKEN",
-                "ENV SECRET=$SECRET",
-                "ENV A=$A",
-                "ENV C=$C",
+                "ARG GIT_TOKEN_ARG",
+                "ARG SECRET_ARG",
+                "ARG A_ARG",
+                "ARG C_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ENV SECRET=$SECRET_ARG",
+                "ENV A=$A_ARG",
+                "ENV C=$C_ARG",
             ],
         ),
         (
@@ -1021,14 +1028,13 @@ def _mock_default_service_account(monkeypatch, service_account):
             ["echo bla"],
             {"SECRET": "secret", "ANOTHER": "secret"},
             [],
-            ["ARG GIT_TOKEN=blakjhuy", "ARG SECRET=secret", "ARG ANOTHER=secret"],
             [
-                "ARG GIT_TOKEN",
-                "ARG SECRET",
-                "ARG ANOTHER",
-                "ENV GIT_TOKEN=$GIT_TOKEN",
-                "ENV SECRET=$SECRET",
-                "ENV ANOTHER=$ANOTHER",
+                "ARG GIT_TOKEN_ARG",
+                "ARG SECRET_ARG",
+                "ARG ANOTHER_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ENV SECRET=$SECRET_ARG",
+                "ENV ANOTHER=$ANOTHER_ARG",
             ],
         ),
         (
@@ -1040,10 +1046,14 @@ def _mock_default_service_account(monkeypatch, service_account):
             [],
             {},
             [],
-            ["ARG GIT_TOKEN=jfksjnflsfnhg", "ARG Test=test"],
-            ["ARG GIT_TOKEN", "ARG Test", "ENV GIT_TOKEN=$GIT_TOKEN", "ENV Test=$Test"],
+            [
+                "ARG GIT_TOKEN_ARG",
+                "ARG Test_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ENV Test=$Test_ARG",
+            ],
         ),
-        (None, "source.zip", [], None, "", "", []),
+        (None, "source.zip", [], None, "", []),
     ],
 )
 def test_make_dockerfile_with_build_and_extra_args(
@@ -1052,7 +1062,6 @@ def test_make_dockerfile_with_build_and_extra_args(
     commands,
     project_secrets,
     extra_args,
-    expected_args,
     expected_in_stage,
 ):
     dock = mlrun.api.utils.builder.make_dockerfile(
@@ -1063,8 +1072,6 @@ def test_make_dockerfile_with_build_and_extra_args(
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
-    # Check the resulted Dockerfile starts with the expected ARG lines
-    assert dock.startswith("\n".join(expected_args))
 
     # Check that the ARGS and ENV vars are declared in each stage of the Dockerfile
     pattern = r"^FROM.*$"
@@ -1091,7 +1098,7 @@ def test_make_dockerfile_with_build_and_extra_args(
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")],
             "--build-arg test1=val1",
-            ["test1=val1"],
+            ["test1_ARG=val1"],
         ),
         ([], "", []),
         (
@@ -1100,7 +1107,7 @@ def test_make_dockerfile_with_build_and_extra_args(
                 client.V1EnvVar(name="TEST", value="test"),
             ],
             "--build-arg a=b c=d",
-            ["a=b", "c=d"],
+            ["a_ARG=b", "c_ARG=d"],
         ),
     ],
 )
@@ -1120,8 +1127,11 @@ def test_make_kaniko_pod_command_using_build_args(
             extra_args=extra_args,
         )
 
-    expected_env_vars = [f"{env_var.name}={env_var.value}" for env_var in builder_env]
-    expected_env_vars.extend(parsed_extra_args)
+    expected_env_vars = [
+        f"{env_var.name}_ARG={env_var.value}" for env_var in builder_env
+    ]
+    if extra_args:
+        expected_env_vars.extend(parsed_extra_args)
     args = kpod.args
     actual_env_vars = [
         args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
@@ -1206,9 +1216,9 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg2",
                 "value2",
                 "--build-arg",
-                "KEY1=VALUE1",
+                "KEY1_ARG=VALUE1",
                 "--build-arg",
-                "KEY2=VALUE2",
+                "KEY2_ARG=VALUE2",
             ],
         ),
         (
@@ -1219,9 +1229,9 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg2",
                 "value2",
                 "--build-arg",
-                "KEY1=VALUE1",
+                "KEY1_ARG=VALUE1",
                 "--build-arg",
-                "KEY2=new_value2",
+                "KEY2_ARG=new_value2",
             ],
         ),
         (
@@ -1231,25 +1241,31 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg1",
                 "value1",
                 "--build-arg",
-                "KEY1=VALUE1",
+                "KEY1_ARG=VALUE1",
                 "--build-arg",
-                "KEY2=VALUE2",
+                "KEY2_ARG=VALUE2",
             ],
         ),
         (
-            ["--arg1", "--build-arg", "KEY1=VALUE1"],
+            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
             "--build-arg KEY2=VALUE2",
-            ["--arg1", "--build-arg", "KEY1=VALUE1", "--build-arg", "KEY2=VALUE2"],
+            [
+                "--arg1",
+                "--build-arg",
+                "KEY1_ARG=VALUE1",
+                "--build-arg",
+                "KEY2_ARG=VALUE2",
+            ],
         ),
         (
             [],
             "--build-arg KEY1=VALUE1",
-            ["--build-arg", "KEY1=VALUE1"],
+            ["--build-arg", "KEY1_ARG=VALUE1"],
         ),
         (
             ["--arg1"],
             "--build-arg KEY1=VALUE1",
-            ["--arg1", "--build-arg", "KEY1=VALUE1"],
+            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
         ),
         (
             [],
@@ -1271,13 +1287,16 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
     "extra_args, expected_result",
     [
         # Test cases with valid --build-arg values
-        ("--build-arg KEY=VALUE --skip-tls-verify", ["KEY=VALUE"]),
+        ("--build-arg KEY=VALUE --skip-tls-verify", {"KEY": "VALUE"}),
         (
             "--build-arg KEY=VALUE --build-arg ANOTHER=123 --context context",
-            ["KEY=VALUE", "ANOTHER=123"],
+            {"KEY": "VALUE", "ANOTHER": "123"},
         ),
-        ("--build-arg name=Name30", ["name=Name30"]),
-        ("--build-arg _var=value1 --build-arg var2=val2", ["_var=value1", "var2=val2"]),
+        ("--build-arg name=Name30", {"name": "Name30"}),
+        (
+            "--build-arg _var=value1 --build-arg var2=val2",
+            {"_var": "value1", "var2": "val2"},
+        ),
         # Test cases with invalid --build-arg values
         (
             "--build-arg KEY",
@@ -1310,7 +1329,7 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
     ],
 )
 def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
-    if isinstance(expected_result, list):
+    if isinstance(expected_result, dict):
         assert (
             mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
             == expected_result

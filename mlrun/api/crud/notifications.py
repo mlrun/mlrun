@@ -34,13 +34,18 @@ class Notifications(
         notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
+        mask_params: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
-        notification_objects_to_store = (
-            mlrun.api.api.utils.validate_and_mask_notification_list(
-                notification_objects, run_uid, project
+
+        # we don't mask the notification params when it's a status update as they are already masked
+        notification_objects_to_store = notification_objects
+        if mask_params:
+            notification_objects_to_store = (
+                mlrun.api.api.utils.validate_and_mask_notification_list(
+                    notification_objects, run_uid, project
+                )
             )
-        )
 
         mlrun.api.utils.singletons.db.get_db().store_run_notifications(
             session, notification_objects_to_store, run_uid, project

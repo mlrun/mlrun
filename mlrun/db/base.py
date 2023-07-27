@@ -622,5 +622,14 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        pass
+
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass

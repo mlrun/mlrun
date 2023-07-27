@@ -36,7 +36,7 @@ router = fastapi.APIRouter()
     "/files",
     deprecated=True,
     description="'files' and 'filestat' will be removed in 1.7.0, "
-    "use /projects/{project}/files instead",
+    "use /projects/{project}/files instead.",
 )
 def get_files(
     schema: str = "",

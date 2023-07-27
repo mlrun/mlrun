@@ -43,19 +43,23 @@ def make_dockerfile(
     requirements_path: str = None,
     workdir: str = "/mlrun",
     extra: str = "",
-    extra_args: str = "",
     user_unix_id: int = None,
     enriched_group_id: int = None,
     builder_env: typing.List[client.V1EnvVar] = None,
     project_secrets: dict = None,
+    extra_args: str = "",
 ):
     dock = f"FROM {base_image}\n"
 
     builder_env = builder_env or []
     project_secrets = project_secrets or {}
-    all_args = [f"{env.name}" for env in builder_env] + [
-        f"{key}" for key, val in project_secrets.items()
-    ]
+    extra_args = _parse_extra_args_for_dockerfile(extra_args) if extra_args else []
+
+    all_args = (
+        [f"{env.name}" for env in builder_env]
+        + [f"{key}" for key, val in project_secrets.items()]
+        + [arg.split("=")[0] for arg in extra_args]
+    )
     args = ""
 
     for arg in all_args:
@@ -67,6 +71,10 @@ def make_dockerfile(
         envs += f"ENV {env.name}=${env.name}\n"
 
     for key, value in project_secrets.items():
+        envs += f"ENV {key}=${key}\n"
+
+    for env in extra_args:
+        key = env.split("=")[0]
         envs += f"ENV {key}=${key}\n"
     dock += envs
 
@@ -116,13 +124,16 @@ def make_dockerfile(
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
 
-    # Add all args including the project secrets at the top of the dockerfile
+    # Add all args including the project secrets and extra_args at the top of the dockerfile
     args = ""
     for env in builder_env:
         args += f"ARG {env.name}={env.value}\n"
 
     for key, value in project_secrets.items():
         args += f"ARG {key}={value}\n"
+
+    for arg in extra_args:
+        args += f"ARG {arg}\n"
 
     dock = args + dock
     return dock
@@ -489,6 +500,7 @@ def build_image(
     project_secrets = (
         Secrets().list_project_secrets(project=project, provider=provider).secrets
     )
+    validate_extra_args(extra_args)
 
     dock = make_dockerfile(
         base_image,
@@ -496,12 +508,12 @@ def build_image(
         source=source_to_copy,
         requirements_path=requirements_path,
         extra=extra,
-        extra_args=extra_args,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
         workdir=runtime.spec.clone_target_dir,
         builder_env=builder_env,
         project_secrets=project_secrets,
+        extra_args=extra_args,
     )
 
     kpod = make_kaniko_pod(
@@ -779,13 +791,15 @@ def _generate_builder_env(
     return env
 
 
-def _parse_args_for_dockerfile(extra_args):
+def _parse_extra_args_for_dockerfile(extra_args: str) -> list:
     build_arg_values = []
     is_build_arg = False
 
     for arg in extra_args.split():
         if arg == "--build-arg":
             is_build_arg = True
+        elif arg.startswith("--"):
+            is_build_arg = False
         elif is_build_arg:
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=[^=]+$", arg):
                 raise ValueError(f"Invalid --build-arg value: {arg}")
@@ -882,42 +896,6 @@ def validate_extra_args(extra_args: str):
                     f"Invalid arguments format: '{','.join(invalid_build_arg_values)}'."
                     " Please make sure all arguments are in a valid format"
                 )
-
-
-# def _parse_extra_args(extra_args: str) -> dict:
-#     extra_args_list = extra_args.split()
-#     args = defaultdict(list)
-#
-#     for is_flag, group in groupby(extra_args_list, lambda x: x.startswith("--")):
-#         if is_flag:
-#             current_flag = next(group)
-#             args[current_flag]
-#         elif current_flag is not None:
-#             args[current_flag].extend(group)
-#
-#     return args
-
-
-# def _parse_extra_args(extra_args: str) -> dict:
-#     extra_args = extra_args.split()
-#     args = {}
-#
-#     current_flag = ""
-#     previous_flag = ""
-#
-#     for arg in extra_args:
-#         if arg.startswith("--"):
-#             previous_flag = current_flag
-#             current_flag = arg
-#             if not current_flag in args:
-#                 args[current_flag] = []
-#         else:
-#             if current_flag != previous_flag:
-#                 args[current_flag].append([])
-#             args[current_flag][-1].append(arg)
-#             previous_flag = current_flag
-#
-#     return args
 
 
 def _validate_and_merge_args_with_extra_args(args, extra_args):

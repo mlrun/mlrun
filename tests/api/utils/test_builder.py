@@ -995,34 +995,65 @@ def _mock_default_service_account(monkeypatch, service_account):
 
 
 @pytest.mark.parametrize(
-    "builder_env,source,commands,project_secrets",
+    "builder_env,source,commands,project_secrets,extra_args,expected_args,expected_in_stage",
     [
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
             None,
             ["git+https://${GIT_TOKEN}@github.com/GiladShapira94/new-mlrun.git}"],
             {"SECRET": "secret"},
+            "--build-arg A=b C=d --test",
+            ["ARG GIT_TOKEN=blakjhuy", "ARG SECRET=secret", "ARG A=b", "ARG C=d"],
+            [
+                "ARG GIT_TOKEN",
+                "ARG SECRET",
+                "ARG A",
+                "ARG C",
+                "ENV GIT_TOKEN=$GIT_TOKEN",
+                "ENV SECRET=$SECRET",
+                "ENV A=$A",
+                "ENV C=$C",
+            ],
         ),
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
             "source.zip",
             ["echo bla"],
             {"SECRET": "secret", "ANOTHER": "secret"},
+            [],
+            ["ARG GIT_TOKEN=blakjhuy", "ARG SECRET=secret", "ARG ANOTHER=secret"],
+            [
+                "ARG GIT_TOKEN",
+                "ARG SECRET",
+                "ARG ANOTHER",
+                "ENV GIT_TOKEN=$GIT_TOKEN",
+                "ENV SECRET=$SECRET",
+                "ENV ANOTHER=$ANOTHER",
+            ],
         ),
         (
             [
                 client.V1EnvVar(name="GIT_TOKEN", value="jfksjnflsfnhg"),
-                client.V1EnvVar(name="TEST", value="test"),
+                client.V1EnvVar(name="Test", value="test"),
             ],
             "source.zip",
             [],
             {},
+            [],
+            ["ARG GIT_TOKEN=jfksjnflsfnhg", "ARG Test=test"],
+            ["ARG GIT_TOKEN", "ARG Test", "ENV GIT_TOKEN=$GIT_TOKEN", "ENV Test=$Test"],
         ),
-        (None, "source.zip", [], None),
+        (None, "source.zip", [], None, "", "", []),
     ],
 )
-def test_make_dockerfile_with_build_args(
-    builder_env, source, commands, project_secrets
+def test_make_dockerfile_with_build_and_extra_args(
+    builder_env,
+    source,
+    commands,
+    project_secrets,
+    extra_args,
+    expected_args,
+    expected_in_stage,
 ):
     dock = mlrun.api.utils.builder.make_dockerfile(
         base_image="mlrun/mlrun",
@@ -1030,22 +1061,12 @@ def test_make_dockerfile_with_build_args(
         source=source,
         commands=commands,
         project_secrets=project_secrets,
+        extra_args=extra_args,
     )
-    print(dock)
-    builder_env = builder_env or []
-    project_secrets = project_secrets or {}
     # Check the resulted Dockerfile starts with the expected ARG lines
-    expected_args = [f"ARG {env.name}={env.value}" for env in builder_env] + [
-        f"ARG {key}={value}" for key, value in project_secrets.items()
-    ]
     assert dock.startswith("\n".join(expected_args))
 
     # Check that the ARGS and ENV vars are declared in each stage of the Dockerfile
-    expected_in_stage = (
-        [f"ARG {env.name}" for env in builder_env]
-        + [f"ARG {key}" for key in project_secrets]
-        + [f"ENV {env.name}=${env.name}" for env in builder_env]
-    )
     pattern = r"^FROM.*$"
     lines = dock.strip().split("\n")
     lines = [line.strip() for line in lines]
@@ -1056,19 +1077,36 @@ def test_make_dockerfile_with_build_args(
 
 
 @pytest.mark.parametrize(
-    "builder_env",
+    "builder_env,extra_args,parsed_extra_args",
     [
-        ([client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")]),
+        ([client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")], "", []),
         (
             [
-                client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy"),
+                client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i"),
                 client.V1EnvVar(name="TEST", value="test"),
-            ]
+            ],
+            "",
+            [],
         ),
-        ([]),
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")],
+            "--build-arg test1=val1",
+            ["test1=val1"],
+        ),
+        ([], "", []),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i"),
+                client.V1EnvVar(name="TEST", value="test"),
+            ],
+            "--build-arg a=b c=d",
+            ["a=b", "c=d"],
+        ),
     ],
 )
-def test_make_kaniko_pod_command_using_build_args(builder_env):
+def test_make_kaniko_pod_command_using_build_args(
+    builder_env, extra_args, parsed_extra_args
+):
     with unittest.mock.patch(
         "mlrun.api.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
@@ -1079,9 +1117,11 @@ def test_make_kaniko_pod_command_using_build_args(builder_env):
             dest="docker-hub/",
             dockerfile="./Dockerfile",
             builder_env=builder_env,
+            extra_args=extra_args,
         )
 
     expected_env_vars = [f"{env_var.name}={env_var.value}" for env_var in builder_env]
+    expected_env_vars.extend(parsed_extra_args)
     args = kpod.args
     actual_env_vars = [
         args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
@@ -1129,7 +1169,8 @@ def test_parse_extra_args(extra_args, expected_result):
             "--build-arg KEY=VALUE invalid_argument",
             pytest.raises(
                 ValueError,
-                match="Invalid arguments format: 'invalid_argument'. Please make sure all arguments are in a valid format",
+                match="Invalid arguments format: 'invalid_argument'."
+                " Please make sure all arguments are in a valid format",
             ),
         ),
         (
@@ -1232,7 +1273,7 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
         # Test cases with valid --build-arg values
         ("--build-arg KEY=VALUE", ["KEY=VALUE"]),
         ("--build-arg KEY=VALUE --build-arg ANOTHER=123", ["KEY=VALUE", "ANOTHER=123"]),
-        ("--build-arg name=John_age=30", ["name=John_age=30"]),
+        ("--build-arg name=Name30", ["name=Name30"]),
         ("--build-arg _var=value1 --build-arg var2=val2", ["_var=value1", "var2=val2"]),
         # Test cases with invalid --build-arg values
         (
@@ -1252,17 +1293,25 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
             pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY==VALUE"),
         ),
         (
-            "--build-arg KEY==",
-            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY=="),
+            "--build-arg KEY=name=Name",
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: KEY=name=Name"
+            ),
+        ),
+        (
+            "--build-arg VALID=valid --build-arg invalid=inv=alid",
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: invalid=inv=alid"
+            ),
         ),
     ],
 )
-def test_parse_args_for_dockerfile(extra_args, expected_result):
+def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
     if isinstance(expected_result, list):
         assert (
-            mlrun.api.utils.builder._parse_args_for_dockerfile(extra_args)
+            mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
             == expected_result
         )
     else:
         with expected_result:
-            mlrun.api.utils.builder._parse_args_for_dockerfile(extra_args)
+            mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)

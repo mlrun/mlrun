@@ -95,7 +95,7 @@ def make_dockerfile(
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
             source_dir = os.path.join(workdir, "source")
-            stage1_lines = [
+            stage_lines = [
                 f"FROM {base_image} AS extractor",
                 f"{args}",
                 f"{envs}",
@@ -104,8 +104,8 @@ def make_dockerfile(
                 f"COPY {source} {source_dir}",
                 f"RUN cd {source_dir} && unzip {source} && rm {source}",
             ]
-            stage1 = textwrap.dedent("\n".join(stage1_lines)).strip()
-            dock = stage1 + "\n" + dock
+            stage = textwrap.dedent("\n".join(stage_lines)).strip()
+            dock = stage + "\n" + dock
 
             dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
         else:
@@ -807,8 +807,6 @@ def _parse_extra_args_for_dockerfile(extra_args: str) -> list:
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=[^=]+$", arg):
                 raise ValueError(f"Invalid --build-arg value: {arg}")
             build_arg_values.append(arg)
-        else:
-            is_build_arg = False
 
     return build_arg_values
 

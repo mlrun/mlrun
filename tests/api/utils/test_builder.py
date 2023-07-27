@@ -1271,8 +1271,11 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
     "extra_args, expected_result",
     [
         # Test cases with valid --build-arg values
-        ("--build-arg KEY=VALUE", ["KEY=VALUE"]),
-        ("--build-arg KEY=VALUE --build-arg ANOTHER=123", ["KEY=VALUE", "ANOTHER=123"]),
+        ("--build-arg KEY=VALUE --skip-tls-verify", ["KEY=VALUE"]),
+        (
+            "--build-arg KEY=VALUE --build-arg ANOTHER=123 --context context",
+            ["KEY=VALUE", "ANOTHER=123"],
+        ),
         ("--build-arg name=Name30", ["name=Name30"]),
         ("--build-arg _var=value1 --build-arg var2=val2", ["_var=value1", "var2=val2"]),
         # Test cases with invalid --build-arg values

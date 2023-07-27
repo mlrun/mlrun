@@ -55,6 +55,8 @@ def make_dockerfile(
     project_secrets = project_secrets or {}
     extra_args = _parse_extra_args_for_dockerfile(extra_args) if extra_args else []
 
+    # combine a list of all args (including builder_env, project_secrets and extra_args)
+    # to add in each of the Dockerfile stages.
     all_args = (
         [f"{env.name}" for env in builder_env]
         + [f"{key}" for key, val in project_secrets.items()]
@@ -124,7 +126,7 @@ def make_dockerfile(
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
 
-    # Add all args including the project secrets and extra_args at the top of the dockerfile
+    # Add all args including the project secrets and extra_args at the top of the dockerfile to define their values
     args = ""
     for env in builder_env:
         args += f"ARG {env.name}={env.value}\n"
@@ -220,6 +222,7 @@ def make_kaniko_pod(
     for key, value in project_secrets.items():
         args += ["--build-arg", f"{key}={value}"]
 
+    # add extra_args to args
     args = _validate_and_merge_args_with_extra_args(args, extra_args)
 
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
@@ -867,14 +870,11 @@ def validate_extra_args(extra_args: str):
     """
      Validate extra_args string for Docker commands:
     - Ensure --build-arg is followed by a non-flag argument.
-    - Validate all --build-arg values as 'KEY=VALUE'.
+    - Validate all --build-arg values are in a valid format of 'KEY=VALUE' using allowed characters only.
 
-    Parameters:
-        extra_args (str): The string containing extra arguments.Ï
-
-    Returns:
-        bool: True if the extra_args is valid, False otherwise.
+    :raises ValueError: If the extra_args sequence is invalid or contains incorrectly formatted '--build-arg' values.
     """
+
     if not extra_args.startswith("--"):
         raise ValueError(
             "Invalid argument sequence. Value must be followed by a flag preceding it."
@@ -898,7 +898,16 @@ def validate_extra_args(extra_args: str):
                 )
 
 
-def _validate_and_merge_args_with_extra_args(args, extra_args):
+def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> list:
+    """
+    Validate and merge the given args and extra_args for Kaniko pod.
+
+    :return: A merged list of strings containing the command-line arguments
+             from 'args' and 'extra_args' in args format.
+
+    :raises ValueError: If an arg in 'extra_args' is duplicated with different values then in the 'args'.
+    """
+
     extra_args = _parse_extra_args(extra_args)
     # Create a set to store the keys from the --build-arg flags in args
     build_arg_keys = {

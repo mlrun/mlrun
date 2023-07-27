@@ -2343,6 +2343,26 @@ class MlrunProject(ModelObj):
         workflow_engine = get_workflow_engine(workflow_spec.engine)
         workflow_engine.save(self, workflow_spec, target, artifact_path=artifact_path)
 
+    def get_run_status(
+        self,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: CustomNotificationPusher = None,
+    ):
+        warnings.warn(
+            "This is deprecated in 1.3.0, and will be removed in 1.6.0. "
+            "Use `timeout` parameter in `project.run()` method instead",
+            FutureWarning,
+        )
+        return run._engine.get_run_status(
+            project=self,
+            run=run,
+            timeout=timeout,
+            expected_statuses=expected_statuses,
+            notifiers=notifiers,
+        )
+
     # TODO: remove in 1.6.0
     @deprecated(
         version="1.4.0",

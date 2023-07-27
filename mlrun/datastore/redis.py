@@ -35,7 +35,7 @@ class RedisStore(DataStore):
 
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url
         if schema == "ds":
-            datastore_profile = datastore_profile_read(name, secrets)
+            datastore_profile = datastore_profile_read(name)
             self._redis_url = datastore_profile.url_with_credentials()
             self.secure = datastore_profile.is_secured()
         else:

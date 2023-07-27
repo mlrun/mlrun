@@ -28,7 +28,7 @@ import mlrun.common.schemas
 router = APIRouter()
 
 
-@router.post(
+@router.put(
     path="/projects/{project_name}/datastore_profiles",
 )
 async def store_datastore_profile(

@@ -625,10 +625,22 @@ class RunDBInterface(ABC):
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
 
-    @abstractmethod
-    def get_datastore_profile(self, decorated_profile_name: str):
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
         pass
 
-    @abstractmethod
-    def store_datastore_profile(self, decorated_profile_name: str, public_info: str):
+    def delete_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
         pass

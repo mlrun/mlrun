@@ -46,7 +46,7 @@ def _create_project(client: TestClient, project_name: str = project):
 
 def test_datastore_profile_create_ok(db: Session, client: TestClient):
     _create_project(client)
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore),
     )
@@ -63,14 +63,14 @@ def test_datastore_profile_create_ok(db: Session, client: TestClient):
 
 def test_datastore_profile_update_ok(db: Session, client: TestClient):
     _create_project(client)
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore),
     )
     assert resp.status_code == HTTPStatus.OK.value
     datastore_updated = datastore
     datastore_updated["body"] = "another version of body"
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore_updated),
     )
@@ -87,7 +87,7 @@ def test_datastore_profile_update_ok(db: Session, client: TestClient):
 
 def test_datastore_profile_create_fail(db: Session, client: TestClient):
     # No project created
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore),
     )
@@ -95,7 +95,7 @@ def test_datastore_profile_create_fail(db: Session, client: TestClient):
 
     # Empty data
     _create_project(client)
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data={},
     )
@@ -111,7 +111,7 @@ def test_datastore_profile_get_fail(db: Session, client: TestClient):
 
     # Not existing profile
     _create_project(client)
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data={},
     )
@@ -121,13 +121,15 @@ def test_datastore_profile_get_fail(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
-def test_datastore_profile_delete(db: Session, client: TestClient):
+def test_datastore_profile_delete_wrong_project(db: Session, client: TestClient):
     # No project created
     resp = client.delete(
         api_datastore_path.format(project=project) + "/" + datastore["name"],
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
+
+def test_datastore_profile_delete_not_exist(db: Session, client: TestClient):
     # Not existing profile
     _create_project(client)
     resp = client.delete(
@@ -135,8 +137,13 @@ def test_datastore_profile_delete(db: Session, client: TestClient):
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
+
+def test_datastore_profile_delete(db: Session, client: TestClient):
+    # Not existing profile
+    _create_project(client)
+
     # Create the profile
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore),
     )
@@ -177,7 +184,7 @@ def test_datastore_profile_list(db: Session, client: TestClient):
     assert json.loads(resp._content) == []
 
     # Create the profile
-    resp = client.post(
+    resp = client.put(
         api_datastore_path.format(project=project),
         data=json.dumps(datastore),
     )

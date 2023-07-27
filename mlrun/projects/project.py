@@ -3032,7 +3032,7 @@ class MlrunProject(ModelObj):
         )
 
     def register_datastore_profile(self, profile: DatastoreProfile):
-        project_ds_name_private = mlrun.api.crud.DatastoreProfiles.generate_secret_key(
+        project_ds_name_private = DatastoreProfile.generate_secret_key(
             profile.name, self.name
         )
         private_body = DatastoreProfile2Json.get_json_private(profile)

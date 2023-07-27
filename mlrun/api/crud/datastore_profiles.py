@@ -19,11 +19,9 @@ import sqlalchemy.orm
 import mlrun.api.api.utils
 import mlrun.api.utils.singletons.db
 import mlrun.utils.singleton
+from mlrun.datastore.datastore_profile import DatastoreProfile as dsp
 
-from .secrets import Secrets, SecretsClientType
-
-# Using a complex separator, as it's less likely someone will use it in a real secret name
-secret_name_separator = "-__-"
+from .secrets import Secrets
 
 
 class DatastoreProfiles(
@@ -36,11 +34,6 @@ class DatastoreProfiles(
             k8s_helper is not None and k8s_helper.is_running_inside_kubernetes_cluster()
         )
 
-    @staticmethod
-    def generate_secret_key(profile_name: str, project: str):
-        full_key = project + secret_name_separator + profile_name
-        return SecretsClientType.datastore_profiles + full_key
-
     def _store_secret(self, project, profile_name, profile_secret_json):
         if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -48,7 +41,7 @@ class DatastoreProfiles(
             )
 
         adjusted_secret = {
-            self.generate_secret_key(profile_name, project): profile_secret_json
+            dsp.generate_secret_key(profile_name, project): profile_secret_json
         }
 
         Secrets().store_project_secrets(
@@ -66,7 +59,7 @@ class DatastoreProfiles(
                 "MLRun is not configured with k8s, hub source credentials cannot be stored securely"
             )
 
-        adjusted_secret = self._generate_secret_key(profile_name, project)
+        adjusted_secret = dsp.generate_secret_key(profile_name, project)
 
         Secrets().delete_project_secret(
             project,

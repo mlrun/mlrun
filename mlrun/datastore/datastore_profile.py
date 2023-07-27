@@ -43,6 +43,18 @@ class DatastoreProfile(pydantic.BaseModel):
     def lower_case(cls, v):
         return v.lower()
 
+    @staticmethod
+    def generate_secret_key(profile_name: str, project: str):
+        secret_name_separator = "-__-"
+        full_key = (
+            "datastore-profiles"
+            + secret_name_separator
+            + project
+            + secret_name_separator
+            + profile_name
+        )
+        return full_key
+
 
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
@@ -59,11 +71,16 @@ class DatastoreProfileRedis(DatastoreProfile):
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
-        if self.username.get() and self.password.get():
+        if (
+            self.username
+            and self.username.get()
+            and self.password
+            and self.password.get()
+        ):
             netloc = (
                 f"{self.username.get()}:{self.password.get()}@{parsed_url.hostname}"
             )
-        elif self.username.get():
+        elif self.username and self.username.get():
             netloc = f"{self.username.get()}@{parsed_url.hostname}"
         else:
             netloc = parsed_url.hostname
@@ -112,11 +129,16 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         decoded_dict = {
             k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()
         }
-        if decoded_dict["type"] == "redis":
+        datastore_type = decoded_dict.get("type")
+        if datastore_type == "redis":
             return DatastoreProfileRedis.parse_obj(decoded_dict)
         else:
+            if datastore_type:
+                reason = f"unexpected type '{decoded_dict['type']}'"
+            else:
+                reason = "missing type"
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Datastore profie failed to create from json: Unexpected or missing type"
+                f"Datastore profile failed to create from json due to {reason}"
             )
 
 
@@ -129,15 +151,16 @@ def datastore_profile_read(url):
 
     profile_name = parsed_url.hostname
     project_name = parsed_url.username or mlrun.mlconf.default_project
-    profile = mlrun.db.get_run_db().get_datastore_profile(profile_name, project_name)
-    public_wrapper = json.loads(profile._content)
-
-    project_ds_name_private = mlrun.api.crud.DatastoreProfiles.generate_secret_key(
+    public_profile = mlrun.db.get_run_db().get_datastore_profile(
+        profile_name, project_name
+    )
+    project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
     private_body = get_secret_or_env(project_ds_name_private)
 
     datastore = DatastoreProfile2Json.create_from_json(
-        public_json=public_wrapper["body"], private_json=private_body
+        public_json=DatastoreProfile2Json.get_json_public(public_profile),
+        private_json=private_body,
     )
     return datastore

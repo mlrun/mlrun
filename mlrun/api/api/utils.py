@@ -399,6 +399,8 @@ def enrich_notification_auth_info(
     :param auth_info: user authentication info
     :return: enriched notification object
     """
+    if not notification_object.requires_auth:
+        return notification_object
 
     # if auth has a session, we want to create an access key for the session user,
     # so we don't have a session expiring before using the notification.

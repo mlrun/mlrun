@@ -563,6 +563,12 @@ class Notification(ModelObj):
 
         self.validate_notification()
 
+    @property
+    def requires_auth(self):
+        return self.kind in [
+            mlrun.common.schemas.notification.NotificationKind.mlrun_job,
+        ]
+
     def validate_notification(self):
         try:
             mlrun.common.schemas.notification.Notification(**self.to_dict())

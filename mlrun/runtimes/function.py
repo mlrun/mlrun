@@ -491,7 +491,9 @@ class RemoteRuntime(KubeResource):
             endpoint, stream_path = parse_path(stream_path, suffix="")
 
         # verify v3io stream trigger name is valid
-        mlrun.utils.helpers.validate_v3io_stream_trigger_name(name, "name")
+        consumer_group = kwargs.get("consumerGroup")
+        if consumer_group:
+            mlrun.utils.helpers.validate_v3io_stream_consumer_group(consumer_group)
 
         container, path = split_path(stream_path)
         shards = shards or 1

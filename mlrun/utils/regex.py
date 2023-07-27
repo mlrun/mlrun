@@ -87,4 +87,4 @@ artifact_key = [r"[^\/\\]+$"]
 # must not start with _
 # must be alphanumeric or _
 # max 256 length
-v3io_stream_name = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]
+v3io_stream_consumer_group = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]

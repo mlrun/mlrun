@@ -38,7 +38,7 @@ from mlrun.utils.helpers import (
     update_in,
     validate_artifact_key_name,
     validate_tag_name,
-    validate_v3io_stream_trigger_name,
+    validate_v3io_stream_consumer_group,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -308,18 +308,17 @@ def test_validate_artifact_name(artifact_name, expected):
 
 
 @pytest.mark.parametrize(
-    "trigger_name,expected",
+    "value,expected",
     [
         ("a", does_not_raise()),
         ("a_b", does_not_raise()),
         ("_a_b", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
     ],
 )
-def test_validate_v3io_trigger_name(trigger_name, expected):
+def test_validate_v3io_consumer_group(value, expected):
     with expected:
-        validate_v3io_stream_trigger_name(
-            trigger_name,
-            field_name="trigger.name",
+        validate_v3io_stream_consumer_group(
+            value,
         )
 
 

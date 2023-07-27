@@ -239,13 +239,13 @@ def validate_artifact_key_name(
     )
 
 
-def validate_v3io_stream_trigger_name(
-    trigger_name: str, field_name: str, raise_on_failure: bool = True
+def validate_v3io_stream_consumer_group(
+    value: str, raise_on_failure: bool = True
 ) -> bool:
     return mlrun.utils.helpers.verify_field_regex(
-        field_name,
-        trigger_name,
-        mlrun.utils.regex.v3io_stream_name,
+        "consumerGroup",
+        value,
+        mlrun.utils.regex.v3io_stream_consumer_group,
         raise_on_failure=raise_on_failure,
     )
 

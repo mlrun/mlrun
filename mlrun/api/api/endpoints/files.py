@@ -35,8 +35,8 @@ router = fastapi.APIRouter()
 @router.get(
     "/files",
     deprecated=True,
-    description="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead"
-    "use /projects/{project}/runs/{uid} instead",
+    description="'/files' and '/filestat' will be removed in 1.7.0, "
+    "use /projects/{project}/files instead.",
 )
 def get_files(
     schema: str = "",
@@ -83,8 +83,8 @@ async def get_files_with_project_secrets(
 @router.get(
     "/filestat",
     deprecated=True,
-    description="'file' and 'filestat' will be removed in 1.7.0, you can use project's API instead"
-    "use /projects/{project}/runs/{uid} instead",
+    description="'/files' and '/filestat' will be removed in 1.7.0, "
+    "use /projects/{project}/filestat instead.",
 )
 def get_filestat(
     schema: str = "",

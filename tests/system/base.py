@@ -23,7 +23,7 @@ import yaml
 from deepdiff import DeepDiff
 
 import mlrun.common.schemas
-from mlrun import get_run_db, mlconf, set_environment
+from mlrun import get_run_db, mlconf
 from mlrun.utils import create_logger
 
 logger = create_logger(level="debug", name="test-system")

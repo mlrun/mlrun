@@ -42,6 +42,7 @@ from yaml.representer import RepresenterError
 import mlrun
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
 
@@ -235,6 +236,17 @@ def validate_artifact_key_name(
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
         log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+    )
+
+
+def validate_v3io_stream_trigger_name(
+    trigger_name: str, field_name: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        field_name,
+        trigger_name,
+        mlrun.utils.regex.v3io_stream_name,
+        raise_on_failure=raise_on_failure,
     )
 
 

@@ -402,8 +402,9 @@ class DatabricksRuntime(KubejobRuntime):
         databricks_runtime_wrap_path = os.path.join(
             current_dir, "databricks_runtime_wrap.py"
         )
+        wrap_code = "\n"
         with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
-            wrap_code = databricks_runtime_wrap_file.read()
+            wrap_code += databricks_runtime_wrap_file.read()
         return wrap_code
 
     def _pre_run(self, runspec: RunObject, execution):

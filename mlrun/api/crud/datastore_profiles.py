@@ -90,7 +90,7 @@ class DatastoreProfiles(
     def list_datastore_profiles(
         self,
         session: sqlalchemy.orm.Session,
-        project: str = "",
+        project: str = None,
     ) -> typing.Dict:
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_datastore_profiles(

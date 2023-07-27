@@ -627,7 +627,7 @@ class RunDBInterface(ABC):
 
     def get_datastore_profile(
         self, name: str, project: str
-    ) -> mlrun.common.schemas.DatastoreProfile:
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         pass
 
     def delete_datastore_profile(

@@ -2125,7 +2125,7 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv",
             path=path,
         )
-        if target_redis.startswith("ds"):
+        if target_redis.startswith("ds://"):
             project = mlrun.get_or_create_project(self.project_name)
             profile = DatastoreProfileRedis(
                 name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url

@@ -4008,7 +4008,8 @@ class SQLDB(DBInterface):
         project: str,
     ):
         """
-        Delete all  datastore profiles.
+        Delete all datastore profiles.
+        :param session: SQLAlchemy session
         :param project: Name of the project
         :returns: None
         """

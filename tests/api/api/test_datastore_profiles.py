@@ -29,7 +29,7 @@ datastore = {
     "body": "body or url ds://host:1234",
 }
 legacy_api_projects_path = "projects"
-api_datastore_path = "/api/v1/projects/{project}/datastore_profiles"
+api_datastore_path = f"/api/v1/projects/{project}/datastore_profiles"
 
 
 def _create_project(client: TestClient, project_name: str = project):

@@ -3268,7 +3268,7 @@ class HTTPRunDB(RunDBInterface):
 
     def get_datastore_profile(
         self, name: str, project: str
-    ) -> mlrun.common.schemas.DatastoreProfile:
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
         path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
 
@@ -3281,9 +3281,7 @@ class HTTPRunDB(RunDBInterface):
             return datastore
         return None
 
-    def delete_datastore_profile(
-        self, name: str, project: str
-    ) -> mlrun.common.schemas.DatastoreProfile:
+    def delete_datastore_profile(self, name: str, project: str):
         pass
 
     def list_datastore_profile(

@@ -3044,7 +3044,7 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
             public_profile, self.name
         )
-        # Set local environment variables
+        # Set local environment variable
         environ[project_ds_name_private] = private_body
         # set project secret
         self.set_secrets(

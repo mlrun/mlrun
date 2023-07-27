@@ -583,8 +583,7 @@ def _migrate_artifacts_table_v2(
             db, db_session, last_migrated_artifact_id, batch_size
         )
         if batch_link_artifact_ids:
-            link_artifact_ids.extend(batch_link_artifact_ids)
-            link_artifact_ids = list(set(link_artifact_ids))
+            link_artifact_ids.update(batch_link_artifact_ids)
 
         if last_migrated_artifact_id is None:
             # we're done
@@ -677,7 +676,9 @@ def _migrate_artifacts_batch(
         if iteration is not None:
             new_artifact.iteration = int(iteration)
 
-        # best iteration - if iteration == 0 it means it is from a single run - we can set is as best iteration
+        # best iteration
+        # if iteration == 0 it means it is from a single run since link artifacts were already
+        # handled above - so we can set is as best iteration.
         # otherwise set to false, the best iteration artifact will be updated later
         if iteration is not None and iteration == 0:
             new_artifact.best_iteration = True
@@ -798,9 +799,11 @@ def _mark_best_iteration_artifacts(
             )
 
         # get the artifacts attached to the link artifact
-        link_artifact_key = link_artifact_dict.get("key", None)
+        # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key
+        link_artifact_key = link_artifact_dict.get("spec").get(
+            "link_key", None
+        ) or link_artifact_dict.get("key", None)
         link_iteration = link_artifact_dict.get("spec").get("link_iteration", None)
-        link_key = link_artifact_dict.get("spec").get("link_key", None)
         link_tree = link_artifact_dict.get("spec").get("link_tree", None)
 
         if not link_iteration:
@@ -809,13 +812,10 @@ def _mark_best_iteration_artifacts(
                 link_artifact_key=link_artifact_key,
                 link_artifact_id=link_artifact.id,
             )
-
-        # if the link key was set explicitly, we should use it to find the artifacts
-        if link_key:
-            link_artifact_key = link_key
+            continue
 
         # get the artifacts attached to the link artifact
-        query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact).filter(
+        query = db._query(db_session, mlrun.api.db.sqldb.models.ArtifactV2).filter(
             mlrun.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
             mlrun.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
         )
@@ -832,6 +832,7 @@ def _mark_best_iteration_artifacts(
                 link_iteration=link_iteration,
                 link_artifact_id=link_artifact.id,
             )
+            continue
 
         artifact.best_iteration = True
         artifacts_to_commit.append(artifact)
@@ -955,12 +956,14 @@ def _get_migration_state():
             config.artifacts.artifact_migration_state_file_path, "r"
         ) as state_file:
             state = json.load(state_file)
-            return state.get("last_migrated_id", 0), state.get("link_artifact_ids", [])
+            return state.get("last_migrated_id", 0), set(
+                state.get("link_artifact_ids", [])
+            )
     except FileNotFoundError:
-        return 0, []
+        return 0, set()
 
 
-def _update_state_file(last_migrated_id: int, link_artifact_ids: list):
+def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
     """Create or update the state file with the given batch index.
 
     :param last_migrated_id: The id of the last migrated artifact.
@@ -972,7 +975,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: list):
     with open(state_file_path, "w") as state_file:
         state = {
             "last_migrated_id": last_migrated_id,
-            "link_artifact_ids": link_artifact_ids,
+            "link_artifact_ids": list(link_artifact_ids),
         }
         json.dump(state, state_file)
 

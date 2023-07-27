@@ -240,7 +240,7 @@ class DBInterface(ABC):
         pass
 
     def del_artifacts_v2(
-        self, session, name="", project="", tag=None, labels=None, ids=None
+        self, session, name="", project="", tag=None, labels=None, ids=None, tree=None
     ):
         pass
 

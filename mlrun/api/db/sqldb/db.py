@@ -551,15 +551,23 @@ class SQLDB(DBInterface):
             self._update_artifact_record_from_dict(
                 db_artifact, artifact_dict, project, uid, iter, best_iteration, tag
             )
-            self._upsert(session, [db_artifact])
+            objects_to_commit = [db_artifact]
             if tag:
-                self.tag_objects_v2(
-                    session, [db_artifact], project, tag, obj_name_attribute="key"
+                tags = self.tag_objects_v2(
+                    session,
+                    [db_artifact],
+                    project,
+                    tag,
+                    commit=False,
+                    obj_name_attribute="key",
                 )
+                if tags:
+                    objects_to_commit.extend(tags)
+            self._upsert(session, objects_to_commit)
             return uid
 
         # Object with the given tag/uid doesn't exist
-        # Check if this is a re-tag of existing object - search by uid only
+        # Check if this is a re-tag of existing object - search by the resolved uid only
         if self._re_tag_existing_object(
             session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
         ):
@@ -720,23 +728,19 @@ class SQLDB(DBInterface):
         artifact_records = self._find_artifacts_v2(
             session,
             project,
-            None,  # id is None because we are in "list" mode
-            tag,
-            labels,
-            since,
-            until,
-            name,
-            kind,
-            category,
-            iter,
-            uid,
+            ids=None,  # id is None because we are in "list" mode
+            tag=tag,
+            labels=labels,
+            since=since,
+            until=until,
+            name=name,
+            kind=kind,
+            category=category,
+            iter=iter,
+            uid=uid,
             best_iteration=best_iteration,
         )
         if as_records:
-            if best_iteration:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "as_records is not supported with best_iteration=True"
-                )
             return artifact_records
 
         # TODO: get the missing link artifacts if best iteration is true
@@ -849,8 +853,8 @@ class SQLDB(DBInterface):
                 query_without_iter = query_without_iter.filter(
                     ArtifactV2.best_iteration
                 )
-                db_artifact = query_without_iter.all()
-                if len(db_artifact) != 0:
+                db_artifact = query_without_iter.one_or_none()
+                if db_artifact is not None:
                     # we found something, so we can continue
                     fail = False
 
@@ -897,8 +901,15 @@ class SQLDB(DBInterface):
     def del_artifact_v2(
         self, session, key, tag=None, project=None, uid=None, producer_id=None
     ):
+        project = project or config.default_project
         self._delete_tagged_object(
-            session, ArtifactV2, project, key, tag, uid, producer_id
+            session,
+            ArtifactV2,
+            project=project,
+            tag=tag,
+            uid=uid,
+            key=key,
+            producer_id=producer_id,
         )
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
@@ -917,7 +928,7 @@ class SQLDB(DBInterface):
             self.del_artifact(session, key, "", project)
 
     def del_artifacts_v2(
-        self, session, name="", project="", tag=None, labels=None, ids=None
+        self, session, name="", project="", tag=None, labels=None, ids=None, tree=None
     ):
         project = project or config.default_project
         distinct_keys = {
@@ -926,8 +937,42 @@ class SQLDB(DBInterface):
                 session, project, ids, tag, labels, name=name
             )
         }
+        failed_to_delete_keys = []
         for key in distinct_keys:
-            self.del_artifact_v2(session, key, tag, project)
+            artifact_column_identifier, column_value = self._delete_tagged_object(
+                session,
+                ArtifactV2,
+                project=project,
+                tag=tag,
+                commit=False,
+                key=key,
+                producer_id=tree,
+            )
+            if artifact_column_identifier is None:
+                # record was not found
+                continue
+
+            # we do a best effort
+            try:
+                if artifact_column_identifier == "id":
+                    # deleting tags, because in sqlite the relationships aren't necessarily cascading
+                    self._delete(session, ArtifactV2.Tag, obj_id=column_value)
+                    self._delete(session, ArtifactV2, id=column_value)
+                else:
+                    # it's the artifact's key
+                    # deleting tags, because in sqlite the relationships aren't necessarily cascading
+                    self._delete(
+                        session, ArtifactV2.Tag, project=project, obj_name=column_value
+                    )
+                    self._delete(session, ArtifactV2, project=project, key=column_value)
+            except Exception as exc:
+                logger.warning(f"Failed to delete artifact {key}", exc_info=str(exc))
+                failed_to_delete_keys.append(key)
+
+        if failed_to_delete_keys:
+            raise mlrun.errors.MLRunInternalServerError(
+                f"Failed to delete artifacts: {failed_to_delete_keys}"
+            )
 
     def tag_artifacts(self, session, artifacts, project: str, name: str):
         # found a bug in here, which is being exposed for when have multi-param execution.
@@ -1191,21 +1236,21 @@ class SQLDB(DBInterface):
         # update the artifact record with best iteration
         artifact_record.best_iteration = True
 
-        # remove the best iteration flag from all other artifacts
+        # remove the best iteration flag from the previous best iteration artifact
         query = self._query(session, ArtifactV2).filter(
             ArtifactV2.project == project,
             ArtifactV2.key == key,
+            ArtifactV2.best_iteration,
             ArtifactV2.iteration != link_iteration,
         )
         if link_tree:
             query = query.filter(ArtifactV2.producer_id == link_tree)
 
-        artifacts_to_commit = [artifact_record]
-        for artifact in query:
-            artifact.best_iteration = False
-            artifacts_to_commit.append(artifact)
+        previous_best_iteration_artifacts = query.one_or_none()
+        if previous_best_iteration_artifacts:
+            previous_best_iteration_artifacts.best_iteration = False
 
-        self._upsert(session, artifacts_to_commit)
+        self._upsert(session, [artifact_record, previous_best_iteration_artifacts])
 
     def _update_artifact_record_from_dict(
         self,
@@ -1492,7 +1537,7 @@ class SQLDB(DBInterface):
             return query
 
         if name.startswith("~"):
-            # Escape special chars (_,%) since we still need to do a like query because of the iter.
+            # Escape special chars (_,%) since we still need to do a like query.
             exact_name = self._escape_characters_for_like_query(name)
             # Use Like query to find substring matches
             return query.filter(
@@ -2244,7 +2289,13 @@ class SQLDB(DBInterface):
         ]
 
     def tag_objects_v2(
-        self, session, objs, project: str, name: str, obj_name_attribute: str = "name"
+        self,
+        session,
+        objs,
+        project: str,
+        name: str,
+        commit=True,
+        obj_name_attribute: str = "name",
     ):
         tags = []
         for obj in objs:
@@ -2265,7 +2316,10 @@ class SQLDB(DBInterface):
                 )
             tag.obj_id = obj.id
             tags.append(tag)
-        self._upsert(session, tags)
+        if commit:
+            self._upsert(session, tags)
+        else:
+            return tags
 
     # ---- Projects ----
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
@@ -3381,7 +3435,7 @@ class SQLDB(DBInterface):
         ],
         versioned=True,
     ):
-        (uid, tag, tagged_object_dict,) = self._validate_and_enrich_record_for_creation(
+        uid, tag, tagged_object_dict = self._validate_and_enrich_record_for_creation(
             session, tagged_object, cls, project, versioned
         )
 
@@ -3399,7 +3453,14 @@ class SQLDB(DBInterface):
         return uid
 
     def _re_tag_existing_object(
-        self, session, cls, project, name, tag, uid, obj_name_attribute: str = "name"
+        self,
+        session,
+        cls,
+        project,
+        name,
+        tag,
+        uid,
+        obj_name_attribute: str = "name",
     ):
         if cls == ArtifactV2:
             _, _, existing_object = self._get_existing_artifact(
@@ -3464,53 +3525,15 @@ class SQLDB(DBInterface):
             ).all()
         ]
 
-    def _delete_tagged_object(
-        self, session, cls, project, name, tag, uid, producer_id=None
-    ):
-        if tag and uid:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Both uid and tag specified when deleting an object."
-            )
-
-        object_id = None
-        if uid:
-            if cls == ArtifactV2:
-                object_record = self._query(
-                    session,
-                    cls,
-                    project=project,
-                    key=name,
-                    uid=uid,
-                    producer_id=producer_id,
-                ).one_or_none()
-            else:
-                object_record = self._query(
-                    session, cls, project=project, name=name, uid=uid
-                ).one_or_none()
-            if object_record is None:
-                return
-            object_id = object_record.id
-        elif tag:
-            obj_name = name or None
-            tag_record = self._query(
-                session, cls.Tag, project=project, name=tag, obj_name=obj_name
-            ).one_or_none()
-            if tag_record is None:
-                return
-            object_id = tag_record.obj_id
-
-        if object_id:
-            # deleting tags, because in sqlite the relationships aren't necessarily cascading
-            self._delete(session, cls.Tag, obj_id=object_id)
-            self._delete(session, cls, id=object_id)
-        else:
-            # If we got here, neither tag nor uid were provided - delete all references by name.
-            # deleting tags, because in sqlite the relationships aren't necessarily cascading
-            self._delete(session, cls.Tag, project=project, obj_name=name)
-            self._delete(session, cls, project=project, name=name)
-
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
-        self._delete_tagged_object(session, FeatureSet, project, name, tag, uid)
+        self._delete_tagged_object(
+            session,
+            FeatureSet,
+            project=project,
+            tag=tag,
+            uid=uid,
+            name=name,
+        )
 
     # ---- Feature Vectors ----
     def create_feature_vector(
@@ -3713,7 +3736,65 @@ class SQLDB(DBInterface):
         )
 
     def delete_feature_vector(self, session, project, name, tag=None, uid=None):
-        self._delete_tagged_object(session, FeatureVector, project, name, tag, uid)
+        self._delete_tagged_object(
+            session,
+            FeatureVector,
+            project=project,
+            tag=tag,
+            uid=uid,
+            name=name,
+        )
+
+    def _delete_tagged_object(
+        self,
+        session,
+        cls,
+        project,
+        tag=None,
+        uid=None,
+        commit=True,
+        **kwargs,
+    ):
+        if tag and uid:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both uid and tag specified when deleting an object."
+            )
+
+        object_id = None
+        obj_name = kwargs.get("name") or kwargs.get("key")
+        if uid:
+            object_record = self._query(
+                session,
+                cls,
+                project=project,
+                uid=uid,
+                **kwargs,
+            ).one_or_none()
+            if object_record is None:
+                return None, None
+            object_id = object_record.id
+        elif tag:
+            tag_record = self._query(
+                session, cls.Tag, project=project, name=tag, obj_name=obj_name
+            ).one_or_none()
+            if tag_record is None:
+                return None, None
+            object_id = tag_record.obj_id
+
+        if object_id:
+            if not commit:
+                return "id", object_id
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
+            self._delete(session, cls.Tag, obj_id=object_id)
+            self._delete(session, cls, id=object_id)
+        else:
+            if not commit:
+                return "name", obj_name
+            # If we got here, neither tag nor uid were provided - delete all references by name.
+            # deleting tags, because in sqlite the relationships aren't necessarily cascading
+            identifier = {"name": obj_name} if "name" in kwargs else {"key": obj_name}
+            self._delete(session, cls.Tag, project=project, obj_name=obj_name)
+            self._delete(session, cls, project=project, **identifier)
 
     def _resolve_tag(self, session, cls, project, name):
         ids = []
@@ -3727,6 +3808,7 @@ class SQLDB(DBInterface):
         for tag in self._query(
             session, cls.Tag, project=project, obj_name=obj_name, name=tag_name
         ):
+            print(tag)
             return self._query(session, cls).get(tag.obj_id).uid
         return None
 
@@ -4312,7 +4394,7 @@ class SQLDB(DBInterface):
         data_version_record = DataVersion(version=version, created=now)
         self._upsert(session, [data_version_record])
 
-    # Background Tasks
+    # ---- Background Tasks ----
     @retry_on_conflict
     def store_background_task(
         self,

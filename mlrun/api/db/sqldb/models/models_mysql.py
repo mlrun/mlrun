@@ -183,7 +183,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)

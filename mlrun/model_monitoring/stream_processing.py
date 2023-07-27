@@ -46,9 +46,9 @@ class EventStreamProcessor:
         self,
         project: str,
         parquet_batching_max_events: int,
+        parquet_batching_timeout_secs: int,
         parquet_target: str,
         sample_window: int = 10,
-        parquet_batching_timeout_secs: int = 30 * 60,  # Default 30 minutes
         aggregate_windows: typing.Optional[typing.List[str]] = None,
         aggregate_period: str = "30s",
         model_monitoring_access_key: str = None,

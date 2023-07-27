@@ -48,6 +48,16 @@ class MonitoringDeployment:
     ) -> None:
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        """
+        Initialize a MonitoringDeployment object, which handles the deployment of both model monitoring stream nuclio
+        function and the scheduled batch drift job.
+
+        :param parquet_batching_max_events: Maximum number of events that will be used for writing the monitoring
+                                            parquet by the monitoring stream function.
+        :param max_parquet_save_interval:   Maximum number of seconds to hold events before they are written to the
+                                            monitoring parquet target. Note that this value will be used to handle the
+                                            offset by the scheduled batch job.
+        """
 
     def deploy_monitoring_functions(
         self,

@@ -766,7 +766,7 @@ class _RemoteRunner(_PipelineRunner):
         namespace: str = None,
         source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = normalize_workflow_name(name)
+        workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
 
         # The returned engine for this runner is the engine of the workflow.

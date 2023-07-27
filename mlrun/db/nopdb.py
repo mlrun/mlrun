@@ -143,6 +143,14 @@ class NopDB(RunDBInterface):
     def list_functions(self, name=None, project="", tag="", labels=None):
         pass
 
+    def submit_job(
+        self,
+        runspec,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+    ):
+        pass
+
     def tag_objects(
         self,
         project: str,

@@ -662,10 +662,8 @@ class BatchProcessor:
                             mlrun.common.schemas.model_monitoring.EventFieldType.UID
                         ],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                        start_time=str(
-                            datetime.datetime.now() - datetime.timedelta(hours=1)
-                        ),
-                        end_time=str(datetime.datetime.now()),
+                        start_time=start_time,
+                        end_time=end_time,
                     )
                     return
 
@@ -777,11 +775,15 @@ class BatchProcessor:
             )
 
             attributes = {
-                "current_stats": json.dumps(current_stats),
-                "drift_measures": json.dumps(drift_result),
-                "drift_status": drift_status.value,
+                mlrun.common.schemas.model_monitoring.EventFieldType.CURRENT_STATS: json.dumps(
+                    current_stats
+                ),
+                mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_MEASURES: json.dumps(
+                    drift_result
+                ),
+                mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
+                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED: end_time,
             }
-
             self.db.update_model_endpoint(
                 endpoint_id=endpoint[
                     mlrun.common.schemas.model_monitoring.EventFieldType.UID
@@ -822,6 +824,14 @@ class BatchProcessor:
                 mlrun.common.schemas.model_monitoring.EventFieldType.UID
             ],
         )
+
+    def _get_latest_analyzed_time(self, endpoint: dict) -> Optional[datetime.datetime]:
+        """Return the latest analyzed time (end)"""
+        return self.db.get_model_endpoint(
+            endpoint_id=endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.UID
+            ]
+        ).get(mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED)
 
     def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""

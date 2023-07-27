@@ -50,6 +50,7 @@ class EventFieldType:
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    LAST_ANALYZED = "last_analyzed"
     METRIC = "metric"
     METRICS = "metrics"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"

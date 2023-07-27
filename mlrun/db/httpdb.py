@@ -3201,7 +3201,7 @@ class HTTPRunDB(RunDBInterface):
         url: str,
         secrets: Optional[Dict] = None,
         save_secrets: bool = True,
-    ) -> mlrun.common.schemas.BackgroundTask:
+    ) -> str:
         """
         Loading a project remotely from the given source.
         :param name:            project name
@@ -3214,7 +3214,7 @@ class HTTPRunDB(RunDBInterface):
         :param save_secrets:    Whether to store secrets in the loaded project.
                                 Setting to False will cause waiting for the process completion.
 
-        :returns:      A BackgroundTask object, with details on execution process and its status.
+        :returns:               The terminal state of load project process.
         """
         params = {"url": url}
         body = None
@@ -3227,42 +3227,17 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
         )
-        bg_task = mlrun.common.schemas.BackgroundTask(**response.json())
+        response = response.json()
+        run = mlrun.RunObject.from_dict(response["data"])
+        state, _ = run.logs()
 
-        # In order to remove secrets from project we need to wait for the background task to end:
         if secrets and not save_secrets:
-
-            def _wait_for_background_task_to_end(bg_name):
-                bg_task = self.get_project_background_task(project=name, name=bg_name)
-                if (
-                    bg_task.status.state
-                    not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-                ):
-                    raise Exception(
-                        f"Background task not in terminal state. State: {bg_task.status.state}"
-                    )
-                return bg_task
-
-            bg_task = mlrun.utils.helpers.retry_until_successful(
-                backoff=self._wait_for_project_terminal_state_retry_interval,
-                timeout=60 * 3,
-                logger=logger,
-                verbose=False,
-                _function=_wait_for_background_task_to_end,
-                bg_name=bg_task.metadata.name,
-            )
-
-            if bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
-                logger.error("Load project task failed, deleting project")
-                response = self.delete_project(
-                    name, mlrun.common.schemas.DeletionStrategy.cascade
-                )
-                if response.status_code != http.HTTPStatus.ACCEPTED:
-                    logger.error("Failed to delete project")
-
             self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+            if state != "completed":
+                logger.error("Load project task failed, deleting project")
+                self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
 
-        return bg_task
+        return state
 
 
 def _as_json(obj):

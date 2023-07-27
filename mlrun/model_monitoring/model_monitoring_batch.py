@@ -522,14 +522,41 @@ class BatchProcessor:
         self.exception = None
 
         # Get the batch interval range
-        self.batch_dict = context.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
-        ]
+        self._interval_len = self._get_interval_len(
+            context.parameters[
+                mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            ]
+        )
 
+    @classmethod
+    def _get_interval_len(cls, batch_dict: dict) -> datetime.timedelta:
         # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
         # Convert batch dict string into a dictionary
-        if isinstance(self.batch_dict, str):
-            self._parse_batch_dict_str()
+        if isinstance(batch_dict, str):
+            cls._parse_batch_dict_str(batch_dict)
+
+        return datetime.timedelta(
+            minutes=batch_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
+            ],
+            hours=batch_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.HOURS
+            ],
+            days=batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
+        )
+
+    @staticmethod
+    def _parse_batch_dict_str(batch_dict: dict) -> None:
+        """Convert inplace a batch dictionary string into a valid dictionary"""
+        characters_to_remove = "{} "
+        pattern = "[" + characters_to_remove + "]"
+        # Remove unnecessary characters from the provided string
+        batch_list = re.sub(pattern, "", batch_dict).split(",")
+        # Initialize the dictionary of batch interval ranges
+        batch_dict = {}
+        for pair in batch_list:
+            pair_list = pair.split(":")
+            batch_dict[pair_list[0]] = float(pair_list[1])
 
         # If provided, only model endpoints in that that list will be analyzed
         self.model_endpoints = context.parameters.get(
@@ -835,30 +862,9 @@ class BatchProcessor:
 
     def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
-        minutes, hours, days = (
-            self.batch_dict[
-                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
-            ],
-            self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
-            self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
-        )
-        start_time = datetime.datetime.now() - datetime.timedelta(
-            minutes=minutes, hours=hours, days=days
-        )
         end_time = datetime.datetime.now()
+        start_time = end_time - self._interval_len
         return start_time, end_time
-
-    def _parse_batch_dict_str(self):
-        """Convert batch dictionary string into a valid dictionary"""
-        characters_to_remove = "{} "
-        pattern = "[" + characters_to_remove + "]"
-        # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", self.batch_dict).split(",")
-        # Initialize the dictionary of batch interval ranges
-        self.batch_dict = {}
-        for pair in batch_list:
-            pair_list = pair.split(":")
-            self.batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _update_drift_in_v3io_tsdb(
         self,

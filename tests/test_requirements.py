@@ -98,7 +98,9 @@ def test_requirement_specifiers_convention():
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
-        "sphinx": {"~=4.3.0"},
+        # protobuf is limited just for docs
+        "protobuf": {"~=3.20.3"},
+        "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},

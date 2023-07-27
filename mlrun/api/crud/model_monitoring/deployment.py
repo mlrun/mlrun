@@ -129,6 +129,9 @@ class MonitoringDeployment:
             parquet_target=parquet_target,
         )
 
+        # Adding label to the function - will be used to identify the stream pod
+        fn.metadata.labels = {"type": "model-monitoring-stream"}
+
         mlrun.api.api.endpoints.functions._build_function(
             db_session=db_session, auth_info=auth_info, function=fn
         )

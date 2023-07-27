@@ -837,6 +837,9 @@ class SQLRunDB(RunDBInterface):
         # done from ingest()
         pass
 
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        raise NotImplementedError("Watching logs is not supported on the server")
+
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)

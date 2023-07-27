@@ -17,9 +17,11 @@ import json
 import typing
 import uuid
 
+import mlrun.api
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.events.events_factory as events_factory
 import mlrun.api.utils.singletons.k8s
+import mlrun.common
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
@@ -531,3 +533,22 @@ class Secrets(
     @staticmethod
     def _generate_uuid() -> str:
         return str(uuid.uuid4())
+
+
+def get_project_secret_provider(project: str) -> typing.Callable:
+    """Implement secret provider for handle the related project secret on the API side.
+
+    :param project: Project name.
+
+    :return: A secret provider function.
+    """
+
+    def secret_provider(key: str):
+        return mlrun.api.crud.secrets.Secrets().get_project_secret(
+            project=project,
+            provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
+            allow_secrets_from_k8s=True,
+            secret_key=key,
+        )
+
+    return secret_provider

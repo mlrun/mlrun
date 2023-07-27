@@ -49,6 +49,7 @@ class EventFieldType:
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    METRIC = "metric"
     METRICS = "metrics"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
@@ -71,6 +72,7 @@ class EventFieldType:
     MONITOR_CONFIGURATION = "monitor_configuration"
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
+    VALUE = "value"
 
 
 class EventLiveStats:
@@ -127,6 +129,15 @@ class EndpointType(enum.IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
+
+
+class PrometheusMetric:
+    PREDICTIONS_TOTAL = "predictions_total"
+    MODEL_LATENCY_SECONDS = "model_latency_seconds"
+    INCOME_FEATURES = "income_features"
+    ERRORS_TOTAL = "errors_total"
+    DRIFT_METRICS = "drift_metrics"
+    DRIFT_STATUS = "drift_status"
 
 
 @dataclass

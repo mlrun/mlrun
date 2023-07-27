@@ -725,8 +725,8 @@ class RemoteRuntime(KubeResource):
         runtime_env = {
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
         }
-        if self.spec.rundb or mlconf.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
+        if mlconf.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:

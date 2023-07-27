@@ -996,6 +996,7 @@ class TestProject(TestMLRunSystem):
             subpath="./test_remote_workflow_subpath",
             name=project_name,
         )
+        project.save()
         project.run("main", arguments={"x": 1}, engine="remote:kfp", watch=True)
 
     @pytest.mark.parametrize("pull_state_mode", ["disabled", "enabled"])

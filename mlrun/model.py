@@ -1309,25 +1309,17 @@ class RunObject(RunTemplate):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
+
         if not db:
-            print("DB is not configured, cannot show logs")
+            logger.warning("DB is not configured, cannot show logs")
             return None
 
-        new_offset = 0
-        if db.kind == "http":
-            state, new_offset = db.watch_log(
-                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
-            )
-        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
-        else:
-            state, text = db.get_log(
-                self.metadata.uid, self.metadata.project, offset=offset
-            )
-            if text:
-                print(text.decode())
-
+        state, new_offset = db.watch_log(
+            self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+        )
         if state:
-            print(f"final state: {state}")
+            logger.debug("Run reached terminal state", state=state)
+
         return state, new_offset
 
     def wait_for_completion(

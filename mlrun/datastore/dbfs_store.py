@@ -95,7 +95,8 @@ class DBFSStore(DataStore):
 
     def get_storage_options(self):
         return dict(
-            token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=mlrun.get_secret_or_env("DATABRICKS_HOST")
+            token=self._get_secret_or_env("DATABRICKS_TOKEN"),
+            instance=mlrun.get_secret_or_env("DATABRICKS_HOST"),
         )
 
     def _verify_filesystem_and_key(self, key: str):

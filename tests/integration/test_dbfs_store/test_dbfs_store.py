@@ -64,7 +64,7 @@ class TestDBFSStore:
         for key, env_param in env_params.items():
             os.environ[key] = env_param
         self.test_root_dir = "/test_mlrun_dbfs_objects"
-        self._dbfs_schema= "dbfs://"
+        self._dbfs_schema = "dbfs://"
         self.workspace = WorkspaceClient()
 
     @pytest.fixture(autouse=True)
@@ -120,7 +120,7 @@ class TestDBFSStore:
         data_item, object_url = self._get_data_item()
         data_item.put(test_string)
         dir_dataitem = mlrun.run.get_dataitem(
-            self._dbfs_schema+ self.test_root_dir,
+            self._dbfs_schema + self.test_root_dir,
         )
         dir_list = dir_dataitem.listdir()
         assert object_url.split("/")[-1] in dir_list
@@ -156,7 +156,7 @@ class TestDBFSStore:
         source = reader(local_file_path)
         upload_file_path = f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
         upload_data_item = mlrun.run.get_dataitem(
-            self._dbfs_schema+ upload_file_path,
+            self._dbfs_schema + upload_file_path,
         )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df()
@@ -180,7 +180,7 @@ class TestDBFSStore:
         source = reader(local_file_path)
         upload_file_path = f"{self.test_root_dir}/file_{uuid.uuid4()}.{file_extension}"
         upload_data_item = mlrun.run.get_dataitem(
-            self._dbfs_schema+ upload_file_path,
+            self._dbfs_schema + upload_file_path,
         )
         upload_data_item.upload(local_file_path)
         response = upload_data_item.as_df(df_module=dd)
@@ -192,13 +192,17 @@ class TestDBFSStore:
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
-        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_schema+ uploaded_file_path)
+        uploaded_data_item = mlrun.run.get_dataitem(
+            self._dbfs_schema + uploaded_file_path
+        )
         uploaded_data_item.upload(first_file_path)
 
         uploaded_file_path = (
             f"{self.test_root_dir}{directory}/file_{uuid.uuid4()}.{file_extension}"
         )
-        uploaded_data_item = mlrun.run.get_dataitem(self._dbfs_schema+ uploaded_file_path)
+        uploaded_data_item = mlrun.run.get_dataitem(
+            self._dbfs_schema + uploaded_file_path
+        )
         uploaded_data_item.upload(second_file_path)
         return os.path.dirname(uploaded_file_path)
 
@@ -231,7 +235,7 @@ class TestDBFSStore:
             file_extension=file_extension,
             directory=directory,
         )
-        dir_data_item = mlrun.run.get_dataitem(self._dbfs_schema+ df_dir)
+        dir_data_item = mlrun.run.get_dataitem(self._dbfs_schema + df_dir)
         response_df = (
             dir_data_item.as_df(format=file_format)
             .sort_values("Name")

@@ -551,19 +551,15 @@ class SQLDB(DBInterface):
             self._update_artifact_record_from_dict(
                 db_artifact, artifact_dict, project, uid, iter, best_iteration, tag
             )
-            objects_to_commit = [db_artifact]
+            self._upsert(session, [db_artifact])
             if tag:
-                tags = self.tag_objects_v2(
+                self.tag_objects_v2(
                     session,
                     [db_artifact],
                     project,
                     tag,
-                    commit=False,
                     obj_name_attribute="key",
                 )
-                if tags:
-                    objects_to_commit.extend(tags)
-            self._upsert(session, objects_to_commit)
             return uid
 
         # Object with the given tag/uid doesn't exist
@@ -1236,6 +1232,8 @@ class SQLDB(DBInterface):
         # update the artifact record with best iteration
         artifact_record.best_iteration = True
 
+        artifacts_to_commit = [artifact_record]
+
         # remove the best iteration flag from the previous best iteration artifact
         query = self._query(session, ArtifactV2).filter(
             ArtifactV2.project == project,
@@ -1249,8 +1247,9 @@ class SQLDB(DBInterface):
         previous_best_iteration_artifacts = query.one_or_none()
         if previous_best_iteration_artifacts:
             previous_best_iteration_artifacts.best_iteration = False
+            artifacts_to_commit.append(previous_best_iteration_artifacts)
 
-        self._upsert(session, [artifact_record, previous_best_iteration_artifacts])
+        self._upsert(session, artifacts_to_commit)
 
     def _update_artifact_record_from_dict(
         self,
@@ -2294,7 +2293,6 @@ class SQLDB(DBInterface):
         objs,
         project: str,
         name: str,
-        commit=True,
         obj_name_attribute: str = "name",
     ):
         tags = []
@@ -2316,10 +2314,7 @@ class SQLDB(DBInterface):
                 )
             tag.obj_id = obj.id
             tags.append(tag)
-        if commit:
-            self._upsert(session, tags)
-        else:
-            return tags
+        self._upsert(session, tags)
 
     # ---- Projects ----
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
@@ -3472,7 +3467,11 @@ class SQLDB(DBInterface):
             )
         if existing_object:
             self.tag_objects_v2(
-                session, [existing_object], project, tag, obj_name_attribute
+                session,
+                [existing_object],
+                project,
+                tag,
+                obj_name_attribute=obj_name_attribute,
             )
             return existing_object
 

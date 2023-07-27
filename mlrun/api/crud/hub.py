@@ -19,10 +19,10 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.datastore import store_manager
-from mlrun.utils.helpers import normalize_name
 
 from .secrets import Secrets, SecretsClientType
 
@@ -160,8 +160,15 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
                 assets = object_details_dict.pop("assets", {})
+                # We want to align all item names to be normalized.
+                # This is necessary since the item names are originally collected from the yaml files
+                # which may can contain underscores.
                 object_details_dict.update(
-                    {"name": normalize_name(object_name, verbose=False)}
+                    {
+                        "name": mlrun.utils.helpers.normalize_name(
+                            object_name, verbose=False
+                        )
+                    }
                 )
                 metadata = mlrun.common.schemas.hub.HubItemMetadata(
                     tag=version_tag, **object_details_dict
@@ -271,7 +278,7 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
         :return:   list of item objects from catalog
         """
-        normalized_name = normalize_name(item_name, verbose=False)
+        normalized_name = mlrun.utils.helpers.normalize_name(item_name, verbose=False)
         return [item for item in catalog if item.metadata.name == normalized_name]
 
     def get_item_object_using_source_credentials(

@@ -706,24 +706,23 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
             )
-    # hub function directory name are with underscores instead of hyphens
-    name = name.replace("-", "_")
-    function_suffix = f"{name}/{tag}/src/function.yaml"
+    name = normalize_name(name=name, verbose=False)
     if not source_name:
         # Searching item in all sources
-        sources = db.list_hub_sources(
-            item_name=normalize_name(name, verbose=False), tag=tag
-        )
+        sources = db.list_hub_sources(item_name=name, tag=tag)
         if not sources:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Item={name}, tag={tag} not found in any hub source"
             )
         # precedence to user source
-        source = sources[0]
+        indexed_source = sources[0]
     else:
         # Specific source is given
-        source = db.get_hub_source(source_name)
-    return source.source.get_full_uri(function_suffix), is_hub_uri
+        indexed_source = db.get_hub_source(source_name)
+    # hub function directory name are with underscores instead of hyphens
+    name = name.replace("-", "_")
+    function_suffix = f"{name}/{tag}/src/function.yaml"
+    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

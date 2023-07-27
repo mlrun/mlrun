@@ -86,7 +86,6 @@ class TestMLRunSystem:
         self._run_db = get_run_db()
 
         if not self._skip_set_environment():
-            set_environment(project=self.project_name)
             self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()

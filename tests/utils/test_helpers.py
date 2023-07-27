@@ -37,6 +37,7 @@ from mlrun.utils.helpers import (
     update_in,
     validate_artifact_key_name,
     validate_tag_name,
+    validate_v3io_stream_consumer_group,
     verify_field_regex,
     verify_list_items_type,
 )
@@ -265,8 +266,24 @@ def test_validate_artifact_name(artifact_name, expected):
         )
 
 
-def test_enrich_image():
-    cases = [
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("a", does_not_raise()),
+        ("a_b", does_not_raise()),
+        ("_a_b", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+    ],
+)
+def test_validate_v3io_consumer_group(value, expected):
+    with expected:
+        validate_v3io_stream_consumer_group(
+            value,
+        )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
         {
             "image": "mlrun/mlrun",
             "expected_output": "ghcr.io/mlrun/mlrun:0.5.2-unstable-adsf76s",
@@ -490,25 +507,26 @@ def test_enrich_image():
             "expected_output": "mlrun/mlrun:1.2.0",
             "images_to_enrich_registry": "",
         },
-    ]
+    ],
+)
+def test_enrich_image(case):
     default_images_to_enrich_registry = config.images_to_enrich_registry
-    for case in cases:
-        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-        config.images_registry = case.get("images_registry", "ghcr.io/")
-        config.images_to_enrich_registry = case.get(
-            "images_to_enrich_registry", default_images_to_enrich_registry
+    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
+    config.images_registry = case.get("images_registry", "ghcr.io/")
+    config.images_to_enrich_registry = case.get(
+        "images_to_enrich_registry", default_images_to_enrich_registry
+    )
+    if case.get("version") is not None:
+        mlrun.utils.version.Version().get = unittest.mock.Mock(
+            return_value={"version": case["version"]}
         )
-        if case.get("version") is not None:
-            mlrun.utils.version.Version().get = unittest.mock.Mock(
-                return_value={"version": case["version"]}
-            )
-        config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
-        image = case["image"]
-        expected_output = case["expected_output"]
-        client_version = case.get("client_version")
-        client_python_version = case.get("client_python_version")
-        output = enrich_image_url(image, client_version, client_python_version)
-        assert output == expected_output
+    config.images_tag = case.get("images_tag", "0.5.2-unstable-adsf76s")
+    image = case["image"]
+    expected_output = case["expected_output"]
+    client_version = case.get("client_version")
+    client_python_version = case.get("client_python_version")
+    output = enrich_image_url(image, client_version, client_python_version)
+    assert output == expected_output
 
 
 @pytest.mark.parametrize(
@@ -550,8 +568,9 @@ def test_resolve_image_tag_suffix(mlrun_version, python_version, expected):
     assert resolve_image_tag_suffix(mlrun_version, python_version) == expected
 
 
-def test_get_parsed_docker_registry():
-    cases = [
+@pytest.mark.parametrize(
+    "case",
+    [
         {"docker_registry": "", "expected_registry": "", "expected_repository": None},
         {
             "docker_registry": "hedi/ingber",
@@ -588,12 +607,13 @@ def test_get_parsed_docker_registry():
             "expected_registry": "quay.io",
             "expected_repository": "",
         },
-    ]
-    for case in cases:
-        config.httpdb.builder.docker_registry = case["docker_registry"]
-        registry, repository = get_parsed_docker_registry()
-        assert case["expected_registry"] == registry
-        assert case["expected_repository"] == repository
+    ],
+)
+def test_get_parsed_docker_registry(case):
+    config.httpdb.builder.docker_registry = case["docker_registry"]
+    registry, repository = get_parsed_docker_registry()
+    assert case["expected_registry"] == registry
+    assert case["expected_repository"] == repository
 
 
 @pytest.mark.parametrize(
@@ -621,8 +641,9 @@ def test_parse_store_uri(uri, expected_output):
     assert expected_output == output
 
 
-def test_fill_artifact_path_template():
-    cases = [
+@pytest.mark.parametrize(
+    "case",
+    [
         {
             "artifact_path": "v3io://just/regular/path",
             "expected_artifact_path": "v3io://just/regular/path",
@@ -645,16 +666,17 @@ def test_fill_artifact_path_template():
             "project": "some-project",
             "expected_artifact_path": "v3io://legacy-template-project-provided/some-project",
         },
-    ]
-    for case in cases:
-        if case.get("raise"):
-            with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                fill_artifact_path_template(case["artifact_path"], case.get("project"))
-        else:
-            filled_artifact_path = fill_artifact_path_template(
-                case["artifact_path"], case.get("project")
-            )
-            assert case["expected_artifact_path"] == filled_artifact_path
+    ],
+)
+def test_fill_artifact_path_template(case):
+    if case.get("raise"):
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            fill_artifact_path_template(case["artifact_path"], case.get("project"))
+    else:
+        filled_artifact_path = fill_artifact_path_template(
+            case["artifact_path"], case.get("project")
+        )
+        assert case["expected_artifact_path"] == filled_artifact_path
 
 
 def test_update_in():

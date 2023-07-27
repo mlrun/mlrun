@@ -79,7 +79,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             )
 
         arguments = {"p1": 8}
-        run_id = mlrun.run_pipeline(
+        run_id = mlrun._run_pipeline(
             job_pipeline,
             arguments,
             experiment="my-job",

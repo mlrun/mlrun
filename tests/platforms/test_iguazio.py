@@ -93,6 +93,45 @@ def test_add_or_refresh_credentials_kubernetes_svc_url_success(monkeypatch):
     assert access_key == result_access_key
 
 
+def test_mount_v3io_legacy():
+    username = "username"
+    access_key = "access-key"
+    os.environ["V3IO_USERNAME"] = username
+    os.environ["V3IO_ACCESS_KEY"] = access_key
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(mlrun.mount_v3io_legacy())
+    expected_volume = {
+        "flexVolume": {
+            "driver": "v3io/fuse",
+            "options": {
+                "accessKey": access_key,
+                "container": "users",
+                "subPath": f"/{username}",
+            },
+        },
+        "name": "v3io",
+    }
+    expected_volume_mount = {"mountPath": "/User", "name": "v3io", "subPath": ""}
+    assert (
+        deepdiff.DeepDiff(
+            [expected_volume],
+            function.spec.volumes,
+            ignore_order=True,
+        )
+        == {}
+    )
+    assert (
+        deepdiff.DeepDiff(
+            [expected_volume_mount],
+            function.spec.volume_mounts,
+            ignore_order=True,
+        )
+        == {}
+    )
+
+
 def test_mount_v3io_multiple_user():
     username_1 = "first-username"
     username_2 = "second-username"
@@ -126,7 +165,7 @@ def test_mount_v3io_multiple_user():
     )
 
 
-def test_mount_v3io():
+def test_mount_v3io_extended():
     username = "username"
     access_key = "access-key"
     cases = [
@@ -146,14 +185,12 @@ def test_mount_v3io():
         },
         {"remote": "~/custom-remote", "expect_failure": True},
         {
-            "volume_mounts": [
-                mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")
-            ],
+            "mounts": [mlrun.VolumeMount("/volume-mount-path", "volume-sub-path")],
             "remote": "~/custom-remote",
             "expect_failure": True,
         },
         {
-            "volume_mounts": [
+            "mounts": [
                 mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
                 mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
             ],
@@ -184,7 +221,7 @@ def test_mount_v3io():
             ],
         },
         {
-            "volume_mounts": [
+            "mounts": [
                 mlrun.VolumeMount("/volume-mount-path", "volume-sub-path"),
                 mlrun.VolumeMount("/volume-mount-path-2", "volume-sub-path-2"),
             ],
@@ -221,17 +258,19 @@ def test_mount_v3io():
         function = mlrun.new_function(
             "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
         )
-        mount_v3io_kwargs = {
+        mount_v3io_extended_kwargs = {
             "remote": case.get("remote"),
-            "volume_mounts": case.get("volume_mounts"),
+            "mounts": case.get("mounts"),
         }
-        mount_v3io_kwargs = {k: v for k, v in mount_v3io_kwargs.items() if v}
+        mount_v3io_extended_kwargs = {
+            k: v for k, v in mount_v3io_extended_kwargs.items() if v
+        }
 
         if case.get("expect_failure"):
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+                function.apply(mlrun.mount_v3io_extended(**mount_v3io_extended_kwargs))
         else:
-            function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+            function.apply(mlrun.mount_v3io_extended(**mount_v3io_extended_kwargs))
 
             assert (
                 deepdiff.DeepDiff(

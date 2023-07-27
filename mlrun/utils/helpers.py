@@ -35,6 +35,7 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
+from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
@@ -750,6 +751,18 @@ def new_pipe_metadata(
         for op_transformer in op_transformers:
             conf.add_op_transformer(op_transformer)
     return conf
+
+
+# TODO: remove in 1.5.0
+@deprecated(
+    version="1.3.0",
+    reason="'new_pipe_meta' will be removed in 1.5.0",
+    category=FutureWarning,
+)
+def new_pipe_meta(artifact_path=None, ttl=None, *args):
+    return new_pipe_metadata(
+        artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=args
+    )
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):

@@ -19,7 +19,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -528,6 +528,11 @@ class BatchProcessor:
             ]
         )
 
+        # If provided, only model endpoints in that that list will be analyzed
+        self.model_endpoints = context.parameters.get(
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
+        )
+
     @classmethod
     def _get_interval_len(cls, batch_dict: dict) -> datetime.timedelta:
         # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
@@ -557,11 +562,6 @@ class BatchProcessor:
         for pair in batch_list:
             pair_list = pair.split(":")
             batch_dict[pair_list[0]] = float(pair_list[1])
-
-        # If provided, only model endpoints in that that list will be analyzed
-        self.model_endpoints = context.parameters.get(
-            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
-        )
 
     def _initialize_v3io_configurations(self):
         self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
@@ -661,9 +661,19 @@ class BatchProcessor:
                         f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
                     )
                     continue
-                self.update_drift_metrics(endpoint=endpoint)
+                for start_time, end_time in self._get_interval_ranges(
+                    endpoint, query_start=datetime.datetime.now()
+                ):
+                    self.update_drift_metrics(
+                        endpoint=endpoint, start_time=start_time, end_time=end_time
+                    )
 
-    def update_drift_metrics(self, endpoint: dict):
+    def update_drift_metrics(
+        self,
+        endpoint: dict,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+    ) -> None:
         try:
             m_fs = fstore.get_feature_set(
                 endpoint[
@@ -672,8 +682,6 @@ class BatchProcessor:
             )
 
             # Getting batch interval start time and end time
-            start_time, end_time = self._get_interval_range(endpoint)
-
             try:
                 df = m_fs.to_dataframe(
                     start_time=start_time,
@@ -860,25 +868,38 @@ class BatchProcessor:
             ]
         ).get(mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED)
 
-    def _get_interval_start_time(self, endpoint: dict) -> datetime.datetime:
+    def _get_interval_start_time(
+            self, endpoint: dict, query_start: datetime.datetime
+        ) -> datetime.datetime:
         """Return the start time. This time should always be in the past."""
         latest_analyzed = self._get_latest_analyzed_time(endpoint)
         if latest_analyzed:
             start_time = latest_analyzed
-            logger.info("Found latest analyzed time {}", start_time)
+            logger.debug("Found latest analyzed time {}", start_time)
         else:
-            start_time = datetime.datetime.now() - self._interval_len
+            start_time = query_start - self._interval_len
             logger.info(
                 "No latest analyzed time was found, probably as this is the first run "
-                "of the batch monitoring job. Starting at {}", start_time
+                "of the batch monitoring job, or that it's an old system. Starting at {}",
+                start_time,
             )
         return start_time
 
-    def _get_interval_range(self, endpoint: dict) -> Tuple[datetime.datetime, datetime.datetime]:
+    def _get_interval_ranges(
+        self, endpoint: dict, query_start: datetime.datetime
+    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """Getting batch interval time range"""
-        start_time = self._get_interval_start_time(endpoint)
-        end_time = start_time + self._interval_len
-        return start_time, end_time
+        querying = True
+        while querying:
+            start_time = self._get_interval_start_time(endpoint, query_start=query_start)
+            end_time = start_time + self._interval_len
+            if end_time > query_start:
+                querying = False
+                logger.debug(
+                    "The query window isn't over yet. Wait for the next interval time."
+                )
+                return
+            yield start_time, end_time
 
     def _update_drift_in_v3io_tsdb(
         self,

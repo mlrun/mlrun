@@ -676,6 +676,22 @@ class SQLRunDB(RunDBInterface):
             uid,
         )
 
+    def store_run_notifications(
+        self,
+        notification_objects: List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        return self._transform_db_error(
+            mlrun.api.crud.Notifications().store_run_notifications,
+            self.session,
+            notification_objects,
+            run_uid,
+            project,
+            mask_params,
+        )
+
     def list_pipelines(
         self,
         project: str,

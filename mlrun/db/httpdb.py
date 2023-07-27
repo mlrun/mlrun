@@ -3100,6 +3100,20 @@ class HTTPRunDB(RunDBInterface):
             },
         )
 
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        """
+        For internal use.
+        The notification mechanism may run "locally" for certain runtimes.
+        However, the updates occur in the API so nothing to do here.
+        """
+        pass
+
     def submit_workflow(
         self,
         project: str,

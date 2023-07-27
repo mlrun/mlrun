@@ -17,8 +17,6 @@ import socket
 import time
 from os import environ
 
-from deprecated import deprecated
-
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -399,16 +397,6 @@ class DaskCluster(KubejobRuntime):
             builder_env=builder_env,
             show_on_failure=show_on_failure,
         )
-
-    # TODO: Remove in 1.5.0
-    @deprecated(
-        version="1.3.0",
-        reason="'Dask gpus' will be removed in 1.5.0, use 'with_scheduler_limits' / 'with_worker_limits' instead",
-        category=FutureWarning,
-    )
-    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        update_in(self.spec.scheduler_resources, ["limits", gpu_type], gpus)
-        update_in(self.spec.worker_resources, ["limits", gpu_type], gpus)
 
     def with_limits(
         self,

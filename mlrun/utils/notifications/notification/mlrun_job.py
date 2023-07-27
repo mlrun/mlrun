@@ -36,13 +36,18 @@ class MLRunJobNotification(NotificationBase):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        run_template = self.params.get("run_template", None)
+        run_template = self.params.get("run_template", {})
         auth_info = None
         if "auth_info" in self.params:
             auth_info = mlrun.common.schemas.AuthInfo(
                 username=self.params["auth_info"].get("username", None),
                 access_key=self.params["auth_info"].get("access_key", None),
             )
+
+        # enrich run template with project from run if not already set
+        run_template.setdefault("metadata", {}).setdefault(
+            "project", runs[0]["metadata"]["project"]
+        )
 
         run_db = mlrun.get_run_db()
         if asyncio.iscoroutine(run_db.submit_job):

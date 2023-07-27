@@ -1338,22 +1338,23 @@ class HTTPRunDB(RunDBInterface):
         self,
         runspec,
         schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         """Submit a job for remote execution.
 
         :param runspec: The runtime object spec (Task) to execute.
         :param schedule: Whether to schedule this job using a Cron trigger. If not specified, the job will be submitted
             immediately.
+        :param auth_info: Authorization info for the request (exists for interface, ignored in client side).
         """
 
+        if auth_info:
+            logger.warning("auth_info is not supported in remote submit_job. Ignoring.")
+
         try:
-            req = {"task": runspec.to_dict()}
-            if schedule:
-                if isinstance(schedule, mlrun.common.schemas.ScheduleCronTrigger):
-                    schedule = schedule.dict()
-                req["schedule"] = schedule
+            request = self._enrich_submit_job_request(runspec, schedule)
             timeout = (int(config.submit_timeout) or 120) + 20
-            resp = self.api_call("POST", "submit_job", json=req, timeout=timeout)
+            resp = self.api_call("POST", "submit_job", json=request, timeout=timeout)
 
         except requests.HTTPError as err:
             logger.error(f"error submitting task: {err_to_str(err)}")

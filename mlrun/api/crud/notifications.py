@@ -34,11 +34,15 @@ class Notifications(
         notification_objects: typing.List[mlrun.model.Notification],
         run_uid: str,
         project: str = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
         notification_objects_to_store = (
-            mlrun.api.api.utils.validate_and_mask_notification_list(
-                notification_objects, run_uid, project
+            mlrun.api.api.utils.validate_mask_and_enrich_notification_list(
+                notification_objects,
+                run_uid,
+                project,
+                auth_info=auth_info,
             )
         )
 
@@ -133,10 +137,11 @@ class Notifications(
             )
 
         notification_objects_to_set = (
-            mlrun.api.api.utils.validate_and_mask_notification_list(
+            mlrun.api.api.utils.validate_mask_and_enrich_notification_list(
                 notifications,
                 getattr(notification_parent, identifier_key),
                 project,
+                auth_info=auth_info,
             )
         )
 

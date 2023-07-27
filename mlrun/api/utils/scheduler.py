@@ -139,7 +139,9 @@ class Scheduler:
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich_schedule_notifications(
+            project, name, scheduled_object, auth_info=auth_info
+        )
 
         get_db().create_schedule(
             session=db_session,
@@ -214,7 +216,9 @@ class Scheduler:
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
 
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich_schedule_notifications(
+            project, name, scheduled_object, auth_info=auth_info
+        )
 
         get_db().update_schedule(
             session=db_session,
@@ -347,7 +351,9 @@ class Scheduler:
         self._ensure_auth_info_has_access_key(auth_info, kind)
         secret_name = self._store_schedule_secrets_using_auth_secret(auth_info)
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
-        self._enrich_schedule_notifications(project, name, scheduled_object)
+        self._enrich_schedule_notifications(
+            project, name, scheduled_object, auth_info=auth_info
+        )
 
         db_schedule = get_db().store_schedule(
             session=db_session,
@@ -976,7 +982,10 @@ class Scheduler:
 
     @staticmethod
     def _enrich_schedule_notifications(
-        project: str, schedule_name: str, scheduled_object: Union[Dict, Callable]
+        project: str,
+        schedule_name: str,
+        scheduled_object: Union[Dict, Callable],
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         if not isinstance(scheduled_object, dict):
             return
@@ -987,8 +996,11 @@ class Scheduler:
         if schedule_notifications:
             scheduled_object["task"]["spec"]["notifications"] = [
                 notification.to_dict()
-                for notification in mlrun.api.api.utils.validate_and_mask_notification_list(
-                    schedule_notifications, schedule_name, project
+                for notification in mlrun.api.api.utils.validate_mask_and_enrich_notification_list(
+                    schedule_notifications,
+                    schedule_name,
+                    project,
+                    auth_info=auth_info,
                 )
             ]
 

@@ -21,6 +21,7 @@ from .base import NotificationBase
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification
+from .mlrun_job import MLRunJobNotification
 from .slack import SlackNotification
 from .webhook import WebhookNotification
 
@@ -29,6 +30,7 @@ class NotificationTypes(str, enum.Enum):
     console = NotificationKind.console.value
     git = NotificationKind.git.value
     ipython = NotificationKind.ipython.value
+    mlrun_job = NotificationKind.mlrun_job.value
     slack = NotificationKind.slack.value
     webhook = NotificationKind.webhook.value
 
@@ -37,6 +39,7 @@ class NotificationTypes(str, enum.Enum):
             self.console: ConsoleNotification,
             self.git: GitNotification,
             self.ipython: IPythonNotification,
+            self.mlrun_job: MLRunJobNotification,
             self.slack: SlackNotification,
             self.webhook: WebhookNotification,
         }.get(self)

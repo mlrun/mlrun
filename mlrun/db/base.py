@@ -147,6 +147,27 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
+    def submit_job(
+        self,
+        runspec,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+    ):
+        pass
+
+    @staticmethod
+    def _enrich_submit_job_request(
+        runspec,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+    ) -> dict:
+        request = {"task": runspec.to_dict()}
+        if schedule:
+            if isinstance(schedule, mlrun.common.schemas.ScheduleCronTrigger):
+                schedule = schedule.dict()
+            request["schedule"] = schedule
+        return request
+
+    @abstractmethod
     def tag_objects(
         self,
         project: str,

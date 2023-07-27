@@ -26,6 +26,7 @@ class NotificationKind(mlrun.common.types.StrEnum):
     ipython = "ipython"
     slack = "slack"
     webhook = "webhook"
+    mlrun_job = "mlrun-job"
 
 
 class NotificationSeverity(mlrun.common.types.StrEnum):

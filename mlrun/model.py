@@ -571,6 +571,9 @@ class Notification(ModelObj):
                 "Invalid notification object"
             ) from exc
 
+        if self.kind == mlrun.common.schemas.notification.NotificationKind.mlrun_job:
+            self._validate_mlrun_job_notification()
+
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
         """Validate that all notifications in the list are unique by name"""
@@ -579,6 +582,20 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Notification names must be unique"
             )
+
+    def _validate_mlrun_job_notification(self):
+        run_template = self.params.get("run_template", None)
+        if not run_template:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "run_template must be specified for mlrun_job notification"
+            )
+
+        try:
+            RunTemplate.from_dict(run_template)
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid run_template object"
+            ) from exc
 
 
 class RunMetadata(ModelObj):

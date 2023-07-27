@@ -207,6 +207,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             runobj.spec.notifications,
             runobj.metadata.uid,
             runobj.metadata.project,
+            auth_info=self._auth_info,
         )
 
     def _store_function(

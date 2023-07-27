@@ -17,6 +17,7 @@ from typing import List, Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.api.api.utils
 import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.db.factory
@@ -278,6 +279,20 @@ class SQLRunDB(RunDBInterface):
             name=name,
             tag=tag,
             labels=labels,
+        )
+
+    async def submit_job(
+        self,
+        runspec,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
+    ):
+        request = self._enrich_submit_job_request(runspec, schedule)
+        return await self._transform_db_error(
+            mlrun.api.api.utils.submit_run,
+            self.session,
+            request,
+            auth_info,
         )
 
     def list_artifact_tags(

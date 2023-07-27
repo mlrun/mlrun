@@ -336,12 +336,13 @@ def delete_notification_params_secret(
     )
 
 
-def validate_and_mask_notification_list(
+def validate_mask_and_enrich_notification_list(
     notifications: typing.List[
         typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
     ],
     parent: str,
     project: str,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ) -> typing.List[mlrun.model.Notification]:
     """
     Validates notification schema, uniqueness and masks notification params with secret if needed.
@@ -350,6 +351,7 @@ def validate_and_mask_notification_list(
     :param notifications: list of notification objects
     :param parent: parent identifier
     :param project: project name
+    :param auth_info: user authentication info
     :return: list of validated and masked notification objects
     """
     notification_objects = []
@@ -375,10 +377,47 @@ def validate_and_mask_notification_list(
 
     mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
 
+    if auth_info:
+        notification_objects = [
+            enrich_notification_auth_info(notification_object, auth_info)
+            for notification_object in notification_objects
+        ]
+
     return [
         mask_notification_params_with_secret(project, parent, notification_object)
         for notification_object in notification_objects
     ]
+
+
+def enrich_notification_auth_info(
+    notification_object: mlrun.model.Notification,
+    auth_info: mlrun.common.schemas.AuthInfo,
+) -> mlrun.model.Notification:
+    """
+    Enriches notification object with requested user access key.
+    :param notification_object: notification object
+    :param auth_info: user authentication info
+    :return: enriched notification object
+    """
+
+    # if auth has a session, we want to create an access key for the session user,
+    # so we don't have a session expiring before using the notification.
+    # if we don't have a session we can pass the auth info as is,
+    # it will either have an access key or nothing if not in an igz system.
+    if auth_info.session:
+        auth_info.access_key = (
+            mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key(
+                auth_info.session
+            )
+        )
+        # created an access key with control and data session plane, so enriching auth_info with those planes
+        auth_info.planes = [
+            mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+            mlrun.api.utils.clients.iguazio.SessionPlanes.data,
+        ]
+
+    notification_object.params["auth_info"] = auth_info.dict()
+    return notification_object
 
 
 def apply_enrichment_and_validation_on_function(

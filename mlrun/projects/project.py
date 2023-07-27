@@ -2350,11 +2350,6 @@ class MlrunProject(ModelObj):
         expected_statuses=None,
         notifiers: CustomNotificationPusher = None,
     ):
-        warnings.warn(
-            "This is deprecated in 1.3.0, and will be removed in 1.6.0. "
-            "Use `timeout` parameter in `project.run()` method instead",
-            FutureWarning,
-        )
         return run._engine.get_run_status(
             project=self,
             run=run,

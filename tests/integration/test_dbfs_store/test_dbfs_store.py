@@ -59,7 +59,6 @@ def is_dbfs_configured():
 )
 class TestDBFSStore:
     def setup_class(self):
-        databricks_host = config["env"].get("DATABRICKS_HOST")
         env_params = config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param

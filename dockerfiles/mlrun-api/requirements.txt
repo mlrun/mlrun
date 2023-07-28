@@ -4,3 +4,5 @@ apscheduler~=3.6
 sqlite3-to-mysql~=1.4
 objgraph~=3.5
 igz-mgmt~=0.0.10
+humanfriendly~=9.2
+fastapi~=0.95.2

@@ -156,12 +156,8 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(
-    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-):
+def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     function_dict, function_url, task = parse_submit_run_body(data)
-    # TODO: block exec for function["kind"] in ["", "local]  (must be a
-    # remote/container runtime)
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -188,7 +184,6 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function, auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -883,16 +878,8 @@ def submit_run_sync(
     project = None
     response = None
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(
-            db_session, auth_info, data
-        )
-        if (
-            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
-            and not mlrun.mlconf.httpdb.jobs.allow_local_run
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Local runtimes can not be run through API (not locally)"
-            )
+        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
@@ -965,7 +952,12 @@ def submit_run_sync(
                 auth_info.data_session or auth_info.access_key
             )
 
-            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
+            run = fn.run(
+                task,
+                watch=False,
+                param_file_secrets=param_file_secrets,
+                auth_info=auth_info,
+            )
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:

@@ -41,7 +41,7 @@ class LauncherFactory(
         :return:            The appropriate launcher for the specified run.
         """
         if mlrun.config.is_running_as_api():
-            return self._launcher_container.server_side_launcher(**kwargs)
+            return self._launcher_container.server_side_launcher(is_remote, **kwargs)
 
         local = kwargs.get("local", False)
         if is_remote and not local:

@@ -28,6 +28,7 @@ from apscheduler.triggers.cron import CronTrigger as APSchedulerCronTrigger
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.utils
+import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
@@ -461,8 +462,6 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         kind: mlrun.common.schemas.ScheduleKinds,
     ):
-        import mlrun.api.crud
-
         if (
             kind not in mlrun.common.schemas.ScheduleKinds.local_kinds()
             and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
@@ -496,9 +495,6 @@ class Scheduler:
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> str:
-        # import here to avoid circular imports
-        import mlrun.api.crud
-
         if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
@@ -527,9 +523,6 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        # import here to avoid circular imports
-        import mlrun.api.crud
-
         if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             # sanity
             if not auth_info.access_key:
@@ -577,9 +570,6 @@ class Scheduler:
         project: str,
         name: str,
     ):
-        # import here to avoid circular imports
-        import mlrun.api.crud
-
         if mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             access_key_secret_key = (
                 mlrun.api.crud.Secrets().generate_client_project_secret_key(
@@ -622,8 +612,6 @@ class Scheduler:
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
-        # import here to avoid circular imports
-        import mlrun.api.crud
 
         schedule_access_key_secret_key = (
             mlrun.api.crud.Secrets().generate_client_project_secret_key(
@@ -785,7 +773,6 @@ class Scheduler:
         *args,
         **kwargs,
     ):
-
         try:
             return self._scheduler.modify_job(
                 job_id,
@@ -806,9 +793,6 @@ class Scheduler:
         for db_schedule in db_schedules:
             # don't let one failure fail the rest
             try:
-                # import here to avoid circular imports
-                import mlrun.api.crud
-
                 access_key = None
                 username = None
                 need_to_update_credentials = False
@@ -1085,11 +1069,6 @@ class Scheduler:
         schedule_concurrency_limit,
         auth_info,
     ):
-
-        # import here to avoid circular imports
-        import mlrun.api.crud
-        from mlrun.api.api.utils import submit_run_sync
-
         db_session = None
 
         try:
@@ -1149,7 +1128,9 @@ class Scheduler:
                     schedule_name,
                 )
 
-            _, _, _, response = submit_run_sync(db_session, auth_info, scheduled_object)
+            _, _, _, response = mlrun.api.api.utils.submit_run_sync(
+                db_session, auth_info, scheduled_object
+            )
 
             run_metadata = response["data"]["metadata"]
             run_uri = RunObject.create_uri(

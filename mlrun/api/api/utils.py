@@ -912,37 +912,16 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
-            not_found = False
-            try:
-                get_scheduler().update_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                not_found = True
-                logger.debug(
-                    "No existing schedule found, creating a new one",
-                    project=task["metadata"]["project"],
-                    name=task["metadata"]["name"],
-                )
-
-            # separate the creation from the not found case to not chain with exception raised below
-            if not_found:
-                get_scheduler().create_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    mlrun.common.schemas.ScheduleKinds.job,
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
+            is_update = get_scheduler().store_schedule(
+                db_session,
+                auth_info,
+                task["metadata"]["project"],
+                task["metadata"]["name"],
+                mlrun.common.schemas.ScheduleKinds.job,
+                data,
+                cron_trigger,
+                schedule_labels,
+            )
 
             project = task["metadata"]["project"]
             response = {
@@ -950,8 +929,9 @@ def submit_run_sync(
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if not_found else "modified",
+                "action": "modified" if is_update else "created",
             }
+
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
             # locally from the mlrun service pod) - include project secrets and the caller's access key

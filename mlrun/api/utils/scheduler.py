@@ -386,6 +386,7 @@ class Scheduler:
             )
 
         self.update_schedule_next_run_time(db_session, name, project, job)
+        return is_update
 
     def _remove_schedule_scheduler_resources(self, db_session: Session, project, name):
         self._remove_schedule_from_scheduler(project, name)

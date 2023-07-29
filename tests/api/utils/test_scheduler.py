@@ -1557,12 +1557,12 @@ def _assert_schedule_secrets(
 
 def _assert_schedule(
     schedule: mlrun.common.schemas.ScheduleOutput,
-    project,
-    name,
-    kind,
-    cron_trigger,
-    next_run_time,
-    labels,
+    project: str,
+    name: str,
+    kind: mlrun.common.schemas.ScheduleKinds,
+    cron_trigger: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger],
+    next_run_time: typing.Optional[datetime] = None,
+    labels: dict = None,
     concurrency_limit: int = None,
 ):
     assert schedule.name == name

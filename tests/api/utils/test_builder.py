@@ -1337,3 +1337,59 @@ def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
     else:
         with expected_result:
             mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+
+
+@pytest.mark.parametrize(
+    "builder_env,source,project_secrets,extra_args",
+    [
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
+            None,
+            {"SECRET": "secret"},
+            "--build-arg A=b C=d --test",
+        ),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy"),
+                client.V1EnvVar(name="TETS", value="test"),
+            ],
+            None,
+            {"SECRET": "secret", "ANOTHER_SECRET": "another_secret"},
+            "--build-arg A=b C=d --test --build-arg X=y",
+        ),
+    ],
+)
+def test_matching_args_dockerfile_and_kpod(
+    builder_env, source, project_secrets, extra_args
+):
+    dock = mlrun.api.utils.builder.make_dockerfile(
+        base_image="mlrun/mlrun",
+        builder_env=builder_env,
+        source=source,
+        commands=None,
+        project_secrets=project_secrets,
+        extra_args=extra_args,
+    )
+
+    kpod = mlrun.api.utils.builder.make_kaniko_pod(
+        project="test",
+        context="/context",
+        dest="docker-hub/",
+        dockerfile="./Dockerfile",
+        builder_env=builder_env,
+        extra_args=extra_args,
+    )
+
+    kpod_args = kpod.args
+    kpod_build_args = [
+        kpod_args[i + 1]
+        for i in range(len(kpod.args) - 1)
+        if kpod_args[i] == "--build-arg"
+    ]
+
+    dock_arg_lines = [line for line in dock.splitlines() if line.startswith("ARG")]
+    dock_env_lines = [line for line in dock.splitlines() if line.startswith("ENV")]
+    for arg in kpod_build_args:
+        arg_key, arg_val = arg.split("=")
+        assert f"ARG {arg_key}" in dock_arg_lines
+        assert f"ENV {arg_key.replace('_ARG', '')}=${arg_key}" in dock_env_lines

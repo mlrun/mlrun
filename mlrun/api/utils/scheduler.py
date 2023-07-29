@@ -358,7 +358,7 @@ class Scheduler:
             concurrency_limit=concurrency_limit,
         )
 
-        # we differentiate between update and create because it changes our communication with the apscheduler
+        # we differentiate between update and create because it changes our communication with the scheduler
         if is_update:
             updated_schedule = self._transform_and_enrich_db_schedule(
                 db_session, db_schedule

@@ -114,8 +114,6 @@ class Scheduler:
         labels: Dict = None,
         concurrency_limit: int = None,
     ):
-        if concurrency_limit is None:
-            concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
                 cron_trigger
@@ -141,7 +139,7 @@ class Scheduler:
 
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
-        get_db().create_schedule(
+        db_schedule = get_db().create_schedule(
             session=db_session,
             project=project,
             name=name,
@@ -152,12 +150,12 @@ class Scheduler:
             labels=labels,
         )
         job = self._create_schedule_in_scheduler(
-            project,
-            name,
-            kind,
-            scheduled_object,
-            cron_trigger,
-            concurrency_limit,
+            db_schedule.project,
+            db_schedule.name,
+            db_schedule.kind,
+            db_schedule.scheduled_object,
+            db_schedule.cron_trigger,
+            db_schedule.concurrency_limit,
             auth_info,
         )
         self.update_schedule_next_run_time(db_session, name, project, job)
@@ -310,11 +308,11 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
         scheduled_object: Union[Dict, Callable] = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         labels: Dict = None,
         concurrency_limit: int = None,
-        kind: mlrun.common.schemas.ScheduleKinds = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -349,7 +347,7 @@ class Scheduler:
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
         self._enrich_schedule_notifications(project, name, scheduled_object)
 
-        db_schedule = get_db().store_schedule(
+        db_schedule, is_update = get_db().store_schedule(
             session=db_session,
             project=project,
             name=name,
@@ -359,7 +357,9 @@ class Scheduler:
             labels=labels,
             concurrency_limit=concurrency_limit,
         )
-        if db_schedule:
+
+        # we differentiate between update and create because it changes our communication with the apscheduler
+        if is_update:
             updated_schedule = self._transform_and_enrich_db_schedule(
                 db_session, db_schedule
             )
@@ -373,14 +373,15 @@ class Scheduler:
                 updated_schedule.concurrency_limit,
                 auth_info,
             )
+
         else:
             job = self._create_schedule_in_scheduler(
-                project,
-                name,
-                kind,
-                scheduled_object,
-                cron_trigger,
-                concurrency_limit,
+                db_schedule.project,
+                db_schedule.name,
+                db_schedule.kind,
+                db_schedule.scheduled_object,
+                db_schedule.cron_trigger,
+                db_schedule.concurrency_limit,
                 auth_info,
             )
 

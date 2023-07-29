@@ -902,7 +902,6 @@ def submit_run_sync(
             if isinstance(cron_trigger, dict):
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            created = False
 
             # if the task is pointing to a remote function (hub://), we need to save it to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
@@ -913,6 +912,7 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
+            not_found = False
             try:
                 get_scheduler().update_schedule(
                     db_session,
@@ -924,11 +924,15 @@ def submit_run_sync(
                     schedule_labels,
                 )
             except mlrun.errors.MLRunNotFoundError:
+                not_found = True
                 logger.debug(
                     "No existing schedule found, creating a new one",
                     project=task["metadata"]["project"],
                     name=task["metadata"]["name"],
                 )
+
+            # separate the creation from the not found case to not chain with exception raised below
+            if not_found:
                 get_scheduler().create_schedule(
                     db_session,
                     auth_info,
@@ -939,15 +943,14 @@ def submit_run_sync(
                     cron_trigger,
                     schedule_labels,
                 )
-                created = True
-            project = task["metadata"]["project"]
 
+            project = task["metadata"]["project"]
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if created else "modified",
+                "action": "created" if not_found else "modified",
             }
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed

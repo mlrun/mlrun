@@ -45,6 +45,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
+from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -2998,6 +2999,27 @@ class MlrunProject(ModelObj):
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
             **kwargs,
+        )
+
+    def register_datastore_profile(self, profile: DatastoreProfile):
+        project_ds_name_private = DatastoreProfile.generate_secret_key(
+            profile.name, self.name
+        )
+        private_body = DatastoreProfile2Json.get_json_private(profile)
+        public_body = DatastoreProfile2Json.get_json_public(profile)
+        # set project public data to DB
+        public_profile = mlrun.common.schemas.DatastoreProfile(
+            name=profile.name, type=profile.type, body=public_body, project=self.name
+        )
+        mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
+            public_profile, self.name
+        )
+        # Set local environment variable
+        environ[project_ds_name_private] = private_body
+        # set project secret
+        self.set_secrets(
+            secrets={project_ds_name_private: private_body},
+            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         )
 
     def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:

@@ -618,6 +618,8 @@ def parse_path(url, suffix="/"):
             prefix = "redis"
         elif scheme == "rediss":
             prefix = "rediss"
+        elif scheme == "ds":
+            prefix = "ds"
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "url must start with v3io/v3ios/redis/rediss, got " + url

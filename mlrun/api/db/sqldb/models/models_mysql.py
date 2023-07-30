@@ -522,6 +522,18 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.version}"
 
+    class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "datastore_profiles"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        type = Column(String(255, collation=SQLCollationUtil.collation()))
+        body = Column(String(1024, collation=SQLCollationUtil.collation()))
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]

@@ -48,6 +48,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    DatastoreProfile,
     DataVersion,
     Entity,
     Feature,
@@ -1917,6 +1918,7 @@ class SQLDB(DBInterface):
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
+        self.delete_datastore_profiles(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -3944,3 +3946,104 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    def store_datastore_profile(
+        self, session, info: mlrun.common.schemas.DatastoreProfile
+    ):
+        """
+        Create or replace a datastore profile.
+        :param session: SQLAlchemy session
+        :param info: datastore profile
+        :returns: None
+        """
+        info.project = info.project or config.default_project
+        profile = self._query(
+            session, DatastoreProfile, name=info.name, project=info.project
+        )
+        first = profile.first()
+        if first:
+            first.type = info.type
+            first.body = info.body
+            self._commit(session, [profile])
+        else:
+            profile = DatastoreProfile(
+                name=info.name,
+                type=info.type,
+                project=info.project,
+                body=info.body,
+            )
+            self._upsert(session, [profile])
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        """
+        get a datastore profile.
+        :param session: SQLAlchemy session
+        :param profile: name of the profile
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            r = res.first().to_dict(exclude=["id"])
+            return mlrun.common.schemas.DatastoreProfile(**r)
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            session.delete(res.first())
+            session.commit()
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        list all datastore profiles for a project.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: List of DatatoreProfile objects (only the public portion of it)
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        return [
+            mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+            for query in query_results
+        ]
+
+    def delete_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        Delete all datastore profiles.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        for profile in query_results:
+            session.delete(profile)
+        session.commit()

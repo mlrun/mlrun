@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import json
 import re
 import tempfile
 import time
@@ -36,6 +37,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -3239,6 +3241,41 @@ class HTTPRunDB(RunDBInterface):
                 self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
 
         return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res and res._content:
+            public_wrapper = json.loads(res._content)
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["body"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles")
+
+        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
 
 
 def _as_json(obj):

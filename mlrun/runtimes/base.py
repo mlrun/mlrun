@@ -167,6 +167,10 @@ class BaseRuntime(ModelObj):
 
     @staticmethod
     def get_enriched_code():
+        """
+        Return the code along with any additional code that is required for the specific runtime.
+        For example, this may involve connecting to remote workspaces.
+        """
         return ""
 
     def set_db_connection(self, conn):

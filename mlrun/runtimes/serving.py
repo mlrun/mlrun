@@ -230,6 +230,10 @@ class ServingRuntime(RemoteRuntime):
 
     @staticmethod
     def get_enriched_code():
+        """
+        Return the code along with any additional code that is required for the specific runtime.
+        For example, this may involve connecting to remote workspaces.
+        """
         return mlrun_footer.format(serving_subkind)
 
     @property

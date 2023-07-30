@@ -397,6 +397,10 @@ class DatabricksRuntime(KubejobRuntime):
 
     @staticmethod
     def get_enriched_code():
+        """
+        Return the code along with any additional code that is required for the specific runtime.
+        For example, this may involve connecting to remote workspaces.
+        """
         current_file = os.path.abspath(__file__)
         current_dir = os.path.dirname(current_file)
         databricks_runtime_wrap_path = os.path.join(

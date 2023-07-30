@@ -89,10 +89,13 @@ class SQLModelEndpointStore(ModelEndpointStore):
             # Adjust timestamps fields
             endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST
-            ] = datetime.now(timezone.utc)
-            endpoint[
+            ] = endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST
-            ] = datetime.now(timezone.utc)
+            ] = endpoint[
+                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED
+            ] = datetime.now(
+                timezone.utc
+            )
 
             # Convert the result into a pandas Dataframe and write it into the database
             endpoint_df = pd.DataFrame([endpoint])

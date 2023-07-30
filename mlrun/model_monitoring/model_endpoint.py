@@ -59,7 +59,7 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
         current_stats: Optional[dict] = None,
         first_request: Optional[str] = "",
         last_request: Optional[str] = "",
-        last_analyzed: Optional[str] = None,
+        last_analyzed: Optional[str] = "",
         error_count: Optional[int] = 0,
         drift_status: Optional[str] = "",
         drift_measures: Optional[dict] = None,

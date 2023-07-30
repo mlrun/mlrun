@@ -145,7 +145,8 @@ def test_is_enabled(rundb_mock):
     # check all the stuff we check in is_enabled
     enabled = (
         mlflow_tracker._tracked_platform is not None
-        and getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).mode == "enabled"
+        and getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).mode
+        == "enabled"
         and relevant
     )
 
@@ -177,7 +178,6 @@ def test_run(rundb_mock, handler):
             local=True, artifact_path=test_directory, handler=handler
         )
         _validate_run(trainer_run, client)
-
 
 
 def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):

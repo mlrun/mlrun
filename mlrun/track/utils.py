@@ -16,7 +16,6 @@ import os
 import zipfile
 
 
-
 def convert_np_dtype_to_value_type():
     """
     needed to avoid import issues later
@@ -39,6 +38,3 @@ def zip_folder(folder_path: str, output_path: str):
             for file in files:
                 file_path = os.path.join(root, file)
                 zipf.write(file_path, os.path.relpath(file_path, folder_path))
-
-
-

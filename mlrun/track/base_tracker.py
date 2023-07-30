@@ -41,7 +41,12 @@ class BaseTracker(Tracker):
     @classmethod
     def is_enabled(cls) -> bool:
         # Check the tracker's configuration:
-        if getattr(mlrun.mlconf.external_platform_tracking, cls.TRACKED_MODULE_NAME).mode != "enabled":
+        if (
+            getattr(
+                mlrun.mlconf.external_platform_tracking, cls.TRACKED_MODULE_NAME
+            ).mode
+            != "enabled"
+        ):
             return False
 
         # Check if the module to track is available in the interpreter:

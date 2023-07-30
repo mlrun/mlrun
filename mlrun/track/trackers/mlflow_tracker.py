@@ -16,14 +16,11 @@ import os
 import pathlib
 import tempfile
 from typing import Union
-from mlrun.features import Feature
 
 from mlrun.execution import MLClientCtx
+from mlrun.features import Feature
 from mlrun.track.base_tracker import BaseTracker
-from mlrun.track.utils import (
-    convert_np_dtype_to_value_type,
-    zip_folder,
-)
+from mlrun.track.utils import convert_np_dtype_to_value_type, zip_folder
 from mlrun.utils import logger
 
 
@@ -56,8 +53,8 @@ class MLFlowTracker(BaseTracker):
         return env
 
     def _apply_post_run_tasks(
-            self,
-            context: Union[MLClientCtx, dict],
+        self,
+        context: Union[MLClientCtx, dict],
     ):
         """
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
@@ -113,9 +110,9 @@ class MLFlowTracker(BaseTracker):
             logger.debug("Finished to log MLFlow model")
 
     def log_model(
-            self,
-            model_uri: str,
-            context: Union[MLClientCtx, dict],
+        self,
+        model_uri: str,
+        context: Union[MLClientCtx, dict],
     ):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)

@@ -391,7 +391,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class DatabricksRuntime(KubejobRuntime):
-    kind = "databricks-job"
+    kind = "databricks-task"
     _is_nested = True
     _is_remote = True
 

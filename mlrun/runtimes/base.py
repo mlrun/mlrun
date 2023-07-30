@@ -431,7 +431,7 @@ class BaseRuntime(ModelObj):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
-            if self.kind == "databricks-job":
+            if self.kind == "databricks-task":
                 code = b64decode(code).decode("utf-8")
                 code = (
                     code

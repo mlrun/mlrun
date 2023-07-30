@@ -110,6 +110,10 @@ class ModelEndpointsTable(Base, BaseModel):
         mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST,
         TIMESTAMP,
     )
+    last_analyzed = Column(
+        mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED,
+        TIMESTAMP,
+    )
     error_count = Column(
         mlrun.common.schemas.model_monitoring.EventFieldType.ERROR_COUNT, Integer
     )

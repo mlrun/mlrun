@@ -47,6 +47,7 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .datastore_profile import DatastoreProfile
 from .events import (
     AuthSecretEventActions,
     EventClientKinds,
@@ -171,3 +172,9 @@ from .secret import (
     UserSecretCreationRequest,
 )
 from .tag import Tag, TagObjects
+from .workflow import (
+    GetWorkflowResponse,
+    WorkflowRequest,
+    WorkflowResponse,
+    WorkflowSpec,
+)

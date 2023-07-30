@@ -706,9 +706,14 @@ def _build_function(
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
+        # connect to run db
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
-        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
+
+        # enrich runtime with project defaults
+        launcher = mlrun.api.launcher.ServerSideLauncher()
+        launcher.enrich_runtime(runtime=fn)
+
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(

@@ -8,21 +8,21 @@
 # in setup.py so that we'll be able to copy and install this in the layer with all other requirements making the last
 # layer (which is most commonly being re-built) as thin as possible
 # we have a test test_extras_requirement_file_aligned to verify this file is aligned to setup.py
-boto3~=1.24.59
-aiobotocore~=2.4.2
-s3fs~=2023.1.0
+boto3~=1.26.161
+aiobotocore~=2.5.2
+s3fs~=2023.6.0
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
 azure-core~=1.24
 azure-storage-blob~=12.13
-adlfs~=2022.2.0
+adlfs~=2023.4.0
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get
 # AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)
 pyopenssl>=23
 bokeh~=2.4, >=2.4.2
-gcsfs~=2023.1.0
+gcsfs~=2023.6.0
 # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0

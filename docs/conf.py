@@ -55,6 +55,7 @@ extensions = [
     "myst_nb",
     "sphinx.ext.napoleon",
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
@@ -157,7 +158,13 @@ autodoc_mock_imports = [
     "torch",
     "lightgbm",
     "xgboost",
+    "onnx",
 ]
+
+
+# -- Autosummary -------------------------------------------------------------
+
+autosummary_generate = True
 
 
 def copy_doc(src, dest, title=""):

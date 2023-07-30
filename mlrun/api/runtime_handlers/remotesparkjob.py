@@ -11,4 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
+from mlrun.runtimes.base import RuntimeClassMode
+
+
+class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
+    kind = "remote-spark"
+    class_modes = {RuntimeClassMode.run: "remote-spark"}
+
+    @staticmethod
+    def _are_resources_coupled_to_run_object() -> bool:
+        return True
+
+    @staticmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        return f"mlrun/uid={object_id}"

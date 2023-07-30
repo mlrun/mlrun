@@ -35,13 +35,13 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
-from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.regex
 import mlrun.utils.version.version
 from mlrun.errors import err_to_str
 
@@ -235,6 +235,17 @@ def validate_artifact_key_name(
         mlrun.utils.regex.artifact_key,
         raise_on_failure=raise_on_failure,
         log_message="Slashes are not permitted in the artifact key (both \\ and /)",
+    )
+
+
+def validate_v3io_stream_consumer_group(
+    value: str, raise_on_failure: bool = True
+) -> bool:
+    return mlrun.utils.helpers.verify_field_regex(
+        "consumerGroup",
+        value,
+        mlrun.utils.regex.v3io_stream_consumer_group,
+        raise_on_failure=raise_on_failure,
     )
 
 
@@ -751,18 +762,6 @@ def new_pipe_metadata(
         for op_transformer in op_transformers:
             conf.add_op_transformer(op_transformer)
     return conf
-
-
-# TODO: remove in 1.5.0
-@deprecated(
-    version="1.3.0",
-    reason="'new_pipe_meta' will be removed in 1.5.0",
-    category=FutureWarning,
-)
-def new_pipe_meta(artifact_path=None, ttl=None, *args):
-    return new_pipe_metadata(
-        artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=args
-    )
 
 
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
@@ -1445,3 +1444,10 @@ class DeprecationHelper(object):
     def __getattr__(self, attr):
         self._warn()
         return getattr(self._new_target, attr)
+
+
+def normalize_workflow_name(name, project_name):
+    workflow_name = (
+        name.lstrip(project_name).lstrip("-") if project_name in name else name
+    )
+    return workflow_name

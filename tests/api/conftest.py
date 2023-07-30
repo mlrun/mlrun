@@ -24,6 +24,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import mlrun.api.launcher
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -32,6 +33,8 @@ import mlrun.api.utils.singletons.logs_dir
 import mlrun.api.utils.singletons.project_member
 import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
+import mlrun.db.factory
+import mlrun.launcher.factory
 from mlrun import mlconf
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
@@ -51,7 +54,26 @@ def api_config_test():
 
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
 
-    mlrun.api.launcher.initialize_launcher()
+    mlrun.config._is_running_as_api = True
+
+    # we need to override the run db container manually because we run all unit tests in the same process in CI
+    # so API is imported even when it's not needed
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.override(mlrun.api.rundb.sqldb.SQLRunDBContainer)
+
+    # same for the launcher container
+    launcher_factory = mlrun.launcher.factory.LauncherFactory()
+    launcher_factory._launcher_container.override(
+        mlrun.api.launcher.ServerSideLauncherContainer
+    )
+
+    yield
+
+    mlrun.config._is_running_as_api = None
+
+    # reset factory container overrides
+    rundb_factory._rundb_container.reset_override()
+    launcher_factory._launcher_container.reset_override()
 
 
 @pytest.fixture()
@@ -332,7 +354,7 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config._iguazio_api_url = api_url
+    mlrun.config.config.iguazio_api_url = api_url
     return api_url
 
 

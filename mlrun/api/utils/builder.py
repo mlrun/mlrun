@@ -420,10 +420,7 @@ def build_image(
         # use a temp dir for permissions and set it as the workdir
         tmpdir = tempfile.mkdtemp()
         relative_workdir = runtime.spec.clone_target_dir or ""
-        if relative_workdir.startswith("./"):
-            # TODO: use 'removeprefix' when we drop python 3.7 support
-            # relative_workdir.removeprefix("./")
-            relative_workdir = relative_workdir[2:]
+        relative_workdir = relative_workdir.removeprefix("./")
 
         runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
 

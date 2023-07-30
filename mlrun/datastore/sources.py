@@ -793,7 +793,7 @@ class OnlineSource(BaseSourceDriver):
             context=context,
             key_field=self.key_field,
             full_event=True,
-            explicit_ack=mlrun.mlconf.httpdb.nuclio.explicit_ack == "enabled",
+            explicit_ack=mlrun.mlconf.is_explicit_ack(),
             **source_args,
         )
 

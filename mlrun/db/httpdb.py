@@ -13,15 +13,16 @@
 # limitations under the License.
 import enum
 import http
+import json
 import re
 import tempfile
 import time
 import traceback
 import typing
-import warnings
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 import kfp
 import requests
@@ -30,11 +31,13 @@ import semver
 import mlrun
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
+import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -106,11 +109,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?run\/.+\/.+",
     ]
 
-    def __init__(self, base_url, user="", password="", token=""):
-        self.base_url = base_url
-        self.user = user
-        self.password = password
-        self.token = token
+    def __init__(self, url):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -118,6 +117,33 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
         self.python_version = str(version.Version().get_python_version())
+
+        self._enrich_and_validate(url)
+
+    def _enrich_and_validate(self, url):
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        username = parsed_url.username or config.httpdb.user
+        password = parsed_url.password or config.httpdb.password
+
+        username, password, token = mlrun.platforms.add_or_refresh_credentials(
+            parsed_url.hostname, username, password, config.httpdb.token
+        )
+
+        self.base_url = base_url
+        self.user = username
+        self.password = password
+        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -416,6 +442,10 @@ class HTTPRunDB(RunDBInterface):
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
             config.tracking = server_cfg.get("tracking") or config.tracking
+            config.model_endpoint_monitoring.store_type = (
+                server_cfg.get("model_endpoint_monitoring_store_type")
+                or config.model_endpoint_monitoring.store_type
+            )
 
         except Exception as exc:
             logger.warning(
@@ -1353,8 +1383,6 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
-        # TODO: deprecated, remove in 1.5.0
-        ttl=None,
         cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
@@ -1367,19 +1395,9 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
-                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
-
-        if ttl:
-            warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -1387,7 +1405,7 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_metadata(
                 artifact_path=artifact_path,
-                cleanup_ttl=cleanup_ttl or ttl,
+                cleanup_ttl=cleanup_ttl,
                 op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(
@@ -3084,6 +3102,181 @@ class HTTPRunDB(RunDBInterface):
                 ],
             },
         )
+
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        """
+        For internal use.
+        The notification mechanism may run "locally" for certain runtimes.
+        However, the updates occur in the API so nothing to do here.
+        """
+        pass
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[Dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ):
+        """
+        Submitting workflow for a remote execution.
+
+        :param project:         project name
+        :param name:            workflow name
+        :param workflow_spec:   the workflow spec to execute
+        :param arguments:       arguments for the workflow
+        :param artifact_path:   artifact target path of the workflow
+        :param source:          source url of the project
+        :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
+        :param namespace:       kubernetes namespace if other than default
+
+        :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
+        """
+        image = (
+            workflow_spec.image
+            if hasattr(workflow_spec, "image")
+            else workflow_spec.get("image", None)
+        )
+        req = {
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+            req["spec"] = workflow_spec.dict()
+        elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
+            req["spec"] = workflow_spec.to_dict()
+        else:
+            req["spec"] = workflow_spec
+        req["spec"]["image"] = image
+        response = self.api_call(
+            "POST",
+            f"projects/{project}/workflows/{name}/submit",
+            json=req,
+        )
+        return mlrun.common.schemas.WorkflowResponse(**response.json())
+
+    def get_workflow_id(
+        self,
+        project: str,
+        name: str,
+        run_id: str,
+        engine: str = "",
+    ):
+        """
+        Retrieve workflow id from the uid of the workflow runner.
+
+        :param project: project name
+        :param name:    workflow name
+        :param run_id:  the id of the workflow runner - the job that runs the workflow
+        :param engine:  pipeline runner
+
+        :returns:   :py:class:`~mlrun.common.schemas.GetWorkflowResponse`.
+        """
+        params = {}
+        if engine:
+            params["engine"] = engine
+        response = self.api_call(
+            "GET",
+            f"projects/{project}/workflows/{name}/runs/{run_id}",
+            params=params,
+        )
+        return mlrun.common.schemas.GetWorkflowResponse(**response.json())
+
+    def load_project(
+        self,
+        name: str,
+        url: str,
+        secrets: Optional[Dict] = None,
+        save_secrets: bool = True,
+    ) -> str:
+        """
+        Loading a project remotely from the given source.
+        :param name:            project name
+        :param url:             git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project.
+                                Setting to False will cause waiting for the process completion.
+
+        :returns:               The terminal state of load project process.
+        """
+        params = {"url": url}
+        body = None
+        if secrets:
+            provider = mlrun.common.schemas.SecretProviderName.kubernetes
+            secrets_input = mlrun.common.schemas.SecretsData(
+                provider=provider, secrets=secrets
+            )
+            body = secrets_input.dict()
+        response = self.api_call(
+            "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
+        )
+        response = response.json()
+        run = mlrun.RunObject.from_dict(response["data"])
+        state, _ = run.logs()
+
+        if secrets and not save_secrets:
+            self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+            if state != "completed":
+                logger.error("Load project task failed, deleting project")
+                self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
+
+        return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res and res._content:
+            public_wrapper = json.loads(res._content)
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["body"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles")
+
+        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
 
 
 def _as_json(obj):

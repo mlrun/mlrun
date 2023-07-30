@@ -110,7 +110,7 @@ def print_kwargs(**kwargs):
         assert run.status.state == "completed"
 
     def test_kwargs_from_file(self):
-        code_path = str(self.assets_path / "function_print_kwargs2.py")
+        code_path = str(self.assets_path / "databricks_function_print_kwargs.py")
         function = mlrun.code_to_function(
             name="function-with-args",
             kind="databricks-job",

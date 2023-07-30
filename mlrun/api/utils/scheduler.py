@@ -32,7 +32,9 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
+import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
+import mlrun.common.schemas.constants
 import mlrun.errors
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db
@@ -1102,9 +1104,6 @@ class Scheduler:
                 not auth_info.access_key
                 and mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required()
             ):
-                # import here to avoid circular imports
-                import mlrun.api.utils.auth
-                import mlrun.api.utils.singletons.project_member
 
                 logger.info(
                     "Schedule missing auth info which is required. Trying to fill from project owner",

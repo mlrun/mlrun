@@ -36,8 +36,6 @@ def run_mlrun_databricks_job(
 
     import mlrun
 
-    project = context.get_project_object()
-    get_secret_func = project.get_secret
     logger = context.logger
 
     def get_modified_code(function_name, script_file, handler):
@@ -91,7 +89,7 @@ handler_arguments = json.loads(handler_arguments)
                 f.write(modified_code.encode("UTF8"))
 
     workspace = WorkspaceClient(
-        token=mlrun.get_secret_or_env(key=token_key, secret_provider=get_secret_func)
+        token=mlrun.get_secret_or_env(key=token_key)
     )
 
     now = datetime.datetime.now()

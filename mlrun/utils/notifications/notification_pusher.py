@@ -23,6 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
+import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -222,7 +223,7 @@ class NotificationPusher(object):
                 "Failed to send notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
-                exc=str(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
             self._update_notification_status(
                 run.metadata.uid,
@@ -266,7 +267,7 @@ class NotificationPusher(object):
                 "Failed to send notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
-                exc=str(exc),
+                exc=mlrun.errors.err_to_str(exc),
             )
             await run_in_threadpool(
                 self._update_notification_status,

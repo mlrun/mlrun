@@ -53,7 +53,7 @@ def my_job(context, p1=1, p2="x"):
 
     # create a plotly output (will show in the pipelines UI)
     x = np.arange(10)
-    fig = go.Figure(data=go.Scatter(x=x, y=x ** 2))
+    fig = go.Figure(data=go.Scatter(x=x, y=x**2))
 
     # Create a PlotlyArtifact using the figure and log it
     plotly_artifact = PlotlyArtifact(figure=fig, key="plotly")

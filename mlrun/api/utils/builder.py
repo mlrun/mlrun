@@ -47,6 +47,31 @@ def make_dockerfile(
     project_secrets: dict = None,
     extra_args: str = "",
 ):
+    """
+     Generates the content of a Dockerfile for building a container image.
+
+     :param base_image: The base image for the Dockerfile.
+     :param commands: A list of shell commands to be included in the Dockerfile as RUN instructions.
+     :param source: The path to the source code directory to be included in the Docker image.
+     :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
+                               the Python dependencies to be installed in the Docker image.
+     :param workdir: The working directory inside the container where commands will be executed.
+                     Default is "/mlrun".
+     :param extra: Additional content to be appended to the generated Dockerfile.
+     :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
+                          This is useful for matching the user ID with the host environment
+                          to avoid permission issues.
+     :param enriched_group_id: The group ID to be used in the Docker image for running processes.
+     :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
+                         to be set during the build process.
+     :param project_secrets: A dictionary containing project secrets to be included in the Docker image.
+                             The keys represent the names of the environment variables, and the values
+                             are the corresponding secret values.
+     :param extra_args: Additional build arguments provided by the user.
+                        These arguments are formatted as a space-separated string.
+
+     :return: The content of the Dockerfile as a string.
+     """
     dock = f"FROM {base_image}\n"
 
     builder_env = builder_env or []
@@ -484,7 +509,7 @@ def build_image(
         )
         .secrets
     )
-    validate_extra_args(extra_args)
+    _validate_extra_args(extra_args)
 
     dock = make_dockerfile(
         base_image,
@@ -860,6 +885,24 @@ def _resolve_build_requirements(
 
 
 def _parse_extra_args(extra_args: str) -> dict:
+    """
+    Parses a string of extra arguments into a dictionary format.
+
+    :param extra_args: A string containing additional arguments in the format of command-line options.
+
+    :return: A dictionary where each key corresponds to an option flag (e.g., "--option_name"),
+             and the associated value is a list of values provided for that option.
+
+    :example:
+    >>> extra_args = "--option1 value1 --option2 value3 --option3 --option1 value2"
+    >>> parsed_args = _parse_extra_args(extra_args)
+    >>> print(parsed_args)
+    {
+        '--option1': ['value1', 'value2'],
+        '--option2': ['value3'],
+        '--option3': []
+    }
+    """
     if not extra_args:
         return {}
     extra_args = extra_args.split()
@@ -874,7 +917,7 @@ def _parse_extra_args(extra_args: str) -> dict:
     return args
 
 
-def validate_extra_args(extra_args: str):
+def _validate_extra_args(extra_args: str):
     """
      Validate extra_args string for Docker commands:
     - Ensure --build-arg is followed by a non-flag argument.

@@ -852,7 +852,7 @@ def code_to_function(
         )
 
     if kind == RuntimeKinds.databricks and not embed_code:
-        raise ValueError("databricks-job is support only embed_code=True")
+        raise ValueError("databricks tasks only support embed_code=True")
 
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)

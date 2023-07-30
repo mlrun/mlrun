@@ -121,6 +121,7 @@ handler_arguments = json.loads(handler_arguments)
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID")
         if cluster_id:
             logger.info(f"run with exists cluster_id: {cluster_id}")
+            timeout = 15
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[
@@ -136,6 +137,7 @@ handler_arguments = json.loads(handler_arguments)
             )
         else:
             logger.info("run with new cluster_id")
+            timeout = 25
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[
@@ -159,7 +161,7 @@ handler_arguments = json.loads(handler_arguments)
             )
         logger.info(f"starting to poll: {waiter.run_id}")
         run = waiter.result(
-            timeout=datetime.timedelta(minutes=15), callback=print_status
+            timeout=datetime.timedelta(minutes=timeout), callback=print_status
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)

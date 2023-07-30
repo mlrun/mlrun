@@ -134,7 +134,7 @@ def xgb_run(context):
 
 def test_is_enabled(rundb_mock):
     # enable tracking in config for inspection
-    mlrun.mlconf.tracking.enabled = True
+    mlrun.mlconf.external_platform_tracking.enabled = True
     # see if mlflow is in scope
     try:
         importlib.import_module("mlflow")
@@ -145,7 +145,7 @@ def test_is_enabled(rundb_mock):
     # check all the stuff we check in is_enabled
     enabled = (
         mlflow_tracker._tracked_platform is not None
-        and getattr(mlrun.mlconf.tracking, "mlflow", {}).mode == "enabled"
+        and getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).mode == "enabled"
         and relevant
     )
 
@@ -154,7 +154,7 @@ def test_is_enabled(rundb_mock):
 
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_run(rundb_mock, handler):
-    mlrun.mlconf.tracking.enabled = True
+    mlrun.mlconf.external_platform_tracking.enabled = True
     test_directory = tempfile.TemporaryDirectory()
     mlflow.set_tracking_uri(test_directory.name)
 

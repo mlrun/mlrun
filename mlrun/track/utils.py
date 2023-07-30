@@ -15,7 +15,6 @@
 import os
 import zipfile
 
-from mlrun.features import Feature
 
 
 def convert_np_dtype_to_value_type():
@@ -42,29 +41,4 @@ def zip_folder(folder_path: str, output_path: str):
                 zipf.write(file_path, os.path.relpath(file_path, folder_path))
 
 
-def schema_to_feature(schema, utils) -> list:  # todo add hints here
-    """
-    changes the features from a scheme (usually tensor) to a list
-    :param schema: features as made by mlflow
-    :param utils: CommonUtils.convert_np_dtype_to_value_type, can't import here
 
-    :return: list of features to log
-    """
-    is_tensor = schema.is_tensor_spec()
-    features = []
-    for i, item in enumerate(schema.inputs):
-        name = item.name or str(i)
-        shape = None
-        if is_tensor:
-            value_type = item.type
-            shape = list(item.shape) if item.shape else None
-        else:
-            value_type = item.type.to_numpy()
-        features.append(
-            Feature(
-                utils(value_type),
-                shape,
-                name=name,
-            )
-        )
-    return features

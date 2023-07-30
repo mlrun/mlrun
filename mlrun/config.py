@@ -146,7 +146,7 @@ default_config = {
     "mock_nuclio_deployment": "",
     # Configurations for `mlrun.track` - tracking runs and experiments from 3-rd party vendors like MLFlow
     # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
-    "tracking": {
+    "external_platform_tracking": {
         # General enabler for the entire tracking mechanism (all tracking services):
         "enabled": False,
         # Specific enablement and other configurations supported 3-rd party platforms:

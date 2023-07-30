@@ -16,14 +16,15 @@ import os
 import pathlib
 import tempfile
 from typing import Union
+from mlrun.features import Feature
 
 from mlrun.execution import MLClientCtx
 from mlrun.track.base_tracker import BaseTracker
 from mlrun.track.utils import (
     convert_np_dtype_to_value_type,
-    schema_to_feature,
     zip_folder,
 )
+from mlrun.utils import logger
 
 
 class MLFlowTracker(BaseTracker):
@@ -36,10 +37,9 @@ class MLFlowTracker(BaseTracker):
     def __init__(self):
         super().__init__()
         self.mlflow_experiment = None
-        import mlflow
 
         self.track_uri = 0
-        self._client: mlflow.MlflowClient = None
+        self._client = None
 
     def pre_run(self, context: MLClientCtx) -> dict:
         env = {}
@@ -57,8 +57,8 @@ class MLFlowTracker(BaseTracker):
         return env
 
     def _apply_post_run_tasks(
-        self,
-        context: Union[MLClientCtx, dict],
+            self,
+            context: Union[MLClientCtx, dict],
     ):
         """
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
@@ -87,35 +87,41 @@ class MLFlowTracker(BaseTracker):
         :param context: current mlrun context
         :param run: mlflow run to log
         """
-        model_path = []
+        model_paths = []
+        logger.debug("Starting to log MLFlow params")
         for key, val in run.data.params.items():
             context._parameters[key] = val
+        logger.debug("Finished to log MLFlow params")
         context.log_results(run.data.metrics)
         context.set_label("mlflow-runid", run.info.run_id)
         context.set_label("mlflow-experiment", run.info.experiment_id)
+        logger.debug("Starting to log MLFlow artifacts")
         for artifact in self._client.list_artifacts(run.info.run_id):
             full_path = self._tracked_platform.artifacts.download_artifacts(
                 run_id=run.info.run_id, artifact_path=artifact.path
             )
             if artifact.is_dir and os.path.exists(os.path.join(full_path, "MLmodel")):
-                model_path.append(
+                model_paths.append(
                     full_path
                 )  # this is the model folder, we log it after logging all artifacts
             else:
                 self.log_artifact(context, full_path, artifact)
-        if model_path:
-            for path in model_path:
+        logger.debug("Finished to log MLFlow artifacts")
+        if model_paths:
+            logger.debug("Starting to log MLFlow model")
+            for path in model_paths:
                 self.log_model(path, context)
+            logger.debug("Finished to log MLFlow model")
 
     def log_model(
-        self,
-        model_uri: str,
-        context: Union[MLClientCtx, dict],
+            self,
+            model_uri: str,
+            context: Union[MLClientCtx, dict],
     ):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
-        tmp_dir = tempfile.TemporaryDirectory()
-        model_zip = f"{tmp_dir.name}-model.zip"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            model_zip = f"{tmp_dir}-model.zip"
         zip_folder(model_uri, model_zip)
         key = model_info.artifact_path
         inputs = outputs = None
@@ -129,25 +135,21 @@ class MLFlowTracker(BaseTracker):
                 outputs = schema_to_feature(
                     model_info.signature.outputs, convert_np_dtype_to_value_type()
                 )
-        try:
-            context.log_model(
-                key,
-                framework="mlflow",
-                model_file=model_zip,
-                metrics=context.results,
-                parameters=model_info.flavors,
-                labels={
-                    "mlflow_run_id": model_info.run_id,
-                    "mlflow_version": model_info.mlflow_version,
-                    "model_uuid": model_info.model_uuid,
-                },
-                extra_data=self._artifacts,
-                inputs=inputs,
-                outputs=outputs,
-            )
-            tmp_dir.cleanup()
-        except Exception:
-            tmp_dir.cleanup()
+        context.log_model(
+            key,
+            framework="mlflow",
+            model_file=model_zip,
+            metrics=context.results,
+            parameters=model_info.flavors,
+            labels={
+                "mlflow_run_id": model_info.run_id,
+                "mlflow_version": model_info.mlflow_version,
+                "model_uuid": model_info.model_uuid,
+            },
+            extra_data=self._artifacts,
+            inputs=inputs,
+            outputs=outputs,
+        )
 
     def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
         artifact = context.log_artifact(
@@ -165,3 +167,31 @@ class MLFlowTracker(BaseTracker):
     # todo actually implement this
     def log_dataset(self, dataset_path, context):
         pass
+
+
+def schema_to_feature(schema, utils) -> list:  # todo add hints here
+    """
+    changes the features from a scheme (usually tensor) to a list
+    :param schema: features as made by mlflow
+    :param utils: CommonUtils.convert_np_dtype_to_value_type, can't import here
+
+    :return: list of features to log
+    """
+    is_tensor = schema.is_tensor_spec()
+    features = []
+    for i, item in enumerate(schema.inputs):
+        name = item.name or str(i)
+        shape = None
+        if is_tensor:
+            value_type = item.type
+            shape = list(item.shape) if item.shape else None
+        else:
+            value_type = item.type.to_numpy()
+        features.append(
+            Feature(
+                utils(value_type),
+                shape,
+                name=name,
+            )
+        )
+    return features

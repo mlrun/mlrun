@@ -25,6 +25,9 @@ class TrackerExample(Tracker):
     # just some random module
     TRACKED_MODULE_NAME = "os"
 
+    def is_enabled(self):
+        return True
+
     def pre_run(self, context) -> dict:
         return context.to_dict()
 
@@ -63,6 +66,8 @@ class BaseTrackerExample(BaseTracker):
     ],
 )
 def test_add_tracker(tracker_list):
+    # enable tracking in config for inspection
+    mlrun.mlconf.external_platform_tracking.enabled = True
     trackers_manager = TrackerManager()
     for tracker in tracker_list:
         trackers_manager.add_tracker(tracker)
@@ -71,6 +76,8 @@ def test_add_tracker(tracker_list):
 
 
 def test_get_trackers_manager(rundb_mock):
+    # enable tracking in config for inspection
+    mlrun.mlconf.external_platform_tracking.enabled = True
     trackers_manager = mlrun.track.get_trackers_manager()
     assert type(trackers_manager) is TrackerManager
     # from here we need to change after we add more trackers

@@ -357,7 +357,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             runobj_dict = runobj.to_dict()
             # If trackers where used, this is where we log all data collected to MLRun
             trackers_manager.post_run(runobj_dict)
-            return runobj.to_dict()
+            return runobj_dict.to_dict()
 
 
 def load_module(file_name, handler, context):

@@ -494,11 +494,10 @@ def rundb_mock() -> RunDBMock:
     config.dbpath = "http://localhost:12345"
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    tmp_dir = tempfile.TemporaryDirectory()
-    mlrun.get_or_create_project("default", context=tmp_dir.name)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mlrun.get_or_create_project("default", context=tmp_dir)
 
     yield mock_object
-    tmp_dir.cleanup()
 
     # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
     mlrun.db.get_run_db = orig_get_run_db

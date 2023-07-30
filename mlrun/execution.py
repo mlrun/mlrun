@@ -95,7 +95,6 @@ class MLClientCtx(object):
         self._outputs = []
 
         self._results = {}
-        self._artifacts = []
         # tracks the execution state, completion of runs is not decided by the execution
         # as there may be multiple executions for a single run (e.g mpi)
         self._state = "created"
@@ -326,7 +325,7 @@ class MLClientCtx(object):
         status = attrs.get("status")
         if include_status and status:
             self._results = status.get("results", self._results)
-            self._artifacts = status.get("artifacts", self._artifacts)
+            self._artifacts_manager.artifacts = status.get("artifacts", self._artifacts)
             self._state = status.get("state", self._state)
 
         if store_run:

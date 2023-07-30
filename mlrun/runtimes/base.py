@@ -443,7 +443,6 @@ class BaseRuntime(ModelObj):
                 )
                 code = b64encode(code.encode("utf-8")).decode("utf-8")
             extra_env["MLRUN_EXEC_CODE"] = code
-            extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source
         need_mlrun = code or load_archive or self.spec.mode != "pass"

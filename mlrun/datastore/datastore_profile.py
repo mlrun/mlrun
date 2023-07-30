@@ -26,7 +26,7 @@ import mlrun.errors
 from ..secrets import get_secret_or_env
 
 
-class privateValue(pydantic.BaseModel):
+class PrivateValue(pydantic.BaseModel):
     value: str
 
     def get(self):
@@ -59,31 +59,25 @@ class DatastoreProfile(pydantic.BaseModel):
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
     endpoint_url: str
-    username: typing.Optional[privateValue]
-    password: typing.Optional[privateValue]
+    username: typing.Optional[PrivateValue]
+    password: typing.Optional[PrivateValue]
 
     @pydantic.validator("username", "password", pre=True)
     def convert_to_private(cls, v):
-        return privateValue(value=v)
+        return PrivateValue(value=v)
 
     def is_secured(self):
         return self.endpoint_url.startswith("rediss://")
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
-        if (
-            self.username
-            and self.username.get()
-            and self.password
-            and self.password.get()
-        ):
-            netloc = (
-                f"{self.username.get()}:{self.password.get()}@{parsed_url.hostname}"
-            )
-        elif self.username and self.username.get():
-            netloc = f"{self.username.get()}@{parsed_url.hostname}"
-        else:
-            netloc = parsed_url.hostname
+        username = self.username.get() if self.username else None
+        password = self.password.get() if self.password else None
+        if username:
+            if password:
+                netloc = f"{username}:{password}@{parsed_url.hostname}"
+            else:
+                netloc = f"{username}@{parsed_url.hostname}"
 
         if parsed_url.port:
             netloc += f":{parsed_url.port}"

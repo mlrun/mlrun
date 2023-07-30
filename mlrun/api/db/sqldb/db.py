@@ -3932,9 +3932,10 @@ class SQLDB(DBInterface):
         profile = self._query(
             session, DatastoreProfile, name=info.name, project=info.project
         )
-        if profile.first():
-            profile.first().type = info.type
-            profile.first().body = info.body
+        first = profile.first()
+        if first:
+            first.type = info.type
+            first.body = info.body
             self._commit(session, [profile])
         else:
             profile = DatastoreProfile(
@@ -4015,6 +4016,6 @@ class SQLDB(DBInterface):
         """
         project = project or config.default_project
         query_results = self._query(session, DatastoreProfile, project=project)
-        for query in query_results:
-            session.delete(query)
+        for profile in query_results:
+            session.delete(profile)
         session.commit()

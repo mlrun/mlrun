@@ -889,7 +889,6 @@ def submit_run_sync(
             if isinstance(cron_trigger, dict):
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            created = False
 
             # if the task is pointing to a remote function (hub://), we need to save it to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
@@ -900,42 +899,26 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
-            try:
-                get_scheduler().update_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(
-                    "No existing schedule found, creating a new one",
-                    project=task["metadata"]["project"],
-                    name=task["metadata"]["name"],
-                )
-                get_scheduler().create_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    mlrun.common.schemas.ScheduleKinds.job,
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-                created = True
-            project = task["metadata"]["project"]
+            is_update = get_scheduler().store_schedule(
+                db_session,
+                auth_info,
+                task["metadata"]["project"],
+                task["metadata"]["name"],
+                mlrun.common.schemas.ScheduleKinds.job,
+                data,
+                cron_trigger,
+                schedule_labels,
+            )
 
+            project = task["metadata"]["project"]
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if created else "modified",
+                "action": "modified" if is_update else "created",
             }
+
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
             # locally from the mlrun service pod) - include project secrets and the caller's access key

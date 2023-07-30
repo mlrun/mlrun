@@ -101,6 +101,7 @@ class BaseLauncher(abc.ABC):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        builder_env: Optional[dict] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass

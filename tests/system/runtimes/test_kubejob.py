@@ -388,3 +388,21 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
         assert run.metadata.name == "asc-merger"
+
+    def test_function_with_builder_env(self):
+        func = mlrun.code_to_function(
+            name="test-func",
+            handler="handler",
+            filename=str(self.assets_path / "function_with_env_vars.py"),
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        func.with_commands(["echo ${ENV_VAR1}"])
+
+        builder_env_key = "ENV_VAR1"
+        builder_env_val = "test_env_value"
+        func.spec.build.auto_build = True
+
+        run = func.run(builder_env={builder_env_key: builder_env_val})
+        assert run.status.results[builder_env_key] == builder_env_val

@@ -2472,6 +2472,7 @@ class MlrunProject(ModelObj):
         artifact_path: str = None,
         notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        builder_env: Optional[dict] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 

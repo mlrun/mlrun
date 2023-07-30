@@ -773,8 +773,10 @@ def my_func(context):
                     if commands:
                         expected_str += "\nRUN "
                         expected_str += "\nRUN ".join(commands)
-                    expected_str += f"\nRUN python -m pip install " \
-                                    f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    expected_str += (
+                        f"\nRUN python -m pip install "
+                        f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    )
 
                     # assert that mlrun was added to the requirements file
                     if with_mlrun:

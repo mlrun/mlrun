@@ -57,7 +57,7 @@ from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
+from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 
@@ -843,12 +843,6 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        resource = runtime_resources_map.get(function.kind)
-        if "start" not in resource:
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason="runtime error: 'start' not supported by this runtime",
-            )
         try:
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
@@ -857,19 +851,19 @@ def _start_function(
                 auth_info,
             )
 
-            #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](
-                function,
-                client_version=client_version,
-                client_python_version=client_python_version,
+            mlrun.api.crud.Functions().start_function(
+                function, client_version, client_python_version
             )
-            function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
+
+        except mlrun.errors.MLRunBadRequestError:
+            raise
+
         except Exception as err:
             logger.error(traceback.format_exc())
             log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
-                reason=f"runtime error: {err_to_str(err)}",
+                reason=f"Runtime error: {err_to_str(err)}",
             )
     finally:
         mlrun.api.db.session.close_session(db_session)
@@ -885,10 +879,6 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
             reason="runtime error: selector or runtime kind not specified",
         )
     project, name = data.get("project"), data.get("name")
-    # Only after 0.6.6 the client start sending the project and name, as long as 0.6.6 is a valid version we'll need
-    # to try and resolve them from the selector. TODO: remove this when 0.6.6 is not relevant anymore
-    if not project or not name:
-        project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -898,21 +888,21 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         auth_info,
     )
 
-    resource = runtime_resources_map.get(kind)
-    if "status" not in resource:
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: 'status' not supported by this runtime",
-        )
-
     try:
-        resp = resource["status"](selector)
-        logger.info("status: %s", resp)
+        resp = mlrun.api.crud.Functions().get_function_status(
+            kind,
+            selector,
+        )
+        logger.info("Status: %s", resp)
+
+    except mlrun.errors.MLRunBadRequestError:
+        raise
+
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
 

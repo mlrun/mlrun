@@ -658,3 +658,11 @@ class RunDBInterface(ABC):
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         pass
+
+    def function_status(self, project, name, kind, selector):
+        pass
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        pass

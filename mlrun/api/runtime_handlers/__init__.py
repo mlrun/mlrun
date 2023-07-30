@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
-from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler
+from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler, get_dask_resource
 from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
 from mlrun.api.runtime_handlers.mpijob import (
     MpiV1Alpha1RuntimeHandler,
@@ -24,6 +24,7 @@ from mlrun.api.runtime_handlers.sparkjob import SparkRuntimeHandler
 from mlrun.runtimes import MPIJobCRDVersions, RuntimeKinds, resolve_mpijob_crd_version
 
 runtime_handler_instances_cache = {}
+runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 
 
 def get_runtime_handler(kind: str) -> BaseRuntimeHandler:

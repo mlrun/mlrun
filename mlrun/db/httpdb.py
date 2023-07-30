@@ -1264,10 +1264,13 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
+        :param function: The function object to start, not needed here.
         :returns: A BackgroundTask object, with details on execution process and its status.
         """
 
@@ -1312,13 +1315,13 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, project, name, kind, selector):
+    def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
-        :param project: The project of the function
-        :param name: The name of the function
-        :param kind: The kind of the function, currently ``dask`` is supported.
-        :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
+        :param project:     The project of the function
+        :param name:        The name of the function
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:

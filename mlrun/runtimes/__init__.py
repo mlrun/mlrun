@@ -32,7 +32,7 @@ from mlrun.runtimes.utils import (
 
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
-from .daskjob import DaskCluster, get_dask_resource  # noqa
+from .daskjob import DaskCluster  # noqa
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
@@ -207,9 +207,6 @@ class RuntimeKinds(object):
         ]:
             return True
         return False
-
-
-runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 
 
 def get_runtime_class(kind: str):

@@ -35,14 +35,13 @@ import mlrun.api.api.utils  # isort:skip
 class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
         self,
-        is_remote: bool,
         local: bool = False,
         auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if not is_remote or local:
-            raise mlrun.errors.MLRunInternalServerError(
+        if local:
+            raise mlrun.errors.MLRunPreconditionFailedError(
                 "Launch of local run inside the server is not allowed"
             )
 

@@ -53,6 +53,7 @@ def api_config_test():
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+    mlrun.runtimes.utils.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
 

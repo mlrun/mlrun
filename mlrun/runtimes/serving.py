@@ -229,7 +229,7 @@ class ServingRuntime(RemoteRuntime):
     kind = "serving"
 
     @staticmethod
-    def get_code_addition():
+    def get_enriched_code():
         return mlrun_footer.format(serving_subkind)
 
     @property

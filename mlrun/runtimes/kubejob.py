@@ -396,7 +396,7 @@ class DatabricksRuntime(KubejobRuntime):
     _is_remote = True
 
     @staticmethod
-    def get_code_addition():
+    def get_enriched_code():
         current_file = os.path.abspath(__file__)
         current_dir = os.path.dirname(current_file)
         databricks_runtime_wrap_path = os.path.join(

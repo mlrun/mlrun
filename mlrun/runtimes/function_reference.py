@@ -109,7 +109,7 @@ class FunctionReference(ModelObj):
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
                 code = (
-                    code + mlrun.runtimes.get_runtime_class(kind).get_code_addition()
+                    code + mlrun.runtimes.get_runtime_class(kind).get_enriched_code()
                 )
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image

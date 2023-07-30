@@ -166,7 +166,7 @@ class BaseRuntime(ModelObj):
         self._enriched_image = False
 
     @staticmethod
-    def get_code_addition():
+    def get_enriched_code():
         return ""
 
     def set_db_connection(self, conn):
@@ -433,7 +433,7 @@ class BaseRuntime(ModelObj):
         if code:
             if self.kind == "databricks-job":
                 code = b64decode(code).decode("utf-8")
-                code = code + mlrun.runtimes.get_runtime_class(self.kind).get_code_addition()
+                code = code + mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
                 code = b64encode(code.encode("utf-8")).decode("utf-8")
             extra_env["MLRUN_EXEC_CODE"] = code
             extra_env["MLRUN_EXEC_CODE"] = code

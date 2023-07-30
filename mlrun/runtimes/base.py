@@ -16,7 +16,7 @@ import getpass
 import http
 import re
 import warnings
-from base64 import b64encode
+from base64 import b64encode, b64decode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
@@ -431,6 +431,11 @@ class BaseRuntime(ModelObj):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
+            if self.kind == "databricks-job":
+                code = b64decode(code).decode("utf-8")
+                code = code + mlrun.runtimes.get_runtime_class(self.kind).get_code_addition()
+                code = b64encode(code.encode("utf-8")).decode("utf-8")
+            extra_env["MLRUN_EXEC_CODE"] = code
             extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source

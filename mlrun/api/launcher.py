@@ -41,7 +41,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     ):
         super().__init__(**kwargs)
         if local:
-            raise mlrun.errors.MLRunInternalServerError(
+            raise mlrun.errors.MLRunPreconditionFailedError(
                 "Launch of local run inside the server is not allowed"
             )
 
@@ -220,6 +220,21 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
+
+    def _validate_runtime(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
+    ):
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
+
+        super()._validate_runtime(runtime, run)
 
 
 # Once this file is imported it will set the container server side launcher

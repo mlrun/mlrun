@@ -31,8 +31,8 @@ import mlrun.launcher.factory
         (True, False, does_not_raise()),
         (False, False, does_not_raise()),
         # local run is not allowed when running as API
-        (True, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
-        (False, True, pytest.raises(mlrun.errors.MLRunInternalServerError)),
+        (True, True, pytest.raises(mlrun.errors.MLRunPreconditionFailedError)),
+        (False, True, pytest.raises(mlrun.errors.MLRunPreconditionFailedError)),
     ],
 )
 def test_create_server_side_launcher(is_remote, local, expectation):

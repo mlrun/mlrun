@@ -479,25 +479,6 @@ def test_resolve_kfp_url():
     assert mlconf.config.resolve_kfp_url() is None
 
 
-def test_get_hub_url():
-    # full path configured - no edits
-    mlconf.config.hub_url = (
-        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml"
-    )
-    assert mlconf.config.get_hub_url() == mlconf.config.hub_url
-    # partial path configured + http - edit with tag
-    mlconf.config.hub_url = "https://raw.githubusercontent.com/some-fork/functions"
-    assert (
-        mlconf.config.get_hub_url()
-        == f"{mlconf.config.hub_url}/{{tag}}/{{name}}/function.yaml"
-    )
-    # partial path configured + http - edit without tag
-    mlconf.config.hub_url = "v3io://users/admin/mlrun/function-hub"
-    assert (
-        mlconf.config.get_hub_url() == f"{mlconf.config.hub_url}/{{name}}/function.yaml"
-    )
-
-
 def test_get_parsed_igz_version():
     # open source - version not set
     mlconf.config.igz_version = None

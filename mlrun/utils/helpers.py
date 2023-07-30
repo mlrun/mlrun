@@ -681,19 +681,50 @@ def generate_artifact_uri(project, key, tag=None, iter=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri):
-    if not uri.startswith(hub_prefix):
-        return uri, False
-    name = uri[len(hub_prefix) :]
-    tag = "master"
-    if ":" in name:
-        loc = name.find(":")
-        tag = name[loc + 1 :]
-        name = name[:loc]
+def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+    """
+    Retrieve the full uri of the item's yaml in the hub.
 
+    :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+
+    :return: A tuple of:
+               [0] = Extended URI of item
+               [1] =  Is hub item (bool)
+    """
+    is_hub_uri = uri.startswith(hub_prefix)
+    if not is_hub_uri:
+        return uri, is_hub_uri
+
+    db = mlrun.get_run_db()
+    name = uri.removeprefix(hub_prefix)
+    tag = "latest"
+    source_name = ""
+    if ":" in name:
+        name, tag = name.split(":")
+    if "/" in name:
+        try:
+            source_name, name = name.split("/")
+        except ValueError:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid character '/' in function name or source name"
+            )
+    name = normalize_name(name=name, verbose=False)
+    if not source_name:
+        # Searching item in all sources
+        sources = db.list_hub_sources(item_name=name, tag=tag)
+        if not sources:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Item={name}, tag={tag} not found in any hub source"
+            )
+        # precedence to user source
+        indexed_source = sources[0]
+    else:
+        # Specific source is given
+        indexed_source = db.get_hub_source(source_name)
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.get_hub_url().format(name=name, tag=tag), True
+    function_suffix = f"{name}/{tag}/src/function.yaml"
+    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
 
 
 def gen_md_table(header, rows=None):

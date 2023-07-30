@@ -565,7 +565,12 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     @abstractmethod

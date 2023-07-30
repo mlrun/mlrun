@@ -817,7 +817,12 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         raise NotImplementedError()
 
     def get_hub_source(self, source_name: str):

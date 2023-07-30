@@ -238,12 +238,12 @@ def test_hub_source_manager(
     assert len(catalog.catalog) == 2
     for item in catalog.catalog:
         assert (
-            item.metadata.name in ["prod_function", "prod_function_2"]
+            item.metadata.name in ["prod-function", "prod-function-2"]
             and item.metadata.version == "1.0.0"
         )
 
-    item = manager.get_item(source_object, "prod_function", "1.0.0")
-    assert item.metadata.name == "prod_function" and item.metadata.version == "1.0.0"
+    item = manager.get_item(source_object, "prod-function", "1.0.0")
+    assert item.metadata.name == "prod-function" and item.metadata.version == "1.0.0"
 
 
 def test_hub_default_source(
@@ -359,3 +359,59 @@ def test_hub_get_asset(
     # Verify not-found assets are handled properly
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         manager.get_asset(source_object, item, "not-found")
+
+
+def test_list_sources_with_filters(
+    db: Session, client: TestClient, k8s_secrets_mock: tests.api.conftest.K8sSecretsMock
+):
+    credentials = {"secret1": "value1", "another-secret": "42"}
+    source_1 = _generate_source_dict(-1, "source_1", credentials)
+    response = client.post("hub/sources", json=source_1)
+    good_name = "auto-trainer"
+    bad_name = "blah-blah"
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    # verifying source and default source in db:
+    sources = client.get("hub/sources").json()
+    assert len(sources) == 2
+
+    # verifying filtering by good item name:
+    sources = client.get("hub/sources", params={"item-name": good_name}).json()
+    assert len(sources) == 1
+
+    # verifying filtering by bad item name:
+    sources = client.get("hub/sources", params={"item-name": bad_name}).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and bad tag:
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "tag": "bad-tag"}
+    ).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and good tag:
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "tag": "latest"}
+    ).json()
+    assert len(sources) == 1
+
+    # verifying filtering by item name and bad version:
+    sources = client.get(
+        "hub/sources",
+        params={"item-name": good_name, "version": "99.99.99"},
+    ).json()
+    assert len(sources) == 0
+
+    # verifying filtering by item name and good version:
+    sources = client.get(
+        "hub/sources", params={"item-name": good_name, "version": "1.1.0"}
+    ).json()
+    assert len(sources) == 1
+
+    # verifying bad filtering with tag and without item name:
+    response = client.get("hub/sources", params={"tag": "latest"})
+    assert response.status_code == http.HTTPStatus.BAD_REQUEST.value
+
+    # verifying bad filtering with version and without item name:
+    response = client.get("hub/sources", params={"version": "1.1.0"})
+    assert response.status_code == http.HTTPStatus.BAD_REQUEST.value

@@ -1092,6 +1092,15 @@ def _create_resources_of_all_kinds(
         state=mlrun.common.schemas.BackgroundTaskState.running,
     )
 
+    ds_profile = mlrun.common.schemas.DatastoreProfile(
+        name="datastore_test_profile_name",
+        type="datastore_test_profile_type",
+        body="datastore_test_profile_body",
+        project=project,
+    )
+    # create a datasource profile
+    db.store_datastore_profile(db_session, ds_profile)
+
 
 def _assert_resources_in_project(
     db_session: Session,

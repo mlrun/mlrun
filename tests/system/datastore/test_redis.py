@@ -17,6 +17,7 @@ import os
 import pytest
 
 import mlrun.datastore
+from mlrun.datastore.datastore_profile import DatastoreProfileRedis
 from tests.system.base import TestMLRunSystem
 
 redis_endpoints = ["redis://", "redis://localhost:6379"]
@@ -65,13 +66,23 @@ class TestRedisDataStore(TestMLRunSystem):
 
         data_item.delete()
 
-    def test_redis_upload_download_object(self):
+    @pytest.mark.parametrize("use_datastore_profile", [True, False])
+    def test_redis_upload_download_object(self, use_datastore_profile):
+        redis_object = "test_object"
         # prepare file for upload
         expected = "abcde" * 100
         with open("temp_upload", "w") as f:
             f.write(expected)
+        project = mlrun.get_or_create_project(name="my-project", context="./")
 
-        redis_path = "redis:///{redis_object}"
+        if use_datastore_profile:
+            profile = DatastoreProfileRedis(
+                name="dsname", endpoint_url=mlrun.mlconf.redis.url
+            )
+            project.register_datastore_profile(profile)
+            redis_path = f"ds://dsname/{redis_object}"
+        else:
+            redis_path = f"redis:///{redis_object}"
         data_item = mlrun.datastore.store_manager.object(redis_path)
 
         data_item.delete()

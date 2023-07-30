@@ -137,6 +137,8 @@ class ModelObj:
 
 # model class for building ModelObj dictionaries
 class ObjectDict:
+    kind = "object_dict"
+
     def __init__(self, classes_map, default_kind=""):
         self._children = OrderedDict()
         self._default_kind = default_kind

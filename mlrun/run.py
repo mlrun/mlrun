@@ -19,7 +19,6 @@ import socket
 import tempfile
 import time
 import uuid
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -63,7 +62,6 @@ from .utils import (
     extend_hub_uri_if_needed,
     get_in,
     logger,
-    new_pipe_metadata,
     retry_until_successful,
     run_keys,
     update_in,
@@ -946,125 +944,6 @@ def code_to_function(
         update_function_entry_points(r, code)
     r.spec.default_handler = handler
     return r
-
-
-@deprecated(
-    version="1.3.0",
-    reason="'run_pipeline' will be removed in 1.5.0, use 'project.run' instead",
-    category=FutureWarning,
-)
-def run_pipeline(
-    pipeline,
-    arguments=None,
-    project=None,
-    experiment=None,
-    run=None,
-    namespace=None,
-    artifact_path=None,
-    ops=None,
-    url=None,
-    # TODO: deprecated, remove in 1.5.0
-    ttl=None,
-    remote: bool = True,
-    cleanup_ttl=None,
-):
-    """
-    remote KubeFlow pipeline execution
-
-    Submit a workflow task to KFP via mlrun API service
-
-    :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
-    :param arguments:  pipeline arguments
-    :param project:    name of project
-    :param experiment: experiment name
-    :param run:        optional, run name
-    :param namespace:  Kubernetes namespace (if not using default)
-    :param url:        optional, url to mlrun API service
-    :param artifact_path:  target location/url for mlrun artifacts
-    :param ops:        additional operators (.apply() to all pipeline functions)
-    :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                       workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
-    :param remote:     read kfp data from mlrun service (default=True). Run pipeline from local kfp data (remote=False)
-      is deprecated. Should not be used
-    :param cleanup_ttl:
-                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                       workflow and all its resources are deleted)
-
-    :returns: kubeflow pipeline id
-    """
-    if ttl:
-        warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-            "This will be removed in 1.5.0",
-            # TODO: Remove this in 1.5.0
-            FutureWarning,
-        )
-
-    artifact_path = artifact_path or mlconf.artifact_path
-    project = project or mlconf.default_project
-    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
-        artifact_path, project or mlconf.default_project
-    )
-    if artifact_path and "{{run.uid}}" in artifact_path:
-        artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
-    if not artifact_path:
-        raise ValueError("artifact path was not specified")
-
-    namespace = namespace or mlconf.namespace
-    arguments = arguments or {}
-
-    if remote or url:
-        from .projects.pipelines import WorkflowSpec, pipeline_context
-
-        clear_pipeline_context = False
-        # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
-        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the pipeline
-        # context with KFP engine
-        if not pipeline_context.workflow:
-            workflow_spec = WorkflowSpec(engine="kfp")
-            pipeline_context.set(pipeline_context.project, workflow=workflow_spec)
-            clear_pipeline_context = True
-
-        pipeline_run_id = _run_pipeline(
-            pipeline=pipeline,
-            arguments=arguments,
-            project=project,
-            experiment=experiment,
-            run=run,
-            namespace=namespace,
-            artifact_path=artifact_path,
-            ops=ops,
-            url=url,
-            cleanup_ttl=cleanup_ttl or ttl,
-        )
-
-        if clear_pipeline_context:
-            pipeline_context.clear()
-
-    # this shouldn't be used, keeping for backwards compatibility until the entire method is deprecated
-    else:
-        client = Client(namespace=namespace)
-        if isinstance(pipeline, str):
-            experiment = client.create_experiment(name=experiment)
-            run_result = client.run_pipeline(
-                experiment.id, run, pipeline, params=arguments
-            )
-        else:
-            conf = new_pipe_metadata(
-                artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=ops
-            )
-            run_result = client.create_run_from_pipeline_func(
-                pipeline,
-                arguments,
-                run_name=run,
-                experiment_name=experiment,
-                pipeline_conf=conf,
-            )
-
-        pipeline_run_id = run_result.run_id
-        logger.info(f"Pipeline run id={id}, check UI for progress")
-
-    return pipeline_run_id
 
 
 def _run_pipeline(

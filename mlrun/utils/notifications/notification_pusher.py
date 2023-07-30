@@ -20,10 +20,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.concurrency import run_in_threadpool
 
-import mlrun.api.db.base
-import mlrun.api.db.session
 import mlrun.common.schemas
 import mlrun.config
+import mlrun.db.base
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -63,10 +62,7 @@ class NotificationPusher(object):
                 if self._should_notify(run, notification):
                     self._load_notification(run, notification)
 
-    def push(
-        self,
-        db: mlrun.api.db.base.DBInterface = None,
-    ):
+    def push(self):
         """
         Asynchronously push notifications for all runs in the initialized runs list (if they should be pushed).
         When running from a sync environment, the notifications will be pushed asynchronously however the function will
@@ -82,7 +78,6 @@ class NotificationPusher(object):
                     notification_data[0],
                     notification_data[1],
                     notification_data[2],
-                    db,
                 )
 
         async def _async_push():
@@ -93,7 +88,6 @@ class NotificationPusher(object):
                         notification_data[0],
                         notification_data[1],
                         notification_data[2],
-                        db,
                     )
                 )
 
@@ -200,7 +194,6 @@ class NotificationPusher(object):
         notification: NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
-        db: mlrun.api.db.base.DBInterface,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
@@ -213,7 +206,6 @@ class NotificationPusher(object):
         try:
             notification.push(message, severity, runs)
             self._update_notification_status(
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -222,7 +214,6 @@ class NotificationPusher(object):
             )
         except Exception as exc:
             self._update_notification_status(
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -235,7 +226,6 @@ class NotificationPusher(object):
         notification: NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
-        db: mlrun.api.db.base.DBInterface,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
@@ -250,7 +240,6 @@ class NotificationPusher(object):
 
             await run_in_threadpool(
                 self._update_notification_status,
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -260,7 +249,6 @@ class NotificationPusher(object):
         except Exception as exc:
             await run_in_threadpool(
                 self._update_notification_status,
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -270,30 +258,22 @@ class NotificationPusher(object):
 
     @staticmethod
     def _update_notification_status(
-        db: mlrun.api.db.base.DBInterface,
         run_uid: str,
         project: str,
         notification: mlrun.model.Notification,
         status: str = None,
         sent_time: typing.Optional[datetime.datetime] = None,
     ):
-
-        # nothing to update if not running as api
-        # note, the notification mechanism may run "locally" for certain runtimes
-        if not mlrun.config.is_running_as_api():
-            return
-
-        # TODO: move to api side
-        db_session = mlrun.api.db.session.create_session()
+        db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
 
-        # store directly in db, no need to use crud as the secrets are already loaded
+        # There is no need to mask the params as the secrets are already loaded
         db.store_run_notifications(
-            db_session,
             [notification],
             run_uid,
             project,
+            mask_params=False,
         )
 
 

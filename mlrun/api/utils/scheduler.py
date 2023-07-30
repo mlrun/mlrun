@@ -34,7 +34,6 @@ import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.helpers
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
-import mlrun.common.schemas.constants
 import mlrun.errors
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.utils.singletons.db import get_db

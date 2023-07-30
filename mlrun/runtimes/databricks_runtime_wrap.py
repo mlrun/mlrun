@@ -48,12 +48,8 @@ def run_mlrun_databricks_job(
         to_delete = None
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and node.name == function_name:
-                to_delete = node
+                tree.body.remove(node)
                 break
-
-        if to_delete:
-            # Remove the function node
-            tree.body.remove(to_delete)
 
         # Generate the modified code
         modified_code = astor.to_source(tree)

@@ -2,6 +2,6 @@ click~=8.0.0
 paramiko~=2.12
 semver~=2.13
 requests~=2.22
-boto3~=1.24.59
+boto3~=1.26.161
 pyyaml~=5.1
 packaging~=23.1

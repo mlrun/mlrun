@@ -27,7 +27,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.clients.nuclio
 import mlrun.api.utils.periodic
-import mlrun.api.utils.projects.member
+import mlrun.api.utils.projects.member as project_member
 import mlrun.api.utils.projects.remotes.leader
 import mlrun.api.utils.projects.remotes.nop_leader
 import mlrun.common.schemas
@@ -42,7 +42,7 @@ from mlrun.utils import logger
 
 
 class Member(
-    mlrun.api.utils.projects.member.Member,
+    project_member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def initialize(self):
@@ -346,11 +346,18 @@ class Member(
                         "Found project in the DB that is not in leader. Removing",
                         name=project_to_remove,
                     )
-                    mlrun.api.crud.Projects().delete_project(
-                        db_session,
-                        project_to_remove,
-                        mlrun.common.schemas.DeletionStrategy.cascading,
-                    )
+                    try:
+                        mlrun.api.crud.Projects().delete_project(
+                            db_session,
+                            project_to_remove,
+                            mlrun.common.schemas.DeletionStrategy.cascading,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to delete project from DB, continuing...",
+                            name=project_to_remove,
+                            exc=err_to_str(exc),
+                        )
             if latest_updated_at:
 
                 # sanity and defensive programming - if the leader returned a latest_updated_at that is older

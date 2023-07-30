@@ -35,7 +35,6 @@ from ..datastore.targets import (
     validate_target_list,
     validate_target_paths_for_engine,
 )
-from ..db import RunDBError
 from ..model import DataSource, DataTargetBase
 from ..runtimes import RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
@@ -417,7 +416,7 @@ def ingest(
             _, stripped_name = parse_store_uri(featureset)
             try:
                 featureset = get_feature_set_by_uri(stripped_name)
-            except RunDBError as exc:
+            except mlrun.db.RunDBError as exc:
                 # TODO: this handling is needed because the generic httpdb error handling doesn't raise the correct
                 #  error class and doesn't propagate the correct message, until it solved we're manually handling this
                 #  case to give better user experience, remove this when the error handling is fixed.
@@ -898,6 +897,9 @@ def _ingest_with_spark(
 
         if isinstance(df, Response) and df.status_code != 0:
             mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
+
+        df.persist()
+
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())

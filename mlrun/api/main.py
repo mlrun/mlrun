@@ -37,6 +37,7 @@ from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -52,7 +53,7 @@ from mlrun.api.utils.singletons.project_member import (
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -616,7 +617,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
     _last_notification_push_time = now
 

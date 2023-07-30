@@ -28,9 +28,9 @@ import mlrun.api.crud as crud
 import mlrun.common.schemas
 import mlrun.runtimes.constants
 from mlrun.api.constants import LogSources
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
-from mlrun.runtimes import get_runtime_handler
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 

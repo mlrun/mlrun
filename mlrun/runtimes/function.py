@@ -28,11 +28,12 @@ from kubernetes import client
 from nuclio.deploy import find_dashboard_url, get_deploy_status
 from nuclio.triggers import V3IOStreamTrigger
 
+import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
+import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
-from mlrun.db import RunDBError
 
 from ..config import config as mlconf
 from ..errors import err_to_str
@@ -84,26 +85,6 @@ def validate_nuclio_version_compatibility(*min_versions):
         if parsed_current_version >= parsed_min_version:
             return True
     return False
-
-
-def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
-    """
-    Return whether the Nuclio version is in the range, inclusive for min, exclusive for max - [min, max)
-    """
-    try:
-        parsed_min_version = semver.VersionInfo.parse(min_version)
-        parsed_max_version = semver.VersionInfo.parse(max_version)
-        nuclio_version = mlrun.runtimes.utils.resolve_nuclio_version()
-        parsed_current_version = semver.VersionInfo.parse(nuclio_version)
-    except ValueError:
-        logger.warning(
-            "Unable to parse nuclio version, assuming in range",
-            nuclio_version=nuclio_version,
-            min_version=min_version,
-            max_version=max_version,
-        )
-        return True
-    return parsed_min_version <= parsed_current_version < parsed_max_version
 
 
 def min_nuclio_versions(*versions):
@@ -508,6 +489,16 @@ class RemoteRuntime(KubeResource):
         endpoint = None
         if "://" in stream_path:
             endpoint, stream_path = parse_path(stream_path, suffix="")
+
+        # verify v3io stream trigger name is valid
+        mlrun.utils.helpers.validate_v3io_stream_consumer_group(group)
+
+        consumer_group = kwargs.pop("consumerGroup", None)
+        if consumer_group:
+            logger.warning(
+                "consumerGroup kwargs value is ignored. use group argument instead"
+            )
+
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}
@@ -623,7 +614,7 @@ class RemoteRuntime(KubeResource):
                 text, last_log_timestamp = db.get_builder_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
-            except RunDBError:
+            except mlrun.db.RunDBError:
                 raise ValueError("function or deploy process not found")
             state = self.status.state
             if text:
@@ -734,7 +725,7 @@ class RemoteRuntime(KubeResource):
             text, last_log_timestamp = self._get_db().get_builder_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
-        except RunDBError:
+        except mlrun.db.RunDBError:
             if raise_on_exception:
                 return "", "", None
             raise ValueError("function or deploy process not found")
@@ -745,8 +736,8 @@ class RemoteRuntime(KubeResource):
         runtime_env = {
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or mlconf.default_project,
         }
-        if self.spec.rundb or mlconf.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = self.spec.rundb or mlconf.httpdb.api_url
+        if mlconf.httpdb.api_url:
+            runtime_env["MLRUN_DBPATH"] = mlconf.httpdb.api_url
         if mlconf.namespace:
             runtime_env["MLRUN_NAMESPACE"] = mlconf.namespace
         if self.metadata.credentials.access_key:
@@ -844,6 +835,7 @@ class RemoteRuntime(KubeResource):
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
         mock: bool = None,
+        **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
 
@@ -859,6 +851,9 @@ class RemoteRuntime(KubeResource):
         :param force_external_address:   use the external ingress URL
         :param auth_info: service AuthInfo
         :param mock:     use mock server vs a real Nuclio function (for local simulations)
+        :param http_client_kwargs:   allow the user to pass any parameter supported in requests.request method
+                                     see this link for more information:
+                                     https://requests.readthedocs.io/en/latest/api/#requests.request
         """
         if not method:
             method = "POST" if body else "GET"
@@ -890,15 +885,16 @@ class RemoteRuntime(KubeResource):
             self.metadata.name, self.metadata.project, self.metadata.tag
         )
         headers.setdefault("x-nuclio-target", full_function_name)
-        kwargs = {}
+        if not http_client_kwargs:
+            http_client_kwargs = {}
         if body:
             if isinstance(body, (str, bytes)):
-                kwargs["data"] = body
+                http_client_kwargs["data"] = body
             else:
-                kwargs["json"] = body
+                http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **kwargs)
+            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

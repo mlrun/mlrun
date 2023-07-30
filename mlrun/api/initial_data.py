@@ -537,25 +537,26 @@ def _enrich_project_state(
             db.store_project(db_session, project.metadata.name, project)
 
 
-def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
-    """
-    Delete default hub source directly from db
-    """
-    # Not using db.delete_hub_source() since it doesn't allow deleting the default hub source.
-    default_record = (
+def _perform_version_4_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _update_default_hub_source(db, db_session)
+
+
+def _add_default_hub_source_if_needed(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    hub_source = (
         db_session.query(mlrun.api.db.sqldb.models.HubSource)
         .filter(
             mlrun.api.db.sqldb.models.HubSource.index
-            == mlrun.common.schemas.last_source_index
+            == mlrun.common.schemas.hub.last_source_index
         )
         .one_or_none()
     )
-    if default_record:
-        logger.info(f"Deleting default hub source {default_record.name}")
-        db_session.delete(default_record)
-        db_session.commit()
-    else:
-        logger.info("Default hub source not found")
+
+    if not hub_source:
+        _update_default_hub_source(db, db_session)
 
 
 def _update_default_hub_source(
@@ -583,26 +584,25 @@ def _update_default_hub_source(
         logger.info("Not adding default hub source, per configuration")
 
 
-def _add_default_hub_source_if_needed(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    hub_source = (
+def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
+    """
+    Delete default hub source directly from db
+    """
+    # Not using db.delete_hub_source() since it doesn't allow deleting the default hub source.
+    default_record = (
         db_session.query(mlrun.api.db.sqldb.models.HubSource)
         .filter(
             mlrun.api.db.sqldb.models.HubSource.index
-            == mlrun.common.schemas.hub.last_source_index
+            == mlrun.common.schemas.last_source_index
         )
         .one_or_none()
     )
-
-    if not hub_source:
-        _update_default_hub_source(db, db_session)
-
-
-def _perform_version_4_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _update_default_hub_source(db, db_session)
+    if default_record:
+        logger.info(f"Deleting default hub source {default_record.name}")
+        db_session.delete(default_record)
+        db_session.commit()
+    else:
+        logger.info("Default hub source not found")
 
 
 def _add_data_version(

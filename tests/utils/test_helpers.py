@@ -28,6 +28,7 @@ from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
+    extend_hub_uri_if_needed,
     fill_artifact_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
@@ -147,6 +148,41 @@ def test_pipeline_param(value, expected):
 def test_spark_job_name_regex(value, expected):
     with expected:
         verify_field_regex("test_field", value, mlrun.utils.regex.sparkjob_name)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        {
+            "input_uri": "http://no-hub-prefix",
+            "expected_output": "http://no-hub-prefix",
+        },
+        {
+            "input_uri": "hub://function_name",
+            "expected_output": "function_name/latest/src/function.yaml",
+        },
+        {
+            "input_uri": "hub://function_name:1.2.3",
+            "expected_output": "function_name/1.2.3/src/function.yaml",
+        },
+        {
+            "input_uri": "hub://default/function-name",
+            "expected_output": "function_name/latest/src/function.yaml",
+        },
+        {
+            "input_uri": "hub://default/function-name:3.4.5",
+            "expected_output": "function_name/3.4.5/src/function.yaml",
+        },
+    ],
+)
+def test_extend_hub_uri(rundb_mock, case):
+    hub_url = mlrun.mlconf.get_default_hub_source()
+    input_uri = case["input_uri"]
+    expected_output = case["expected_output"]
+    output, is_hub_url = extend_hub_uri_if_needed(input_uri)
+    if is_hub_url:
+        expected_output = hub_url + expected_output
+    assert expected_output == output
 
 
 @pytest.mark.parametrize(

@@ -685,9 +685,11 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
-    :param uri: structure: "hub://[<source>/]<item-name>[:<version>]"
+    :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
 
-    :return: (extended uri of item, is hub item)
+    :return: A tuple of:
+               [0] = Extended URI of item
+               [1] =  Is hub item (bool)
     """
     is_hub_uri = uri.startswith(hub_prefix)
     if not is_hub_uri:

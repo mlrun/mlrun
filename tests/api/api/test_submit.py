@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.utils
 import mlrun.api.main
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio
@@ -61,18 +62,6 @@ def test_submit_job_failure_function_not_found(db: Session, client: TestClient) 
 
 username = "voldemort"
 access_key = "12345"
-
-
-def _mock_extend_hub_uri_if_needed(uri: str) -> typing.Tuple[str, bool]:
-    hub_prefix = "hub://"
-    is_hub_uri = uri.startswith(hub_prefix)
-    if not is_hub_uri:
-        return uri, is_hub_uri
-    name = uri.removeprefix(hub_prefix)
-    return (
-        f"https://raw.githubusercontent.com/mlrun/functions/master/{name}/function.yaml",
-        is_hub_uri,
-    )
 
 
 @pytest.fixture()
@@ -198,8 +187,9 @@ def test_submit_schedule_job_from_hub_from_ui(
     db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock, monkeypatch
 ) -> None:
     monkeypatch.setattr(
-        mlrun.run, "extend_hub_uri_if_needed", _mock_extend_hub_uri_if_needed
+        mlrun.api.rundb.sqldb.SQLRunDB, "list_hub_sources", _mock_list_hub_sources
     )
+
     project = "my-proj1"
     hub_function_uri = "hub://aggregate"
 
@@ -223,6 +213,23 @@ def test_submit_schedule_job_from_hub_from_ui(
 
     schedule = schedules[0]
     assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
+
+
+def _mock_list_hub_sources(*args, **kwargs):
+    source = mlrun.common.schemas.IndexedHubSource(
+        index=1,
+        source=mlrun.common.schemas.HubSource(
+            metadata=mlrun.common.schemas.HubObjectMetadata(
+                name="default", description="some description"
+            ),
+            spec=mlrun.common.schemas.HubSourceSpec(
+                path=mlrun.mlconf.hub.default_source.url,
+                channel="master",
+                object_type="functions",
+            ),
+        ),
+    )
+    return [source]
 
 
 def test_submit_job_with_output_path_enrichment(

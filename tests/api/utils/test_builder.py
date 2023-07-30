@@ -15,7 +15,6 @@
 import base64
 import json
 import os
-import pathlib
 import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
@@ -421,7 +420,6 @@ def test_resolve_mlrun_install_command_version():
 
 def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     _patch_k8s_helper(monkeypatch)
-    _mock_import_hub_function(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
     )
@@ -432,11 +430,12 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
             "AWS_SECRET_ACCESS_KEY": "test-b",
         }
     )
-    function = project.set_function(
-        "hub://describe",
-        name="some-function",
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
         kind="job",
     )
+    function = project.set_function(function)
     mlrun.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
@@ -992,17 +991,4 @@ def _mock_default_service_account(monkeypatch, service_account):
         mlrun.api.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
-    )
-
-
-def _mock_import_hub_function(monkeypatch):
-    function_url = str(
-        pathlib.Path(__file__).absolute().parent.parent.parent
-        / "assets"
-        / "function.yaml"
-    )
-    monkeypatch.setattr(
-        mlrun.run,
-        "extend_hub_uri_if_needed",
-        lambda x: (function_url, True),
     )

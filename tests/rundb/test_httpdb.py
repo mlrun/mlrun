@@ -700,7 +700,7 @@ def test_feature_vectors(create_server):
     ), "Features didn't get updated properly"
 
 
-def test_project_file_db_roundtrip(create_server):
+def test_project_sql_db_roundtrip(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 

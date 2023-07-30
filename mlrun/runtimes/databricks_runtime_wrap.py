@@ -36,8 +36,7 @@ def run_mlrun_databricks_job(
 
     import mlrun
 
-    project_name = context.project
-    project = mlrun.get_or_create_project(project_name)
+    project = context.get_project_object()
     get_secret_func = project.get_secret
     logger = context.logger
 

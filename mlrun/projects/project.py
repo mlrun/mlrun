@@ -45,6 +45,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
+from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
@@ -375,7 +376,7 @@ def load_project(
         except Exception:
             pass
 
-    to_save = save and mlrun.mlconf.dbpath
+    to_save = bool(save and mlrun.mlconf.dbpath)
     if to_save:
         project.save()
 
@@ -1245,6 +1246,7 @@ class MlrunProject(ModelObj):
         handler=None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl=None,
+        image: str = None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1260,6 +1262,7 @@ class MlrunProject(ModelObj):
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
+        :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
         """
 
@@ -1299,6 +1302,8 @@ class MlrunProject(ModelObj):
         workflow["schedule"] = schedule
         if ttl:
             workflow["ttl"] = ttl
+        if image:
+            workflow["image"] = image
         self.spec.set_workflow(name, workflow)
 
     def set_artifact(
@@ -2198,15 +2203,12 @@ class MlrunProject(ModelObj):
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
-        # TODO: deprecated, remove in 1.5.0
-        ttl: int = None,
         engine: str = None,
         local: bool = None,
         schedule: typing.Union[
             str, mlrun.common.schemas.ScheduleCronTrigger, bool
         ] = None,
         timeout: int = None,
-        overwrite: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
@@ -2226,8 +2228,6 @@ class MlrunProject(ModelObj):
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
-        :param ttl:       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                          workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param engine:    workflow engine running the workflow.
                           supported values are 'kfp' (default), 'local' or 'remote'.
                           for setting engine for remote running use 'remote:local' or 'remote:kfp'.
@@ -2238,8 +2238,6 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
-        :param overwrite: (deprecated) replacing the schedule of the same workflow (under the same name) if exists
-                          with the new one.
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
@@ -2247,22 +2245,6 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :returns: run id
         """
-
-        if ttl:
-            warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
-
-        if overwrite:
-            warnings.warn(
-                "'overwrite' is deprecated, running a schedule is now an upsert operation. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -2296,9 +2278,7 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-        workflow_spec.cleanup_ttl = (
-            cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
-        )
+        workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
@@ -2371,11 +2351,6 @@ class MlrunProject(ModelObj):
         expected_statuses=None,
         notifiers: CustomNotificationPusher = None,
     ):
-        warnings.warn(
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0. "
-            "Use `timeout` parameter in `project.run()` method instead",
-            FutureWarning,
-        )
         return run._engine.get_run_status(
             project=self,
             run=run,
@@ -3024,6 +2999,27 @@ class MlrunProject(ModelObj):
             last_update_time_from=last_update_time_from,
             last_update_time_to=last_update_time_to,
             **kwargs,
+        )
+
+    def register_datastore_profile(self, profile: DatastoreProfile):
+        project_ds_name_private = DatastoreProfile.generate_secret_key(
+            profile.name, self.name
+        )
+        private_body = DatastoreProfile2Json.get_json_private(profile)
+        public_body = DatastoreProfile2Json.get_json_public(profile)
+        # set project public data to DB
+        public_profile = mlrun.common.schemas.DatastoreProfile(
+            name=profile.name, type=profile.type, body=public_body, project=self.name
+        )
+        mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
+            public_profile, self.name
+        )
+        # Set local environment variable
+        environ[project_ds_name_private] = private_body
+        # set project secret
+        self.set_secrets(
+            secrets={project_ds_name_private: private_body},
+            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         )
 
     def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:

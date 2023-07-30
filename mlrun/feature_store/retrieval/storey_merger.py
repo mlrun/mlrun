@@ -41,45 +41,45 @@ class StoreyFeatureMerger(BaseMerger):
         )
         next = graph
 
-        fs_link_list = self._create_linked_relation_list(
+        join_graph = self._get_graph(
             feature_set_objects, feature_set_fields, entity_keys
         )
 
         all_columns = []
         save_column = []
         entity_keys = []
+        del_columns = []
         end_aliases = {}
-        for node in fs_link_list:
-            name = node.name
-            if name == self._entity_rows_node_name:
-                continue
-            featureset = feature_set_objects[name]
+        for step in join_graph.steps:
+            name = step.right_feature_set_name
+            feature_set = feature_set_objects[name]
             columns = feature_set_fields[name]
             column_names = [name for name, alias in columns]
             aliases = {name: alias for name, alias in columns if alias}
             all_columns += [aliases.get(name, name) for name in column_names]
-            for col in node.data["save_cols"]:
+            saved_columns_for_relation = list(
+                self.vector.get_feature_set_relations(feature_set).keys()
+            )
+
+            for col in saved_columns_for_relation:
                 if col not in column_names:
                     column_names.append(col)
+                    del_columns.append(col)
                 else:
                     save_column.append(col)
 
-            entity_list = node.data["right_keys"] or list(
-                featureset.spec.entities.keys()
-            )
+            entity_list = step.right_keys or list(feature_set.spec.entities.keys())
             if not entity_keys:
                 # if entity_keys not provided by the user we will set it to be the entity of the first feature set
                 entity_keys = entity_list
             end_aliases.update(
                 {
                     k: v
-                    for k, v in zip(entity_list, node.data["left_keys"])
+                    for k, v in zip(entity_list, step.left_keys)
                     if k != v and v in save_column
                 }
             )
-            mapping = {
-                k: v for k, v in zip(node.data["left_keys"], entity_list) if k != v
-            }
+            mapping = {k: v for k, v in zip(step.left_keys, entity_list) if k != v}
             if mapping:
                 next = next.to(
                     "storey.Rename",
@@ -91,7 +91,7 @@ class StoreyFeatureMerger(BaseMerger):
                 "storey.QueryByKey",
                 f"query-{name}",
                 features=column_names,
-                table=featureset.uri,
+                table=feature_set.uri,
                 key_field=entity_list,
                 aliases=aliases,
                 fixed_window_type=fixed_window_type.to_qbk_fixed_window_type(),
@@ -102,6 +102,12 @@ class StoreyFeatureMerger(BaseMerger):
                 "storey.Rename",
                 "rename-entity-to-features",
                 mapping=end_aliases,
+            )
+        if del_columns:
+            next = next.to(
+                "storey.flow.DropColumns",
+                "drop-unnecessary-columns",
+                columns=del_columns,
             )
         for name in start_states:
             next.set_next(name)

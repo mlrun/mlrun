@@ -103,6 +103,9 @@ class ClientSpec(
                 "feature_store.data_prefixes"
             ),
             tracking=self._get_config_value_if_not_default("tracking"),
+            model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.store_type"
+            ),
         )
 
     @staticmethod

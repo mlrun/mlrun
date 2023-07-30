@@ -18,7 +18,6 @@ from abc import abstractmethod
 import mlrun
 from mlrun.execution import MLClientCtx
 
-from ..utils import logger
 from .tracker import Tracker
 
 

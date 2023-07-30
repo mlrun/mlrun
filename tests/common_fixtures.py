@@ -86,7 +86,6 @@ def config_test_base():
     mlrun.utils.singleton.Singleton._instances = {}
 
     mlrun.runtimes.runtime_handler_instances_cache = {}
-    mlrun.runtimes.utils.cached_mpijob_crd_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"

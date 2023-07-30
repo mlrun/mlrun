@@ -16,12 +16,12 @@ from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
 from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler
 from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
 from mlrun.api.runtime_handlers.mpijob import (
-    MpiV1Alpha1RuntimeHandler,
-    MpiV1RuntimeHandler,
+    MpiRuntimeHandlerContainer,
+    resolve_mpijob_crd_version,
 )
 from mlrun.api.runtime_handlers.remotesparkjob import RemoteSparkRuntimeHandler
 from mlrun.api.runtime_handlers.sparkjob import SparkRuntimeHandler
-from mlrun.runtimes import MPIJobCRDVersions, RuntimeKinds, resolve_mpijob_crd_version
+from mlrun.runtimes import RuntimeKinds
 
 runtime_handler_instances_cache = {}
 
@@ -29,13 +29,8 @@ runtime_handler_instances_cache = {}
 def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
     global runtime_handler_instances_cache
     if kind == RuntimeKinds.mpijob:
-        # TODO: split resolve_mpijob_crd_version to client and server side
         mpijob_crd_version = resolve_mpijob_crd_version()
-        crd_version_to_runtime_handler_class = {
-            MPIJobCRDVersions.v1alpha1: MpiV1Alpha1RuntimeHandler,
-            MPIJobCRDVersions.v1: MpiV1RuntimeHandler,
-        }
-        runtime_handler_class = crd_version_to_runtime_handler_class[mpijob_crd_version]
+        runtime_handler_class = MpiRuntimeHandlerContainer.handler_selector()
         if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(
             mpijob_crd_version
         ):

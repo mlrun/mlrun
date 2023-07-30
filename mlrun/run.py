@@ -851,6 +851,9 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
+    if kind == "databricks-job" and not embed_code:
+        raise ValueError("databricks-job is support only embed_code=True")
+
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 

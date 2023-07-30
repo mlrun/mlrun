@@ -22,7 +22,6 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.config
-import mlrun.db.base
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers

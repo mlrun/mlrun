@@ -38,5 +38,5 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
 
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
-    kind = "databricks-job"
-    class_modes = {RuntimeClassMode.run: "databricks-job"}
+    kind = "databricks-task"
+    class_modes = {RuntimeClassMode.run: "databricks-task"}

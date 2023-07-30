@@ -92,7 +92,7 @@ def print_kwargs(**kwargs):
         # **Databricks cluster credentials**
 
         function_ref = FunctionReference(
-            kind="databricks-job",
+            kind="databricks-task",
             code=code,
             image="tomermamia855/mlrun-api:tomer-databricks-runtime",  # TODO replace it after PR
             name="databricks-test",
@@ -113,7 +113,7 @@ def print_kwargs(**kwargs):
         code_path = str(self.assets_path / "databricks_function_print_kwargs.py")
         function = mlrun.code_to_function(
             name="function-with-args",
-            kind="databricks-job",
+            kind="databricks-task",
             project=self.project_name,
             filename=code_path,
             image="tomermamia855/mlrun-api:tomer-databricks-runtime",

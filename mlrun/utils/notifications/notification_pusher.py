@@ -205,6 +205,11 @@ class NotificationPusher(object):
         )
         try:
             notification.push(message, severity, runs)
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
             self._update_notification_status(
                 run.metadata.uid,
                 run.metadata.project,
@@ -213,6 +218,12 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=str(exc),
+            )
             self._update_notification_status(
                 run.metadata.uid,
                 run.metadata.project,
@@ -237,7 +248,11 @@ class NotificationPusher(object):
         )
         try:
             await notification.push(message, severity, runs)
-
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
             await run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
@@ -247,6 +262,12 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=str(exc),
+            )
             await run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,

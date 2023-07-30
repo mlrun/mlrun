@@ -1006,7 +1006,12 @@ def submit_run_sync(
                 auth_info.data_session or auth_info.access_key
             )
 
-            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
+            run = fn.run(
+                task,
+                watch=False,
+                param_file_secrets=param_file_secrets,
+                auth_info=auth_info,
+            )
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:

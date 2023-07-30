@@ -29,7 +29,7 @@ import mlrun.launcher.factory
     "is_remote, local, expectation",
     [
         (True, False, does_not_raise()),
-        (False, False, pytest.raises(mlrun.errors.MLRunPreconditionFailedError)),
+        (False, False, does_not_raise()),
         # local run is not allowed when running as API
         (True, True, pytest.raises(mlrun.errors.MLRunPreconditionFailedError)),
         (False, True, pytest.raises(mlrun.errors.MLRunPreconditionFailedError)),

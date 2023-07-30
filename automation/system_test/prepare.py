@@ -629,7 +629,7 @@ class SystemTestPreparer:
                 "exec",
                 "-n",
                 self.Constants.namespace,
-                "-it",
+                "-i",
                 mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,

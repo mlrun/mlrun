@@ -16,7 +16,7 @@ import getpass
 import http
 import re
 import warnings
-from base64 import b64encode, b64decode
+from base64 import b64decode, b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
@@ -433,7 +433,10 @@ class BaseRuntime(ModelObj):
         if code:
             if self.kind == "databricks-job":
                 code = b64decode(code).decode("utf-8")
-                code = code + mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
+                code = (
+                    code
+                    + mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
+                )
                 code = b64encode(code.encode("utf-8")).decode("utf-8")
             extra_env["MLRUN_EXEC_CODE"] = code
             extra_env["MLRUN_EXEC_CODE"] = code

@@ -23,7 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
-    "DatabricksRuntime",
+    "databricks",
 ]
 
 from mlrun.runtimes.utils import (
@@ -35,7 +35,7 @@ from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster, get_dask_resource  # noqa
 from .function import RemoteRuntime
-from .kubejob import DatabricksRuntime, KubejobRuntime  # noqa
+from .kubejob import databricks, KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
 from .mpijob import MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook
@@ -97,7 +97,7 @@ class RuntimeKinds(object):
     serving = "serving"
     local = "local"
     handler = "handler"
-    databricksruntime = "databricks-job"
+    databricks = "databricks-job"
 
     @staticmethod
     def all():
@@ -111,7 +111,7 @@ class RuntimeKinds(object):
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
             RuntimeKinds.local,
-            RuntimeKinds.databricksruntime,
+            RuntimeKinds.databricks,
         ]
 
     @staticmethod
@@ -235,7 +235,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
-        RuntimeKinds.databricksruntime: DatabricksRuntime,
+        RuntimeKinds.databricks: databricks,
     }
 
     return kind_runtime_map[kind]

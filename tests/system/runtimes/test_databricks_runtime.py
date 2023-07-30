@@ -59,33 +59,37 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             if value is not None:
                 os.environ[key] = value
 
-    def test_with_function_reference(self):
+    def _add_databricks_env(self, function, is_cluster_id_required):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
-        if not cluster_id:
+        if not cluster_id and is_cluster_id_required:
             raise KeyError(
                 "The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
             )
-        code = """
-
-def print_args(**kwargs):
-    print(f"kwargs: {kwargs}")
-        """
-        # **Databricks cluster credentials**
-
         project = mlrun.get_or_create_project(
             "databricks-proj", context="./", user_project=False
         )
 
         job_env = {
             "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
-            "DATABRICKS_CLUSTER_ID": cluster_id,
         }
+        if is_cluster_id_required:
+            job_env["DATABRICKS_CLUSTER_ID"] = cluster_id
 
         secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
 
         project.set_secrets(secrets)
 
-        # **Define and run the function**
+        for name, val in job_env.items():
+            function.spec.env.append({"name": name, "value": val})
+
+    def test_kwargs_from_code(self):
+
+        code = """
+
+def print_kwargs(**kwargs):
+    print(f"kwargs: {kwargs}")
+        """
+        # **Databricks cluster credentials**
 
         function_ref = FunctionReference(
             kind="databricks-job",
@@ -96,11 +100,29 @@ def print_args(**kwargs):
 
         function = function_ref.to_function()
 
-        for name, val in job_env.items():
-            function.spec.env.append({"name": name, "value": val})
+        self._add_databricks_env(function=function, is_cluster_id_required=True)
 
         run = function.run(
-            handler="print_args",
+            handler="print_kwargs",
+            auto_build=True,
+            params={"param1": "value1", "param2": "value2"},
+        )
+        assert run.status.state == "completed"
+
+    def test_kwargs_from_file(self):
+        code_path = str(self.assets_path / "function_print_kwargs2.py")
+        function = mlrun.code_to_function(
+            name="function-with-args",
+            kind="databricks-job",
+            project=self.project_name,
+            filename=code_path,
+            image="tomermamia855/mlrun-api:tomer-databricks-runtime",
+        )
+
+        self._add_databricks_env(function=function, is_cluster_id_required=True)
+
+        run = function.run(
+            handler="func",
             auto_build=True,
             params={"param1": "value1", "param2": "value2"},
         )

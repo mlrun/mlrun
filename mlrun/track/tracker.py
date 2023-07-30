@@ -25,7 +25,6 @@ class Tracker(abc.ABC):
     """
 
     def __init__(self):
-        self._tracked_platform = None  # assuming only one is being used every time
         self._client = None
 
     @abc.abstractmethod

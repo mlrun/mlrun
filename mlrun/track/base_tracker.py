@@ -29,10 +29,11 @@ class BaseTracker(Tracker):
 
     # The module name this tracker will look for.
     TRACKED_MODULE_NAME = ...
+    _tracked_platform = ...
 
     def __init__(self):
         super().__init__()
-        self._tracked_platform = importlib.import_module(self.TRACKED_MODULE_NAME)
+        self.import_client()
         self._run_track_kwargs = {}
         # will add artifacts in mlrun format to here
         self._artifacts = {}
@@ -40,27 +41,27 @@ class BaseTracker(Tracker):
     @classmethod
     def is_enabled(cls) -> bool:
         # Check the tracker's configuration:
-        if getattr(mlrun.mlconf.tracking, cls.TRACKED_MODULE_NAME).mode != "enabled":
+        if getattr(mlrun.mlconf.external_platform_tracking, cls.TRACKED_MODULE_NAME).mode != "enabled":
             return False
 
         # Check if the module to track is available in the interpreter:
-        try:
-            importlib.import_module(cls.TRACKED_MODULE_NAME)
-        except ModuleNotFoundError as module_not_found_error:
-            # The module is missing in the interpreter:
-            logger.warning(
-                f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but the module was not found  "
-                f"in the interpreter: {str(module_not_found_error)}"
-            )
-            return False
-        except ImportError as import_error:
-            # There was an error during the import of the module:
-            logger.warning(
-                f"Tracking enabled for {cls.TRACKED_MODULE_NAME}, but MLRun was unable to import the "
-                f"module due to the following error: {str(import_error)}"
-            )
+        if not cls.import_client():
             return False
 
+        return True
+
+    @classmethod
+    def import_client(cls):
+        """
+        this is a function for every tracker class to implement in order to import all relevant packages
+        and do other preparations before using the class, we also use this in is_enabled to check relevance
+        :return: True if imports were successful, False else
+        """
+        try:
+            # this is for the general case where we only need to import the package with the name we are tracking
+            cls._tracked_platform = importlib.import_module(cls.TRACKED_MODULE_NAME)
+        except ModuleNotFoundError or ImportError:
+            return False
         return True
 
     @abstractmethod

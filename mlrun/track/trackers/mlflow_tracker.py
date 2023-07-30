@@ -37,7 +37,6 @@ class MLFlowTracker(BaseTracker):
     def __init__(self):
         super().__init__()
         self.mlflow_experiment = None
-
         self.track_uri = 0
         self._client = None
 

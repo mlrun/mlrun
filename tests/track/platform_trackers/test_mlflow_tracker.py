@@ -155,33 +155,29 @@ def test_is_enabled(rundb_mock):
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_run(rundb_mock, handler):
     mlrun.mlconf.external_platform_tracking.enabled = True
-    test_directory = tempfile.TemporaryDirectory()
-    mlflow.set_tracking_uri(test_directory.name)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)
 
-    # in order to tell mlflow where to look for logged run for comparison
-    client = mlflow.MlflowClient()
+        # in order to tell mlflow where to look for logged run for comparison
+        client = mlflow.MlflowClient()
 
-    # Create a project for this tester:
-    project = mlrun.get_or_create_project(name="default", context=test_directory.name)
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
 
-    # Create a MLRun function using the tester source file (all the functions must be located in it):
-    func = project.set_function(
-        func=__file__,
-        name=f"{handler}-test",
-        kind="job",
-        image="mlrun/mlrun",
-        requirements=["mlflow"],
-    )
-    # mlflow creates a dir to log the run, this makes it in the tmpdir we create
-    try:
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+        # mlflow creates a dir to log the run, this makes it in the tmpdir we create
         trainer_run = func.run(
-            local=True, artifact_path=test_directory.name, handler=handler
+            local=True, artifact_path=test_directory, handler=handler
         )
         _validate_run(trainer_run, client)
-    except Exception as e:
-        test_directory.cleanup()
-        raise e
-    test_directory.cleanup()
+
 
 
 def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):

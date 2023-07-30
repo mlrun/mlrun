@@ -48,30 +48,30 @@ def make_dockerfile(
     extra_args: str = "",
 ):
     """
-     Generates the content of a Dockerfile for building a container image.
+    Generates the content of a Dockerfile for building a container image.
 
-     :param base_image: The base image for the Dockerfile.
-     :param commands: A list of shell commands to be included in the Dockerfile as RUN instructions.
-     :param source: The path to the source code directory to be included in the Docker image.
-     :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
-                               the Python dependencies to be installed in the Docker image.
-     :param workdir: The working directory inside the container where commands will be executed.
-                     Default is "/mlrun".
-     :param extra: Additional content to be appended to the generated Dockerfile.
-     :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
-                          This is useful for matching the user ID with the host environment
-                          to avoid permission issues.
-     :param enriched_group_id: The group ID to be used in the Docker image for running processes.
-     :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
-                         to be set during the build process.
-     :param project_secrets: A dictionary containing project secrets to be included in the Docker image.
-                             The keys represent the names of the environment variables, and the values
-                             are the corresponding secret values.
-     :param extra_args: Additional build arguments provided by the user.
-                        These arguments are formatted as a space-separated string.
+    :param base_image: The base image for the Dockerfile.
+    :param commands: A list of shell commands to be included in the Dockerfile as RUN instructions.
+    :param source: The path to the source code directory to be included in the Docker image.
+    :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
+                              the Python dependencies to be installed in the Docker image.
+    :param workdir: The working directory inside the container where commands will be executed.
+                    Default is "/mlrun".
+    :param extra: Additional content to be appended to the generated Dockerfile.
+    :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
+                         This is useful for matching the user ID with the host environment
+                         to avoid permission issues.
+    :param enriched_group_id: The group ID to be used in the Docker image for running processes.
+    :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
+                        to be set during the build process.
+    :param project_secrets: A dictionary containing project secrets to be included in the Docker image.
+                            The keys represent the names of the environment variables, and the values
+                            are the corresponding secret values.
+    :param extra_args: Additional build arguments provided by the user.
+                       These arguments are formatted as a space-separated string.
 
-     :return: The content of the Dockerfile as a string.
-     """
+    :return: The content of the Dockerfile as a string.
+    """
     dock = f"FROM {base_image}\n"
 
     builder_env = builder_env or []

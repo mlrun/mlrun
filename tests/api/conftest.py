@@ -23,18 +23,57 @@ import kfp
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.api.launcher
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
+import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
+import mlrun.api.utils.singletons.logs_dir
+import mlrun.api.utils.singletons.project_member
+import mlrun.api.utils.singletons.scheduler
 import mlrun.common.schemas
+import mlrun.db.factory
+import mlrun.launcher.factory
 from mlrun import mlconf
-from mlrun.api.db.sqldb.session import _init_engine, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.main import BASE_VERSIONED_API_PREFIX, app
-from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.project_member import initialize_project_member
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
+
+
+@pytest.fixture(autouse=True)
+def api_config_test():
+    mlrun.api.utils.singletons.db.db = None
+    mlrun.api.utils.singletons.project_member.project_member = None
+    mlrun.api.utils.singletons.scheduler.scheduler = None
+    mlrun.api.utils.singletons.k8s._k8s = None
+    mlrun.api.utils.singletons.logs_dir.logs_dir = None
+
+    mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+
+    mlrun.config._is_running_as_api = True
+
+    # we need to override the run db container manually because we run all unit tests in the same process in CI
+    # so API is imported even when it's not needed
+    rundb_factory = mlrun.db.factory.RunDBFactory()
+    rundb_factory._rundb_container.override(mlrun.api.rundb.sqldb.SQLRunDBContainer)
+
+    # same for the launcher container
+    launcher_factory = mlrun.launcher.factory.LauncherFactory()
+    launcher_factory._launcher_container.override(
+        mlrun.api.launcher.ServerSideLauncherContainer
+    )
+
+    yield
+
+    mlrun.config._is_running_as_api = None
+
+    # reset factory container overrides
+    rundb_factory._rundb_container.reset_override()
+    launcher_factory._launcher_container.reset_override()
 
 
 @pytest.fixture()
@@ -56,8 +95,8 @@ def db() -> Generator:
 
     # forcing from scratch because we created an empty file for the db
     init_data(from_scratch=True)
-    initialize_db()
-    initialize_project_member()
+    mlrun.api.utils.singletons.db.initialize_db()
+    mlrun.api.utils.singletons.project_member.initialize_project_member()
 
     # we're also running client code in tests so set dbpath as well
     # note that setting this attribute triggers connection to the run db therefore must happen after the initialization
@@ -127,12 +166,12 @@ class K8sSecretsMock:
 
     def store_auth_secret(
         self, username: str, access_key: str, namespace=""
-    ) -> (str, bool):
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         secret_ref = self.get_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
-        return secret_ref, True
+        return secret_ref, mlrun.common.schemas.SecretEventActions.created
 
     @staticmethod
     def _generate_auth_secret_data(username: str, access_key: str):
@@ -165,10 +204,12 @@ class K8sSecretsMock:
         ]
         return username, access_key
 
-    def store_project_secrets(self, project, secrets, namespace="") -> (str, bool):
+    def store_project_secrets(
+        self, project, secrets, namespace=""
+    ) -> (str, mlrun.common.schemas.SecretEventActions):
         self.project_secrets_map.setdefault(project, {}).update(secrets)
         secret_name = project
-        return secret_name, True
+        return secret_name, mlrun.common.schemas.SecretEventActions.created
 
     def delete_project_secrets(self, project, secrets, namespace=""):
         if not secrets:
@@ -313,7 +354,7 @@ def kfp_client_mock(monkeypatch) -> kfp.Client:
 @pytest.fixture()
 async def api_url() -> str:
     api_url = "http://iguazio-api-url:8080"
-    mlrun.config.config._iguazio_api_url = api_url
+    mlrun.config.config.iguazio_api_url = api_url
     return api_url
 
 

@@ -41,8 +41,9 @@ class SparkFeatureMerger(BaseMerger):
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset,
-        featureset_df,
+        featureset_name: str,
+        featureset_timstamp: str,
+        featureset_df: list,
         left_keys: list,
         right_keys: list,
     ):
@@ -54,13 +55,15 @@ class SparkFeatureMerger(BaseMerger):
                 the feature tables.
             entity_timestamp_column (str): Column name in entity_df which represents
                 event timestamp.
-            featureset_df (Dataframe): Spark dataframe representing the feature table.
+            featureset (Dataframe): Spark dataframe representing the feature table.
             featureset (FeatureSet): Feature set specification, which provides information on
                 how the join should be performed, such as the entity primary keys.
         Returns:
             DataFrame: Join result, which contains all the original columns from entity_df, as well
                 as all the features specified in featureset, where the feature columns will
                 be prefixed with featureset_df name.
+                :param featureset_name:
+                :param featureset_timstamp:
         """
 
         from pyspark.sql import Window
@@ -68,7 +71,7 @@ class SparkFeatureMerger(BaseMerger):
 
         entity_with_id = entity_df.withColumn("_row_nr", monotonically_increasing_id())
         rename_right_keys = {}
-        for key in right_keys + [featureset.spec.timestamp_key]:
+        for key in right_keys + [featureset_timstamp]:
             if key in entity_df.columns:
                 rename_right_keys[key] = f"ft__{key}"
         # get columns for projection
@@ -79,7 +82,7 @@ class SparkFeatureMerger(BaseMerger):
 
         aliased_featureset_df = featureset_df.select(projection)
         right_timestamp = rename_right_keys.get(
-            featureset.spec.timestamp_key, featureset.spec.timestamp_key
+            featureset_timstamp, featureset_timstamp
         )
 
         # set join conditions
@@ -106,7 +109,7 @@ class SparkFeatureMerger(BaseMerger):
             "_rank", row_number().over(window)
         ).filter(col("_rank") == 1)
 
-        for key in right_keys + [featureset.spec.timestamp_key]:
+        for key in right_keys + [featureset_timstamp]:
             if key in entity_df.columns + [entity_timestamp_column]:
                 filter_most_recent_feature_timestamp = (
                     filter_most_recent_feature_timestamp.drop(
@@ -121,7 +124,8 @@ class SparkFeatureMerger(BaseMerger):
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset,
+        featureset_name,
+        featureset_timestamp,
         featureset_df,
         left_keys: list,
         right_keys: list,
@@ -130,20 +134,18 @@ class SparkFeatureMerger(BaseMerger):
         """
         spark dataframes join
 
-        Args:
-        entity_df (DataFrame): Spark dataframe representing the entities, to be joined with
+        :param entity_df (DataFrame): Spark dataframe representing the entities, to be joined with
             the feature tables.
-        entity_timestamp_column (str): Column name in entity_df which represents
+        :param entity_timestamp_column (str): Column name in entity_df which represents
             event timestamp.
-        featureset_df (Dataframe): Spark dataframe representing the feature table.
-        featureset (FeatureSet): Feature set specification, which provide information on
-            how the join should be performed, such as the entity primary keys.
+        :param featureset_df (Dataframe): Spark dataframe representing the feature table.
+        :param featureset_name:
+        :param featureset_timestamp:
 
         Returns:
             DataFrame: Join result, which contains all the original columns from entity_df, as well
                 as all the features specified in featureset, where the feature columns will
                 be prefixed with featureset_df name.
-
         """
         if left_keys != right_keys:
             join_cond = [
@@ -198,6 +200,7 @@ class SparkFeatureMerger(BaseMerger):
         end_time=None,
         time_column=None,
     ):
+        source_kwargs = {}
         if feature_set.spec.passthrough:
             if not feature_set.spec.source:
                 raise mlrun.errors.MLRunNotFoundError(
@@ -205,6 +208,7 @@ class SparkFeatureMerger(BaseMerger):
                 )
             source_kind = feature_set.spec.source.kind
             source_path = feature_set.spec.source.path
+            source_kwargs.update(feature_set.spec.source.attributes)
         else:
             target = get_offline_target(feature_set)
             if not target:
@@ -224,6 +228,7 @@ class SparkFeatureMerger(BaseMerger):
             time_field=time_column,
             start_time=start_time,
             end_time=end_time,
+            **source_kwargs,
         )
 
         columns = column_names + [ent.name for ent in feature_set.spec.entities]
@@ -267,3 +272,8 @@ class SparkFeatureMerger(BaseMerger):
         self._result_df = self._result_df.orderBy(
             *[col(col_name).asc_nulls_last() for col_name in order_by_active]
         )
+
+    def _convert_entity_rows_to_engine_df(self, entity_rows):
+        if entity_rows is not None and not hasattr(entity_rows, "rdd"):
+            return self.spark.createDataFrame(entity_rows)
+        return entity_rows

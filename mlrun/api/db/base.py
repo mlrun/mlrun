@@ -259,6 +259,21 @@ class DBInterface(ABC):
     ):
         pass
 
+    def store_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
+        pass
+
     @abstractmethod
     def list_schedules(
         self,
@@ -272,7 +287,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_schedule(
-        self, session, project: str, name: str
+        self, session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         pass
 
@@ -622,4 +637,34 @@ class DBInterface(ABC):
         identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
         **kwargs,
     ):
+        pass
+
+    def store_datastore_profile(
+        self,
+        session,
+        profile: mlrun.common.schemas.DatastoreProfile,
+    ) -> str:
+        pass
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        pass
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

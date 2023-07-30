@@ -26,20 +26,10 @@ import pytest
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
-import mlrun
-import mlrun.api.crud
 import mlrun.artifacts.model
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
-import mlrun.utils
-from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
-from mlrun.common.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
+import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
@@ -204,25 +194,29 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         # )
         # assert len(filter_labels) == 4
 
-    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
+    def _mock_random_endpoint(
+        self, state: Optional[str] = None
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         def random_labels():
             return {
                 f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
             }
 
-        return ModelEndpoint(
-            metadata=ModelEndpointMetadata(
+        return mlrun.common.schemas.model_monitoring.ModelEndpoint(
+            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 project=self.project_name,
                 labels=random_labels(),
                 uid=str(randint(1000, 5000)),
             ),
-            spec=ModelEndpointSpec(
+            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
                 model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
                 model_class="classifier",
                 active=True,
             ),
-            status=ModelEndpointStatus(state=state),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+                state=state
+            ),
         )
 
 
@@ -239,7 +233,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
 
-        simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
 
@@ -284,13 +277,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Simulating valid requests
         iris_data = iris["data"].tolist()
-        t_end = monotonic() + simulation_time
-        while monotonic() < t_end:
+
+        for i in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
             )
-            sleep(uniform(0.2, 1.1))
+            sleep(choice([0.01, 0.04]))
 
         # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
@@ -300,6 +293,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
         assert len(endpoint.status.metrics) > 0
+
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
@@ -409,7 +404,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Define tracking policy
         tracking_policy = {
-            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+            mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
         }
 
         # Enable model monitoring
@@ -436,7 +431,10 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Validate monitoring mode
         model_endpoint = endpoints_list[0]
-        assert model_endpoint.spec.monitoring_mode == ModelMonitoringMode.enabled.value
+        assert (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+        )
 
         # Validate tracking policy
         batch_job = db.get_schedule(
@@ -627,7 +625,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
 
         assert len(top_level_endpoints) == 1
-        assert top_level_endpoints[0].status.endpoint_type == EndpointType.ROUTER
+        assert (
+            top_level_endpoints[0].status.endpoint_type
+            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+        )
 
         children_list = top_level_endpoints[0].status.children_uids
         assert len(children_list) == len(model_names)
@@ -637,7 +638,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
         assert len(endpoints_children_list) == len(model_names)
         for child in endpoints_children_list:
-            assert child.status.endpoint_type == EndpointType.LEAF_EP
+            assert (
+                child.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            )
 
         # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -652,7 +656,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             )
             assert data.empty is False
 
-            if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
+            if (
+                endpoint.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            ):
                 assert (
                     datetime.fromisoformat(endpoint.status.first_request) >= start_time
                 )
@@ -728,7 +735,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         schema = json.loads(schema_raw.body)
 
         # Validate the schema key value
-        assert schema["key"] == model_monitoring_constants.EventFieldType.UID
+        assert schema["key"] == mlrun.common.schemas.model_monitoring.EventFieldType.UID
 
         # Create a new dictionary of field_name:field_type out of the schema dictionary
         fields_dict = {item["name"]: item["type"] for item in schema["fields"]}

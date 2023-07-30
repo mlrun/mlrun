@@ -20,14 +20,12 @@ import pandas as pd
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
-import mlrun.common.model_monitoring
 import mlrun.common.schemas
 from mlrun.api.utils.singletons.project_member import get_project_member
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils import config, logger
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
 from mlrun.utils.v3io_clients import get_frames_client
 
 
@@ -62,7 +60,7 @@ async def grafana_list_endpoints(
     body: Dict[str, Any],
     query_parameters: Dict[str, str],
     auth_info: mlrun.common.schemas.AuthInfo,
-) -> List[mlrun.common.schemas.GrafanaTable]:
+) -> List[mlrun.common.schemas.model_monitoring.grafana.GrafanaTable]:
     project = query_parameters.get("project")
 
     # Filters
@@ -111,27 +109,47 @@ async def grafana_list_endpoints(
     endpoint_list.endpoints = allowed_endpoints
 
     columns = [
-        mlrun.common.schemas.GrafanaColumn(text="endpoint_id", type="string"),
-        mlrun.common.schemas.GrafanaColumn(text="endpoint_function", type="string"),
-        mlrun.common.schemas.GrafanaColumn(text="endpoint_model", type="string"),
-        mlrun.common.schemas.GrafanaColumn(text="endpoint_model_class", type="string"),
-        mlrun.common.schemas.GrafanaColumn(text="first_request", type="time"),
-        mlrun.common.schemas.GrafanaColumn(text="last_request", type="time"),
-        mlrun.common.schemas.GrafanaColumn(text="accuracy", type="number"),
-        mlrun.common.schemas.GrafanaColumn(text="error_count", type="number"),
-        mlrun.common.schemas.GrafanaColumn(text="drift_status", type="number"),
-        mlrun.common.schemas.GrafanaColumn(
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="endpoint_id", type="string"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="endpoint_function", type="string"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="endpoint_model", type="string"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="endpoint_model_class", type="string"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="first_request", type="time"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="last_request", type="time"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="accuracy", type="number"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="error_count", type="number"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="drift_status", type="number"
+        ),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
             text="predictions_per_second", type="number"
         ),
-        mlrun.common.schemas.GrafanaColumn(text="latency_avg_1h", type="number"),
+        mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+            text="latency_avg_1h", type="number"
+        ),
     ]
 
-    table = mlrun.common.schemas.GrafanaTable(columns=columns)
+    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(columns=columns)
     for endpoint in endpoint_list.endpoints:
         if (
             filter_router
             and endpoint.status.endpoint_type
-            == mlrun.common.model_monitoring.EndpointType.ROUTER
+            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
         ):
             continue
         row = [
@@ -148,19 +166,21 @@ async def grafana_list_endpoints(
 
         if (
             endpoint.status.metrics
-            and mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
+            and mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
             in endpoint.status.metrics
         ):
             row.extend(
                 [
                     endpoint.status.metrics[
-                        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
+                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
                     ][
-                        mlrun.common.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND
+                        mlrun.common.schemas.model_monitoring.EventLiveStats.PREDICTIONS_PER_SECOND
                     ],
                     endpoint.status.metrics[
-                        mlrun.common.model_monitoring.EventKeyMetrics.GENERIC
-                    ][mlrun.common.model_monitoring.EventLiveStats.LATENCY_AVG_1H],
+                        mlrun.common.schemas.model_monitoring.EventKeyMetrics.GENERIC
+                    ][
+                        mlrun.common.schemas.model_monitoring.EventLiveStats.LATENCY_AVG_1H
+                    ],
                 ]
             )
 
@@ -197,18 +217,38 @@ async def grafana_individual_feature_analysis(
     current_stats = endpoint.status.current_stats or {}
     drift_measures = endpoint.status.drift_measures or {}
 
-    table = mlrun.common.schemas.GrafanaTable(
+    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(
         columns=[
-            mlrun.common.schemas.GrafanaColumn(text="feature_name", type="string"),
-            mlrun.common.schemas.GrafanaColumn(text="actual_min", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="actual_mean", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="actual_max", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="expected_min", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="expected_mean", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="expected_max", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="tvd", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="hellinger", type="number"),
-            mlrun.common.schemas.GrafanaColumn(text="kld", type="number"),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="feature_name", type="string"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="actual_min", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="actual_mean", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="actual_max", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="expected_min", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="expected_mean", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="expected_max", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="tvd", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="hellinger", type="number"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaColumn(
+                text="kld", type="number"
+            ),
         ]
     )
 
@@ -254,14 +294,26 @@ async def grafana_overall_feature_analysis(
         feature_analysis=True,
     )
 
-    table = mlrun.common.schemas.GrafanaTable(
+    table = mlrun.common.schemas.model_monitoring.grafana.GrafanaTable(
         columns=[
-            mlrun.common.schemas.GrafanaNumberColumn(text="tvd_sum"),
-            mlrun.common.schemas.GrafanaNumberColumn(text="tvd_mean"),
-            mlrun.common.schemas.GrafanaNumberColumn(text="hellinger_sum"),
-            mlrun.common.schemas.GrafanaNumberColumn(text="hellinger_mean"),
-            mlrun.common.schemas.GrafanaNumberColumn(text="kld_sum"),
-            mlrun.common.schemas.GrafanaNumberColumn(text="kld_mean"),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="tvd_sum"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="tvd_mean"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="hellinger_sum"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="hellinger_mean"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="kld_sum"
+            ),
+            mlrun.common.schemas.model_monitoring.grafana.GrafanaNumberColumn(
+                text="kld_mean"
+            ),
         ]
     )
 
@@ -339,9 +391,11 @@ async def grafana_incoming_features(
     data.index = data.index.astype(np.int64) // 10**6
 
     for feature, indexed_values in data.to_dict().items():
-        target = mlrun.common.schemas.GrafanaTimeSeriesTarget(target=feature)
+        target = mlrun.common.schemas.model_monitoring.grafana.GrafanaTimeSeriesTarget(
+            target=feature
+        )
         for index, value in indexed_values.items():
-            data_point = mlrun.common.schemas.GrafanaDataPoint(
+            data_point = mlrun.common.schemas.model_monitoring.grafana.GrafanaDataPoint(
                 value=float(value), timestamp=index
             )
             target.add_data_point(data_point)

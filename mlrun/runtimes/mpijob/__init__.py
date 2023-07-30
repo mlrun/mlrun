@@ -14,5 +14,5 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .v1 import MpiRuntimeV1, MpiV1RuntimeHandler
-from .v1alpha1 import MpiRuntimeV1Alpha1, MpiV1Alpha1RuntimeHandler
+from .v1 import MpiRuntimeV1
+from .v1alpha1 import MpiRuntimeV1Alpha1

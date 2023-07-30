@@ -13,24 +13,24 @@
 # limitations under the License.
 #
 
-import mlrun.api.crud
-import mlrun.utils.model_monitoring
+import mlrun.api.crud.model_monitoring.helpers
+import mlrun.model_monitoring.tracking_policy
 
 
 def test_batch_intervals():
     # Check batch interval for a simple tracking policy object
-    tracking_policy = mlrun.utils.model_monitoring.TrackingPolicy(
+    tracking_policy = mlrun.model_monitoring.tracking_policy.TrackingPolicy(
         default_batch_intervals="0 */2 * * *"
     )
     assert tracking_policy.default_batch_intervals.minute == 0
     assert tracking_policy.default_batch_intervals.hour == "*/2"
 
     # Check get batching interval param function
-    interval_list = mlrun.api.crud.ModelEndpoints()._get_batching_interval_param(
+    interval_list = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(
         [0, "*/1", None]
     )
     assert interval_list == (0.0, 1.0, 0.0)
-    interval_list = mlrun.api.crud.ModelEndpoints()._get_batching_interval_param(
+    interval_list = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(
         ["3/2", "*/1", 1]
     )
     assert interval_list == (2.0, 1.0, 0.0)

@@ -137,6 +137,8 @@ class ModelObj:
 
 # model class for building ModelObj dictionaries
 class ObjectDict:
+    kind = "object_dict"
+
     def __init__(self, classes_map, default_kind=""):
         self._children = OrderedDict()
         self._default_kind = default_kind
@@ -903,7 +905,7 @@ class RunSpec(ModelObj):
 
     def extract_type_hints_from_inputs(self):
         """
-        This method extracts the type hints from the inputs keys in the input dictionary.
+        This method extracts the type hints from the input keys in the input dictionary.
 
         As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
         values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
@@ -986,7 +988,7 @@ class RunSpec(ModelObj):
         # Validate correct pattern:
         if input_key.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"Incorrect input pattern. Input keys can have only a single ':' in them to specify the desired type "
                 f"the input will be parsed as. Given: {input_key}."
             )
 
@@ -1309,25 +1311,17 @@ class RunObject(RunTemplate):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
+
         if not db:
-            print("DB is not configured, cannot show logs")
+            logger.warning("DB is not configured, cannot show logs")
             return None
 
-        new_offset = 0
-        if db.kind == "http":
-            state, new_offset = db.watch_log(
-                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
-            )
-        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
-        else:
-            state, text = db.get_log(
-                self.metadata.uid, self.metadata.project, offset=offset
-            )
-            if text:
-                print(text.decode())
-
+        state, new_offset = db.watch_log(
+            self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+        )
         if state:
-            print(f"final state: {state}")
+            logger.debug("Run reached terminal state", state=state)
+
         return state, new_offset
 
     def wait_for_completion(

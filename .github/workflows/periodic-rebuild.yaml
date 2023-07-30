@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         repo: ["mlrun","ui"]
-        branch: ["development","1.3.x"]
+        branch: ["development","1.4.x", "1.3.x"]
     runs-on: ubuntu-latest
     steps:
 

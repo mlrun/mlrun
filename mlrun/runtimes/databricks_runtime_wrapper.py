@@ -35,16 +35,15 @@ def run_mlrun_databricks_job(
 
     logger = context.logger
     workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
-    now = datetime.datetime.now()
-    formatted_date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+    run_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
-        f"sample_{formatted_date_time}_{uuid.uuid4()}.py"
+        f"mlrun_task_{run_id}.py"
     )
 
     code = b64decode(mlrun_internal_code).decode("utf-8")
     with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
-        f.write(code.encode("UTF8"))
+        f.write(code.encode("utf-8"))
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]
@@ -52,44 +51,32 @@ def run_mlrun_databricks_job(
 
     try:
         cluster_id = mlrun.get_secret_or_env("DATABRICKS_CLUSTER_ID")
+        submit_task_kwargs = {}
         if cluster_id:
             logger.info(f"run with exists cluster_id: {cluster_id}")
-            waiter = workspace.jobs.submit(
-                run_name=f"py-sdk-run-{formatted_date_time}",
-                tasks=[
-                    SubmitTask(
-                        task_key=f"hello_world-{formatted_date_time}",
-                        existing_cluster_id=cluster_id,
-                        spark_python_task=SparkPythonTask(
-                            python_file=f"dbfs:{script_path_on_dbfs}",
-                            parameters=[json.dumps(kwargs)],
-                        ),
-                    )
-                ],
-            )
+            submit_task_kwargs["existing_cluster_id"] = cluster_id
         else:
             logger.info("run with new cluster_id")
-            waiter = workspace.jobs.submit(
-                run_name=f"py-sdk-run-{formatted_date_time}",
-                tasks=[
-                    SubmitTask(
-                        task_key=f"hello_world-{formatted_date_time}",
-                        new_cluster=ClusterSpec(
-                            spark_version=workspace.clusters.select_spark_version(
-                                long_term_support=True
-                            ),
-                            node_type_id=workspace.clusters.select_node_type(
-                                local_disk=True
-                            ),
-                            num_workers=1,
-                        ),
-                        spark_python_task=SparkPythonTask(
-                            python_file=f"dbfs:{script_path_on_dbfs}",
-                            parameters=[json.dumps(kwargs)],
-                        ),
-                    )
-                ],
+            submit_task_kwargs["new_cluster"] = ClusterSpec(
+                spark_version=workspace.clusters.select_spark_version(
+                    long_term_support=True
+                ),
+                node_type_id=workspace.clusters.select_node_type(local_disk=True),
+                num_workers=1,
             )
+        waiter = workspace.jobs.submit(
+            run_name=f"py-sdk-run-{run_id}",
+            tasks=[
+                SubmitTask(
+                    task_key=f"hello_world-{run_id}",
+                    spark_python_task=SparkPythonTask(
+                        python_file=f"dbfs:{script_path_on_dbfs}",
+                        parameters=[json.dumps(kwargs)],
+                    ),
+                    **submit_task_kwargs,
+                )
+            ],
+        )
         logger.info(f"starting to poll: {waiter.run_id}")
         run = waiter.result(
             timeout=datetime.timedelta(minutes=timeout), callback=print_status

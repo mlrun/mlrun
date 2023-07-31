@@ -1383,15 +1383,18 @@ def test_matching_args_dockerfile_and_kpod(
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
-
-    kpod = mlrun.api.utils.builder.make_kaniko_pod(
-        project="test",
-        context="/context",
-        dest="docker-hub/",
-        dockerfile="./Dockerfile",
-        builder_env=builder_env,
-        extra_args=extra_args,
-    )
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
+        return_value=[],
+    ):
+        kpod = mlrun.api.utils.builder.make_kaniko_pod(
+            project="test",
+            context="/context",
+            dest="docker-hub/",
+            dockerfile="./Dockerfile",
+            builder_env=builder_env,
+            extra_args=extra_args,
+        )
 
     kpod_args = kpod.args
     kpod_build_args = [

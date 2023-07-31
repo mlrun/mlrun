@@ -41,6 +41,7 @@ from ..utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
+#
 serving_subkind = "serving_v2"
 
 

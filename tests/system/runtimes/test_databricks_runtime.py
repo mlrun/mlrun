@@ -48,6 +48,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             if value is not None:
                 os.environ[key] = value
 
+    @staticmethod
     def _add_databricks_env(self, function, is_cluster_id_required):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:

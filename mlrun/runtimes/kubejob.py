@@ -429,7 +429,7 @@ class DatabricksRuntime(KubejobRuntime):
             self.spec.build.functionSourceCode = wrap_code
             runspec.spec.handler = "run_mlrun_databricks_job"
         else:
-            raise ValueError("There is no code in databricks runtime function.")
+            raise ValueError("Databricks function must be provided with user code")
 
 
 _databricks_script_code = """

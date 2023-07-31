@@ -16,7 +16,6 @@
 
 def run_mlrun_databricks_job(
     context,
-    internal_handler,
     internal_code,
     token_key="DATABRICKS_TOKEN",
     timeout=20,

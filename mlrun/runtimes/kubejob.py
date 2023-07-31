@@ -409,7 +409,6 @@ class DatabricksRuntime(KubejobRuntime):
         return code
 
     def _pre_run(self, runspec: RunObject, execution):
-        runspec.spec.parameters["internal_handler"] = runspec.spec.handler
         internal_code = self.get_internal_code(runspec)
         if internal_code:
             runspec.spec.parameters["internal_code"] = self.get_internal_code(runspec)

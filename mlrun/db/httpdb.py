@@ -444,6 +444,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.packagers = server_cfg.get("packagers") or config.packagers
 
         except Exception as exc:
             logger.warning(

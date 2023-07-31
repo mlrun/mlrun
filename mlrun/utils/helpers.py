@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import enum
+import functools
 import hashlib
 import inspect
 import json
@@ -29,6 +30,7 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import anyio
 import git
 import numpy as np
 import pandas
@@ -1451,3 +1453,12 @@ def normalize_workflow_name(name, project_name):
         name.lstrip(project_name).lstrip("-") if project_name in name else name
     )
     return workflow_name
+
+
+# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
+# without importing fastapi in the client
+async def run_in_threadpool(func, *args, **kwargs):
+    if kwargs:
+        # run_sync doesn't accept 'kwargs', so bind them in here
+        func = functools.partial(func, **kwargs)
+    return await anyio.to_thread.run_sync(func, *args)

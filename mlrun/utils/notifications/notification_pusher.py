@@ -18,8 +18,6 @@ import os
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi.concurrency import run_in_threadpool
-
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.lists
@@ -237,7 +235,7 @@ class NotificationPusher(object):
         try:
             await notification.push(message, severity, runs)
 
-            await run_in_threadpool(
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,
@@ -246,7 +244,7 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
-            await run_in_threadpool(
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,

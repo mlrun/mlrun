@@ -81,7 +81,7 @@ def print_kwargs(**kwargs):
         """
 
         function_ref = FunctionReference(
-            kind="databricks-task",
+            kind="databricks",
             code=code,
             image="tomermamia855/mlrun-api:tomer-databricks-runtime",  # TODO replace it after PR
             name="databricks-test",
@@ -102,7 +102,7 @@ def print_kwargs(**kwargs):
         code_path = str(self.assets_path / "databricks_function_print_kwargs.py")
         function = mlrun.code_to_function(
             name="function-with-args",
-            kind="databricks-task",
+            kind="databricks",
             project=self.project_name,
             filename=code_path,
             image="tomermamia855/mlrun-api:tomer-databricks-runtime",

@@ -97,7 +97,7 @@ class RuntimeKinds(object):
     serving = "serving"
     local = "local"
     handler = "handler"
-    databricks = "databricks-task"
+    databricks = "databricks"
 
     @staticmethod
     def all():

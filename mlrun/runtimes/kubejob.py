@@ -391,7 +391,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
 
 
 class DatabricksRuntime(KubejobRuntime):
-    kind = "databricks-task"
+    kind = "databricks"
     _is_remote = True
 
     def get_internal_code(self, runobj: RunObject):

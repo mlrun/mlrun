@@ -21,7 +21,6 @@ import mlrun
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
-from .serving import serving_subkind
 from .utils import enrich_function_from_dict
 
 
@@ -111,7 +110,9 @@ class FunctionReference(ModelObj):
         elif self.code is not None:
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
-                code = code + mlrun_footer.format(serving_subkind)
+                code = code + mlrun_footer.format(
+                    mlrun.runtimes.serving.serving_subkind
+                )
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )

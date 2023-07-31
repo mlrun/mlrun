@@ -19,7 +19,6 @@ from typing import List, Union
 
 import nuclio
 from nuclio import KafkaTrigger
-from nuclio.build import mlrun_footer
 
 import mlrun
 import mlrun.common.schemas

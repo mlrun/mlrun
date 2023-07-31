@@ -43,8 +43,6 @@ def run_mlrun_databricks_job(
         with open(script_file, "r") as file:
             tree = ast.parse(file.read())
 
-        # Find the function node to delete
-        to_delete = None
         for node in tree.body:
             if isinstance(node, ast.FunctionDef) and node.name == function_name:
                 tree.body.remove(node)

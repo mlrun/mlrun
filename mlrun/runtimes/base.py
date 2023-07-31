@@ -171,7 +171,7 @@ class BaseRuntime(ModelObj):
         Return the code along with any additional code that is required for the specific runtime.
         For example, this may involve connecting to remote workspaces.
         """
-        return ""
+        return code
 
     def set_db_connection(self, conn):
         if not self._db_conn:

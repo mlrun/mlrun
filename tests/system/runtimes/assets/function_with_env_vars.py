@@ -16,8 +16,9 @@ import datetime
 import os
 
 
-def handler(context, env_var_name="ENV_VAR1"):
+def handler(context, env_vars_names=["ENV_VAR1", "ENV_VAR2"]):
     print("started", str(datetime.datetime.now()))
-    context.log_result(env_var_name, os.environ.get(env_var_name))
+    for env_var_name in env_vars_names:
+        context.log_result(env_var_name, os.environ.get(env_var_name))
     context.log_result("finished", str(datetime.datetime.now()))
     print("finished", str(datetime.datetime.now()))

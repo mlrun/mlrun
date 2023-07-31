@@ -119,8 +119,8 @@ def make_dockerfile(
             source_dir = os.path.join(workdir, "source")
             stage_lines = [
                 f"FROM {base_image} AS extractor",
-                f"{args}",
-                f"{envs}",
+                args,
+                envs,
                 "RUN apt-get update -qqy && apt install --assume-yes unzip",
                 f"RUN mkdir -p {source_dir}",
                 f"COPY {source} {source_dir}",

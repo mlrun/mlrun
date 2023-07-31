@@ -2568,7 +2568,7 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :return: MLRun RunObject or KubeFlow containerOp
         """
         return run_function(
@@ -2593,6 +2593,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             notifications=notifications,
             returns=returns,
+            builder_env=builder_env,
         )
 
     def build_function(
@@ -2609,6 +2610,7 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        extra_args: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2641,6 +2643,7 @@ class MlrunProject(ModelObj):
             builder_env=builder_env,
             project_object=self,
             overwrite_build_params=overwrite_build_params,
+            extra_args=extra_args,
         )
 
     def build_config(
@@ -2654,6 +2657,7 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        extra_args: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2667,7 +2671,8 @@ class MlrunProject(ModelObj):
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
         :param overwrite_build_params:  overwrite existing build configuration (default False)
-
+        :param extra_args:              A string containing additional arguments in the format of command-line options,
+         e.g. extra_args="--skip-tls-verify --build-arg A=val""
            * False: the new params are merged with the existing (currently merge is applied to requirements and
              commands)
            * True: the existing params are replaced by the new ones
@@ -2686,6 +2691,7 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite=overwrite_build_params,
+            extra_args=extra_args,
         )
 
         if set_as_default and image != self.default_image:
@@ -2705,6 +2711,7 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        extra_args: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2739,6 +2746,7 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite_build_params=overwrite_build_params,
+            extra_args=extra_args,
         )
 
         function = mlrun.new_function("mlrun--project--image--builder", kind="job")
@@ -2756,6 +2764,7 @@ class MlrunProject(ModelObj):
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         try:

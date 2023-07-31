@@ -390,19 +390,39 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         assert run.metadata.name == "asc-merger"
 
     def test_function_with_builder_env(self):
-        func = mlrun.code_to_function(
-            name="test-func",
-            handler="handler",
-            filename=str(self.assets_path / "function_with_env_vars.py"),
-            kind="job",
-            project=self.project_name,
-            image="mlrun/mlrun",
-        )
-        func.with_commands(["echo ${ENV_VAR1}"])
-
+        name = "test-build-env-vars"
         builder_env_key = "ENV_VAR1"
-        builder_env_val = "test_env_value"
-        func.spec.build.auto_build = True
+        builder_env_val = "value1"
 
-        run = func.run(builder_env={builder_env_key: builder_env_val})
+        extra_args_env_key = "ENV_VAR2"
+        extra_args_env_value = "value2"
+        extra_args_flag = "--skip-tls-verify"
+
+        extra_args = (
+            f"--build-arg {extra_args_env_key}={extra_args_env_value} {extra_args_flag}"
+        )
+        code_path = str(self.assets_path / "function_with_env_vars.py")
+        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=["echo ${ENV_VAR1}", "echo ${ENV_VAR2}"],
+            builder_env={builder_env_key: builder_env_val},
+            extra_args=extra_args,
+        )
+        project.set_function(
+            code_path,
+            name=name,
+            image=image_name,
+            kind="job",
+            handler="handler",
+        )
+
+        run = project.run_function(name)
         assert run.status.results[builder_env_key] == builder_env_val
+        assert run.status.results[extra_args_env_key] == extra_args_env_value

@@ -104,6 +104,7 @@ class ClientSpec(
             model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.store_type"
             ),
+            packagers=self._get_config_value_if_not_default("packagers"),
         )
 
     @staticmethod

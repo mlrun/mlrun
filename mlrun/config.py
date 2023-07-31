@@ -558,6 +558,13 @@ default_config = {
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
+        # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
+        # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
+        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        "logging_worker": 0,
+        # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
+        #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
+        #       log hint to average / min / max them across all the workers (default operation should be average).
     },
     # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
     "events": {

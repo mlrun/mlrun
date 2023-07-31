@@ -17,7 +17,6 @@
 def run_mlrun_databricks_job(
     context,
     internal_handler,
-    is_local_code=True,
     token_key="DATABRICKS_TOKEN",
     timeout=20,
     **kwargs,
@@ -96,12 +95,11 @@ handler_arguments = json.loads(handler_arguments)
         f"sample_{formatted_date_time}_{uuid.uuid4()}.py"
     )
 
-    if is_local_code:
-        upload_file(
-            workspace=workspace,
-            script_path_on_dbfs=script_path_on_dbfs,
-            handler=internal_handler,
-        )
+    upload_file(
+        workspace=workspace,
+        script_path_on_dbfs=script_path_on_dbfs,
+        handler=internal_handler,
+    )
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]

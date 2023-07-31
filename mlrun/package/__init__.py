@@ -38,12 +38,6 @@ from .utils import (
     StructFileSupportedFormat,
 )
 
-# TODO: Write a function to get a packaged object:
-#       def get_object(data_item: mlrun.DataItem, type_hint: type = None, instructions: dict = None) -> object
-#           pass
-#       This function should use a global singleton packager manager that was initialized once a project was
-#       created / loaded.
-
 
 def handler(
     labels: Dict[str, str] = None,

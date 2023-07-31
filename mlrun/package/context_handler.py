@@ -17,6 +17,7 @@ import os
 from collections import OrderedDict
 from typing import Dict, List, Union
 
+from mlrun import mlconf
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
@@ -316,8 +317,6 @@ class ContextHandler:
         # If it's a OpenMPI job:
         if self._context.labels.get("kind", "job") == "mpijob":
             from mpi4py import MPI
-
-            from mlrun import mlconf
 
             # Get the global and compare to the logging rank (worker) set in MLRun's configuration:
             comm = MPI.COMM_WORLD

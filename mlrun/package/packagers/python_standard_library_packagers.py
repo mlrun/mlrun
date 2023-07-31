@@ -49,7 +49,8 @@ class NonePackager(DefaultPackager):
     def get_supported_artifact_types(cls) -> List[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
-        'object' artifact type support.
+        'object' artifact type support (None cannot be pickled, only from Python 3.10, and it should not be pickled
+        anyway as it is simply None - a result will do).
 
         :return: A list of all the supported artifact types.
         """

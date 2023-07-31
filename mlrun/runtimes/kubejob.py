@@ -403,9 +403,9 @@ class DatabricksRuntime(KubejobRuntime):
         )
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code
+        code += decoded_code
         if runobj.spec.handler:
             code += f"\n{runobj.spec.handler}(**handler_arguments)\n"
-        code += decoded_code
         return code
 
     def _pre_run(self, runspec: RunObject, execution):

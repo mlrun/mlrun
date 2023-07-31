@@ -121,7 +121,7 @@ def artifacts_html(
     html = ""
 
     for artifact in artifacts:
-        # TODO: remove this in 1.5.0 once we no longer support legacy format
+        # TODO: remove this in 1.6.0 once we no longer support legacy format
         if mlrun.utils.is_legacy_artifact(artifact):
             attribute_value = artifact.get(attribute_name)
         else:

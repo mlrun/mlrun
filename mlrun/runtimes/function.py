@@ -32,6 +32,7 @@ import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils
+import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
 
 from ..config import config as mlconf
@@ -488,6 +489,16 @@ class RemoteRuntime(KubeResource):
         endpoint = None
         if "://" in stream_path:
             endpoint, stream_path = parse_path(stream_path, suffix="")
+
+        # verify v3io stream trigger name is valid
+        mlrun.utils.helpers.validate_v3io_stream_consumer_group(group)
+
+        consumer_group = kwargs.pop("consumerGroup", None)
+        if consumer_group:
+            logger.warning(
+                "consumerGroup kwargs value is ignored. use group argument instead"
+            )
+
         container, path = split_path(stream_path)
         shards = shards or 1
         extra_attributes = extra_attributes or {}

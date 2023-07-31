@@ -67,6 +67,9 @@ async def create_source(
     response_model=List[mlrun.common.schemas.hub.IndexedHubSource],
 )
 async def list_sources(
+    item_name: Optional[str] = Query(None, alias="item-name"),
+    tag: Optional[str] = Query(None),
+    version: Optional[str] = Query(None),
     db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
@@ -78,8 +81,16 @@ async def list_sources(
         auth_info,
     )
 
-    return await run_in_threadpool(
+    hub_sources = await run_in_threadpool(
         mlrun.api.utils.singletons.db.get_db().list_hub_sources, db_session
+    )
+
+    return await run_in_threadpool(
+        mlrun.api.crud.Hub().filter_hub_sources,
+        hub_sources,
+        item_name,
+        tag,
+        version,
     )
 
 

@@ -165,14 +165,6 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
-    @classmethod
-    def get_enriched_code(cls, code: str):
-        """
-        Return the code along with any additional code that is required for the specific runtime.
-        For example, this may involve connecting to remote workspaces.
-        """
-        return code
-
     def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn
@@ -436,9 +428,6 @@ class BaseRuntime(ModelObj):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
-            code = mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code(
-                code=code
-            )
             extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source

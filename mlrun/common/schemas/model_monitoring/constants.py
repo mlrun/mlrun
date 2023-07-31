@@ -15,6 +15,7 @@
 import enum
 import hashlib
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import mlrun.common.helpers
@@ -195,3 +196,13 @@ class EndpointUID:
 
     def __str__(self):
         return self.uid
+
+
+class DriftStatus(Enum):
+    """
+    Enum for the drift status values.
+    """
+
+    NO_DRIFT = "NO_DRIFT"
+    DRIFT_DETECTED = "DRIFT_DETECTED"
+    POSSIBLE_DRIFT = "POSSIBLE_DRIFT"

@@ -730,7 +730,7 @@ def _build_function(
                         # Generating model monitoring access key
                         model_monitoring_access_key = None
                         if not mlrun.mlconf.is_ce_mode():
-                            model_monitoring_access_key = _process_model_monitoring_secret(
+                            model_monitoring_access_key = process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
                                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
@@ -970,7 +970,7 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
     return None
 
 
-def _process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option

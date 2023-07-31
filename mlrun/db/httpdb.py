@@ -2870,7 +2870,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedHubeSource(
+            private_source = mlrun.common.schemas.IndexedHubSource(
                 order=-1,
                 source=mlrun.common.schemas.HubSource(
                     metadata=mlrun.common.schemas.HubObjectMetadata(

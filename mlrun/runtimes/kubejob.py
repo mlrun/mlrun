@@ -437,7 +437,7 @@ _databricks_script_code = """
 import argparse
 import json
 parser = argparse.ArgumentParser()
-parser.add_argument('handler_arguments', help='')
+parser.add_argument('handler_arguments')
 handler_arguments = parser.parse_args().handler_arguments
 handler_arguments = json.loads(handler_arguments)
 

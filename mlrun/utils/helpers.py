@@ -706,10 +706,10 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     if "/" in name:
         try:
             source_name, name = name.split("/")
-        except ValueError:
+        except ValueError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
-            )
+            ) from exc
     name = normalize_name(name=name, verbose=False)
     if not source_name:
         # Searching item in all sources

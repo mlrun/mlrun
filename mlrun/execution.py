@@ -325,7 +325,9 @@ class MLClientCtx(object):
         status = attrs.get("status")
         if include_status and status:
             self._results = status.get("results", self._results)
-            self._artifacts_manager.artifacts = status.get("artifacts", self._artifacts_manager.artifact_list())
+            self._artifacts_manager.artifacts = status.get(
+                "artifacts", self._artifacts_manager.artifact_list()
+            )
             self._state = status.get("state", self._state)
 
         if store_run:

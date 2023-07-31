@@ -1015,21 +1015,18 @@ def _mock_default_service_account(monkeypatch, service_account):
 
 
 @pytest.mark.parametrize(
-    "builder_env,source,commands,project_secrets,extra_args,expected_in_stage",
+    "builder_env,source,commands,extra_args,expected_in_stage",
     [
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
             None,
             ["git+https://${GIT_TOKEN}@github.com/GiladShapira94/new-mlrun.git}"],
-            {"SECRET": "secret"},
             "--build-arg A=b C=d --test",
             [
                 "ARG GIT_TOKEN_ARG",
-                "ARG SECRET_ARG",
                 "ARG A_ARG",
                 "ARG C_ARG",
                 "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
-                "ENV SECRET=$SECRET_ARG",
                 "ENV A=$A_ARG",
                 "ENV C=$C_ARG",
             ],
@@ -1038,15 +1035,10 @@ def _mock_default_service_account(monkeypatch, service_account):
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
             "source.zip",
             ["echo bla"],
-            {"SECRET": "secret", "ANOTHER": "secret"},
             [],
             [
                 "ARG GIT_TOKEN_ARG",
-                "ARG SECRET_ARG",
-                "ARG ANOTHER_ARG",
                 "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
-                "ENV SECRET=$SECRET_ARG",
-                "ENV ANOTHER=$ANOTHER_ARG",
             ],
         ),
         (
@@ -1056,7 +1048,6 @@ def _mock_default_service_account(monkeypatch, service_account):
             ],
             "source.zip",
             [],
-            {},
             [],
             [
                 "ARG GIT_TOKEN_ARG",
@@ -1065,14 +1056,13 @@ def _mock_default_service_account(monkeypatch, service_account):
                 "ENV Test=$Test_ARG",
             ],
         ),
-        (None, "source.zip", [], None, "", []),
+        (None, "source.zip", [], "", []),
     ],
 )
 def test_make_dockerfile_with_build_and_extra_args(
     builder_env,
     source,
     commands,
-    project_secrets,
     extra_args,
     expected_in_stage,
 ):
@@ -1081,7 +1071,6 @@ def test_make_dockerfile_with_build_and_extra_args(
         builder_env=builder_env,
         source=source,
         commands=commands,
-        project_secrets=project_secrets,
         extra_args=extra_args,
     )
 
@@ -1353,12 +1342,11 @@ def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
 
 
 @pytest.mark.parametrize(
-    "builder_env,source,project_secrets,extra_args",
+    "builder_env,source,extra_args",
     [
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
             None,
-            {"SECRET": "secret"},
             "--build-arg A=b C=d --test",
         ),
         (
@@ -1367,20 +1355,16 @@ def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
                 client.V1EnvVar(name="TETS", value="test"),
             ],
             None,
-            {"SECRET": "secret", "ANOTHER_SECRET": "another_secret"},
             "--build-arg A=b C=d --test --build-arg X=y",
         ),
     ],
 )
-def test_matching_args_dockerfile_and_kpod(
-    builder_env, source, project_secrets, extra_args
-):
+def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     dock = mlrun.api.utils.builder.make_dockerfile(
         base_image="mlrun/mlrun",
         builder_env=builder_env,
         source=source,
         commands=None,
-        project_secrets=project_secrets,
         extra_args=extra_args,
     )
     with unittest.mock.patch(

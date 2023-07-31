@@ -44,7 +44,6 @@ def make_dockerfile(
     user_unix_id: int = None,
     enriched_group_id: int = None,
     builder_env: typing.List[client.V1EnvVar] = None,
-    project_secrets: dict = None,
     extra_args: str = "",
 ):
     """
@@ -75,16 +74,13 @@ def make_dockerfile(
     dock = f"FROM {base_image}\n"
 
     builder_env = builder_env or []
-    project_secrets = project_secrets or {}
     extra_args = _parse_extra_args_for_dockerfile(extra_args)
 
     # combine a list of all args (including builder_env, project_secrets and extra_args)
     # to add in each of the Dockerfile stages.
-    all_args = (
-        [f"{env.name}_ARG" for env in builder_env]
-        + [f"{arg}_ARG" for arg in project_secrets]
-        + [f"{arg}_ARG" for arg in extra_args]
-    )
+    all_args = [f"{env.name}_ARG" for env in builder_env] + [
+        f"{arg}_ARG" for arg in extra_args
+    ]
     args = ""
 
     for arg in all_args:
@@ -94,9 +90,6 @@ def make_dockerfile(
     envs = ""
     for env in builder_env:
         envs += f"ENV {env.name}=${env.name}_ARG\n"
-
-    for env in project_secrets:
-        envs += f"ENV {env}=${env}_ARG\n"
 
     for env in extra_args:
         envs += f"ENV {env}=${env}_ARG\n"
@@ -167,7 +160,6 @@ def make_kaniko_pod(
     builder_env=None,
     runtime_spec=None,
     registry=None,
-    project_secrets=None,
     extra_args="",
 ):
     extra_runtime_spec = {}
@@ -223,9 +215,7 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
-    args = _add_kaniko_args_with_all_build_args(
-        args, builder_env, project_secrets, extra_args
-    )
+    args = _add_kaniko_args_with_all_build_args(args, builder_env, extra_args)
 
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
     # from finishing successfully (destructive), since we're not allowing to override the default
@@ -496,16 +486,6 @@ def build_image(
 
         runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
 
-    from mlrun.api.crud import Secrets
-
-    provider = mlrun.common.schemas.SecretProviderName.kubernetes
-    project_secrets = (
-        Secrets()
-        .list_project_secrets(
-            project=project, provider=provider, allow_secrets_from_k8s=True
-        )
-        .secrets
-    )
     _validate_extra_args(extra_args)
 
     dock = make_dockerfile(
@@ -518,7 +498,6 @@ def build_image(
         enriched_group_id=enriched_group_id,
         workdir=runtime.spec.clone_target_dir,
         builder_env=builder_env,
-        project_secrets=project_secrets,
         extra_args=extra_args,
     )
 
@@ -537,7 +516,6 @@ def build_image(
         builder_env=builder_env,
         runtime_spec=runtime_spec,
         registry=registry,
-        project_secrets=project_secrets,
         extra_args=extra_args,
     )
 
@@ -797,18 +775,12 @@ def _generate_builder_env(
     return env
 
 
-def _add_kaniko_args_with_all_build_args(
-    args, builder_env, project_secrets, extra_args
-):
+def _add_kaniko_args_with_all_build_args(args, builder_env, extra_args):
 
     builder_env = builder_env or []
-    project_secrets = project_secrets or {}
 
     for env in builder_env:
         args.extend(["--build-arg", f"{env.name}_ARG={env.value}"])
-
-    for key, value in project_secrets.items():
-        args.extend(["--build-arg", f"{key}_ARG={value}"])
 
     # add extra_args to args
     args = _validate_and_merge_args_with_extra_args(args, extra_args)
@@ -816,7 +788,7 @@ def _add_kaniko_args_with_all_build_args(
     return args
 
 
-def _parse_extra_args_for_dockerfile(extra_args: str) -> list:
+def _parse_extra_args_for_dockerfile(extra_args: str) -> dict:
     if not extra_args:
         return {}
 

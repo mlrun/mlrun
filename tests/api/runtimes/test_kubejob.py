@@ -755,49 +755,44 @@ def my_func(context):
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
-            with unittest.mock.patch(
-                "mlrun.api.crud.Secrets.list_project_secrets",
-                return_value=mlrun.common.schemas.SecretsData(
-                    provider="kubernetes", secrets={}
-                ),
-            ):
-                runtime = self._generate_runtime()
-                runtime.spec.build.base_image = "some/image"
-                runtime.spec.build.commands = copy.deepcopy(commands)
-                self.deploy(db, runtime, with_mlrun=with_mlrun)
-                dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
-                    "dockertext"
-                ]
-                if expected_to_upgrade:
-                    expected_str = ""
-                    if commands:
-                        expected_str += "\nRUN "
-                        expected_str += "\nRUN ".join(commands)
-                    expected_str += (
-                        f"\nRUN python -m pip install "
-                        f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                    )
 
-                    # assert that mlrun was added to the requirements file
-                    if with_mlrun:
-                        expected_str += (
-                            "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
-                            "\nRUN python -m pip install -r /empty/requirements.txt"
-                        )
-                        kaniko_pod_requirements = (
-                            mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
-                                "requirements"
-                            ]
-                        )
-                        assert kaniko_pod_requirements == [
-                            "mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"
-                        ]
-                    assert expected_str in dockerfile
-                else:
-                    assert (
-                        f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                        not in dockerfile
+            runtime = self._generate_runtime()
+            runtime.spec.build.base_image = "some/image"
+            runtime.spec.build.commands = copy.deepcopy(commands)
+            self.deploy(db, runtime, with_mlrun=with_mlrun)
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            if expected_to_upgrade:
+                expected_str = ""
+                if commands:
+                    expected_str += "\nRUN "
+                    expected_str += "\nRUN ".join(commands)
+                expected_str += (
+                    f"\nRUN python -m pip install "
+                    f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                )
+
+                # assert that mlrun was added to the requirements file
+                if with_mlrun:
+                    expected_str += (
+                        "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
+                        "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
+                    kaniko_pod_requirements = (
+                        mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                            "requirements"
+                        ]
+                    )
+                    assert kaniko_pod_requirements == [
+                        "mlrun[complete] @ git+https://github.com/mlrun/mlrun@development"
+                    ]
+                assert expected_str in dockerfile
+            else:
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
+                )
 
     @pytest.mark.parametrize(
         "with_mlrun, requirements, with_requirements_file, expected_requirements",
@@ -880,56 +875,50 @@ def my_func(context):
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
-            with unittest.mock.patch(
-                "mlrun.api.crud.Secrets.list_project_secrets",
-                return_value=mlrun.common.schemas.SecretsData(
-                    provider="kubernetes", secrets={}
-                ),
-            ):
-                runtime = self._generate_runtime()
-                runtime.spec.build.base_image = "some/image"
+            runtime = self._generate_runtime()
+            runtime.spec.build.base_image = "some/image"
 
-                requirements_file = (
-                    "" if not with_requirements_file else self.requirements_file
-                )
-                runtime.with_requirements(
-                    requirements=requirements, requirements_file=requirements_file
+            requirements_file = (
+                "" if not with_requirements_file else self.requirements_file
+            )
+            runtime.with_requirements(
+                requirements=requirements, requirements_file=requirements_file
+            )
+
+            self.deploy(db, runtime, with_mlrun=with_mlrun)
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+
+            install_requirements_commands = (
+                "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
+                "\nRUN python -m pip install -r /empty/requirements.txt"
+            )
+            kaniko_pod_requirements = mlrun.api.utils.builder.make_kaniko_pod.call_args[
+                1
+            ]["requirements"]
+            if with_mlrun:
+                expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                expected_str += install_requirements_commands
+                assert kaniko_pod_requirements == expected_requirements
+                assert expected_str in dockerfile
+
+            else:
+                assert (
+                    f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                    not in dockerfile
                 )
 
-                self.deploy(db, runtime, with_mlrun=with_mlrun)
-                dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
-                    "dockertext"
-                ]
-
-                install_requirements_commands = (
-                    "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
-                    "\nRUN python -m pip install -r /empty/requirements.txt"
-                )
-                kaniko_pod_requirements = (
-                    mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
-                )
-                if with_mlrun:
-                    expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                    expected_str += install_requirements_commands
-                    assert kaniko_pod_requirements == expected_requirements
+                # assert that install requirements commands are in the dockerfile
+                if with_requirements_file or requirements:
+                    expected_str = install_requirements_commands
                     assert expected_str in dockerfile
 
-                else:
-                    assert (
-                        f"pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
-                        not in dockerfile
-                    )
+                # assert mlrun is not in the requirements
+                for requirement in kaniko_pod_requirements:
+                    assert "mlrun" not in requirement
 
-                    # assert that install requirements commands are in the dockerfile
-                    if with_requirements_file or requirements:
-                        expected_str = install_requirements_commands
-                        assert expected_str in dockerfile
-
-                    # assert mlrun is not in the requirements
-                    for requirement in kaniko_pod_requirements:
-                        assert "mlrun" not in requirement
-
-                    assert kaniko_pod_requirements == expected_requirements
+                assert kaniko_pod_requirements == expected_requirements
 
     @pytest.mark.parametrize(
         "workdir, source, pull_at_runtime, target_dir, expected_workdir",

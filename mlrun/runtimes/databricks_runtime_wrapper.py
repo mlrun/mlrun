@@ -34,7 +34,7 @@ def run_mlrun_databricks_job(
 
     logger = context.logger
 
-    def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str, handler):
+    def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str):
         modified_code = internal_code
         with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
             f.write(modified_code.encode("UTF8"))
@@ -51,7 +51,6 @@ def run_mlrun_databricks_job(
     upload_file(
         workspace=workspace,
         script_path_on_dbfs=script_path_on_dbfs,
-        handler=internal_handler,
     )
 
     def print_status(run: Run):

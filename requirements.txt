@@ -57,5 +57,4 @@ python-dotenv~=0.17.0
 setuptools~=65.5
 deprecated~=1.2
 jinja2~=3.1
-databricks-sdk~=0.3.0
 anyio~=3.5

@@ -144,7 +144,6 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
-        "databricks-sdk": {"~= 0.3.0"},
     }
 
     for (

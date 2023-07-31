@@ -165,7 +165,7 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
-    @staticmethod
+    @classmethod
     def get_enriched_code(cls, code: str):
         """
         Return the code along with any additional code that is required for the specific runtime.

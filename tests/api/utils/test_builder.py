@@ -791,31 +791,35 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 )
 def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     _patch_k8s_helper(monkeypatch)
-    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        docker_registry = "default.docker.registry/default-repository"
+        config.httpdb.builder.docker_registry = docker_registry
 
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
-        kind="job",
-    )
-    if clone_target_dir is not None:
-        function.spec.clone_target_dir = clone_target_dir
-    function.spec.build.source = "/path/some-source.tgz"
-    mlrun.api.utils.builder.build_runtime(
-        mlrun.common.schemas.AuthInfo(),
-        function,
-    )
-    dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
-    dockerfile_lines = dockerfile.splitlines()
-    dockerfile_lines = [
-        line for line in list(dockerfile_lines) if not line.startswith(("ARG", "ENV"))
-    ]
-    expected_workdir_re = re.compile(expected_workdir)
-    assert expected_workdir_re.match(dockerfile_lines[1])
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            image="mlrun/mlrun",
+            kind="job",
+        )
+        if clone_target_dir is not None:
+            function.spec.clone_target_dir = clone_target_dir
+        function.spec.build.source = "/path/some-source.tgz"
+        mlrun.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
+        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile_lines = dockerfile.splitlines()
+        dockerfile_lines = [
+            line
+            for line in list(dockerfile_lines)
+            if not line.startswith(("ARG", "ENV"))
+        ]
+        expected_workdir_re = re.compile(expected_workdir)
+        assert expected_workdir_re.match(dockerfile_lines[1])
 
 
 @pytest.mark.parametrize(
@@ -833,48 +837,56 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
 )
 def test_builder_source(monkeypatch, source, expectation):
     _patch_k8s_helper(monkeypatch)
-    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        docker_registry = "default.docker.registry/default-repository"
+        config.httpdb.builder.docker_registry = docker_registry
 
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
-        kind="job",
-    )
-
-    with expectation:
-        function.spec.build.source = source
-        mlrun.api.utils.builder.build_runtime(
-            mlrun.common.schemas.AuthInfo(),
-            function,
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            image="mlrun/mlrun",
+            kind="job",
         )
 
-        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
-        dockerfile_lines = dockerfile.splitlines()
-        dockerfile_lines = [
-            line
-            for line in list(dockerfile_lines)
-            if not line.startswith(("ARG", "ENV"))
-        ]
-
-        expected_source = source
-        if "://" in source:
-            _, expected_source = os.path.split(source)
-
-        if source.endswith(".zip"):
-            expected_output_re = re.compile(
-                rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+        with expectation:
+            function.spec.build.source = source
+            mlrun.api.utils.builder.build_runtime(
+                mlrun.common.schemas.AuthInfo(),
+                function,
             )
-            expected_line_index = 3
 
-        else:
-            expected_output_re = re.compile(rf"ADD {expected_source} .*/tmp.*/mlrun")
-            expected_line_index = 2
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            dockerfile_lines = dockerfile.splitlines()
+            dockerfile_lines = [
+                line
+                for line in list(dockerfile_lines)
+                if not line.startswith(("ARG", "ENV"))
+            ]
 
-        assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
+            expected_source = source
+            if "://" in source:
+                _, expected_source = os.path.split(source)
+
+            if source.endswith(".zip"):
+                expected_output_re = re.compile(
+                    rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+                )
+                expected_line_index = 3
+
+            else:
+                expected_output_re = re.compile(
+                    rf"ADD {expected_source} .*/tmp.*/mlrun"
+                )
+                expected_line_index = 2
+
+            assert expected_output_re.match(
+                dockerfile_lines[expected_line_index].strip()
+            )
 
 
 @pytest.mark.parametrize(
@@ -1132,6 +1144,7 @@ def test_make_kaniko_pod_command_using_build_args(
     ]
     if extra_args:
         expected_env_vars.extend(parsed_extra_args)
+
     args = kpod.args
     actual_env_vars = [
         args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"

@@ -15,7 +15,6 @@
 import os
 import time
 import warnings
-from typing import Callable, Dict, List, Optional, Union
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -24,9 +23,11 @@ import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
+
+from base64 import b64decode, b64encode
 from ..errors import err_to_str
 from ..kfpops import build_op
-from ..model import HyperParamOptions, RunObject
+from ..model import RunObject
 from ..utils import get_in, logger
 from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
@@ -394,12 +395,14 @@ class DatabricksRuntime(KubejobRuntime):
     kind = "databricks-task"
     _is_remote = True
 
-    @staticmethod
-    def get_enriched_code(code:str):
+    @classmethod
+    def get_enriched_code(cls, code: str):
         """
         Return the code along with any additional code that is required for the specific runtime.
         For example, this may involve connecting to remote workspaces.
         """
+
+        code = b64decode(code).decode("utf-8")
         current_file = os.path.abspath(__file__)
         current_dir = os.path.dirname(current_file)
         databricks_runtime_wrap_path = os.path.join(
@@ -408,62 +411,12 @@ class DatabricksRuntime(KubejobRuntime):
         wrap_code = "\n"
         with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
             wrap_code += databricks_runtime_wrap_file.read()
-        return wrap_code
+
+        code = code + wrap_code
+        code = b64encode(code.encode("utf-8")).decode("utf-8")
+        return code
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters["internal_handler"] = runspec.spec.handler
         runspec.spec.handler = "run_mlrun_databricks_job"
 
-    # def run(
-    #     self,
-    #     runspec: Optional[
-    #         Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-    #     ] = None,
-    #     handler: Optional[Union[str, Callable]] = None,
-    #     name: Optional[str] = "",
-    #     project: Optional[str] = "",
-    #     params: Optional[dict] = None,
-    #     inputs: Optional[Dict[str, str]] = None,
-    #     out_path: Optional[str] = "",
-    #     workdir: Optional[str] = "",
-    #     artifact_path: Optional[str] = "",
-    #     watch: Optional[bool] = True,
-    #     schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-    #     hyperparams: Optional[Dict[str, list]] = None,
-    #     hyper_param_options: Optional[HyperParamOptions] = None,
-    #     verbose: Optional[bool] = None,
-    #     scrape_metrics: Optional[bool] = None,
-    #     local: Optional[bool] = False,
-    #     local_code_path: Optional[str] = None,
-    #     auto_build: Optional[bool] = None,
-    #     param_file_secrets: Optional[Dict[str, str]] = None,
-    #     notifications: Optional[List[mlrun.model.Notification]] = None,
-    #     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-    # ) -> RunObject:
-    #     if not project:
-    #         current_project = mlrun.get_current_project(silent=True)
-    #         if current_project:
-    #             project = current_project.name
-    #     return super().run(
-    #         runspec=runspec,
-    #         handler=handler,
-    #         name=name,
-    #         project=project,
-    #         params=params,
-    #         inputs=inputs,
-    #         out_path=out_path,
-    #         workdir=workdir,
-    #         artifact_path=artifact_path,
-    #         watch=watch,
-    #         schedule=schedule,
-    #         hyperparams=hyperparams,
-    #         hyper_param_options=hyper_param_options,
-    #         verbose=verbose,
-    #         scrape_metrics=scrape_metrics,
-    #         local=local,
-    #         local_code_path=local_code_path,
-    #         auto_build=auto_build,
-    #         param_file_secrets=param_file_secrets,
-    #         notifications=notifications,
-    #         returns=returns,
-    #     )

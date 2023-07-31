@@ -236,7 +236,7 @@ class DaskCluster(KubejobRuntime):
     def _start(self, watch=True):
         db = self._get_db()
         if not self._is_remote_api():
-            self._cluster = db.start_function(self)
+            self._cluster = db.start_function(function=self)
             return
 
         self.try_auto_mount_based_on_config()
@@ -248,7 +248,7 @@ class DaskCluster(KubejobRuntime):
             )
 
         self.save(versioned=False)
-        background_task = db.start_function(self._function_uri())
+        background_task = db.start_function(func_url=self._function_uri())
         if watch:
             now = datetime.datetime.utcnow()
             timeout = now + datetime.timedelta(minutes=10)

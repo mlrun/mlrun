@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Union
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -378,8 +379,6 @@ def _validate_dask_related_libraries_installed():
 def get_obj_status(selector=None, namespace=None):
     if selector is None:
         selector = []
-
-    import mlrun.api.utils.singletons.k8s
 
     k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
     namespace = namespace or config.namespace

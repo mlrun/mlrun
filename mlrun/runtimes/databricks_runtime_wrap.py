@@ -22,15 +22,10 @@ def run_mlrun_databricks_job(
     timeout=20,
     **kwargs,
 ):
-    import ast
     import datetime
     import json
-    import os
-    import shutil
-    import tempfile
     import uuid
 
-    import astor
     from databricks.sdk import WorkspaceClient
     from databricks.sdk.service.compute import ClusterSpec
     from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
@@ -39,54 +34,12 @@ def run_mlrun_databricks_job(
 
     logger = context.logger
 
-#     def get_modified_code(function_name, script_file, handler):
-#         with open(script_file, "r") as file:
-#             tree = ast.parse(file.read())
-#
-#         for node in tree.body:
-#             if isinstance(node, ast.FunctionDef) and node.name == function_name:
-#                 tree.body.remove(node)
-#                 break
-#
-#         # Generate the modified code
-#         modified_code = astor.to_source(tree)
-#         if handler:
-#             handler_function = f"""
-# import argparse
-# import json
-# parser = argparse.ArgumentParser()
-# parser.add_argument('handler_arguments', help='')
-# handler_arguments = parser.parse_args().handler_arguments
-# handler_arguments = json.loads(handler_arguments)
-# {handler}(**handler_arguments)
-# """
-#             modified_code += handler_function
-#         return modified_code
-
-    # def copy_current_file(dst_dir):
-    #     current_script = os.path.abspath(__file__)
-    #     # Create a temporary directory and copy the file inside the context
-    #     # Generate the temporary file path
-    #     temp_file_path = os.path.join(dst_dir, os.path.basename(current_script))
-    #     # Copy the current script to the temporary location
-    #     shutil.copy(current_script, temp_file_path)
-    #     return temp_file_path
-
     def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str, handler):
-        with tempfile.TemporaryDirectory(
-            prefix="databricks_runtime_scripts_"
-        ) as temp_dir:
-            #temp_file_path = copy_current_file(temp_dir)
-            # modified_code = get_modified_code(
-            #     function_name="run_mlrun_databricks_job",
-            #     script_file=temp_file_path,
-            #     handler=handler,
-            # )
-            modified_code = internal_code
-            with workspace.dbfs.open(
-                script_path_on_dbfs, write=True, overwrite=True
-            ) as f:
-                f.write(modified_code.encode("UTF8"))
+        modified_code = internal_code
+        with workspace.dbfs.open(
+            script_path_on_dbfs, write=True, overwrite=True
+        ) as f:
+            f.write(modified_code.encode("UTF8"))
 
     workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
 

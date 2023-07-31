@@ -15,7 +15,10 @@
 import os
 from base64 import b64encode
 
+from nuclio.build import mlrun_footer
+
 import mlrun
+from .serving import serving_subkind
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
@@ -108,7 +111,7 @@ class FunctionReference(ModelObj):
         elif self.code is not None:
             code = self.code
             if kind == mlrun.runtimes.RuntimeKinds.serving:
-                code = mlrun.runtimes.get_runtime_class(kind).get_enriched_code(code=code)
+                code = code + mlrun_footer.format(serving_subkind)
             func = mlrun.new_function(
                 self.name, kind=kind, image=self.image or default_image
             )

@@ -406,12 +406,13 @@ class DatabricksRuntime(KubejobRuntime):
         code += decoded_code
         if runobj.spec.handler:
             code += f"\n{runobj.spec.handler}(**handler_arguments)\n"
+        code = b64encode(code.encode("utf-8")).decode("utf-8")
         return code
 
     def _pre_run(self, runspec: RunObject, execution):
         internal_code = self.get_internal_code(runspec)
         if internal_code:
-            runspec.spec.parameters["internal_code"] = self.get_internal_code(runspec)
+            runspec.spec.parameters["mlrun_internal_code"] = self.get_internal_code(runspec)
 
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)

@@ -402,8 +402,7 @@ class DatabricksRuntime(KubejobRuntime):
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         decoded_code = b64decode(encoded_code).decode("utf-8")
-        code = _databricks_script_code
-        code += decoded_code
+        code = _databricks_script_code + decoded_code
         if runobj.spec.handler:
             code += f"\n{runobj.spec.handler}(**handler_arguments)\n"
         code = b64encode(code.encode("utf-8")).decode("utf-8")

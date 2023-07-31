@@ -48,6 +48,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    DatastoreProfile,
     DataVersion,
     Entity,
     Feature,
@@ -1174,6 +1175,7 @@ class SQLDB(DBInterface):
 
         return results
 
+    @retry_on_conflict
     def store_schedule(
         self,
         session: Session,
@@ -1186,24 +1188,23 @@ class SQLDB(DBInterface):
         last_run_uri: str = None,
         concurrency_limit: int = None,
         next_run_time: datetime = None,
-    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
-        schedule = self.get_schedule(
+    ) -> typing.Tuple[mlrun.common.schemas.ScheduleRecord, bool]:
+        schedule = self._get_schedule_record(
             session=session, project=project, name=name, raise_on_not_found=False
         )
-        schedule_exist = schedule is not None
+        is_update = schedule is not None
 
-        if not schedule_exist:
-            schedule = Schedule(
+        if not is_update:
+            schedule = self._create_schedule_db_record(
                 project=project,
                 name=name,
-                kind=kind.value,
-                creation_time=datetime.now(timezone.utc),
-                concurrency_limit=concurrency_limit,
-                next_run_time=next_run_time,
+                kind=kind,
                 scheduled_object=scheduled_object,
                 cron_trigger=cron_trigger,
+                concurrency_limit=concurrency_limit,
+                labels=labels,
+                next_run_time=next_run_time,
             )
-            labels = labels or {}
 
         self._update_schedule_body(
             schedule=schedule,
@@ -1217,19 +1218,19 @@ class SQLDB(DBInterface):
 
         logger.debug(
             "Storing schedule to db",
-            project=project,
-            name=name,
-            kind=kind,
-            cron_trigger=cron_trigger,
-            labels=labels,
-            concurrency_limit=concurrency_limit,
-            scheduled_object=scheduled_object,
+            project=schedule.project,
+            name=schedule.name,
+            kind=schedule.kind,
+            cron_trigger=schedule.cron_trigger,
+            labels=schedule.labels,
+            concurrency_limit=schedule.concurrency_limit,
+            scheduled_object=schedule.scheduled_object,
         )
 
         self._upsert(session, [schedule])
 
-        if schedule_exist:
-            return schedule
+        schedule = self._transform_schedule_record_to_scheme(schedule)
+        return schedule, is_update
 
     def create_schedule(
         self,
@@ -1242,7 +1243,46 @@ class SQLDB(DBInterface):
         concurrency_limit: int,
         labels: Dict = None,
         next_run_time: datetime = None,
-    ):
+    ) -> mlrun.common.schemas.ScheduleRecord:
+
+        schedule_record = self._create_schedule_db_record(
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
+            labels=labels,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Saving schedule to db",
+            project=schedule_record.project,
+            name=schedule_record.name,
+            kind=schedule_record.kind,
+            cron_trigger=schedule_record.cron_trigger,
+            concurrency_limit=schedule_record.concurrency_limit,
+            next_run_time=schedule_record.next_run_time,
+        )
+        self._upsert(session, [schedule_record])
+
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
+        return schedule
+
+    @staticmethod
+    def _create_schedule_db_record(
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
+        labels: Dict = None,
+        next_run_time: datetime = None,
+    ) -> Schedule:
+        if concurrency_limit is None:
+            concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if next_run_time is not None:
             # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
             # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
@@ -1261,19 +1301,8 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
         )
 
-        labels = labels or {}
-        update_labels(schedule, labels)
-
-        logger.debug(
-            "Saving schedule to db",
-            project=project,
-            name=name,
-            kind=kind,
-            cron_trigger=cron_trigger,
-            concurrency_limit=concurrency_limit,
-            next_run_time=next_run_time,
-        )
-        self._upsert(session, [schedule])
+        update_labels(schedule, labels or {})
+        return schedule
 
     def update_schedule(
         self,
@@ -1312,7 +1341,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_schedule_body(
-        schedule: mlrun.common.schemas.ScheduleRecord,
+        schedule: Schedule,
         scheduled_object: Any = None,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
@@ -1376,7 +1405,7 @@ class SQLDB(DBInterface):
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
-    ) -> mlrun.common.schemas.ScheduleRecord:
+    ) -> Schedule:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
         if not schedule_record and raise_on_not_found:
@@ -1889,6 +1918,7 @@ class SQLDB(DBInterface):
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
+        self.delete_datastore_profiles(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -3916,3 +3946,104 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    def store_datastore_profile(
+        self, session, info: mlrun.common.schemas.DatastoreProfile
+    ):
+        """
+        Create or replace a datastore profile.
+        :param session: SQLAlchemy session
+        :param info: datastore profile
+        :returns: None
+        """
+        info.project = info.project or config.default_project
+        profile = self._query(
+            session, DatastoreProfile, name=info.name, project=info.project
+        )
+        first = profile.first()
+        if first:
+            first.type = info.type
+            first.body = info.body
+            self._commit(session, [profile])
+        else:
+            profile = DatastoreProfile(
+                name=info.name,
+                type=info.type,
+                project=info.project,
+                body=info.body,
+            )
+            self._upsert(session, [profile])
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        """
+        get a datastore profile.
+        :param session: SQLAlchemy session
+        :param profile: name of the profile
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            r = res.first().to_dict(exclude=["id"])
+            return mlrun.common.schemas.DatastoreProfile(**r)
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            session.delete(res.first())
+            session.commit()
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        list all datastore profiles for a project.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: List of DatatoreProfile objects (only the public portion of it)
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        return [
+            mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+            for query in query_results
+        ]
+
+    def delete_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        Delete all datastore profiles.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        for profile in query_results:
+            session.delete(profile)
+        session.commit()

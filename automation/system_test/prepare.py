@@ -235,14 +235,14 @@ class SystemTestPreparer:
                 )
             if exit_status != 0 and not suppress_errors:
                 for suppress_error_string in suppress_error_strings:
-                    if suppress_error_string in stderr:
+                    if suppress_error_string in str(stderr):
                         self._logger.log(
                             "warning",
                             "Suppressing error",
                             stderr=stderr,
                             suppress_error_string=suppress_error_string,
                         )
-                        continue
+                        break
                 else:
                     raise RuntimeError(
                         f"Command failed with exit status: {exit_status}"
@@ -629,13 +629,13 @@ class SystemTestPreparer:
                 "exec",
                 "-n",
                 self.Constants.namespace,
-                "-it",
+                "-i",
                 mlrun_db_pod_name_cmd,
                 "--",
                 drop_db_cmd,
             ],
             verbose=False,
-            suppress_error_strings=["database doesn't exist"],
+            suppress_error_strings=["database doesn\\'t exist"],
         )
 
     def _get_pod_name_command(self, labels):

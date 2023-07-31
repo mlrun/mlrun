@@ -62,9 +62,12 @@ def run_merge_job(
     function = run_config.to_function(kind, merger.get_default_image(kind))
 
     # Avoid overriding a handler that was provided by the user
-    # The user shouldn't have to provide a handler, but we leave this option open just in case
     if not run_config.handler:
         function.with_code(body=default_code)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "get_offline_features does not support run_config with a handler"
+        )
 
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name

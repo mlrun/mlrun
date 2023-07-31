@@ -19,6 +19,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.common.schemas.hub
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 from mlrun.config import config
 from mlrun.datastore import store_manager
@@ -159,6 +160,16 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
                 object_details_dict = version_dict.copy()
                 spec_dict = object_details_dict.pop("spec", {})
                 assets = object_details_dict.pop("assets", {})
+                # We want to align all item names to be normalized.
+                # This is necessary since the item names are originally collected from the yaml files
+                # which may can contain underscores.
+                object_details_dict.update(
+                    {
+                        "name": mlrun.utils.helpers.normalize_name(
+                            object_name, verbose=False
+                        )
+                    }
+                )
                 metadata = mlrun.common.schemas.hub.HubItemMetadata(
                     tag=version_tag, **object_details_dict
                 )
@@ -267,7 +278,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
 
         :return:   list of item objects from catalog
         """
-        return [item for item in catalog if item.metadata.name == item_name]
+        normalized_name = mlrun.utils.helpers.normalize_name(item_name, verbose=False)
+        return [item for item in catalog if item.metadata.name == normalized_name]
 
     def get_item_object_using_source_credentials(
         self, source: mlrun.common.schemas.hub.HubSource, url
@@ -310,3 +322,41 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
             mlrun.run.get_object(url=asset_path, secrets=credentials),
             asset_path,
         )
+
+    def filter_hub_sources(
+        self,
+        sources: List[mlrun.common.schemas.IndexedHubSource],
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[mlrun.common.schemas.IndexedHubSource]:
+        """
+        Retrieve only the sources that contains the item name
+        (and tag/version if supplied, if tag and version are both given, only tag will be taken into consideration)
+
+        :param sources:     List of hub sources
+        :param item_name:   item name. If not provided the original list will be returned.
+        :param tag:         item tag to filter by, supported only if item name is provided.
+        :param version:     item version to filter by, supported only if item name is provided.
+
+        :return:
+        """
+        if not item_name:
+            if tag or version:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Tag or version are supported only if item name is provided"
+                )
+            return sources
+
+        filtered_sources = []
+        for source in sources:
+            catalog = self.get_source_catalog(
+                source=source.source,
+                version=version,
+                tag=tag,
+            )
+            for item in catalog.catalog:
+                if item.metadata.name == item_name:
+                    filtered_sources.append(source)
+                    break
+        return filtered_sources

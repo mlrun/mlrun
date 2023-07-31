@@ -52,7 +52,6 @@ source_modules=
     mlrun.feature_store
     mlrun.frameworks
     mlrun.launcher
-    mlrun.mlutils
     mlrun.model_monitoring
     mlrun.package
     mlrun.platforms
@@ -76,10 +75,5 @@ forbidden_modules=
     mlrun.api
 
 ignore_imports =
-    mlrun.feature_store.feature_set -> mlrun.api.api.utils
-    mlrun.feature_store.ingestion -> mlrun.api.api.utils
-    mlrun.utils.notifications.notification_pusher -> mlrun.api.db.session
-    mlrun.utils.notifications.notification_pusher -> mlrun.api.db.base
     mlrun.runtimes.daskjob -> mlrun.api.utils.singletons.k8s
     mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s
-    mlrun.model_monitoring.helpers -> mlrun.api.crud.secrets

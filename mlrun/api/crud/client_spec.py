@@ -67,7 +67,6 @@ class ClientSpec(
                 "ui.projects_prefix"
             ),
             scrape_metrics=self._get_config_value_if_not_default("scrape_metrics"),
-            hub_url=self._get_config_value_if_not_default("hub_url"),
             default_function_node_selector=self._get_config_value_if_not_default(
                 "default_function_node_selector"
             ),

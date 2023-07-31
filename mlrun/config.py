@@ -27,8 +27,8 @@ import copy
 import json
 import os
 import typing
-import urllib.parse
 from collections.abc import Mapping
+from datetime import timedelta
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
@@ -85,7 +85,6 @@ default_config = {
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
-    "hub_url": "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
     "ipython_widget": True,
     "log_level": "INFO",
     # log formatter (options: human | json)
@@ -417,6 +416,7 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
+        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
@@ -469,9 +469,9 @@ default_config = {
         "default_source": {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
-            "name": "mlrun_global_hub",
+            "name": "default",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "url": "https://mlrun.github.io/marketplace",
             "object_type": "functions",
             "channel": "master",
         },
@@ -658,14 +658,9 @@ class Config:
         )
 
     @staticmethod
-    def get_hub_url():
-        if not config.hub_url.endswith("function.yaml"):
-            if config.hub_url.startswith("http"):
-                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
-            elif config.hub_url.startswith("v3io"):
-                return f"{config.hub_url}/{{name}}/function.yaml"
-
-        return config.hub_url
+    def get_default_hub_source() -> str:
+        default_source = config.hub.default_source
+        return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
 
     @staticmethod
     def decode_base64_config_and_load_to_object(
@@ -936,36 +931,6 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 
-    @property
-    def iguazio_api_url(self):
-        """
-        we want to be able to run with old versions of the service who runs the API (which doesn't configure this
-        value) so we're doing best effort to try and resolve it from other configurations
-        TODO: Remove this hack when 0.6.x is old enough
-        """
-        if not self._iguazio_api_url:
-            if self.httpdb.builder.docker_registry and self.igz_version:
-                return self._extract_iguazio_api_from_docker_registry_url()
-        return self._iguazio_api_url
-
-    def _extract_iguazio_api_from_docker_registry_url(self):
-        docker_registry_url = self.httpdb.builder.docker_registry
-        # add schema otherwise parsing go wrong
-        if "://" not in docker_registry_url:
-            docker_registry_url = f"http://{docker_registry_url}"
-        parsed_registry_url = urllib.parse.urlparse(docker_registry_url)
-        registry_hostname = parsed_registry_url.hostname
-        # replace the first domain section (app service name) with dashboard
-        first_dot_index = registry_hostname.find(".")
-        if first_dot_index < 0:
-            # if not found it's not the format we know - can't resolve the api url from the registry url
-            return ""
-        return f"https://dashboard{registry_hostname[first_dot_index:]}"
-
-    @iguazio_api_url.setter
-    def iguazio_api_url(self, value):
-        self._iguazio_api_url = value
-
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1128,12 +1093,6 @@ def _do_populate(env=None, skip_errors=False):
     data = read_env(env)
     if data:
         config.update(data, skip_errors=skip_errors)
-
-    # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
-    # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
-    # underscore
-    config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
-    del config._cfg["iguazio_api_url"]
 
     _validate_config(config)
 

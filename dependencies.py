@@ -31,20 +31,16 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #     - We have a copy of these in extras-requirements.txt. If you modify these, make sure to change it
     #       there as well
     extras_require = {
-        # last version that supports python 3.7: fsspec: 2023.1.0, aiobotocore: 2.4.2, adlfs: 2022.2.0
-        # selecting ~=2023.1.0 for fsspec and its implementations s3fs and gcsfs (adlfs pinned per comment above)
-        # s3fs 2023.1.0 requires aiobotocore 2.4.2 which requires botocore 1.27.59
-        # requesting boto3 1.24.59, the only version that requires botocore 1.27.59
         "s3": [
-            "boto3~=1.24.59",
-            "aiobotocore~=2.4.2",
-            "s3fs~=2023.1.0",
+            "boto3~=1.26.161",
+            "aiobotocore~=2.5.2",
+            "s3fs~=2023.6.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
             "azure-storage-blob~=12.13",
-            "adlfs~=2022.2.0",
+            "adlfs~=2023.4.0",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [
@@ -68,7 +64,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas, bqstorage]~=3.2",
             "google-cloud~=0.34",
         ],
-        "google-cloud-storage": ["gcsfs~=2023.1.0"],
+        "google-cloud-storage": ["gcsfs~=2023.6.0"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
         "kafka": [
             "kafka-python~=2.0",

@@ -31,7 +31,7 @@ from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_proce
 from .notification import NotificationBase, NotificationTypes
 
 
-class NotificationPusher(object):
+class RunNotificationPusher(object):
 
     messages = {
         "completed": "Run completed",

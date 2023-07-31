@@ -53,7 +53,7 @@ def test_load_notification(notification_kind):
     )
 
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        mlrun.utils.notifications.notification_pusher.RunNotificationPusher([run])
     )
     notification_pusher._load_notification(run, notification)
     loaded_notifications = (
@@ -111,7 +111,7 @@ def test_notification_should_notify(
     )
 
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        mlrun.utils.notifications.notification_pusher.RunNotificationPusher([run])
     )
     assert notification_pusher._should_notify(run, notification) == expected
 
@@ -135,7 +135,7 @@ def test_condition_evaluation_timeout():
     )
 
     notification_pusher = (
-        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+        mlrun.utils.notifications.notification_pusher.RunNotificationPusher([run])
     )
     assert notification_pusher._should_notify(run, notification)
 
@@ -618,7 +618,9 @@ def test_notification_sent_on_handler_run(monkeypatch):
     push_mock = unittest.mock.Mock()
 
     monkeypatch.setattr(mlrun.runtimes.HandlerRuntime, "_run_many", run_many_mock)
-    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+    monkeypatch.setattr(
+        mlrun.utils.notifications.RunNotificationPusher, "push", push_mock
+    )
 
     def hyper_func(context, p1, p2):
         print(f"p1={p1}, p2={p2}, result={p1 * p2}")
@@ -643,7 +645,9 @@ def test_notification_sent_on_dask_run(monkeypatch):
     push_mock = unittest.mock.Mock()
 
     monkeypatch.setattr(mlrun.runtimes.LocalRuntime, "_run", run_mock)
-    monkeypatch.setattr(mlrun.utils.notifications.NotificationPusher, "push", push_mock)
+    monkeypatch.setattr(
+        mlrun.utils.notifications.RunNotificationPusher, "push", push_mock
+    )
 
     notification = mlrun.model.Notification(
         name="test-notification", when=["completed"]

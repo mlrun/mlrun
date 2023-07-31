@@ -18,7 +18,6 @@ import datetime
 import json
 import os
 import re
-from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -35,19 +34,8 @@ import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
 
-
-class DriftStatus(Enum):
-    """
-    Enum for the drift status values.
-    """
-
-    NO_DRIFT = "NO_DRIFT"
-    DRIFT_DETECTED = "DRIFT_DETECTED"
-    POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
-
-
 # A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = Tuple[DriftStatus, float]
+DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
 
 
 @dataclasses.dataclass
@@ -369,6 +357,8 @@ class VirtualDrift:
             # Calculate the feature's drift mean:
             tvd = results[TotalVarianceDistance.NAME]
             hellinger = results[HellingerDistance.NAME]
+            if not tvd or not hellinger:
+                continue
             metrics_results_dictionary = (tvd + hellinger) / 2
             # Decision rule for drift detection:
             drift_status = VirtualDrift._get_drift_status(
@@ -426,7 +416,7 @@ class VirtualDrift:
         drift_result: float,
         possible_drift_threshold: float,
         drift_detected_threshold: float,
-    ) -> DriftStatus:
+    ) -> mlrun.common.schemas.model_monitoring.DriftStatus:
         """
         Get the drift status according to the result and thresholds given.
 
@@ -436,11 +426,15 @@ class VirtualDrift:
 
         :returns: The figured drift status.
         """
-        drift_status = DriftStatus.NO_DRIFT
+        drift_status = mlrun.common.schemas.model_monitoring.DriftStatus.NO_DRIFT
         if drift_result >= drift_detected_threshold:
-            drift_status = DriftStatus.DRIFT_DETECTED
+            drift_status = (
+                mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED
+            )
         elif drift_result >= possible_drift_threshold:
-            drift_status = DriftStatus.POSSIBLE_DRIFT
+            drift_status = (
+                mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT
+            )
 
         return drift_status
 
@@ -539,6 +533,11 @@ class BatchProcessor:
         if isinstance(self.batch_dict, str):
             self._parse_batch_dict_str()
 
+        # If provided, only model endpoints in that that list will be analyzed
+        self.model_endpoints = context.parameters.get(
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
+        )
+
     def _initialize_v3io_configurations(self):
         self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
@@ -607,8 +606,10 @@ class BatchProcessor:
         Main method for manage the drift analysis and write the results into tsdb and KV table.
         """
         # Get model endpoints (each deployed project has at least 1 serving model):
+
         try:
-            endpoints = self.db.list_model_endpoints()
+            endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
+
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
@@ -639,24 +640,10 @@ class BatchProcessor:
 
     def update_drift_metrics(self, endpoint: dict):
         try:
-            # Convert feature set into dataframe and get the latest dataset
-            (
-                _,
-                serving_function_name,
-                _,
-                _,
-            ) = mlrun.common.helpers.parse_versioned_object_uri(
-                endpoint[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.FUNCTION_URI
-                ]
-            )
-
-            model_name = endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.MODEL
-            ].replace(":", "-")
-
             m_fs = fstore.get_feature_set(
-                f"store://feature-sets/{self.project}/monitoring-{serving_function_name}-{model_name}"
+                endpoint[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
+                ]
             )
 
             # Getting batch interval start time and end time
@@ -719,7 +706,9 @@ class BatchProcessor:
                 ]
                 if isinstance(labels, str):
                     labels = json.loads(labels)
-                stats_columns.extend(labels)
+                for label in labels:
+                    if label not in stats_columns:
+                        stats_columns.append(label)
             named_features_df = df[stats_columns].copy()
 
             # Infer feature set stats and schema
@@ -866,7 +855,7 @@ class BatchProcessor:
     def _update_drift_in_v3io_tsdb(
         self,
         endpoint_id: str,
-        drift_status: DriftStatus,
+        drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
         drift_measure: float,
         drift_result: Dict[str, Dict[str, Any]],
         timestamp: pd._libs.tslibs.timestamps.Timestamp,
@@ -883,8 +872,10 @@ class BatchProcessor:
         """
 
         if (
-            drift_status == DriftStatus.POSSIBLE_DRIFT
-            or drift_status == DriftStatus.DRIFT_DETECTED
+            drift_status
+            == mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT
+            or drift_status
+            == mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED
         ):
             self.v3io.stream.put_records(
                 container=self.stream_container,
@@ -934,7 +925,7 @@ class BatchProcessor:
     def _update_drift_in_prometheus(
         self,
         endpoint_id: str,
-        drift_status: DriftStatus,
+        drift_status: mlrun.common.schemas.model_monitoring.DriftStatus,
         drift_result: Dict[str, Dict[str, Any]],
     ):
         """Push drift metrics to Prometheus registry. Please note that the metrics are being pushed through HTTP

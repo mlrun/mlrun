@@ -14,7 +14,6 @@
 #
 import os
 from pathlib import Path
-from sys import executable
 
 import pytest
 import yaml
@@ -34,6 +33,7 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 def is_databricks_env_configured():
     return all(var in config["env"] for var in MUST_HAVE_VARIABLES)
+
 
 @pytest.mark.skipif(
     not is_databricks_env_configured(),

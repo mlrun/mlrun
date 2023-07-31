@@ -36,9 +36,7 @@ def run_mlrun_databricks_job(
 
     def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str, handler):
         modified_code = internal_code
-        with workspace.dbfs.open(
-            script_path_on_dbfs, write=True, overwrite=True
-        ) as f:
+        with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
             f.write(modified_code.encode("UTF8"))
 
     workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))

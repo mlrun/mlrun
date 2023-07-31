@@ -398,7 +398,9 @@ class DatabricksRuntime(KubejobRuntime):
         """
         Return the internal function code.
         """
-        encoded_code = self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        encoded_code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        )
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code
         if runobj.spec.handler:
@@ -417,7 +419,9 @@ class DatabricksRuntime(KubejobRuntime):
             databricks_runtime_wrap_path = os.path.join(
                 current_dir, "databricks_runtime_wrapper.py"
             )
-            with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
+            with open(
+                databricks_runtime_wrap_path, "r"
+            ) as databricks_runtime_wrap_file:
                 wrap_code = databricks_runtime_wrap_file.read()
                 wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
             self.spec.build.functionSourceCode = wrap_code

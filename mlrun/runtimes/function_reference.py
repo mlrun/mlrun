@@ -18,10 +18,10 @@ from base64 import b64encode
 from nuclio.build import mlrun_footer
 
 import mlrun
-from .serving import serving_subkind
 
 from ..model import ModelObj
 from ..utils import generate_object_uri
+from .serving import serving_subkind
 from .utils import enrich_function_from_dict
 
 

@@ -15,12 +15,12 @@
 
 
 def run_mlrun_databricks_job(
-        context,
-        internal_handler,
-        is_local_code=True,
-        token_key="DATABRICKS_TOKEN",
-        timeout=20,
-        **kwargs,
+    context,
+    internal_handler,
+    is_local_code=True,
+    token_key="DATABRICKS_TOKEN",
+    timeout=20,
+    **kwargs,
 ):
     import ast
     import datetime
@@ -76,7 +76,7 @@ handler_arguments = json.loads(handler_arguments)
 
     def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str, handler):
         with tempfile.TemporaryDirectory(
-                prefix="databricks_runtime_scripts_"
+            prefix="databricks_runtime_scripts_"
         ) as temp_dir:
             temp_file_path = copy_current_file(temp_dir)
             modified_code = get_modified_code(
@@ -85,13 +85,11 @@ handler_arguments = json.loads(handler_arguments)
                 handler=handler,
             )
             with workspace.dbfs.open(
-                    script_path_on_dbfs, write=True, overwrite=True
+                script_path_on_dbfs, write=True, overwrite=True
             ) as f:
                 f.write(modified_code.encode("UTF8"))
 
-    workspace = WorkspaceClient(
-        token=mlrun.get_secret_or_env(key=token_key)
-    )
+    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
 
     now = datetime.datetime.now()
     formatted_date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -157,7 +155,7 @@ handler_arguments = json.loads(handler_arguments)
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
-        context.log_result('databricks_runtime', run_output)
+        context.log_result("databricks_runtime", run_output)
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
 

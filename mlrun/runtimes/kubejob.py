@@ -15,6 +15,7 @@
 import os
 import time
 import warnings
+from base64 import b64decode, b64encode
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -23,8 +24,6 @@ import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
-
-from base64 import b64decode, b64encode
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
@@ -419,4 +418,3 @@ class DatabricksRuntime(KubejobRuntime):
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters["internal_handler"] = runspec.spec.handler
         runspec.spec.handler = "run_mlrun_databricks_job"
-

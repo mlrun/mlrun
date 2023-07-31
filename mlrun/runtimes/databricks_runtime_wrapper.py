@@ -13,33 +13,28 @@
 # limitations under the License.
 #
 
+import datetime
+import json
+import uuid
+
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.compute import ClusterSpec
+from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
+from base64 import b64decode
+
+import mlrun
+
 
 def run_mlrun_databricks_job(
     context,
-    internal_code,
+    mlrun_internal_code,
     token_key="DATABRICKS_TOKEN",
     timeout=20,
     **kwargs,
 ):
-    import datetime
-    import json
-    import uuid
-
-    from databricks.sdk import WorkspaceClient
-    from databricks.sdk.service.compute import ClusterSpec
-    from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
-
-    import mlrun
 
     logger = context.logger
-
-    def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str):
-        modified_code = internal_code
-        with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
-            f.write(modified_code.encode("UTF8"))
-
     workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
-
     now = datetime.datetime.now()
     formatted_date_time = now.strftime("%Y-%m-%d_%H-%M-%S")
     script_path_on_dbfs = (
@@ -47,10 +42,9 @@ def run_mlrun_databricks_job(
         f"sample_{formatted_date_time}_{uuid.uuid4()}.py"
     )
 
-    upload_file(
-        workspace=workspace,
-        script_path_on_dbfs=script_path_on_dbfs,
-    )
+    code = b64decode(mlrun_internal_code).decode("utf-8")
+    with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
+        f.write(code.encode("UTF8"))
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]

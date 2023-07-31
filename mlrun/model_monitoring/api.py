@@ -52,7 +52,7 @@ def get_or_create_model_endpoint(
     artifacts_tag: str = "",
     trigger_monitoring_job: bool = False,
     default_batch_image="mlrun/mlrun",
-):
+) -> ModelEndpoint:
     """
     Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint
     record and use the provided sample set statistics as feature stats that will be later for the drift analysis.
@@ -82,6 +82,8 @@ def get_or_create_model_endpoint(
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
     :param default_batch_image:      The image that will be used when registering the model monitoring batch job.
+
+    :return: A ModelEndpoint object
     """
 
     if not endpoint_id:
@@ -159,6 +161,8 @@ def get_or_create_model_endpoint(
             endpoint_id=endpoint_id,
             db_session=db,
         )
+
+    return model_endpoint
 
 
 def _generate_model_endpoint(

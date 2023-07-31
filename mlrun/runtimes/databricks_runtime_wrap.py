@@ -15,11 +15,12 @@
 
 
 def run_mlrun_databricks_job(
-    context,
-    internal_handler,
-    is_local_code=True,
-    token_key="DATABRICKS_TOKEN",
-    **kwargs,
+        context,
+        internal_handler,
+        is_local_code=True,
+        token_key="DATABRICKS_TOKEN",
+        timeout=20,
+        **kwargs,
 ):
     import ast
     import datetime
@@ -75,7 +76,7 @@ handler_arguments = json.loads(handler_arguments)
 
     def upload_file(workspace: WorkspaceClient, script_path_on_dbfs: str, handler):
         with tempfile.TemporaryDirectory(
-            prefix="databricks_runtime_scripts_"
+                prefix="databricks_runtime_scripts_"
         ) as temp_dir:
             temp_file_path = copy_current_file(temp_dir)
             modified_code = get_modified_code(
@@ -84,7 +85,7 @@ handler_arguments = json.loads(handler_arguments)
                 handler=handler,
             )
             with workspace.dbfs.open(
-                script_path_on_dbfs, write=True, overwrite=True
+                    script_path_on_dbfs, write=True, overwrite=True
             ) as f:
                 f.write(modified_code.encode("UTF8"))
 
@@ -118,7 +119,6 @@ handler_arguments = json.loads(handler_arguments)
         cluster_id = mlrun.get_secret_or_env("DATABRICKS_CLUSTER_ID")
         if cluster_id:
             logger.info(f"run with exists cluster_id: {cluster_id}")
-            timeout = 15
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[
@@ -134,7 +134,6 @@ handler_arguments = json.loads(handler_arguments)
             )
         else:
             logger.info("run with new cluster_id")
-            timeout = 25
             waiter = workspace.jobs.submit(
                 run_name=f"py-sdk-run-{formatted_date_time}",
                 tasks=[
@@ -162,7 +161,7 @@ handler_arguments = json.loads(handler_arguments)
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
-        logger.info(f"run_output: {run_output}")
+        context.log_result('databricks_runtime', run_output)
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
 

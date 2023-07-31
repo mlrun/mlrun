@@ -16,7 +16,7 @@ import getpass
 import http
 import re
 import warnings
-from base64 import b64decode, b64encode
+from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
@@ -166,7 +166,7 @@ class BaseRuntime(ModelObj):
         self._enriched_image = False
 
     @staticmethod
-    def get_enriched_code(code:str):
+    def get_enriched_code(cls, code: str):
         """
         Return the code along with any additional code that is required for the specific runtime.
         For example, this may involve connecting to remote workspaces.
@@ -435,13 +435,7 @@ class BaseRuntime(ModelObj):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
-            if self.kind == "databricks-task":
-                code = b64decode(code).decode("utf-8")
-                code = (
-                    code
-                    + mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
-                )
-                code = b64encode(code.encode("utf-8")).decode("utf-8")
+            code = mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
             extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source

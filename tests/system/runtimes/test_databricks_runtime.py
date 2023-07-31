@@ -84,7 +84,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 def print_kwargs(**kwargs):
     print(f"kwargs: {kwargs}")
         """
-        # **Databricks cluster credentials**
 
         function_ref = FunctionReference(
             kind="databricks-task",

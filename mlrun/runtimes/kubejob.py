@@ -412,7 +412,9 @@ class DatabricksRuntime(KubejobRuntime):
     def _pre_run(self, runspec: RunObject, execution):
         internal_code = self.get_internal_code(runspec)
         if internal_code:
-            runspec.spec.parameters["mlrun_internal_code"] = self.get_internal_code(runspec)
+            runspec.spec.parameters["mlrun_internal_code"] = self.get_internal_code(
+                runspec
+            )
 
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)

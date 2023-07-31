@@ -16,11 +16,11 @@
 import datetime
 import json
 import uuid
+from base64 import b64decode
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.compute import ClusterSpec
 from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
-from base64 import b64decode
 
 import mlrun
 

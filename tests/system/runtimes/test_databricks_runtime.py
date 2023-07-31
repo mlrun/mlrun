@@ -29,12 +29,6 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 
-def exec_run(args):
-    cmd = [executable, "-m", "mlrun", "run"] + args
-    out = os.popen(" ".join(cmd)).read()
-    return out
-
-
 MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 

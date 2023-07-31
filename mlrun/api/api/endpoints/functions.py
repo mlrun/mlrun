@@ -870,13 +870,13 @@ def _start_function(
 
 
 async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
-    logger.info(f"function_status:\n{data}")
+    logger.info(f"Getting function status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: selector or runtime kind not specified",
+            reason="Runtime error: selector or runtime kind not specified",
         )
     project, name = data.get("project"), data.get("name")
 
@@ -889,11 +889,12 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
     )
 
     try:
-        resp = mlrun.api.crud.Functions().get_function_status(
+        status = mlrun.api.crud.Functions().get_function_status(
             kind,
             selector,
         )
-        logger.info("Status: %s", resp)
+        logger.info("Got function status", status=status)
+        return status
 
     except mlrun.errors.MLRunBadRequestError:
         raise

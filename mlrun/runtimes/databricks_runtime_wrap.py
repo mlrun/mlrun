@@ -89,10 +89,6 @@ handler_arguments = json.loads(handler_arguments)
             ) as f:
                 f.write(modified_code.encode("UTF8"))
 
-    print(f'host: {os.getenv("DATABRICKS_HOST", None)}')
-    print(f'cluster_id : {os.getenv("DATABRICKS_CLUSTER_ID", None)}')
-    print(f'token= {mlrun.get_secret_or_env(key=token_key)}')
-
     workspace = WorkspaceClient(
         token=mlrun.get_secret_or_env(key=token_key)
     )

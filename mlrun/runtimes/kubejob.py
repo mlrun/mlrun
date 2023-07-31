@@ -394,27 +394,45 @@ class DatabricksRuntime(KubejobRuntime):
     kind = "databricks-task"
     _is_remote = True
 
-    @classmethod
-    def get_enriched_code(cls, code: str):
+    def get_internal_code(self, runobj: RunObject):
         """
-        Return the code along with any additional code that is required for the specific runtime.
-        For example, this may involve connecting to remote workspaces.
+        Return the internal function code.
         """
-
-        code = b64decode(code).decode("utf-8")
-        current_file = os.path.abspath(__file__)
-        current_dir = os.path.dirname(current_file)
-        databricks_runtime_wrap_path = os.path.join(
-            current_dir, "databricks_runtime_wrap.py"
-        )
-        wrap_code = "\n"
-        with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
-            wrap_code += databricks_runtime_wrap_file.read()
-
-        code = code + wrap_code
-        code = b64encode(code.encode("utf-8")).decode("utf-8")
+        encoded_code = self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
+        decoded_code = b64decode(encoded_code).decode("utf-8")
+        code = _databricks_script_code
+        if runobj.spec.handler:
+            code += "\n{handler}(**handler_arguments)\n"
+        code += decoded_code
         return code
 
     def _pre_run(self, runspec: RunObject, execution):
         runspec.spec.parameters["internal_handler"] = runspec.spec.handler
-        runspec.spec.handler = "run_mlrun_databricks_job"
+        internal_code = self.get_internal_code(runspec)
+        if internal_code:
+            runspec.spec.parameters["internal_code"] = self.get_internal_code(runspec)
+
+            current_file = os.path.abspath(__file__)
+            current_dir = os.path.dirname(current_file)
+            databricks_runtime_wrap_path = os.path.join(
+                current_dir, "databricks_runtime_wrap.py"
+            )
+            with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
+                wrap_code = databricks_runtime_wrap_file.read()
+                wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
+            self.spec.build.functionSourceCode = wrap_code
+            runspec.spec.handler = "run_mlrun_databricks_job"
+        else:
+            raise ValueError("There is no code in databricks runtime function.")
+
+
+_databricks_script_code = """
+
+import argparse
+import json
+parser = argparse.ArgumentParser()
+parser.add_argument('handler_arguments', help='')
+handler_arguments = parser.parse_args().handler_arguments
+handler_arguments = json.loads(handler_arguments)
+
+"""

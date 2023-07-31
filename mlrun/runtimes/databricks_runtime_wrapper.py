@@ -29,7 +29,7 @@ def run_mlrun_databricks_job(
     context,
     mlrun_internal_code,
     token_key="DATABRICKS_TOKEN",
-    timeout=20,
+    timeout_minutes=20,
     **kwargs,
 ):
 
@@ -79,7 +79,7 @@ def run_mlrun_databricks_job(
         )
         logger.info(f"starting to poll: {waiter.run_id}")
         run = waiter.result(
-            timeout=datetime.timedelta(minutes=timeout), callback=print_status
+            timeout=datetime.timedelta(minutes=timeout_minutes), callback=print_status
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)

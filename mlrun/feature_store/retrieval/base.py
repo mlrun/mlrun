@@ -198,9 +198,14 @@ class BaseMerger(abc.ABC):
         # and the right keys in index 1, this keys will be the keys that will be used in this join
         join_types = []
 
-        entity_rows_keys = (
-            list(entity_rows.columns) if entity_rows is not None else None
-        )
+        if entity_rows is not None:
+            if entity_rows.index.names[0]:
+                entity_rows.reset_index(
+                    inplace=True,
+                )
+            entity_rows_keys = list(entity_rows.columns)
+        else:
+            entity_rows_keys = None
         join_graph = self._get_graph(
             feature_set_objects, feature_set_fields, entity_rows_keys
         )

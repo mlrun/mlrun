@@ -33,3 +33,4 @@ kafka-python~=2.0
 avro~=1.11
 redis~=4.3
 graphviz~=0.20.0
+databricks-sdk~=0.3.0

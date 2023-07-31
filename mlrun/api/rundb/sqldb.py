@@ -442,7 +442,7 @@ class SQLRunDB(RunDBInterface):
         try:
             return func(*args, **kwargs)
         except DBError as exc:
-            raise mlrun.db.RunDBError(exc.args)
+            raise mlrun.db.RunDBError(exc.args) from exc
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(

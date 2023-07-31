@@ -18,7 +18,10 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from mlrun.model_monitoring.model_monitoring_batch import DriftResultType, DriftStatus
+import mlrun.common.schemas.model_monitoring
+
+# A type for representing a drift result, a tuple of the status and the drift mean:
+DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float]
 
 
 class FeaturesDriftTablePlot:
@@ -56,9 +59,9 @@ class FeaturesDriftTablePlot:
 
     # Notification configurations:
     _NOTIFICATION_COLORS = {
-        DriftStatus.NO_DRIFT: "rgb(0,176,80)",  # Green
-        DriftStatus.POSSIBLE_DRIFT: "rgb(255,192,0)",  # Orange
-        DriftStatus.DRIFT_DETECTED: "rgb(208,0,106)",  # Magenta
+        mlrun.common.schemas.model_monitoring.DriftStatus.NO_DRIFT: "rgb(0,176,80)",  # Green
+        mlrun.common.schemas.model_monitoring.DriftStatus.POSSIBLE_DRIFT: "rgb(255,192,0)",  # Orange
+        mlrun.common.schemas.model_monitoring.DriftStatus.DRIFT_DETECTED: "rgb(208,0,106)",  # Magenta
     }
 
     # Font configurations:

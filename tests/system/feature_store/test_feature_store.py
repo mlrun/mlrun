@@ -250,7 +250,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp = fstore.get_offline_features(
             vector,
-            entity_rows=trades,
+            entity_rows=trades.set_index('ticker'),  # test when the relation keys are indexes.
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
         )

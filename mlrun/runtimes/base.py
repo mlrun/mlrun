@@ -436,7 +436,7 @@ class BaseRuntime(ModelObj):
             raise ValueError('cannot use "pass" mode with handler')
 
         if code:
-            code = mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code()
+            code = mlrun.runtimes.get_runtime_class(self.kind).get_enriched_code(code=code)
             extra_env["MLRUN_EXEC_CODE"] = code
 
         load_archive = self.spec.build.load_source_on_run and self.spec.build.source

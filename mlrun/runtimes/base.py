@@ -166,7 +166,7 @@ class BaseRuntime(ModelObj):
         self._enriched_image = False
 
     @staticmethod
-    def get_enriched_code():
+    def get_enriched_code(code:str):
         """
         Return the code along with any additional code that is required for the specific runtime.
         For example, this may involve connecting to remote workspaces.

@@ -104,8 +104,8 @@ def print_kwargs(**kwargs):
 
         run = function.run(
             handler="print_kwargs",
-            auto_build=True,
-            params={"param1": "value1", "param2": "value2"},
+            project="databricks-proj",
+            params={"timeout": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"
 
@@ -124,6 +124,7 @@ def print_kwargs(**kwargs):
         run = function.run(
             handler="func",
             auto_build=True,
-            params={"param1": "value1", "param2": "value2"},
+            project="databricks-proj",
+            params={"timeout": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"

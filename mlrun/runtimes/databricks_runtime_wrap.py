@@ -153,7 +153,7 @@ handler_arguments = json.loads(handler_arguments)
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
-        context.log_result("databricks_runtime", run_output)
+        context.log_result("databricks_runtime task:", run_output)
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
 

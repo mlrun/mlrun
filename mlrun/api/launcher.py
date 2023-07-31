@@ -152,7 +152,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
             # single run
             try:
                 resp = runtime._run(run, execution)
-
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 

@@ -14,7 +14,10 @@
 #
 from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
 from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler
-from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
+from mlrun.api.runtime_handlers.kubejob import (
+    DatabricksRuntimeHandler,
+    KubeRuntimeHandler,
+)
 from mlrun.api.runtime_handlers.mpijob import (
     MpiV1Alpha1RuntimeHandler,
     MpiV1RuntimeHandler,
@@ -49,6 +52,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
         RuntimeKinds.spark: SparkRuntimeHandler,
         RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
+        RuntimeKinds.databricks: DatabricksRuntimeHandler,
     }
     runtime_handler_class = kind_runtime_handler_map[kind]
     if not runtime_handler_instances_cache.get(kind):

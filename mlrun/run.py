@@ -43,6 +43,7 @@ from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
+    DatabricksRuntime,
     HandlerRuntime,
     KubejobRuntime,
     LocalRuntime,
@@ -713,6 +714,7 @@ def code_to_function(
     LocalRuntime,
     Spark3Runtime,
     RemoteSparkRuntime,
+    DatabricksRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 
@@ -846,6 +848,9 @@ def code_to_function(
             "a valid code file must be specified "
             "when not using the embed_code option"
         )
+
+    if kind == RuntimeKinds.databricks and not embed_code:
+        raise ValueError("databricks tasks only support embed_code=True")
 
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)

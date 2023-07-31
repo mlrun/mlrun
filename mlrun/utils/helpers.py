@@ -45,6 +45,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.errors import err_to_str
 
 from ..config import config
@@ -59,6 +60,9 @@ DB_SCHEMA = "store"
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
+# This is kept for backwards compatibility - in older versions this method was defined in this file
+parse_versioned_object_uri = parse_versioned_object_uri
 
 
 class StorePrefix:

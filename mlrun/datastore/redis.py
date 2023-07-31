@@ -18,6 +18,7 @@ import redis.cluster
 import mlrun
 
 from .base import DataStore
+from .datastore_profile import datastore_profile_read
 
 
 class RedisStore(DataStore):
@@ -33,17 +34,21 @@ class RedisStore(DataStore):
         self.headers = None
 
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url
+        if schema == "ds":
+            datastore_profile = datastore_profile_read(name)
+            self._redis_url = datastore_profile.url_with_credentials()
+            self.secure = datastore_profile.is_secured()
+        else:
+            if self.endpoint.startswith("rediss://"):
+                self.endpoint = self.endpoint[len("rediss://") :]
+                self.secure = True
+            elif self.endpoint.startswith("redis://"):
+                self.endpoint = self.endpoint[len("redis://") :]
+                self.secure = False
+            elif self.endpoint == "":
+                raise NotImplementedError(f"invalid endpoint: {self.endpoint}")
 
-        if self.endpoint.startswith("rediss://"):
-            self.endpoint = self.endpoint[len("rediss://") :]
-            self.secure = True
-        elif self.endpoint.startswith("redis://"):
-            self.endpoint = self.endpoint[len("redis://") :]
-            self.secure = False
-        elif self.endpoint == "":
-            raise NotImplementedError(f"invalid endpoint: {endpoint}")
-
-        self._redis_url = f"{schema}://{self.endpoint}"
+            self._redis_url = f"{schema}://{self.endpoint}"
 
         self._redis = None
 
@@ -143,7 +148,7 @@ class RedisStore(DataStore):
         if maxdepth is not None:
             raise NotImplementedError("maxdepth is not supported")
 
-        key = RedisStore.build_redis_key(key, prefix_only=True)
+        key = RedisStore.build_redis_key(key, prefix_only=recursive)
 
         if recursive:
             key += "*" if key.endswith("/") else "/*"

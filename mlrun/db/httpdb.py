@@ -13,6 +13,7 @@
 # limitations under the License.
 import enum
 import http
+import json
 import re
 import tempfile
 import time
@@ -36,6 +37,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -398,7 +400,6 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = server_cfg.get("hub_url") or config.hub_url
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
@@ -2896,12 +2897,30 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="PUT", path=path, json=source)
         return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
+
+        :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
+        :param tag:         Item tag to filter by, supported only if item name is provided.
+        :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+
+        :returns: List of indexed hub sources.
         """
         path = "hub/sources"
-        response = self.api_call(method="GET", path=path).json()
+        params = {}
+        if item_name:
+            params["item-name"] = normalize_name(item_name)
+        if tag:
+            params["tag"] = tag
+        if version:
+            params["version"] = version
+        response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:
             results.append(mlrun.common.schemas.IndexedHubSource(**item))
@@ -2950,7 +2969,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
-        path = (f"hub/sources/{source_name}/items",)
+        path = f"hub/sources/{source_name}/items"
         params = {
             "version": version,
             "tag": tag,
@@ -3007,7 +3026,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -3239,6 +3258,41 @@ class HTTPRunDB(RunDBInterface):
                 self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
 
         return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res and res._content:
+            public_wrapper = json.loads(res._content)
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["body"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles")
+
+        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
 
 
 def _as_json(obj):

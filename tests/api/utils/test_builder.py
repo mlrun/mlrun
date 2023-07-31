@@ -430,11 +430,12 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
             "AWS_SECRET_ACCESS_KEY": "test-b",
         }
     )
-    function = project.set_function(
-        "hub://describe",
-        name="some-function",
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
         kind="job",
     )
+    function = project.set_function(function)
     mlrun.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,

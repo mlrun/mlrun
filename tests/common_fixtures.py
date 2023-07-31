@@ -29,6 +29,7 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
@@ -484,6 +485,27 @@ class RunDBMock:
 
     def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
         pass
+
+    def list_hub_sources(self, *args, **kwargs):
+        return [self._create_dummy_indexed_hub_source()]
+
+    def get_hub_source(self, *args, **kwargs):
+        return self._create_dummy_indexed_hub_source()
+
+    def _create_dummy_indexed_hub_source(self):
+        return mlrun.common.schemas.IndexedHubSource(
+            index=1,
+            source=mlrun.common.schemas.HubSource(
+                metadata=mlrun.common.schemas.HubObjectMetadata(
+                    name="default", description="some description"
+                ),
+                spec=mlrun.common.schemas.HubSourceSpec(
+                    path=mlrun.mlconf.hub.default_source.url,
+                    channel="master",
+                    object_type="functions",
+                ),
+            ),
+        )
 
 
 @pytest.fixture()

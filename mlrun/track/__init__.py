@@ -32,7 +32,8 @@ def get_trackers_manager() -> TrackerManager:
     global _TRACKERS_MANAGER
     # check general config for tracking usage, if false we return an empty manager
     if not mlconf.external_platform_tracking.enabled:
-        return _TRACKERS_MANAGER.clear_trackers()
+        _TRACKERS_MANAGER.clear_trackers()
+        return _TRACKERS_MANAGER
     # else, if manager is empty we add all relevant and enabled trackers
     if not len(_TRACKERS_MANAGER.trackers):
         for tracker in _AVAILABLE_TRACKERS:

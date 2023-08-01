@@ -13,12 +13,12 @@
 # limitations under the License.
 import enum
 import http
+import json
 import re
 import tempfile
 import time
 import traceback
 import typing
-import warnings
 from datetime import datetime
 from os import path, remove
 from typing import Dict, List, Optional, Union
@@ -37,6 +37,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -399,7 +400,6 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = server_cfg.get("hub_url") or config.hub_url
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
@@ -444,6 +444,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.packagers = server_cfg.get("packagers") or config.packagers
 
         except Exception as exc:
             logger.warning(
@@ -1264,10 +1265,13 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
+        :param function: The function object to start, not needed here.
         :returns: A BackgroundTask object, with details on execution process and its status.
         """
 
@@ -1312,13 +1316,13 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, project, name, kind, selector):
+    def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
-        :param project: The project of the function
-        :param name: The name of the function
-        :param kind: The kind of the function, currently ``dask`` is supported.
-        :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
+        :param project:     The project of the function
+        :param name:        The name of the function
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
@@ -1381,8 +1385,6 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
-        # TODO: deprecated, remove in 1.5.0
-        ttl=None,
         cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
@@ -1395,19 +1397,9 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
-                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
-
-        if ttl:
-            warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -1415,7 +1407,7 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_metadata(
                 artifact_path=artifact_path,
-                cleanup_ttl=cleanup_ttl or ttl,
+                cleanup_ttl=cleanup_ttl,
                 op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(
@@ -2826,6 +2818,35 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
+    def deploy_monitoring_batch_job(
+        self,
+        project: str = "",
+        default_batch_image: str = "mlrun/mlrun",
+        with_schedule: bool = False,
+    ):
+        """
+        Submit model monitoring batch job. By default, submit only the batch job as ML function without scheduling.
+        To submit a scheduled job as well, please set with_schedule = True.
+
+        :param project:             Project name.
+        :param default_batch_image: The default image of the model monitoring batch job. By default, the image
+                                    is mlrun/mlrun.
+        :param with_schedule:       If true, submit the model monitoring scheduled job as well.
+
+
+        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_batch_image": default_batch_image,
+            "with_schedule": with_schedule,
+        }
+        path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
@@ -2849,7 +2870,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedHubeSource(
+            private_source = mlrun.common.schemas.IndexedHubSource(
                 order=-1,
                 source=mlrun.common.schemas.HubSource(
                     metadata=mlrun.common.schemas.HubObjectMetadata(
@@ -2909,12 +2930,30 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="PUT", path=path, json=source)
         return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
+
+        :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
+        :param tag:         Item tag to filter by, supported only if item name is provided.
+        :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+
+        :returns: List of indexed hub sources.
         """
         path = "hub/sources"
-        response = self.api_call(method="GET", path=path).json()
+        params = {}
+        if item_name:
+            params["item-name"] = normalize_name(item_name)
+        if tag:
+            params["tag"] = tag
+        if version:
+            params["version"] = version
+        response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:
             results.append(mlrun.common.schemas.IndexedHubSource(**item))
@@ -2963,7 +3002,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
-        path = (f"hub/sources/{source_name}/items",)
+        path = f"hub/sources/{source_name}/items"
         params = {
             "version": version,
             "tag": tag,
@@ -3020,7 +3059,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -3113,6 +3152,20 @@ class HTTPRunDB(RunDBInterface):
             },
         )
 
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        """
+        For internal use.
+        The notification mechanism may run "locally" for certain runtimes.
+        However, the updates occur in the API so nothing to do here.
+        """
+        pass
+
     def submit_workflow(
         self,
         project: str,
@@ -3201,7 +3254,7 @@ class HTTPRunDB(RunDBInterface):
         url: str,
         secrets: Optional[Dict] = None,
         save_secrets: bool = True,
-    ) -> mlrun.common.schemas.BackgroundTask:
+    ) -> str:
         """
         Loading a project remotely from the given source.
         :param name:            project name
@@ -3214,7 +3267,7 @@ class HTTPRunDB(RunDBInterface):
         :param save_secrets:    Whether to store secrets in the loaded project.
                                 Setting to False will cause waiting for the process completion.
 
-        :returns:      A BackgroundTask object, with details on execution process and its status.
+        :returns:               The terminal state of load project process.
         """
         params = {"url": url}
         body = None
@@ -3227,42 +3280,52 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(
             "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
         )
-        bg_task = mlrun.common.schemas.BackgroundTask(**response.json())
+        response = response.json()
+        run = mlrun.RunObject.from_dict(response["data"])
+        state, _ = run.logs()
 
-        # In order to remove secrets from project we need to wait for the background task to end:
         if secrets and not save_secrets:
-
-            def _wait_for_background_task_to_end(bg_name):
-                bg_task = self.get_project_background_task(project=name, name=bg_name)
-                if (
-                    bg_task.status.state
-                    not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-                ):
-                    raise Exception(
-                        f"Background task not in terminal state. State: {bg_task.status.state}"
-                    )
-                return bg_task
-
-            bg_task = mlrun.utils.helpers.retry_until_successful(
-                backoff=self._wait_for_project_terminal_state_retry_interval,
-                timeout=60 * 3,
-                logger=logger,
-                verbose=False,
-                _function=_wait_for_background_task_to_end,
-                bg_name=bg_task.metadata.name,
-            )
-
-            if bg_task.status.state == mlrun.common.schemas.BackgroundTaskState.failed:
-                logger.error("Load project task failed, deleting project")
-                response = self.delete_project(
-                    name, mlrun.common.schemas.DeletionStrategy.cascade
-                )
-                if response.status_code != http.HTTPStatus.ACCEPTED:
-                    logger.error("Failed to delete project")
-
             self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+            if state != "completed":
+                logger.error("Load project task failed, deleting project")
+                self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
 
-        return bg_task
+        return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res and res._content:
+            public_wrapper = json.loads(res._content)
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["body"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore_profiles")
+
+        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
 
 
 def _as_json(obj):

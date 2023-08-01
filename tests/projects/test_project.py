@@ -69,7 +69,7 @@ def test_sync_functions(rundb_mock):
     assert fn.metadata.name == "train", "train func did not return"
 
 
-def test_sync_functions_with_names_different_than_default():
+def test_sync_functions_with_names_different_than_default(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
 
@@ -435,7 +435,7 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_function_requirements():
+def test_set_function_requirements(rundb_mock):
     project = mlrun.projects.project.MlrunProject.from_dict(
         {
             "metadata": {
@@ -734,7 +734,7 @@ def test_get_artifact_uri():
     assert uri == "store://models/arti/y:prod"
 
 
-def test_export_to_zip():
+def test_export_to_zip(rundb_mock):
     project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
     project = mlrun.new_project(
         "tozip", context=str(project_dir_path / "code"), save=False

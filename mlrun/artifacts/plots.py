@@ -66,6 +66,12 @@ class PlotArtifact(Artifact):
         )
 
 
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'ChartArtifact' will be removed in 1.7.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class ChartArtifact(Artifact):
     kind = "chart"
 
@@ -134,6 +140,12 @@ class ChartArtifact(Artifact):
         )
 
 
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'BokehArtifact' will be removed in 1.7.0, use 'Artifact' instead",
+    category=FutureWarning,
+)
 class BokehArtifact(Artifact):
     """
     Bokeh artifact is an artifact for saving Bokeh generated figures. They will be stored in a html format.

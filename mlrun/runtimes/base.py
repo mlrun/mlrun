@@ -287,6 +287,7 @@ class BaseRuntime(ModelObj):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        **launcher_kwargs,
     ) -> RunObject:
         """
         Run a local or remote task.
@@ -334,7 +335,7 @@ class BaseRuntime(ModelObj):
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
-            self._is_remote, local=local
+            self._is_remote, local=local, **launcher_kwargs
         )
         return launcher.launch(
             runtime=self,

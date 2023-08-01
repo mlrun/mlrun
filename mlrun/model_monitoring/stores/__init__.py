@@ -17,6 +17,7 @@
 import enum
 import typing
 
+import mlrun.common.schemas.secret
 import mlrun.errors
 
 from .model_endpoint_store import ModelEndpointStore
@@ -33,6 +34,7 @@ class ModelEndpointStoreType(enum.Enum):
         project: str,
         access_key: str = None,
         endpoint_store_connection: str = None,
+        secret_provider: typing.Callable = None,
     ) -> ModelEndpointStore:
         """
         Return a ModelEndpointStore object based on the provided enum value.
@@ -46,6 +48,7 @@ class ModelEndpointStoreType(enum.Enum):
                                           e.g. A root user with password 1234, tries to connect a schema called
                                           mlrun within a local MySQL DB instance:
                                           'mysql+pymysql://root:1234@localhost:3306/mlrun'.
+        :param secret_provider:           An optional secret provider to get the connection string secret.
 
         :return: `ModelEndpointStore` object.
 
@@ -61,15 +64,13 @@ class ModelEndpointStoreType(enum.Enum):
 
         # Assuming SQL store target if store type is not KV.
         # Update these lines once there are more than two store target types.
-        from mlrun.model_monitoring.helpers import get_connection_string
 
-        sql_connection_string = endpoint_store_connection or get_connection_string(
-            project=project
-        )
         from .sql_model_endpoint_store import SQLModelEndpointStore
 
         return SQLModelEndpointStore(
-            project=project, sql_connection_string=sql_connection_string
+            project=project,
+            sql_connection_string=endpoint_store_connection,
+            secret_provider=secret_provider,
         )
 
     @classmethod
@@ -84,13 +85,16 @@ class ModelEndpointStoreType(enum.Enum):
 
 
 def get_model_endpoint_store(
-    project: str, access_key: str = None
+    project: str,
+    access_key: str = None,
+    secret_provider: typing.Callable = None,
 ) -> ModelEndpointStore:
     """
     Getting the DB target type based on mlrun.config.model_endpoint_monitoring.store_type.
 
-    :param project:    The name of the project.
-    :param access_key: Access key with permission to the DB table.
+    :param project:         The name of the project.
+    :param access_key:      Access key with permission to the DB table.
+    :param secret_provider: An optional secret provider to get the connection string secret.
 
     :return: `ModelEndpointStore` object. Using this object, the user can apply different operations on the
              model endpoint record such as write, update, get and delete.
@@ -102,4 +106,6 @@ def get_model_endpoint_store(
     )
 
     # Convert into model endpoint store target object
-    return model_endpoint_store_type.to_endpoint_store(project, access_key)
+    return model_endpoint_store_type.to_endpoint_store(
+        project=project, access_key=access_key, secret_provider=secret_provider
+    )

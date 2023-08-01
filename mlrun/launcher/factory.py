@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Type
+from dependency_injector import containers, providers
 
 import mlrun.config
 import mlrun.errors
@@ -25,7 +25,7 @@ class LauncherFactory(
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self):
-        self._launcher_cls: Optional[Type[mlrun.launcher.base.BaseLauncher]] = None
+        self._launcher_container = LauncherContainer()
 
     def create_launcher(
         self, is_remote: bool, **kwargs
@@ -40,19 +40,22 @@ class LauncherFactory(
 
         :return:            The appropriate launcher for the specified run.
         """
-        if self._launcher_cls:
-            return self._launcher_cls(**kwargs)
+        if mlrun.config.is_running_as_api():
+            return self._launcher_container.server_side_launcher(**kwargs)
 
         local = kwargs.get("local", False)
         if is_remote and not local:
-            return mlrun.launcher.remote.ClientRemoteLauncher(**kwargs)
+            return self._launcher_container.client_remote_launcher(**kwargs)
 
-        return mlrun.launcher.local.ClientLocalLauncher(**kwargs)
+        return self._launcher_container.client_local_launcher(**kwargs)
 
-    def set_launcher(self, launcher_cls: Type[mlrun.launcher.base.BaseLauncher]):
-        """
-        Launcher setter for injection of a custom launcher.
-        This allows us to override the launcher from external packages without having to import them.
-        :param launcher_cls:    The launcher class to use.
-        """
-        self._launcher_cls = launcher_cls
+
+class LauncherContainer(containers.DeclarativeContainer):
+    client_remote_launcher = providers.Factory(
+        mlrun.launcher.remote.ClientRemoteLauncher
+    )
+    client_local_launcher = providers.Factory(mlrun.launcher.local.ClientLocalLauncher)
+
+    # Provider for injection of a server side launcher.
+    # This allows us to override the launcher from external packages without having to import them.
+    server_side_launcher = providers.Factory(mlrun.launcher.base.BaseLauncher)

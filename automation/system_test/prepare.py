@@ -235,14 +235,14 @@ class SystemTestPreparer:
                 )
             if exit_status != 0 and not suppress_errors:
                 for suppress_error_string in suppress_error_strings:
-                    if suppress_error_string in stderr:
+                    if suppress_error_string in str(stderr):
                         self._logger.log(
                             "warning",
                             "Suppressing error",
                             stderr=stderr,
                             suppress_error_string=suppress_error_string,
                         )
-                        continue
+                        break
                 else:
                     raise RuntimeError(
                         f"Command failed with exit status: {exit_status}"
@@ -475,13 +475,18 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
+        suppress_error_strings: list = None,
     ):
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
         while not finished and retries < max_retries:
             try:
-                self._run_command(command, verbose=False)
+                self._run_command(
+                    command,
+                    verbose=False,
+                    suppress_error_strings=suppress_error_strings,
+                )
                 finished = True
 
             except Exception:
@@ -624,18 +629,23 @@ class SystemTestPreparer:
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
 
-        self._run_kubectl_command(
-            args=[
-                "exec",
-                "-n",
-                self.Constants.namespace,
-                "-it",
-                mlrun_db_pod_name_cmd,
-                "--",
-                drop_db_cmd,
-            ],
-            verbose=False,
-            suppress_error_strings=["database doesn't exist"],
+        args = [
+            "kubectl",
+            "exec",
+            "-n",
+            self.Constants.namespace,
+            "-it",
+            mlrun_db_pod_name_cmd,
+            "--",
+            drop_db_cmd,
+        ]
+        command = " ".join(args)
+        self._run_and_wait_until_successful(
+            command,
+            command_name="delete mlrun db",
+            max_retries=5,
+            interval=10,
+            suppress_error_strings=["database doesn\\'t exist"],
         )
 
     def _get_pod_name_command(self, labels):

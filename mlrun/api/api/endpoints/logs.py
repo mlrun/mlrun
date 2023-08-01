@@ -21,10 +21,17 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 
-router = fastapi.APIRouter(prefix="/log/{project}")
+router = fastapi.APIRouter()
 
 
-@router.post("/{uid}")
+# TODO: remove /log/{project}/{uid} in 1.7.0
+@router.post(
+    "/log/{project}/{uid}",
+    deprecated=True,
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/logs/{uid} instead",
+)
+@router.post("/projects/{project}/logs/{uid}")
 async def store_log(
     request: fastapi.Request,
     project: str,
@@ -52,7 +59,14 @@ async def store_log(
     return {}
 
 
-@router.get("/{uid}")
+# TODO: remove /log/{project}/{uid} in 1.7.0
+@router.get(
+    "/log/{project}/{uid}",
+    deprecated=True,
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    "use /projects/{project}/logs/{uid} instead",
+)
+@router.get("/projects/{project}/logs/{uid}")
 async def get_log(
     project: str,
     uid: str,

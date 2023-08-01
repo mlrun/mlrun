@@ -115,10 +115,10 @@ class WorkflowRunners(
             auth_info=auth_info,
             project=project.metadata.name,
             name=workflow_spec.name,
+            kind=mlrun.common.schemas.ScheduleKinds.job,
             scheduled_object=scheduled_object,
             cron_trigger=schedule,
             labels=runner.metadata.labels,
-            kind=mlrun.common.schemas.ScheduleKinds.job,
         )
 
     def _prepare_run_object_for_scheduling(

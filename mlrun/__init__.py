@@ -36,14 +36,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate, new_task
 from .package import ArtifactType, DefaultPackager, Packager, handler
-from .platforms import (
-    VolumeMount,
-    auto_mount,
-    mount_v3io,
-    mount_v3io_extended,
-    mount_v3io_legacy,
-    v3io_cred,
-)
+from .platforms import VolumeMount, auto_mount, mount_v3io, v3io_cred
 from .projects import (
     ProjectMetadata,
     build_function,
@@ -66,7 +59,6 @@ from .run import (
     import_function,
     new_function,
     run_local,
-    run_pipeline,
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server
@@ -91,9 +83,7 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
 def set_environment(
     api_path: str = None,
     artifact_path: str = "",
-    project: str = "",
     access_key: str = None,
-    user_project=False,
     username: str = None,
     env_file: str = None,
     mock_functions: str = None,
@@ -109,18 +99,14 @@ def set_environment(
     example::
 
         from os import path
-        project_name, artifact_path = set_environment(project='my-project')
+        project_name, artifact_path = set_environment()
         set_environment("http://localhost:8080", artifact_path="./")
         set_environment(env_file="mlrun.env")
         set_environment("<remote-service-url>", access_key="xyz", username="joe")
 
     :param api_path:       location/url of mlrun api service
     :param artifact_path:  path/url for storing experiment artifacts
-    :param project:        default project name (deprecated in 1.3.0 and will be removed in 1.5.0) - use project
-                           APIs such as `get_or_create_project`, `load_project` to configure the active project
     :param access_key:     set the remote cluster access key (V3IO_ACCESS_KEY)
-    :param user_project:   add the current user name to the provided project name (making it unique per user)
-                           (deprecated in 1.3.0 and will be removed in 1.5.0)
     :param username:       name of the user to authenticate
     :param env_file:       path/url to .env file (holding MLRun config and other env vars), see: set_env_from_file()
     :param mock_functions: set to True to create local/mock functions instead of real containers,
@@ -129,14 +115,6 @@ def set_environment(
         default project name
         actual artifact path/url, can be used to create subpaths per task or group of artifacts
     """
-    if user_project or project:
-        warnings.warn(
-            "'user_project' and 'project' are deprecated in 1.3.0, and will be removed in 1.5.0, use project "
-            "APIs such as 'get_or_create_project', 'load_project' to configure the active project.",
-            # TODO: Remove in 1.5.0
-            FutureWarning,
-        )
-
     if env_file:
         set_env_from_file(env_file)
 
@@ -159,17 +137,6 @@ def set_environment(
     get_run_db()
     if api_path:
         environ["MLRUN_DBPATH"] = mlconf.dbpath
-
-    project = _add_username_to_project_name_if_needed(project, user_project)
-    if project:
-        ProjectMetadata.validate_project_name(project)
-
-    mlconf.default_project = project or mlconf.default_project
-    # We want to ensure the project exists, and verify we're authorized to work on it
-    # if it doesn't exist this will create it (and obviously if we created it, we're authorized to work on it)
-    # if it does exist - this will get it, which will fail if we're not authorized to work on it
-    if project:
-        get_or_create_project(mlconf.default_project, "./")
 
     if not mlconf.artifact_path and not artifact_path:
         raise ValueError(

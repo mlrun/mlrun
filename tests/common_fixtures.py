@@ -29,11 +29,13 @@ import requests
 import v3io.dataplane
 from aioresponses import aioresponses as aioresponses_
 
+import mlrun.common.schemas
 import mlrun.config
 import mlrun.datastore
 import mlrun.db
 import mlrun.db.factory
 import mlrun.k8s_utils
+import mlrun.launcher.factory
 import mlrun.projects.project
 import mlrun.utils
 import mlrun.utils.singleton
@@ -85,7 +87,6 @@ def config_test_base():
     mlrun.utils.singleton.Singleton._instances = {}
 
     mlrun.runtimes.runtime_handler_instances_cache = {}
-    mlrun.runtimes.utils.cached_mpijob_crd_version = None
 
     # TODO: update this to "sidecar" once the default mode is changed
     mlrun.config.config.log_collector.mode = "legacy"
@@ -94,9 +95,11 @@ def config_test_base():
     mlrun.mlconf.default_project = "default"
     mlrun.projects.project.pipeline_context.set(None)
 
-    # reset run db overrides
+    # reset factory container overrides
     rundb_factory = mlrun.db.factory.RunDBFactory()
     rundb_factory._rundb_container.reset_override()
+    launcher_factory = mlrun.launcher.factory.LauncherFactory()
+    launcher_factory._launcher_container.reset_override()
 
 
 @pytest.fixture
@@ -481,6 +484,27 @@ class RunDBMock:
 
     def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
         pass
+
+    def list_hub_sources(self, *args, **kwargs):
+        return [self._create_dummy_indexed_hub_source()]
+
+    def get_hub_source(self, *args, **kwargs):
+        return self._create_dummy_indexed_hub_source()
+
+    def _create_dummy_indexed_hub_source(self):
+        return mlrun.common.schemas.IndexedHubSource(
+            index=1,
+            source=mlrun.common.schemas.HubSource(
+                metadata=mlrun.common.schemas.HubObjectMetadata(
+                    name="default", description="some description"
+                ),
+                spec=mlrun.common.schemas.HubSourceSpec(
+                    path=mlrun.mlconf.hub.default_source.url,
+                    channel="master",
+                    object_type="functions",
+                ),
+            ),
+        )
 
 
 @pytest.fixture()

@@ -456,7 +456,12 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     def get_hub_source(self, source_name: str):
@@ -489,5 +494,23 @@ class NopDB(RunDBInterface):
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         pass

@@ -360,10 +360,12 @@ class Member(
         logger.info("Performing full sync")
         leader_project_names = [project.metadata.name for project in leader_projects]
         projects_to_archive = {
-            project.metadata.name: project
-            for project in db_projects.projects
-            if project.metadata.name not in leader_project_names
+            project.metadata.name: project for project in db_projects.projects
         }
+        for project_name in leader_project_names:
+            if project_name in projects_to_archive:
+                del projects_to_archive[project_name]
+
         for project_to_archive in projects_to_archive:
             logger.info(
                 "Found project in the DB that is not in leader. Archiving...",
@@ -380,7 +382,7 @@ class Member(
                 )
             except Exception as exc:
                 logger.warning(
-                    "Failed to delete project from DB, continuing...",
+                    "Failed to archive project from DB, continuing...",
                     name=project_to_archive,
                     exc=err_to_str(exc),
                 )

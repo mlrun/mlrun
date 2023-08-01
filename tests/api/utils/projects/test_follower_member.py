@@ -128,9 +128,6 @@ def test_sync_projects(
     )
 
     # ensure after full sync project that is not in leader is archived
-    mlrun.api.crud.Projects().delete_project_resources = unittest.mock.Mock(
-        return_value=None
-    )
     project_only_in_db.status.state = mlrun.common.schemas.ProjectState.archived
     projects_follower._sync_projects(full_sync=True)
     _assert_list_projects(

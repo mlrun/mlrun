@@ -15,7 +15,6 @@
 import os
 import time
 import warnings
-from base64 import b64decode, b64encode
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException

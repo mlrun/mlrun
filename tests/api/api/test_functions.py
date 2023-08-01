@@ -368,7 +368,7 @@ def test_tracking_on_serving(
     functions_to_monkeypatch = {
         mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],
         mlrun.api.api.endpoints.functions: [
-            "_process_model_monitoring_secret",
+            "process_model_monitoring_secret",
             "_create_model_monitoring_stream",
         ],
         mlrun.api.crud: ["ModelEndpoints"],

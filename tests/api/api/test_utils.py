@@ -1307,8 +1307,15 @@ def _mock_import_function(monkeypatch):
         _, _, _, original_function = _generate_original_function()
         return original_function
 
+    def _mock_extend_hub_uri_if_needed(*args, **kwargs):
+        return "some-url", True
+
     monkeypatch.setattr(
         mlrun.run, "import_function_to_dict", _mock_import_function_to_dict
+    )
+
+    monkeypatch.setattr(
+        mlrun.run, "extend_hub_uri_if_needed", _mock_extend_hub_uri_if_needed
     )
 
 

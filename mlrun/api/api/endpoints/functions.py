@@ -57,7 +57,7 @@ from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
 from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
+from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 
@@ -730,7 +730,7 @@ def _build_function(
                         # Generating model monitoring access key
                         model_monitoring_access_key = None
                         if not mlrun.mlconf.is_ce_mode():
-                            model_monitoring_access_key = _process_model_monitoring_secret(
+                            model_monitoring_access_key = process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
                                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
@@ -843,12 +843,6 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        resource = runtime_resources_map.get(function.kind)
-        if "start" not in resource:
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason="runtime error: 'start' not supported by this runtime",
-            )
         try:
             run_db = get_run_db_instance(db_session)
             function.set_db_connection(run_db)
@@ -857,38 +851,34 @@ def _start_function(
                 auth_info,
             )
 
-            #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](
-                function,
-                client_version=client_version,
-                client_python_version=client_python_version,
+            mlrun.api.crud.Functions().start_function(
+                function, client_version, client_python_version
             )
-            function.save(versioned=False)
             logger.info("Fn:\n %s", function.to_yaml())
+
+        except mlrun.errors.MLRunBadRequestError:
+            raise
+
         except Exception as err:
             logger.error(traceback.format_exc())
             log_and_raise(
                 HTTPStatus.BAD_REQUEST.value,
-                reason=f"runtime error: {err_to_str(err)}",
+                reason=f"Runtime error: {err_to_str(err)}",
             )
     finally:
         mlrun.api.db.session.close_session(db_session)
 
 
 async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
-    logger.info(f"function_status:\n{data}")
+    logger.info(f"Getting function status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: selector or runtime kind not specified",
+            reason="Runtime error: selector or runtime kind not specified",
         )
     project, name = data.get("project"), data.get("name")
-    # Only after 0.6.6 the client start sending the project and name, as long as 0.6.6 is a valid version we'll need
-    # to try and resolve them from the selector. TODO: remove this when 0.6.6 is not relevant anymore
-    if not project or not name:
-        project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -898,21 +888,22 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         auth_info,
     )
 
-    resource = runtime_resources_map.get(kind)
-    if "status" not in resource:
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: 'status' not supported by this runtime",
-        )
-
     try:
-        resp = resource["status"](selector)
-        logger.info("status: %s", resp)
+        status = mlrun.api.crud.Functions().get_function_status(
+            kind,
+            selector,
+        )
+        logger.info("Got function status", status=status)
+        return status
+
+    except mlrun.errors.MLRunBadRequestError:
+        raise
+
     except Exception as err:
         logger.error(traceback.format_exc())
         log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
 
@@ -970,7 +961,7 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
     return None
 
 
-def _process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option

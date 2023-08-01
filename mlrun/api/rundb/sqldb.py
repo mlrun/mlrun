@@ -442,7 +442,7 @@ class SQLRunDB(RunDBInterface):
         try:
             return func(*args, **kwargs)
         except DBError as exc:
-            raise mlrun.db.RunDBError(exc.args)
+            raise mlrun.db.RunDBError(exc.args) from exc
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
@@ -692,6 +692,34 @@ class SQLRunDB(RunDBInterface):
             mask_params,
         )
 
+    def function_status(self, project, name, kind, selector):
+        """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
+
+        :param project:     The project of the function, not needed here.
+        :param name:        The name of the function, not needed here.
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().get_function_status,
+            kind,
+            selector,
+        )
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        """Execute a function remotely, Used for ``dask`` functions.
+
+        :param func_url: URL to the function to be executed.
+        :param function: The function object to start.
+        :returns: A BackgroundTask object, with details on execution process and its status.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().start_function,
+            function,
+        )
+
     def list_pipelines(
         self,
         project: str,
@@ -817,7 +845,12 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         raise NotImplementedError()
 
     def get_hub_source(self, source_name: str):

@@ -26,10 +26,7 @@ __all__ = [
     "DatabricksRuntime",
 ]
 
-from mlrun.runtimes.utils import (
-    resolve_mpijob_crd_version,
-    resolve_spark_operator_version,
-)
+from mlrun.runtimes.utils import resolve_spark_operator_version
 
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
@@ -37,7 +34,7 @@ from .daskjob import DaskCluster  # noqa
 from .function import RemoteRuntime
 from .kubejob import DatabricksRuntime, KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
+from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook
 from .remotesparkjob import RemoteSparkRuntime
 from .serving import ServingRuntime, new_v2_model_server
@@ -197,7 +194,7 @@ class RuntimeKinds(object):
     @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
-        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.
         """
         if RuntimeKinds.is_local_runtime(kind):
             return False
@@ -214,12 +211,7 @@ class RuntimeKinds(object):
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = resolve_mpijob_crd_version()
-        crd_version_to_runtime = {
-            MPIJobCRDVersions.v1alpha1: MpiRuntimeV1Alpha1,
-            MPIJobCRDVersions.v1: MpiRuntimeV1,
-        }
-        return crd_version_to_runtime[mpijob_crd_version]
+        return MpiRuntimeContainer.selector()
 
     if kind == RuntimeKinds.spark:
         return Spark3Runtime

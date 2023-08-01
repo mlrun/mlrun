@@ -15,8 +15,8 @@
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
 from mlrun.config import Config, config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
 class ClientSpec(

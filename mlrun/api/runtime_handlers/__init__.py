@@ -13,8 +13,11 @@
 # limitations under the License.
 #
 from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
-from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler
-from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
+from mlrun.api.runtime_handlers.daskjob import DaskRuntimeHandler, get_dask_resource
+from mlrun.api.runtime_handlers.kubejob import (
+    DatabricksRuntimeHandler,
+    KubeRuntimeHandler,
+)
 from mlrun.api.runtime_handlers.mpijob import (
     MpiRuntimeHandlerContainer,
     resolve_mpijob_crd_version,
@@ -24,6 +27,7 @@ from mlrun.api.runtime_handlers.sparkjob import SparkRuntimeHandler
 from mlrun.runtimes import RuntimeKinds
 
 runtime_handler_instances_cache = {}
+runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
 
 
 def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
@@ -44,6 +48,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
         RuntimeKinds.spark: SparkRuntimeHandler,
         RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
+        RuntimeKinds.databricks: DatabricksRuntimeHandler,
     }
     runtime_handler_class = kind_runtime_handler_map[kind]
     if not runtime_handler_instances_cache.get(kind):

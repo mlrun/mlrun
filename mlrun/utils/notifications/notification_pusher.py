@@ -18,11 +18,10 @@ import os
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi.concurrency import run_in_threadpool
-
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
+import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -205,6 +204,11 @@ class NotificationPusher(object):
         )
         try:
             notification.push(message, severity, runs)
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
             self._update_notification_status(
                 run.metadata.uid,
                 run.metadata.project,
@@ -213,6 +217,12 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=mlrun.errors.err_to_str(exc),
+            )
             self._update_notification_status(
                 run.metadata.uid,
                 run.metadata.project,
@@ -237,8 +247,12 @@ class NotificationPusher(object):
         )
         try:
             await notification.push(message, severity, runs)
-
-            await run_in_threadpool(
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,
@@ -247,7 +261,13 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
-            await run_in_threadpool(
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,

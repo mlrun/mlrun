@@ -72,6 +72,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
+        "databricks-sdk": ["databricks-sdk~=0.3.0"],
     }
 
     # see above why we are excluding google-cloud

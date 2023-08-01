@@ -370,7 +370,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []  #: commands
         self.extra = extra  #: extra
         self.extra_args = extra_args  #: extra args
-        self.builder_env = builder_env  #: extra args
+        self.builder_env = builder_env  #: builder env
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run

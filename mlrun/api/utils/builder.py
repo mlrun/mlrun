@@ -403,7 +403,7 @@ def build_image(
     builder_env = builder_env or {}
 
     builder_env = runtime_builder_env | builder_env or {}
-    _validate_extra_args(extra_args | runtime_extra_args)
+    _validate_extra_args(runtime_extra_args | extra_args)
 
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name

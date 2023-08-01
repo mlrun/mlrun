@@ -23,7 +23,7 @@ import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
 
 here = Path(__file__).absolute().parent
-config_file_path = here / "assets" / "test_databricks_runtime.yml"
+config_file_path = here / "assets" / "test_databricks.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
@@ -32,7 +32,7 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 
 def is_databricks_env_configured():
-    return all(var in config["env"] for var in MUST_HAVE_VARIABLES)
+    return all(config["env"].get(var, None) for var in MUST_HAVE_VARIABLES)
 
 
 @pytest.mark.skipif(
@@ -94,7 +94,7 @@ def print_kwargs(**kwargs):
         run = function.run(
             handler="print_kwargs",
             project="databricks-proj",
-            params={"timeout": 15, "param1": "value1", "param2": "value2"},
+            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"
 
@@ -114,6 +114,6 @@ def print_kwargs(**kwargs):
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params={"timeout": 15, "param1": "value1", "param2": "value2"},
+            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"

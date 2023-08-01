@@ -15,7 +15,6 @@
 import os
 import pathlib
 import tempfile
-from typing import Union
 
 from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
@@ -54,7 +53,7 @@ class MLFlowTracker(BaseTracker):
 
     def _apply_post_run_tasks(
         self,
-        context: Union[MLClientCtx, dict],
+        context: MLClientCtx,
     ):
         """
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
@@ -155,7 +154,7 @@ class MLFlowTracker(BaseTracker):
         )
         self._artifacts[artifact.key] = artifact
 
-    def post_run(self, context: Union[MLClientCtx, dict]):
+    def post_run(self, context: MLClientCtx):
         self._client = self._tracked_platform.MlflowClient()
         self._apply_post_run_tasks(context=context)
 

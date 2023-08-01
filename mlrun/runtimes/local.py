@@ -173,7 +173,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
-        trackers_manager.post_run(context)
+        context = trackers_manager.post_run(context)
         return context.to_dict()
 
 
@@ -290,7 +290,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
                 # If trackers where used, this is where we log all data collected to MLRun
-                trackers_manager.post_run(context)
+                context = trackers_manager.post_run(context)
                 return context.to_dict()
 
             # if RunError was raised it means that the error was raised as part of running the function
@@ -349,14 +349,14 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if resp:
                     runobj_dict = json.loads(resp)
                     # If trackers where used, this is where we log all data collected to MLRun
-                    trackers_manager.post_run(runobj_dict)
+                    runobj_dict = trackers_manager.post_run(runobj_dict)
                     return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
             runobj_dict = runobj.to_dict()
             # If trackers where used, this is where we log all data collected to MLRun
-            trackers_manager.post_run(runobj_dict)
+            runobj_dict = trackers_manager.post_run(runobj_dict)
             return runobj_dict
 
 

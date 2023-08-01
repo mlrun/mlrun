@@ -47,7 +47,7 @@ class DatabricksRuntime(KubejobRuntime):
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)
             databricks_runtime_wrap_path = os.path.join(
-                current_dir, "databricks_runtime_wrapper.py"
+                current_dir, "databricks_wrapper.py"
             )
             with open(
                 databricks_runtime_wrap_path, "r"

@@ -154,12 +154,15 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
 cached_mpijob_crd_version = None
 
 
-# resolve mpijob runtime according to the mpi-operator's supported crd-version
-# if specified on mlrun config set it likewise,
-# if not specified, try resolving it according to the mpi-operator, otherwise set to default
-# since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
-# will change in any context - cache it
 def resolve_mpijob_crd_version():
+    """
+    Resolve mpijob runtime according to the mpi-operator's supported crd-version.
+    If specified on mlrun config set it likewise.
+    If not specified, try resolving it according to the mpi-operator, otherwise set to default.
+    Since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
+    will change in any context - cache it.
+    :return: mpi operator's crd-version
+    """
     global cached_mpijob_crd_version
     if not cached_mpijob_crd_version:
         # try to resolve the crd version with K8s API

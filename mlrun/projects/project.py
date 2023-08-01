@@ -2657,7 +2657,6 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
-        extra_args: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2691,7 +2690,6 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite=overwrite_build_params,
-            extra_args=extra_args,
         )
 
         if set_as_default and image != self.default_image:
@@ -2746,7 +2744,6 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite_build_params=overwrite_build_params,
-            extra_args=extra_args,
         )
 
         function = mlrun.new_function("mlrun--project--image--builder", kind="job")

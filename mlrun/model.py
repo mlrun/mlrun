@@ -357,6 +357,7 @@ class ImageBuilder(ModelObj):
         auto_build=None,
         requirements: list = None,
         extra_args=None,
+        builder_env=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -369,6 +370,7 @@ class ImageBuilder(ModelObj):
         self.commands = commands or []  #: commands
         self.extra = extra  #: extra
         self.extra_args = extra_args  #: extra args
+        self.builder_env = builder_env  #: extra args
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
@@ -411,6 +413,7 @@ class ImageBuilder(ModelObj):
         requirements_file=None,
         overwrite=False,
         extra_args=None,
+        builder_env=None,
     ):
         if image:
             self.image = image
@@ -434,6 +437,8 @@ class ImageBuilder(ModelObj):
             self.auto_build = auto_build
         if extra_args:
             self.extra_args = extra_args
+        if builder_env:
+            self.builder_env = builder_env
 
     def with_commands(
         self,

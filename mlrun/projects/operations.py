@@ -295,6 +295,7 @@ def build_function(
             requirements=requirements,
             overwrite=overwrite_build_params,
             extra_args=extra_args,
+            builder_env=builder_env,
         )
         ready = function.deploy(
             watch=True,

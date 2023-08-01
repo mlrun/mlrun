@@ -113,6 +113,7 @@ class KubejobRuntime(KubeResource):
         prepare_image_for_deploy=True,
         requirements_file=None,
         extra_args=None,
+        builder_env=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -156,6 +157,7 @@ class KubejobRuntime(KubeResource):
             requirements_file,
             overwrite,
             extra_args,
+            builder_env,
         )
 
         if verify_base_image or prepare_image_for_deploy:

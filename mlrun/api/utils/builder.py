@@ -396,7 +396,15 @@ def build_image(
     extra_args=None,
 ):
     runtime_spec = runtime.spec if runtime else None
+    runtime_builder_env = runtime_spec.build.builder_env or {}
+    runtime_extra_args = runtime_spec.build.extra_args or {}
+
+    extra_args = extra_args or {}
     builder_env = builder_env or {}
+
+    builder_env = runtime_builder_env | builder_env or {}
+    _validate_extra_args(extra_args | runtime_extra_args)
+
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
@@ -485,8 +493,6 @@ def build_image(
         relative_workdir = relative_workdir.removeprefix("./")
 
         runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
-
-    _validate_extra_args(extra_args)
 
     dock = make_dockerfile(
         base_image,

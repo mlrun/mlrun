@@ -287,7 +287,6 @@ class BaseRuntime(ModelObj):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        builder_env: Optional[dict] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -361,7 +360,6 @@ class BaseRuntime(ModelObj):
             param_file_secrets=param_file_secrets,
             notifications=notifications,
             returns=returns,
-            builder_env=builder_env,
         )
 
     def _get_db_run(self, task: RunObject = None):

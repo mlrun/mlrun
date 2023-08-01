@@ -56,7 +56,6 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
-        builder_env: Optional[dict] = None,
     ) -> "mlrun.run.RunObject":
         self.enrich_runtime(runtime)
         run = self._create_run_object(task)
@@ -86,9 +85,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
                 logger.info(
                     "Function is not deployed and auto_build flag is set, starting deploy..."
                 )
-                runtime.deploy(
-                    skip_deployed=True, show_on_failure=True, builder_env=builder_env
-                )
+                runtime.deploy(skip_deployed=True, show_on_failure=True)
 
             else:
                 raise mlrun.errors.MLRunRuntimeError(

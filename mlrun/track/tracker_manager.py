@@ -67,6 +67,7 @@ class TrackerManager:
             if tracker.is_enabled():
                 tracker.post_run(context)
         self.clear_trackers()
+        context.commit()
         return context.to_dict() if is_context_dict else context
 
     @property

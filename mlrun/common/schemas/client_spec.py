@@ -40,7 +40,6 @@ class ClientSpec(pydantic.BaseModel):
     nuclio_version: typing.Optional[str]
     ui_projects_prefix: typing.Optional[str]
     scrape_metrics: typing.Optional[str]
-    hub_url: typing.Optional[str]
     default_function_node_selector: typing.Optional[str]
     igz_version: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
@@ -66,3 +65,4 @@ class ClientSpec(pydantic.BaseModel):
     generate_artifact_target_path_from_artifact_hash: typing.Optional[str]
     logs: typing.Optional[dict]
     tracking: typing.Optional[dict]
+    packagers: typing.Optional[dict]

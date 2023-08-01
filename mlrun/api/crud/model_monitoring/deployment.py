@@ -21,6 +21,7 @@ from fastapi import Depends
 import mlrun.api.api.endpoints.functions
 import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.helpers
+import mlrun.api.utils.scheduler
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas.model_monitoring
@@ -163,91 +164,94 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        with_schedule: bool = True,
+        overwrite: bool = False,
         tracking_offset: Seconds = Seconds(0),
-    ):
+    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
         based on the latest batch of events. By default, this job is executed on the hour every hour.
-        Note that if the monitoring batch job was already deployed then you will have to delete the
-        old monitoring batch job before deploying a new one.
+        Note that if the monitoring batch job was already deployed then you will either have to pass overwrite=True or
+        to delete the old monitoring batch job before deploying a new one.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
+        :param with_schedule:               If true, submit a scheduled batch drift job.
+        :param overwrite:                   If true, overwrite the existing model monitoring batch job.
         :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
+
+        :return: Model monitoring batch job as a runtime function.
         """
 
-        logger.info(
-            "Checking if model monitoring batch processing function is already deployed",
-            project=project,
-        )
-
-        # Try to list functions that named model monitoring batch
-        # to make sure that this job has not yet been deployed
-        function_list = mlrun.api.utils.singletons.db.get_db().list_functions(
-            session=db_session, name="model-monitoring-batch", project=project
-        )
-
-        if function_list:
+        fn = None
+        if not overwrite:
             logger.info(
-                "Detected model monitoring batch processing function already deployed",
+                "Checking if model monitoring batch processing function is already deployed",
                 project=project,
             )
-            return
 
-        # Create a monitoring batch job function object
-        fn = self._get_model_monitoring_batch_function(
-            project=project,
-            model_monitoring_access_key=model_monitoring_access_key,
-            db_session=db_session,
-            auth_info=auth_info,
-            tracking_policy=tracking_policy,
-        )
+            # Try to list functions that named model monitoring batch
+            # to make sure that this job has not yet been deployed
+            try:
+                fn = mlrun.api.crud.Functions().get_function(
+                    db_session=db_session,
+                    name="model-monitoring-batch",
+                    project=project,
+                )
+                logger.info(
+                    "Detected model monitoring batch processing function already deployed",
+                    project=project,
+                )
 
-        # Get the function uri
-        function_uri = fn.save(versioned=True)
-        function_uri = function_uri.replace("db://", "")
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info(
+                    "Deploying monitoring batch processing function ", project=project
+                )
 
-        task = mlrun.new_task(name="model-monitoring-batch", project=project)
-        task.spec.function = function_uri
+        if not fn:
+            # Create a monitoring batch job function object
+            fn = self._get_model_monitoring_batch_function(
+                project=project,
+                model_monitoring_access_key=model_monitoring_access_key,
+                db_session=db_session,
+                auth_info=auth_info,
+                tracking_policy=tracking_policy,
+            )
 
-        # Apply batching interval params
-        interval_list = [
-            tracking_policy.default_batch_intervals.minute,
-            tracking_policy.default_batch_intervals.hour,
-            tracking_policy.default_batch_intervals.day,
-        ]
-        (
-            minutes,
-            hours,
-            days,
-        ) = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(
-            interval_list
-        )
-        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
+            # Get the function uri
+            function_uri = fn.save(versioned=True)
 
-        task.spec.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
-        ] = batch_dict
-
-        data = {
-            "task": task.to_dict(),
-            "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(
-                tracking_policy.default_batch_intervals,
-                minute_delay=seconds2minutes(tracking_offset),
-            ),
-        }
-
-        logger.info(
-            "Deploying model monitoring batch processing function", project=project
-        )
-
-        # Add job schedule policy (every hour by default)
-        mlrun.api.api.utils.submit_run_sync(
-            db_session=db_session, auth_info=auth_info, data=data
-        )
+            if with_schedule:
+                if not overwrite:
+                    try:
+                        mlrun.api.utils.scheduler.Scheduler().get_schedule(
+                            db_session=db_session,
+                            project=project,
+                            name="model-monitoring-batch",
+                        )
+                        logger.info(
+                            "Already deployed monitoring batch scheduled job function ",
+                            project=project,
+                        )
+                        return
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.info(
+                            "Deploying monitoring batch scheduled job function ",
+                            project=project,
+                        )
+                # Submit batch scheduled job
+                self._submit_schedule_batch_job(
+                    project=project,
+                    function_uri=function_uri,
+                    db_session=db_session,
+                    auth_info=auth_info,
+                    tracking_policy=tracking_policy,
+                    tracking_offset=tracking_offset,
+                )
+        return fn
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -363,6 +367,70 @@ class MonitoringDeployment:
 
         return function
 
+    @staticmethod
+    def _submit_schedule_batch_job(
+        project: str,
+        function_uri: str,
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        tracking_offset: Seconds = Seconds(0),
+    ):
+        """
+        Create a new scheduled monitoring batch job analysis based on the model-monitoring-batch function that has
+        been already registered.
+
+        :param project:         Project name.
+        :param function_uri:    Function URI of the registered model monitoring batch job. This URI includes the
+                                related project name, function name, and hash key.
+        :param db_session:      A session that manages the current dialog with the database.
+        :param auth_info:       The auth info of the request.
+        :param tracking_policy: Model monitoring configurations.
+        :param tracking_offset: Offset for the tracking policy (for synchronization with the stream).
+
+        """
+
+        function_uri = function_uri.replace("db://", "")
+
+        task = mlrun.new_task(name="model-monitoring-batch", project=project)
+        task.spec.function = function_uri
+
+        # Apply batching interval params
+        interval_list = [
+            tracking_policy.default_batch_intervals.minute,
+            tracking_policy.default_batch_intervals.hour,
+            tracking_policy.default_batch_intervals.day,
+        ]
+        (
+            minutes,
+            hours,
+            days,
+        ) = mlrun.api.crud.model_monitoring.helpers.get_batching_interval_param(
+            interval_list
+        )
+        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
+
+        task.spec.parameters[
+            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+        ] = batch_dict
+
+        data = {
+            "task": task.to_dict(),
+            "schedule": mlrun.api.crud.model_monitoring.helpers.convert_to_cron_string(
+                tracking_policy.default_batch_intervals,
+                minute_delay=seconds2minutes(tracking_offset),
+            ),
+        }
+
+        logger.info(
+            "Deploying model monitoring batch processing function", project=project
+        )
+
+        # Add job schedule policy (every hour by default)
+        mlrun.api.api.utils.submit_run_sync(
+            db_session=db_session, auth_info=auth_info, data=data
+        )
+
     def _apply_stream_trigger(
         self,
         project: str,
@@ -448,13 +516,13 @@ class MonitoringDeployment:
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
             ),
         )
-        print("[EYAL]: setting batch creds!")
+
         function.metadata.credentials.access_key = model_monitoring_access_key
         function.apply(mlrun.mount_v3io())
 
         # Ensure that the auth env vars are set
         mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
-        print("[EYAL]: setting batch creds DONE!")
+
         return function
 
 

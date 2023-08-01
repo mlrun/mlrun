@@ -17,6 +17,7 @@ import typing
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
+import mlrun.api.runtime_handlers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
@@ -105,3 +106,30 @@ class Functions(
             labels=labels,
             hash_key=hash_key,
         )
+
+    def get_function_status(
+        self,
+        kind,
+        selector,
+    ):
+        resource = mlrun.api.runtime_handlers.runtime_resources_map.get(kind)
+        if "status" not in resource:
+            raise mlrun.errors.MLRunBadRequestError(
+                reason="Runtime error: 'status' not supported by this runtime"
+            )
+
+        return resource["status"](selector)
+
+    def start_function(self, function, client_version=None, client_python_version=None):
+        resource = mlrun.api.runtime_handlers.runtime_resources_map.get(function.kind)
+        if "start" not in resource:
+            raise mlrun.errors.MLRunBadRequestError(
+                reason="Runtime error: 'start' not supported by this runtime"
+            )
+
+        resource["start"](
+            function,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
+        function.save(versioned=False)

@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-# for backwards compatibility
-
-
-from .helpers import get_stream_path
-from .model_endpoint import ModelEndpoint
-from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
-from .tracking_policy import TrackingPolicy
+env:
+  # databricks authentication token
+  DATABRICKS_TOKEN:
+  # databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
+  # - it is not for use)
+  DATABRICKS_HOST:
+  DATABRICKS_CLUSTER_ID:

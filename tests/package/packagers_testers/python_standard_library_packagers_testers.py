@@ -28,6 +28,7 @@ from mlrun.package.packagers.python_standard_library_packagers import (
     FrozensetPackager,
     IntPackager,
     ListPackager,
+    NonePackager,
     PathPackager,
     SetPackager,
     StrPackager,
@@ -45,6 +46,40 @@ from tests.package.packager_tester import (
 # ----------------------------------------------------------------------------------------------------------------------
 # builtins packagers:
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+NoneType = type(None)  # TODO: Replace with types.NoneType from python 3.10
+
+
+def pack_none() -> NoneType:
+    return None
+
+
+def validate_none(result: NoneType) -> bool:
+    # TODO: None values should not be casted to strings when casted to results, once it is implemented in
+    #       'execution._cast_result`, change this validation to `return result is None`.
+    return result == "None"
+
+
+class NonePackagerTester(PackagerTester):
+    """
+    A tester for the `NonePackager`.
+    """
+
+    PACKAGER_IN_TEST = NonePackager
+
+    TESTS = [
+        PackTest(
+            pack_handler="pack_none",
+            log_hint="my_result",
+            validation_function=validate_none,
+        ),
+        PackToUnpackTest(
+            pack_handler="pack_none",
+            log_hint="my_result",
+        ),
+    ]
+
 
 _INT_SAMPLE = 7
 

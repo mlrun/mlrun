@@ -747,11 +747,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             name, project=project, tag=tag, labels=selector
         )
         df = artifacts.to_df()[
-            ["tree", "key", "iter", "kind", "path", "hash", "updated", "uri"]
+            ["key", "iter", "kind", "path", "hash", "updated", "uri", "tree"]
         ]
         df["tree"] = df["tree"].apply(lambda x: f"..{x[-8:]}")
         df["hash"] = df["hash"].apply(lambda x: f"..{x[-6:]}")
         df["updated"] = df["updated"].apply(time_str)
+        df.rename(columns={"tree": "job/workflow uid"}, inplace=True)
         print(tabulate(df, headers="keys"))
 
     elif kind.startswith("func"):

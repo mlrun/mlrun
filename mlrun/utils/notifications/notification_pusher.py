@@ -18,8 +18,6 @@ import os
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi.concurrency import run_in_threadpool
-
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.db.base
@@ -254,7 +252,7 @@ class NotificationPusher(object):
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
             )
-            await run_in_threadpool(
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,
@@ -269,7 +267,7 @@ class NotificationPusher(object):
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
             )
-            await run_in_threadpool(
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
                 run.metadata.uid,
                 run.metadata.project,

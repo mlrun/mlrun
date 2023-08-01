@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import enum
+import functools
 import hashlib
 import inspect
 import json
@@ -29,16 +30,19 @@ from os import path
 from types import ModuleType
 from typing import Any, List, Optional, Tuple
 
+import anyio
 import git
 import numpy as np
 import pandas
 import semver
 import yaml
 from dateutil import parser
+from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
@@ -57,6 +61,19 @@ DB_SCHEMA = "store"
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
+
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'parse_versioned_object_uri' will be removed from this file in 1.7.0, use "
+    "'mlrun.common.helpers.parse_versioned_object_uri' instead",
+    category=FutureWarning,
+)
+def parse_versioned_object_uri(uri: str, default_project: str = ""):
+    return mlrun.common.helpers.parse_versioned_object_uri(
+        uri=uri, default_project=default_project
+    )
 
 
 class StorePrefix:
@@ -681,19 +698,50 @@ def generate_artifact_uri(project, key, tag=None, iter=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri):
-    if not uri.startswith(hub_prefix):
-        return uri, False
-    name = uri[len(hub_prefix) :]
-    tag = "master"
-    if ":" in name:
-        loc = name.find(":")
-        tag = name[loc + 1 :]
-        name = name[:loc]
+def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+    """
+    Retrieve the full uri of the item's yaml in the hub.
 
+    :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+
+    :return: A tuple of:
+               [0] = Extended URI of item
+               [1] =  Is hub item (bool)
+    """
+    is_hub_uri = uri.startswith(hub_prefix)
+    if not is_hub_uri:
+        return uri, is_hub_uri
+
+    db = mlrun.get_run_db()
+    name = uri.removeprefix(hub_prefix)
+    tag = "latest"
+    source_name = ""
+    if ":" in name:
+        name, tag = name.split(":")
+    if "/" in name:
+        try:
+            source_name, name = name.split("/")
+        except ValueError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid character '/' in function name or source name"
+            ) from exc
+    name = normalize_name(name=name, verbose=False)
+    if not source_name:
+        # Searching item in all sources
+        sources = db.list_hub_sources(item_name=name, tag=tag)
+        if not sources:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Item={name}, tag={tag} not found in any hub source"
+            )
+        # precedence to user source
+        indexed_source = sources[0]
+    else:
+        # Specific source is given
+        indexed_source = db.get_hub_source(source_name)
     # hub function directory name are with underscores instead of hyphens
     name = name.replace("-", "_")
-    return config.get_hub_url().format(name=name, tag=tag), True
+    function_suffix = f"{name}/{tag}/src/function.yaml"
+    return indexed_source.source.get_full_uri(function_suffix), is_hub_uri
 
 
 def gen_md_table(header, rows=None):
@@ -1451,3 +1499,12 @@ def normalize_workflow_name(name, project_name):
         name.lstrip(project_name).lstrip("-") if project_name in name else name
     )
     return workflow_name
+
+
+# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
+# without importing fastapi in the client
+async def run_in_threadpool(func, *args, **kwargs):
+    if kwargs:
+        # run_sync doesn't accept 'kwargs', so bind them in here
+        func = functools.partial(func, **kwargs)
+    return await anyio.to_thread.run_sync(func, *args)

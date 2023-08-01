@@ -34,7 +34,7 @@ from mlrun.runtimes.utils import (
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
-from .databricks.databrickspy import DatabricksRuntime
+from .databricks.databricks import DatabricksRuntime
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa

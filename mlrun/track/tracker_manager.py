@@ -31,7 +31,7 @@ class TrackerManager:
         :param tracker: The tracker class to add
         """
         self._trackers.append(tracker())
-        logger.debug(f"Added tracker: {tracker}")
+        logger.debug("Added tracker", tracker=tracker)
 
     def clear_trackers(self):
         """
@@ -44,8 +44,10 @@ class TrackerManager:
         goes over all trackers and calls there pre_run function
         :param context: current mlrun context
         """
-        for tracker in self._trackers:
+        logger.debug("Number of trackers", Number=len(self._trackers))
+        for tracker_num, tracker in enumerate(self._trackers):
             if tracker.is_enabled():
+                logger.debug("Tracking run number", number=tracker_num)
                 env = tracker.pre_run(context=context)
                 environ.update(env)  # needed in order to set 3rd party experiment id
 

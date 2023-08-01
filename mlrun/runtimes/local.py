@@ -256,7 +256,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             os.chdir(execution._old_workdir)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
-        # we define a tmp file for mlrun to log its run, for easy access  later
+        # we define a tmp file for mlrun to log its run, for easy access later
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
@@ -357,7 +357,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             runobj_dict = runobj.to_dict()
             # If trackers where used, this is where we log all data collected to MLRun
             trackers_manager.post_run(runobj_dict)
-            return runobj.to_dict()
+            return runobj_dict
 
 
 def load_module(file_name, handler, context):

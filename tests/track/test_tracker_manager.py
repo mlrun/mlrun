@@ -82,8 +82,4 @@ def test_get_trackers_manager(rundb_mock):
     assert type(trackers_manager) is TrackerManager
     # from here we need to change after we add more trackers
     # see that added trackers correspond to project configs
-    assert (
-        len(trackers_manager._trackers) == 1
-        if MLFlowTracker.is_enabled()
-        else len(trackers_manager._trackers) == 0
-    )
+    assert len(trackers_manager._trackers) == 1

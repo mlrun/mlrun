@@ -144,12 +144,12 @@ default_config = {
     # when set (True or non empty str) it will force the mock=True in deploy_function(),
     # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
-    # Configurations for `mlrun.track` - tracking runs and experiments from 3-rd party vendors like MLFlow
+    # Configurations for `mlrun.track` - tracking runs and experiments from 3rd party vendors like MLFlow
     # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
     "external_platform_tracking": {
         # General enabler for the entire tracking mechanism (all tracking services):
         "enabled": False,
-        # Specific enablement and other configurations supported 3-rd party platforms:
+        # Specific enablement and other configurations supported 3rd party platforms:
         "mlflow": {
             # Add the MLFlow tracker to MLRun:
             "mode": "enabled"

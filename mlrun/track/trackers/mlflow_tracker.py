@@ -33,8 +33,8 @@ class MLFlowTracker(BaseTracker):
 
     def __init__(self):
         super().__init__()
-        self.mlflow_experiment = None
-        self.track_uri = 0
+        self._mlflow_experiment = None
+        self._track_uri = 0
         self._client = None
 
     def pre_run(self, context: MLClientCtx) -> dict:
@@ -49,7 +49,7 @@ class MLFlowTracker(BaseTracker):
             context.project,
         )
         env["MLFLOW_EXPERIMENT_ID"] = experiment_id
-        self.mlflow_experiment = experiment_id
+        self._mlflow_experiment = experiment_id
         return env
 
     def _apply_post_run_tasks(
@@ -60,11 +60,12 @@ class MLFlowTracker(BaseTracker):
         Performs post-run tasks of logging 3rd party artifacts generated during the run.
         :param context: current mlrun context
         """
-        experiment_id = self.mlflow_experiment
+        experiment_id = self._mlflow_experiment
         runs = self._client.search_runs(
             experiment_id, filter_string=f'tags.mlrun_runid="{context.uid}"'
         )
         if not runs:
+            logger.debug("No runs from mlflow client, searching in experiments")
             experiments = [
                 experiment.experiment_id
                 for experiment in self._client.search_experiments()
@@ -75,7 +76,10 @@ class MLFlowTracker(BaseTracker):
 
         if runs:
             for run in runs:  # each run gets logged separately
+                logger.debug("Logging run", run=run)
                 self._log_run(context, run)
+        else:
+            logger.debug("No runs found to log")
 
     def _log_run(self, context: MLClientCtx, run):
         """
@@ -84,11 +88,11 @@ class MLFlowTracker(BaseTracker):
         :param run: mlflow run to log
         """
         model_paths = []
-        logger.debug("Starting to log MLFlow params")
+        logger.debug("Logging MLFlow params")
         for key, val in run.data.params.items():
             context._parameters[key] = val
         logger.debug("Finished to log MLFlow params")
-        context.log_results(run.data.metrics)
+        context.log_results({"mlflow_run_metrics": run.data.metrics})
         context.set_label("mlflow-runid", run.info.run_id)
         context.set_label("mlflow-experiment", run.info.experiment_id)
         logger.debug("Starting to log MLFlow artifacts")
@@ -112,7 +116,7 @@ class MLFlowTracker(BaseTracker):
     def log_model(
         self,
         model_uri: str,
-        context: Union[MLClientCtx, dict],
+        context: MLClientCtx,
     ):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
@@ -124,18 +128,14 @@ class MLFlowTracker(BaseTracker):
 
         if model_info.signature is not None:
             if model_info.signature.inputs is not None:
-                inputs = schema_to_feature(
-                    model_info.signature.inputs, convert_np_dtype_to_value_type()
-                )
+                inputs = schema_to_feature(model_info.signature.inputs)
             if model_info.signature.outputs is not None:
-                outputs = schema_to_feature(
-                    model_info.signature.outputs, convert_np_dtype_to_value_type()
-                )
+                outputs = schema_to_feature(model_info.signature.outputs)
         context.log_model(
             key,
             framework="mlflow",
             model_file=model_zip,
-            metrics=context.results,
+            metrics=context.results.get("mlflow_run_metrics"),
             parameters=model_info.flavors,
             labels={
                 "mlflow_run_id": model_info.run_id,
@@ -147,7 +147,9 @@ class MLFlowTracker(BaseTracker):
             outputs=outputs,
         )
 
-    def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
+    def log_artifact(
+        self, context: MLClientCtx, local_path: str, artifact: "mlflow.Artifact"
+    ):
         artifact = context.log_artifact(
             item=pathlib.Path(artifact.path).name.replace(".", "_"),
             local_path=local_path,
@@ -165,14 +167,14 @@ class MLFlowTracker(BaseTracker):
         pass
 
 
-def schema_to_feature(schema, utils) -> list:  # todo add hints here
+def schema_to_feature(schema) -> list:  # todo add hints here
     """
     changes the features from a scheme (usually tensor) to a list
     :param schema: features as made by mlflow
-    :param utils: CommonUtils.convert_np_dtype_to_value_type, can't import here
 
     :return: list of features to log
     """
+    converter = convert_np_dtype_to_value_type()
     is_tensor = schema.is_tensor_spec()
     features = []
     for i, item in enumerate(schema.inputs):
@@ -185,7 +187,7 @@ def schema_to_feature(schema, utils) -> list:  # todo add hints here
             value_type = item.type.to_numpy()
         features.append(
             Feature(
-                utils(value_type),
+                converter(value_type),
                 shape,
                 name=name,
             )

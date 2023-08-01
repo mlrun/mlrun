@@ -20,7 +20,7 @@ from mlrun.execution import MLClientCtx
 
 class Tracker(abc.ABC):
     """
-    general tracker class, includes basic demands for tracker classes,
+    Abstract tracker class, describes the interface for tracker classes,
     in order to log 3rd party vendor's artifacts into MLRun
     """
 

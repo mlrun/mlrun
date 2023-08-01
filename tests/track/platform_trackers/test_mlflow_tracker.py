@@ -22,14 +22,12 @@ import mlflow
 import mlflow.xgboost
 import pytest
 import xgboost as xgb
-from mlflow import log_artifacts, log_metric, log_param
 from sklearn import datasets
 from sklearn.metrics import accuracy_score, log_loss
 from sklearn.model_selection import train_test_split
 
 import mlrun
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
-from mlrun.utils import logger
 
 mpl.use("Agg")
 
@@ -38,16 +36,15 @@ mpl.use("Agg")
 def simple_run(context):
     mlflow.set_tracking_uri(context.artifact_path)
     # Log some random params and metrics
-    log_param("param1", randint(0, 100))
-    log_metric("foo", random())
-    log_metric("foo", random() + 1)
-    log_metric("foo", random() + 2)
+    mlflow.log_param("param1", randint(0, 100))
+    mlflow.log_metric("foo", random())
+    mlflow.log_metric("foo", random() + 1)
+    mlflow.log_metric("foo", random() + 2)
     # Create an artifact and log it
-    test_directory = tempfile.TemporaryDirectory()
-    with open(f"{test_directory.name}/test.txt", "w") as f:
-        f.write("hello world!")
-    log_artifacts(test_directory.name)
-    test_directory.cleanup()
+    with tempfile.TemporaryDirectory() as test_dir:
+        with open(f"{test_dir}/test.txt", "w") as f:
+            f.write("hello world!")
+            mlflow.log_artifacts(test_dir)
 
 
 def lgb_run(context):
@@ -99,17 +96,17 @@ def xgb_run(context):
     mlflow.set_tracking_uri(context.artifact_path)
     # prepare train and test data
     iris = datasets.load_iris()
-    X = iris.data
+    x = iris.data
     y = iris.target
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+    x_train, x_test, y_train, y_test = train_test_split(
+        x, y, test_size=0.2, random_state=42
     )
 
     # enable auto logging
     mlflow.xgboost.autolog()
 
-    dtrain = xgb.DMatrix(X_train, label=y_train)
-    dtest = xgb.DMatrix(X_test, label=y_test)
+    dtrain = xgb.DMatrix(x_train, label=y_train)
+    dtest = xgb.DMatrix(x_test, label=y_test)
 
     with mlflow.start_run():
         # train model
@@ -132,9 +129,10 @@ def xgb_run(context):
         mlflow.log_metrics({"log_loss": loss, "accuracy": acc})
 
 
-def test_is_enabled(rundb_mock):
+@pytest.mark.parametrize("enable_tracking", [True, False])
+def test_is_enabled(rundb_mock, enable_tracking):
     # enable tracking in config for inspection
-    mlrun.mlconf.external_platform_tracking.enabled = True
+    mlrun.mlconf.external_platform_tracking.enabled = enable_tracking
     # see if mlflow is in scope
     try:
         importlib.import_module("mlflow")
@@ -154,7 +152,7 @@ def test_is_enabled(rundb_mock):
 
 
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
-def test_run(rundb_mock, handler):
+def test_track_run(rundb_mock, handler):
     mlrun.mlconf.external_platform_tracking.enabled = True
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)
@@ -193,13 +191,15 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
             if mlflow_run.info.run_id == run.metadata.labels["mlflow-runid"]:
                 run_to_comp = mlflow_run
     if not run_to_comp:
-        logger.warning("Run not found, test failed")
-        assert False
+        assert False, "Run not found, test failed"
     # check that values correspond
     for param in run_to_comp.data.params:
         assert run_to_comp.data.params[param] == run.spec.parameters[param]
     for metric in run_to_comp.data.metrics:
-        assert run_to_comp.data.metrics[metric] == run.outputs[metric]
+        assert (
+            run_to_comp.data.metrics[metric]
+            == run.status.results["mlflow_run_metrics"][metric]
+        )
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))

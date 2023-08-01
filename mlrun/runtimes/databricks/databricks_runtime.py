@@ -14,8 +14,9 @@
 
 import os
 from base64 import b64decode, b64encode
-from mlrun.runtimes.kubejob import KubejobRuntime
+
 from mlrun.model import RunObject
+from mlrun.runtimes.kubejob import KubejobRuntime
 
 
 class DatabricksRuntime(KubejobRuntime):
@@ -49,7 +50,7 @@ class DatabricksRuntime(KubejobRuntime):
                 current_dir, "databricks/databricks_runtime_wrapper.py"
             )
             with open(
-                    databricks_runtime_wrap_path, "r"
+                databricks_runtime_wrap_path, "r"
             ) as databricks_runtime_wrap_file:
                 wrap_code = databricks_runtime_wrap_file.read()
                 wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")

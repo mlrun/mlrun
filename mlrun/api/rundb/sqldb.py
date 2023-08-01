@@ -169,7 +169,9 @@ class SQLRunDB(RunDBInterface):
             days_ago,
         )
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().store_artifact,
             self.session,
@@ -179,16 +181,19 @@ class SQLRunDB(RunDBInterface):
             iter,
             tag,
             project,
+            tree,
         )
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().get_artifact,
             self.session,
             key,
-            tag,
-            iter,
-            project,
+            tag=tag,
+            iter=iter,
+            project=project,
+            tree=tree,
+            uid=uid,
         )
 
     def list_artifacts(
@@ -222,7 +227,7 @@ class SQLRunDB(RunDBInterface):
             category=category,
         )
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         return self._transform_db_error(
             mlrun.api.crud.Artifacts().delete_artifact,
             self.session,

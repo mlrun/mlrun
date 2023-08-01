@@ -104,10 +104,12 @@ class NopDB(RunDBInterface):
     def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
         pass
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     def list_artifacts(
@@ -125,7 +127,7 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):

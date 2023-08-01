@@ -34,6 +34,7 @@ import mlrun.api.db.session
 import mlrun.api.utils.helpers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.k8s
+import mlrun.artifacts.base
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
@@ -500,6 +501,12 @@ class SQLDB(DBInterface):
         always_overwrite=False,
     ) -> str:
         project = project or config.default_project
+        project = project or config.default_project
+        artifact = deepcopy(artifact)
+        if is_legacy_artifact(artifact):
+            artifact = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                artifact
+            ).to_dict()
         tag = tag or "latest"
 
         # handle link artifacts separately
@@ -3514,7 +3521,11 @@ class SQLDB(DBInterface):
             # If we got here, neither tag nor uid were provided - delete all references by name.
             # deleting tags, because in sqlite the relationships aren't necessarily cascading
             self._delete(session, cls.Tag, project=project, obj_name=name)
-            self._delete(session, cls, project=project, name=name)
+            # TODO: TOMER - Delete this when we pull the db layer changes
+            if cls == ArtifactV2:
+                self._delete(session, cls, project=project, key=name)
+            else:
+                self._delete(session, cls, project=project, name=name)
 
     def delete_feature_set(self, session, project, name, tag=None, uid=None):
         self._delete_tagged_object(session, FeatureSet, project, name, tag, uid)

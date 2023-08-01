@@ -436,17 +436,15 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
-            config.feature_store.data_prefixes.default = (
-                server_cfg.get("feature_store_data_prefixes.default")
-                or config.feature_store.data_prefixes.default
+            data_prefixes = server_cfg.get("feature_store_data_prefixes", {})
+            config.feature_store.data_prefixes.default = data_prefixes.get(
+                "default", config.feature_store.data_prefixes.default
             )
-            config.feature_store.data_prefixes.nosql = (
-                server_cfg.get("feature_store_data_prefixes.nosql")
-                or config.feature_store.data_prefixes.nosql
+            config.feature_store.data_prefixes.nosql = data_prefixes.get(
+                "nosql", config.feature_store.data_prefixes.nosql
             )
-            config.feature_store.data_prefixes.redisnosql = (
-                server_cfg.get("feature_store_data_prefixes.redisnosql")
-                or config.feature_store.data_prefixes.redisnosql
+            config.feature_store.data_prefixes.redisnosql = data_prefixes.get(
+                "default", config.feature_store.data_prefixes.redisnosql
             )
 
         except Exception as exc:

@@ -32,9 +32,7 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 
 def is_databricks_env_configured():
-    return all(
-        config["env"].get(var, None) for var in MUST_HAVE_VARIABLES
-    )
+    return all(config["env"].get(var, None) for var in MUST_HAVE_VARIABLES)
 
 
 @pytest.mark.skipif(

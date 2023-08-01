@@ -33,7 +33,7 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 
 def is_databricks_env_configured():
     return all(
-        var in config["env"] and config["env"].get(var) for var in MUST_HAVE_VARIABLES
+        config["env"].get(var, None) for var in MUST_HAVE_VARIABLES
     )
 
 

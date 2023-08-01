@@ -147,9 +147,8 @@ class MLFlowTracker(BaseTracker):
                 outputs=outputs,
             )
 
-    def log_artifact(
-        self, context: MLClientCtx, local_path: str, artifact: "mlflow.Artifact"
-    ):
+    # todo add mlflow.artifact hint
+    def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
         artifact = context.log_artifact(
             item=pathlib.Path(artifact.path).name.replace(".", "_"),
             local_path=local_path,

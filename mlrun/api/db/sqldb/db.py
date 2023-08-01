@@ -924,7 +924,7 @@ class SQLDB(DBInterface):
             self.del_artifact(session, key, "", project)
 
     def del_artifacts_v2(
-        self, session, name="", project="", tag=None, labels=None, ids=None, tree=None
+        self, session, name="", project="", tag="*", labels=None, ids=None, tree=None
     ):
         project = project or config.default_project
         distinct_keys = {
@@ -940,8 +940,8 @@ class SQLDB(DBInterface):
                 ArtifactV2,
                 project=project,
                 tag=tag,
-                commit=False,
                 key=key,
+                commit=False,
                 producer_id=tree,
             )
             if artifact_column_identifier is None:
@@ -1034,16 +1034,13 @@ class SQLDB(DBInterface):
         artifacts = self.list_artifacts_v2(session, project=project, category=category)
         results = []
         for artifact in artifacts:
-            if is_legacy_artifact(artifact):
-                results.append((project, artifact.get("db_key"), artifact.get("tag")))
-            else:
-                results.append(
-                    (
-                        project,
-                        artifact["spec"].get("db_key"),
-                        artifact["metadata"].get("tag"),
-                    )
+            results.append(
+                (
+                    project,
+                    artifact["spec"].get("db_key"),
+                    artifact["metadata"].get("tag"),
                 )
+            )
 
         return results
 
@@ -3751,6 +3748,8 @@ class SQLDB(DBInterface):
         project,
         tag=None,
         uid=None,
+        name=None,
+        key=None,
         commit=True,
         **kwargs,
     ):
@@ -3759,14 +3758,27 @@ class SQLDB(DBInterface):
                 "Both uid and tag specified when deleting an object."
             )
 
+        # "key" is only used for artifact objects, and "name" is used for all other tagged objects.
+        # thus only one should be passed
+        if name and key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Both name and key specified when deleting an object."
+            )
+        if not name and not key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Neither name nor key specified when deleting an object."
+            )
+
         object_id = None
-        obj_name = kwargs.get("name") or kwargs.get("key")
+        obj_name = name or key
         if uid:
             object_record = self._query(
                 session,
                 cls,
                 project=project,
                 uid=uid,
+                name=name,
+                key=key,
                 **kwargs,
             ).one_or_none()
             if object_record is None:
@@ -3788,10 +3800,10 @@ class SQLDB(DBInterface):
             self._delete(session, cls, id=object_id)
         else:
             if not commit:
-                return "name", obj_name
+                return "name", obj_name if name else "key", obj_name
             # If we got here, neither tag nor uid were provided - delete all references by name.
             # deleting tags, because in sqlite the relationships aren't necessarily cascading
-            identifier = {"name": obj_name} if "name" in kwargs else {"key": obj_name}
+            identifier = {"name": obj_name} if name else {"key": obj_name}
             self._delete(session, cls.Tag, project=project, obj_name=obj_name)
             self._delete(session, cls, project=project, **identifier)
 
@@ -3807,7 +3819,6 @@ class SQLDB(DBInterface):
         for tag in self._query(
             session, cls.Tag, project=project, obj_name=obj_name, name=tag_name
         ):
-            print(tag)
             return self._query(session, cls).get(tag.obj_id).uid
         return None
 

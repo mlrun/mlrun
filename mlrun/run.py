@@ -935,6 +935,8 @@ def code_to_function(
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
+    build.extra_args = get_in(spec, "spec.build.extra_args")
+    build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
             r.spec.command = code_output

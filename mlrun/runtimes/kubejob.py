@@ -112,6 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
+        extra_args=None,
+        builder_env=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -136,6 +138,8 @@ class KubejobRuntime(KubeResource):
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param extra_args: A string containing additional arguments in the format of command-line options,
+         e.g. extra_args="--skip-tls-verify --build-arg A=val""
         """
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
@@ -152,6 +156,8 @@ class KubejobRuntime(KubeResource):
             requirements,
             requirements_file,
             overwrite,
+            extra_args,
+            builder_env,
         )
 
         if verify_base_image or prepare_image_for_deploy:

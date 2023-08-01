@@ -15,8 +15,10 @@ import os.path
 import pathlib
 import re
 import tempfile
+import textwrap
 import typing
 from base64 import b64decode, b64encode
+from collections import defaultdict
 from os import path
 from urllib.parse import urlparse
 
@@ -41,8 +43,57 @@ def make_dockerfile(
     extra: str = "",
     user_unix_id: int = None,
     enriched_group_id: int = None,
+    builder_env: typing.List[client.V1EnvVar] = None,
+    extra_args: str = "",
 ):
+    """
+    Generates the content of a Dockerfile for building a container image.
+
+    :param base_image: The base image for the Dockerfile.
+    :param commands: A list of shell commands to be included in the Dockerfile as RUN instructions.
+    :param source: The path to the source code directory to be included in the Docker image.
+    :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
+                              the Python dependencies to be installed in the Docker image.
+    :param workdir: The working directory inside the container where commands will be executed.
+                    Default is "/mlrun".
+    :param extra: Additional content to be appended to the generated Dockerfile.
+    :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
+                         This is useful for matching the user ID with the host environment
+                         to avoid permission issues.
+    :param enriched_group_id: The group ID to be used in the Docker image for running processes.
+    :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
+                        to be set during the build process.
+    :param project_secrets: A dictionary containing project secrets to be included in the Docker image.
+                            The keys represent the names of the environment variables, and the values
+                            are the corresponding secret values.
+    :param extra_args: Additional build arguments provided by the user.
+                       These arguments are formatted as a space-separated string.
+
+    :return: The content of the Dockerfile as a string.
+    """
     dock = f"FROM {base_image}\n"
+
+    builder_env = builder_env or []
+    extra_args = _parse_extra_args_for_dockerfile(extra_args)
+
+    # combine a list of all args (including builder_env, project_secrets and extra_args)
+    # to add in each of the Dockerfile stages.
+    all_args = [f"{env.name}_ARG" for env in builder_env] + [
+        f"{arg}_ARG" for arg in extra_args
+    ]
+    args = ""
+
+    for arg in all_args:
+        args += f"ARG {arg}\n"
+    dock += args
+
+    envs = ""
+    for env in builder_env:
+        envs += f"ENV {env.name}=${env.name}_ARG\n"
+
+    for env in extra_args:
+        envs += f"ENV {env}=${env}_ARG\n"
+    dock += envs
 
     if config.is_pip_ca_configured():
         dock += f"COPY ./{pathlib.Path(config.httpdb.builder.pip_ca_path).name} {config.httpdb.builder.pip_ca_path}\n"
@@ -53,18 +104,23 @@ def make_dockerfile(
         dock += f"ARG {build_arg_key}={build_arg_value}\n"
 
     if source:
+        args = args.rstrip("\n")
+        envs = envs.rstrip("\n")
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
             source_dir = os.path.join(workdir, "source")
-            stage1 = f"""
-            FROM {base_image} AS extractor
-            RUN apt-get update -qqy && apt install --assume-yes unzip
-            RUN mkdir -p {source_dir}
-            COPY {source} {source_dir}
-            RUN cd {source_dir} && unzip {source} && rm {source}
-            """
-            dock = stage1 + "\n" + dock
+            stage_lines = [
+                f"FROM {base_image} AS extractor",
+                args,
+                envs,
+                "RUN apt-get update -qqy && apt install --assume-yes unzip",
+                f"RUN mkdir -p {source_dir}",
+                f"COPY {source} {source_dir}",
+                f"RUN cd {source_dir} && unzip {source} && rm {source}",
+            ]
+            stage = textwrap.dedent("\n".join(stage_lines)).strip()
+            dock = stage + "\n" + dock
 
             dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
         else:
@@ -84,6 +140,7 @@ def make_dockerfile(
     if extra:
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
+
     return dock
 
 
@@ -103,6 +160,7 @@ def make_kaniko_pod(
     builder_env=None,
     runtime_spec=None,
     registry=None,
+    extra_args="",
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -157,6 +215,8 @@ def make_kaniko_pod(
     if verbose:
         args += ["--verbosity", "debug"]
 
+    args = _add_kaniko_args_with_all_build_args(args, builder_env, extra_args)
+
     # While requests mainly affect scheduling, setting a limit may prevent Kaniko
     # from finishing successfully (destructive), since we're not allowing to override the default
     # specifically for the Kaniko pod, we're setting only the requests
@@ -169,6 +229,7 @@ def make_kaniko_pod(
             mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
         )
     }
+
     kpod = mlrun.api.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,
@@ -332,9 +393,18 @@ def build_image(
     builder_env=None,
     client_version=None,
     runtime=None,
+    extra_args=None,
 ):
     runtime_spec = runtime.spec if runtime else None
+    runtime_builder_env = runtime_spec.build.builder_env or {}
+    runtime_extra_args = runtime_spec.build.extra_args or {}
+
+    extra_args = extra_args or {}
     builder_env = builder_env or {}
+
+    builder_env = runtime_builder_env | builder_env or {}
+    _validate_extra_args(runtime_extra_args | extra_args)
+
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
     )
@@ -433,6 +503,8 @@ def build_image(
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
         workdir=runtime.spec.clone_target_dir,
+        builder_env=builder_env,
+        extra_args=extra_args,
     )
 
     kpod = make_kaniko_pod(
@@ -450,6 +522,7 @@ def build_image(
         builder_env=builder_env,
         runtime_spec=runtime_spec,
         registry=registry,
+        extra_args=extra_args,
     )
 
     if to_mount:
@@ -620,6 +693,7 @@ def build_runtime(
         with_mlrun=with_mlrun,
         mlrun_version_specifier=mlrun_version_specifier,
         extra=build.extra,
+        extra_args=build.extra_args,
         verbose=runtime.verbose,
         builder_env=builder_env,
         client_version=client_version,
@@ -687,7 +761,9 @@ def resolve_image_target_and_registry_secret(
     return image_target, secret_name
 
 
-def _generate_builder_env(project, builder_env):
+def _generate_builder_env(
+    project: str, builder_env: typing.Dict
+) -> typing.List[client.V1EnvVar]:
     k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False)
     secret_name = k8s.get_project_secret_name(project)
     existing_secret_keys = k8s.get_project_secret_keys(project, filter_internal=True)
@@ -703,6 +779,44 @@ def _generate_builder_env(project, builder_env):
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env
+
+
+def _add_kaniko_args_with_all_build_args(args, builder_env, extra_args):
+
+    builder_env = builder_env or []
+
+    for env in builder_env:
+        args.extend(["--build-arg", f"{env.name}_ARG={env.value}"])
+
+    # add extra_args to args
+    args = _validate_and_merge_args_with_extra_args(args, extra_args)
+
+    return args
+
+
+def _parse_extra_args_for_dockerfile(extra_args: str) -> dict:
+    if not extra_args:
+        return {}
+
+    build_arg_values = {}
+    is_build_arg = False
+
+    for arg in extra_args.split():
+        if arg == "--build-arg":
+            is_build_arg = True
+        elif arg.startswith("--"):
+            is_build_arg = False
+        elif is_build_arg:
+            # Ensure 'arg' is in a valid format: starts with a letter or underscore,
+            # followed by alphanumerics and an equal sign
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*=[^=]+$", arg):
+                raise ValueError(f"Invalid --build-arg value: {arg}")
+            key, val = arg.split("=")
+            build_arg_values[key] = val
+        else:
+            is_build_arg = False
+
+    return build_arg_values
 
 
 def _resolve_build_requirements(
@@ -743,3 +857,117 @@ def _resolve_build_requirements(
         requirements_path = ""
 
     return commands, requirements_list, requirements_path
+
+
+def _parse_extra_args(extra_args: str) -> dict:
+    """
+    Parses a string of extra arguments into a dictionary format.
+
+    :param extra_args: A string containing additional arguments in the format of command-line options.
+
+    :return: A dictionary where each key corresponds to an option flag (e.g., "--option_name"),
+             and the associated value is a list of values provided for that option.
+
+    :example:
+    >>> extra_args = "--option1 value1 --option2 value3 --option3 --option1 value2"
+    >>> parsed_args = _parse_extra_args(extra_args)
+    >>> print(parsed_args)
+    {
+        '--option1': ['value1', 'value2'],
+        '--option2': ['value3'],
+        '--option3': []
+    }
+    """
+    if not extra_args:
+        return {}
+    extra_args = extra_args.split()
+    args = defaultdict(list)
+
+    for arg in extra_args:
+        if arg.startswith("--"):
+            current_flag = arg
+            args[current_flag]
+        else:
+            args[current_flag].append(arg)
+    return args
+
+
+def _validate_extra_args(extra_args: str):
+    """
+     Validate extra_args string for Docker commands:
+    - Ensure --build-arg is followed by a non-flag argument.
+    - Validate all --build-arg values are in a valid format of 'KEY=VALUE' using allowed characters only.
+
+    :raises ValueError: If the extra_args sequence is invalid or contains incorrectly formatted '--build-arg' values.
+    """
+    if not extra_args:
+        return
+
+    if not extra_args.startswith("--"):
+        raise ValueError(
+            "Invalid argument sequence. Value must be followed by a flag preceding it."
+        )
+    args = _parse_extra_args(extra_args)
+    for arg, values in args.items():
+        if arg == "--build-arg":
+            if not values:
+                raise ValueError(
+                    "Invalid '--build-arg' usage. It must be followed by a non-flag argument."
+                )
+            invalid_build_arg_values = [
+                val
+                for val in values
+                if not re.match(r"^[a-zA-Z0-9_]+=[a-zA-Z0-9_]+$", val)
+            ]
+            if invalid_build_arg_values:
+                raise ValueError(
+                    f"Invalid arguments format: '{','.join(invalid_build_arg_values)}'."
+                    " Please make sure all arguments are in a valid format"
+                )
+
+
+def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> list:
+    """
+    Validate and merge the given args and extra_args for Kaniko pod.
+
+    :return: A merged list of strings containing the command-line arguments
+             from 'args' and 'extra_args' in args format.
+
+    :raises ValueError: If an arg in 'extra_args' is duplicated with different values then in the 'args'.
+    """
+    if not extra_args:
+        return args
+    extra_args = _parse_extra_args(extra_args)
+    # Create a set to store the keys from the --build-arg flags in args
+    build_arg_keys = {
+        key: value
+        for arg in args
+        if arg == "--build-arg"
+        for key, value in [args[args.index(arg) + 1].split("=")]
+    }
+
+    # Create a new list to store the merged args and extra_args
+    merged_args = args[:]
+
+    # Iterate through extra_args and add flags and their values to the merged_args list
+    for flag, values in extra_args.items():
+        if flag == "--build-arg":
+            for value in values:
+                key, val = value.split("=")
+                key = f"{key}_ARG"
+                if key not in build_arg_keys:
+                    merged_args.extend([flag, f"{key}={val}"])
+                    build_arg_keys[key] = val
+                else:
+                    if build_arg_keys[key] != val:
+                        raise ValueError(
+                            f"Duplicate --build-arg '{key}' with different values"
+                        )
+        elif flag not in args:
+            if not values:
+                merged_args.append(flag)
+            else:
+                for val in values:
+                    merged_args.extend([flag, val])
+
+    return merged_args

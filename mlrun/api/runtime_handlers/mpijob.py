@@ -162,30 +162,11 @@ cached_mpijob_crd_version = None
 def resolve_mpijob_crd_version():
     global cached_mpijob_crd_version
     if not cached_mpijob_crd_version:
-
-        # config override everything
-        mpijob_crd_version = config.mpijob_crd_version
-
-        if not mpijob_crd_version:
-            in_k8s_cluster = mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-
-            if in_k8s_cluster:
-                k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
-                namespace = k8s_helper.resolve_namespace()
-
-                # try resolving according to mpi-operator that's running
-                res = k8s_helper.list_pods(
-                    namespace=namespace, selector="component=mpi-operator"
-                )
-                if len(res) > 0:
-                    mpi_operator_pod = res[0]
-                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
-                        "crd-version"
-                    )
-
-            # backoff to use default if wasn't resolved in API
-            if not mpijob_crd_version:
-                mpijob_crd_version = MPIJobCRDVersions.default()
+        # try to resolve the crd version with K8s API
+        # backoff to use default if needed
+        mpijob_crd_version = (
+            _resolve_mpijob_crd_version_best_effort() or MPIJobCRDVersions.default()
+        )
 
         if mpijob_crd_version not in MPIJobCRDVersions.all():
             raise ValueError(
@@ -195,6 +176,29 @@ def resolve_mpijob_crd_version():
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
+
+
+def _resolve_mpijob_crd_version_best_effort():
+    # config overrides everything
+    if config.mpijob_crd_version:
+        return config.mpijob_crd_version
+
+    in_k8s_cluster = mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
+
+    if not in_k8s_cluster:
+        return None
+
+    k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+    namespace = k8s_helper.resolve_namespace()
+
+    # try resolving according to mpi-operator that's running
+    res = k8s_helper.list_pods(namespace=namespace, selector="component=mpi-operator")
+
+    if len(res) == 0:
+        return None
+
+    mpi_operator_pod = res[0]
+    return mpi_operator_pod.metadata.labels.get("crd-version")
 
 
 # overrides the way we resolve the mpijob crd version by querying the k8s API

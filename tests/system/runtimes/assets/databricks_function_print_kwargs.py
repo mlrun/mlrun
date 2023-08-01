@@ -12,3 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+def func(**kwargs):
+    print(kwargs)
+    if not kwargs:
+        raise Exception("kwargs is empty")
+    return kwargs

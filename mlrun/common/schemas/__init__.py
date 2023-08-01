@@ -47,6 +47,7 @@ from .constants import (
     RunPartitionByField,
     SortField,
 )
+from .datastore_profile import DatastoreProfile
 from .events import (
     AuthSecretEventActions,
     EventClientKinds,
@@ -98,6 +99,7 @@ from .hub import (
 from .k8s import NodeSelectorOperator, Resources, ResourceSpec
 from .memory_reports import MostCommonObjectTypesReport, ObjectTypeReport
 from .model_monitoring import (
+    DriftStatus,
     EndpointType,
     EndpointUID,
     EventFieldType,

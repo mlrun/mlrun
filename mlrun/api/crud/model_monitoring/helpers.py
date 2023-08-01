@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import json
+import math
 import typing
 
 import sqlalchemy.orm
@@ -22,6 +23,16 @@ import mlrun.common
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.schedule
 import mlrun.errors
+
+Seconds = typing.NewType("Seconds", int)
+Minutes = typing.NewType("Minutes", int)
+
+_SECONDS_IN_MINUTE: Seconds = Seconds(60)
+_MINUTES_IN_HOUR: Minutes = Minutes(60)
+
+
+def seconds2minutes(seconds: Seconds) -> Minutes:
+    return Minutes(math.ceil(seconds / _SECONDS_IN_MINUTE))
 
 
 def get_batching_interval_param(intervals_list: typing.List):
@@ -47,12 +58,31 @@ def get_batching_interval_param(intervals_list: typing.List):
     )
 
 
+def _add_minutes_offset(
+    minute: typing.Optional[typing.Union[int, str]],
+    offset: Minutes,
+) -> typing.Optional[typing.Union[int, str]]:
+    """
+    :param minute: the minute specification in the cron schedule, e.g. "0".
+    :param offset: the offset in minutes to add to the cron minute specification.
+    :return: the minute cron with the offset applied (if supported).
+    """
+    if minute and (
+        (isinstance(minute, str) and str.isdigit(minute)) or isinstance(minute, int)
+    ):
+        minute = (int(minute) + offset) % _MINUTES_IN_HOUR
+    return minute
+
+
 def convert_to_cron_string(
     cron_trigger: mlrun.common.schemas.schedule.ScheduleCronTrigger,
-):
+    minute_delay: Minutes = Minutes(0),
+) -> str:
     """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
     return "{} {} {} * *".format(
-        cron_trigger.minute, cron_trigger.hour, cron_trigger.day
+        _add_minutes_offset(cron_trigger.minute, minute_delay),
+        cron_trigger.hour,
+        cron_trigger.day,
     ).replace("None", "*")
 
 

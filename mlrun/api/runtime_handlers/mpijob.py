@@ -183,9 +183,7 @@ def _resolve_mpijob_crd_version_best_effort():
     if config.mpijob_crd_version:
         return config.mpijob_crd_version
 
-    in_k8s_cluster = mlrun.k8s_utils.is_running_inside_kubernetes_cluster()
-
-    if not in_k8s_cluster:
+    if not mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
         return None
 
     k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()

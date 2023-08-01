@@ -41,7 +41,7 @@ class TrackerManager:
 
     def pre_run(self, context: MLClientCtx):
         """
-        goes over all trackers and calls there pre_run function
+        goes over all trackers and calls their pre_run function
         :param context: current mlrun context
         """
         logger.debug("Number of trackers", Number=len(self._trackers))

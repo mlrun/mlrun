@@ -505,10 +505,10 @@ def rundb_mock() -> RunDBMock:
     with tempfile.TemporaryDirectory() as tmp_dir:
         mlrun.get_or_create_project("default", context=tmp_dir)
 
-    yield mock_object
+        yield mock_object
 
-    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-    mlrun.db.get_run_db = orig_get_run_db
-    mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._get_db = orig_get_db
-    config.dbpath = orig_db_path
+        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+        mlrun.db.get_run_db = orig_get_run_db
+        mlrun.get_run_db = orig_get_run_db
+        BaseRuntime._get_db = orig_get_db
+        config.dbpath = orig_db_path

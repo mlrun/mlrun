@@ -21,7 +21,7 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 MLRUN_ROOT_DIR = "/mlrun_tests"
 
 
-def is_dbfs_configured(config_file_path=None):
+def is_databricks_configured(config_file_path=None):
     if not config_file_path:
         return all(var in os.environ.get(var) for var in MUST_HAVE_VARIABLES)
     with config_file_path.open() as fp:

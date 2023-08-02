@@ -26,11 +26,11 @@ from databricks.sdk import WorkspaceClient
 import mlrun
 import mlrun.errors
 
-from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, is_dbfs_configured, setup_dbfs_dirs, teardown_dbfs_dirs
+from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, is_databricks_configured, setup_dbfs_dirs, teardown_dbfs_dirs
 
 
 @pytest.mark.skipif(
-    not is_dbfs_configured(Path(__file__).absolute().parent / "test-dbfs-store.yml"),
+    not is_databricks_configured(Path(__file__).absolute().parent / "test-dbfs-store.yml"),
     reason="DBFS storage parameters not configured",
 )
 class TestDBFSStore:

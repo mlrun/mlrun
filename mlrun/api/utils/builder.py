@@ -885,7 +885,8 @@ def _parse_extra_args(extra_args: str) -> dict:
     for arg in extra_args:
         if arg.startswith("--"):
             current_flag = arg
-            args[current_flag] = []
+            # explicitly set the key in the dictionary
+            args.setdefault(current_flag, [])
         elif current_flag:
             args[current_flag].append(arg)
 

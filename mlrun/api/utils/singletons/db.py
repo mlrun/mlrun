@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import mlrun.db
 from mlrun.api.db.base import DBInterface
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.common.db.sql_session import create_session
@@ -34,6 +35,9 @@ def initialize_db(override_db=None):
         return
     logger.info("Creating sql db")
     db = SQLDB(config.httpdb.dsn)
+    # set the run db path to the sql db dsn
+    mlrun.db.get_or_set_dburl(config.httpdb.dsn)
+
     db_session = None
     try:
         db_session = create_session()

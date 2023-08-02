@@ -74,6 +74,7 @@ def run_function(
     artifact_path: str = None,
     notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    builder_env: Optional[list] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -156,6 +157,7 @@ def run_function(
                             * A dictionary of configurations to use when logging. Further info per object type and
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
+    :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -201,6 +203,7 @@ def run_function(
             auto_build=auto_build,
             schedule=schedule,
             notifications=notifications,
+            builder_env=builder_env,
         )
         if run_result:
             run_result._notified = False
@@ -241,6 +244,7 @@ def build_function(
     builder_env: dict = None,
     project_object=None,
     overwrite_build_params: bool = False,
+    extra_args: str = None,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -290,6 +294,8 @@ def build_function(
             secret=secret_name,
             requirements=requirements,
             overwrite=overwrite_build_params,
+            extra_args=extra_args,
+            builder_env=builder_env,
         )
         ready = function.deploy(
             watch=True,

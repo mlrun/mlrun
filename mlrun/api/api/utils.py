@@ -156,12 +156,8 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(
-    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-):
+def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     function_dict, function_url, task = parse_submit_run_body(data)
-    # TODO: block exec for function["kind"] in ["", "local]  (must be a
-    # remote/container runtime)
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -188,7 +184,6 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function, auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -883,16 +878,8 @@ def submit_run_sync(
     project = None
     response = None
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(
-            db_session, auth_info, data
-        )
-        if (
-            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
-            and not mlrun.mlconf.httpdb.jobs.allow_local_run
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Local runtimes can not be run through API (not locally)"
-            )
+        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
@@ -902,7 +889,6 @@ def submit_run_sync(
             if isinstance(cron_trigger, dict):
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            created = False
 
             # if the task is pointing to a remote function (hub://), we need to save it to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
@@ -913,42 +899,26 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
-            try:
-                get_scheduler().update_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(
-                    "No existing schedule found, creating a new one",
-                    project=task["metadata"]["project"],
-                    name=task["metadata"]["name"],
-                )
-                get_scheduler().create_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    mlrun.common.schemas.ScheduleKinds.job,
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-                created = True
-            project = task["metadata"]["project"]
+            is_update = get_scheduler().store_schedule(
+                db_session,
+                auth_info,
+                task["metadata"]["project"],
+                task["metadata"]["name"],
+                mlrun.common.schemas.ScheduleKinds.job,
+                data,
+                cron_trigger,
+                schedule_labels,
+            )
 
+            project = task["metadata"]["project"]
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if created else "modified",
+                "action": "modified" if is_update else "created",
             }
+
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
             # locally from the mlrun service pod) - include project secrets and the caller's access key
@@ -965,7 +935,12 @@ def submit_run_sync(
                 auth_info.data_session or auth_info.access_key
             )
 
-            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
+            run = fn.run(
+                task,
+                watch=False,
+                param_file_secrets=param_file_secrets,
+                auth_info=auth_info,
+            )
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:

@@ -193,10 +193,10 @@ jobs:
     # run this specific job for feature branch only as we wont have a github release for it
     # the tag would be useful to track feature branch released versions
     if: needs.prepare-inputs.outputs.is_feature_branch == 'true'
-    needs: prepare-inputs
+    needs: [ prepare-inputs, trigger-and-wait-for-mlrun-image-building ]
     steps:
       - name: Create feature branch tag
-        uses: actions/github-script@v5
+        uses: actions/github-script@v6
         with:
           script: |
             github.rest.git.createRef({

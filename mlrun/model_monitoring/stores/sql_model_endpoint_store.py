@@ -45,12 +45,14 @@ class SQLModelEndpointStore(ModelEndpointStore):
         self,
         project: str,
         sql_connection_string: str = None,
+        secret_provider: typing.Callable = None,
     ):
         """
         Initialize SQL store target object.
 
         :param project:               The name of the project.
         :param sql_connection_string: Valid connection string or a path to SQL database with model endpoints table.
+        :param secret_provider:       An optional secret provider to get the connection string secret.
         """
 
         super().__init__(project=project)
@@ -58,7 +60,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         self.sql_connection_string = (
             sql_connection_string
             or mlrun.model_monitoring.helpers.get_connection_string(
-                project=self.project
+                secret_provider=secret_provider
             )
         )
 

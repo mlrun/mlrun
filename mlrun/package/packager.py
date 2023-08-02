@@ -107,8 +107,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
 
     Preferably, each packager should handle a single type of object.
 
-    Linking Artifacts (extra data)
-    ------------------------------
+    **Linking Artifacts (extra data)**
 
     In order to link between packages (using the extra data or metrics spec attributes of an artifact), you should use
     the key as if it exists and as value ellipses (...). The manager will link all packages once it is done packing.
@@ -118,8 +117,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
         artifact = Artifact(key="my_artifact")
         artifact.spec.extra_data = {key: ... for key in extra_data}
 
-    Clearing Outputs
-    ----------------
+    **Clearing Outputs**
 
     Some of the packagers may produce files and temporary directories that should be deleted once done with logging the
     artifact. The packager can mark paths of files and directories to delete after logging using the class method
@@ -131,15 +129,15 @@ class Packager(ABC, metaclass=_PackagerMeta):
         with open("./some_file.txt", "w") as file:
             file.write("Pack me")
         artifact = Artifact(key="my_artifact")
-        cls.future_clear(path="./some_file.txt")
+        cls.add_future_clearing_path(path="./some_file.txt")
         return artifact, None
     """
 
-    # The type of object this packager can pack and unpack:
+    #: The type of object this packager can pack and unpack.
     PACKABLE_OBJECT_TYPE: Type = ...
 
-    # The priority of this packager in the packagers collection of the manager (lower is better)
-    PRIORITY = ...
+    #: The priority of this packager in the packagers collection of the manager (lower is better).
+    PRIORITY: int = ...
 
     # List of all paths to be deleted by the manager of this packager post logging the packages:
     _CLEARING_PATH_LIST: List[str] = []

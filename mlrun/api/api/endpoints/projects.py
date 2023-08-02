@@ -22,7 +22,6 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.api.api.deps
 import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.background_tasks
 import mlrun.api.utils.clients.chief
 import mlrun.common.schemas
 from mlrun.api.utils.singletons.project_member import get_project_member
@@ -325,13 +324,10 @@ async def get_project_summary(
     return project_summary
 
 
-@router.post(
-    "/projects/{name}/load", response_model=mlrun.common.schemas.BackgroundTask
-)
+@router.post("/projects/{name}/load")
 async def load_project(
     name: str,
     url: str,
-    background_tasks: fastapi.BackgroundTasks,
     secrets: mlrun.common.schemas.SecretsData = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
@@ -348,13 +344,12 @@ async def load_project(
                                 git://github.com/mlrun/demo-xgb-project.git
                                 http://mysite/archived-project.zip
                                 The git project should include the project yaml file.
-    :param background_tasks:    injected automatically by fastapi
     :param secrets:             Secrets to store in project in order to load it from the provided url.
                                 For more information see :py:func:`mlrun.load_project` function.
     :param auth_info:           auth info of the request
     :param db_session:          session that manages the current dialog with the database
 
-    :returns: a BackgroundTask object, with details on execution process and its status
+    :returns: a Run object of the load project function
     """
 
     project = mlrun.common.schemas.Project(
@@ -406,25 +401,14 @@ async def load_project(
         source=project.spec.source,
     )
 
-    background_timeout = (
-        mlrun.mlconf.background_tasks.default_timeouts.operations.load_project
-    )
-
-    background_task = await fastapi.concurrency.run_in_threadpool(
-        mlrun.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-        db_session,
-        name,
-        background_tasks,
+    run = await fastapi.concurrency.run_in_threadpool(
         mlrun.api.crud.WorkflowRunners().run,
-        background_timeout,
-        # arguments for the actual task with 'load_only'
-        load_project_runner,
-        project,
-        None,
-        True,
+        runner=load_project_runner,
+        project=project,
+        workflow_request=None,
+        load_only=True,
     )
-
-    return background_task
+    return {"data": run.to_dict()}
 
 
 def _is_request_from_leader(

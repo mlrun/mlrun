@@ -63,7 +63,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         project.set_artifact("z", mlrun.artifacts.Artifact(src_path="body.txt"))
         project.register_artifacts()
 
-        artifacts = project.list_artifacts().objects()
+        artifacts = project.list_artifacts().to_objects()
         assert len(artifacts) == 2
 
         expected_body_map = {"y": "123", "z": b"ABC"}

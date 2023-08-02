@@ -15,12 +15,16 @@
 import typing
 from datetime import datetime
 
+from dependency_injector import containers, providers
 from sqlalchemy.orm import Session
 
+import mlrun.api.utils.singletons.k8s
+import mlrun.k8s_utils
 from mlrun.api.db.base import DBInterface
 from mlrun.api.runtime_handlers import BaseRuntimeHandler
+from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
-from mlrun.runtimes.constants import MPIJobV1Alpha1States, RunStates
+from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1Alpha1States, RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1, MpiRuntimeV1Alpha1
 
 
@@ -145,3 +149,68 @@ class MpiV1RuntimeHandler(BaseRuntimeHandler):
             MpiRuntimeV1.crd_version,
             MpiRuntimeV1.crd_plural,
         )
+
+
+cached_mpijob_crd_version = None
+
+
+def resolve_mpijob_crd_version():
+    """
+    Resolve mpijob runtime according to the mpi-operator's supported crd-version.
+    If specified on mlrun config set it likewise.
+    If not specified, try resolving it according to the mpi-operator, otherwise set to default.
+    Since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
+    will change in any context - cache it.
+    :return: mpi operator's crd-version
+    """
+    global cached_mpijob_crd_version
+    if not cached_mpijob_crd_version:
+        # try to resolve the crd version with K8s API
+        # backoff to use default if needed
+        mpijob_crd_version = (
+            _resolve_mpijob_crd_version_best_effort() or MPIJobCRDVersions.default()
+        )
+
+        if mpijob_crd_version not in MPIJobCRDVersions.all():
+            raise ValueError(
+                f"Unsupported mpijob crd version: {mpijob_crd_version}. "
+                f"Supported versions: {MPIJobCRDVersions.all()}"
+            )
+        cached_mpijob_crd_version = mpijob_crd_version
+
+    return cached_mpijob_crd_version
+
+
+def _resolve_mpijob_crd_version_best_effort():
+    # config overrides everything
+    if config.mpijob_crd_version:
+        return config.mpijob_crd_version
+
+    if not mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
+        return None
+
+    k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+    namespace = k8s_helper.resolve_namespace()
+
+    # try resolving according to mpi-operator that's running
+    res = k8s_helper.list_pods(namespace=namespace, selector="component=mpi-operator")
+
+    if len(res) == 0:
+        return None
+
+    mpi_operator_pod = res[0]
+    return mpi_operator_pod.metadata.labels.get("crd-version")
+
+
+# overrides the way we resolve the mpijob crd version by querying the k8s API
+@containers.override(mlrun.runtimes.mpijob.MpiRuntimeContainer)
+class MpiRuntimeHandlerContainer(containers.DeclarativeContainer):
+    resolver = providers.Callable(
+        resolve_mpijob_crd_version,
+    )
+
+    handler_selector = providers.Selector(
+        resolver,
+        v1=providers.Object(MpiV1RuntimeHandler),
+        v1alpha1=providers.Object(MpiV1Alpha1RuntimeHandler),
+    )

@@ -239,7 +239,7 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
             if current_data_version < 4:
                 _perform_version_4_data_migrations(db, db_session)
             if current_data_version < 5:
-                _perform_version_4_data_migrations(db, db_session)
+                _perform_version_5_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 

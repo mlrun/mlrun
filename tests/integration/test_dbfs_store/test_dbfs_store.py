@@ -57,7 +57,7 @@ class TestDBFSStore:
         env_params = self.config["env"]
         for key, env_param in env_params.items():
             os.environ[key] = env_param
-        self.dbfs_store_dir = f"/dbfs_store"
+        self.dbfs_store_dir = "/dbfs_store"
         self.dbfs_store_path = f"{MLRUN_ROOT_DIR}{self.dbfs_store_dir}"
         self._dbfs_schema = "dbfs://"
         self.workspace = WorkspaceClient()

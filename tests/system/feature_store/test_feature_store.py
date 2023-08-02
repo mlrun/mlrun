@@ -66,7 +66,6 @@ from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
 from ...datastore.databricks_utils import (
-    MLRUN_ROOT_DIR,
     MUST_HAVE_VARIABLES,
     is_databricks_configured,
     setup_dbfs_dirs,

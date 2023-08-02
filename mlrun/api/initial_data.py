@@ -129,7 +129,7 @@ def init_data(
 data_version_prior_to_table_addition = 1
 
 # NOTE: Bump this number when adding a new data migration
-latest_data_version = 5
+latest_data_version = 4
 
 
 def _resolve_needed_operations(
@@ -238,8 +238,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_3_data_migrations(db, db_session)
             if current_data_version < 4:
                 _perform_version_4_data_migrations(db, db_session)
-            if current_data_version < 5:
-                _perform_version_5_data_migrations(db, db_session)
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -550,6 +548,7 @@ def _perform_version_4_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _update_default_hub_source(db, db_session)
+    _migrate_artifacts_table_v2(db, db_session)
 
 
 def _add_default_hub_source_if_needed(
@@ -612,12 +611,6 @@ def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
         db_session.commit()
     else:
         logger.info("Default hub source not found")
-
-
-def _perform_version_5_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _migrate_artifacts_table_v2(db, db_session)
 
 
 def _migrate_artifacts_table_v2(

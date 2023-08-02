@@ -2046,34 +2046,6 @@ class SQLDB(DBInterface):
 
     # ---- Schedules ----
     @retry_on_conflict
-    def list_artifact_tags(
-        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
-    ) -> typing.List[typing.Tuple[str, str, str]]:
-        """
-        :return: a list of Tuple of (project, artifact.key, tag)
-        """
-        # TODO - refactor once we have the artifact kind as a field in the DB, the filtering on category can be done
-        # as a simple SQL query, and don't need to use the extra processing of listing tags etc.
-
-        artifacts = self.list_artifacts(
-            session, project=project, tag="*", category=category
-        )
-        results = []
-        for artifact in artifacts:
-            if is_legacy_artifact(artifact):
-                results.append((project, artifact.get("db_key"), artifact.get("tag")))
-            else:
-                results.append(
-                    (
-                        project,
-                        artifact["spec"].get("db_key"),
-                        artifact["metadata"].get("tag"),
-                    )
-                )
-
-        return results
-
-    @retry_on_conflict
     def store_schedule(
         self,
         session: Session,

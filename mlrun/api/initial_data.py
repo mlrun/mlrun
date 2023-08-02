@@ -908,50 +908,6 @@ def _mark_best_iteration_artifacts(
     db._commit(db_session, artifacts_to_commit)
 
 
-def _add_default_hub_source_if_needed(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    try:
-        hub_marketplace_source = db.get_hub_source(
-            db_session, config.hub.default_source.name
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        hub_marketplace_source = None
-    except pydantic.error_wrappers.ValidationError as exc:
-
-        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
-        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
-        # that a default hub source exists
-        if all(
-            [
-                "validation error for HubSource" in str(exc),
-                "value is not a valid enumeration member" in str(exc),
-            ]
-        ):
-            logger.info("Found existing default hub source, data migration needed")
-            hub_marketplace_source = True
-        else:
-            raise exc
-
-    if not hub_marketplace_source:
-        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
-        # hub_source will be None if the configuration has hub.default_source.create=False
-        if hub_source:
-            logger.info("Adding default hub source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
-            hub_record = db._transform_hub_source_schema_to_record(
-                mlrun.common.schemas.IndexedHubSource(
-                    index=mlrun.common.schemas.hub.last_source_index,
-                    source=hub_source,
-                )
-            )
-            db_session.add(hub_record)
-            db_session.commit()
-        else:
-            logger.info("Not adding default hub source, per configuration")
-    return
-
-
 def _add_data_version(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):

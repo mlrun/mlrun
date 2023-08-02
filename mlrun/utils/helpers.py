@@ -940,6 +940,37 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
+def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None):
+    # remove tag, hash, date from calculation
+    object_dict.setdefault("metadata", {})
+    tag = object_dict["metadata"].get("tag")
+    status = object_dict.setdefault("status", {})
+    object_dict["metadata"]["tag"] = ""
+    object_dict["metadata"][uid_property_name] = ""
+    object_dict["status"] = None
+    object_dict["metadata"]["updated"] = None
+    object_created_timestamp = object_dict["metadata"].pop("created", None)
+
+    # make sure we have a key and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+
+    # calc hash and fill
+    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
+    h = hashlib.sha1()
+    h.update(data)
+    uid = h.hexdigest()
+
+    # restore original values
+    object_dict["metadata"]["tag"] = tag
+    object_dict["metadata"][uid_property_name] = uid
+    object_dict["status"] = status
+    if object_created_timestamp:
+        object_dict["metadata"]["created"] = object_created_timestamp
+    return uid
+
+
 def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 
@@ -1328,6 +1359,15 @@ def is_legacy_artifact(artifact):
         return "metadata" not in artifact
     else:
         return not hasattr(artifact, "metadata")
+
+
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
 
 
 def format_run(run: dict, with_project=False) -> dict:

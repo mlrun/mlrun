@@ -38,7 +38,12 @@ from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.utils import fill_object_hash, is_legacy_artifact, logger
+from mlrun.utils import (
+    fill_artifact_object_hash,
+    is_legacy_artifact,
+    is_link_artifact,
+    logger,
+)
 
 
 def init_data(
@@ -632,8 +637,8 @@ def _migrate_artifacts_table_v2(
     ).count()
     batch_size = config.artifacts.artifact_migration_batch_size
 
-    # get the id of the last migrated artifact
-    last_migrated_artifact_id = _get_last_migrated_artifact_id()
+    # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
+    last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
 
     while True:
         logger.debug(
@@ -642,13 +647,20 @@ def _migrate_artifacts_table_v2(
             total_artifacts_count=total_artifacts_count,
         )
         # migrate the next batch
-        last_migrated_artifact_id = _migrate_artifacts_batch(
+        last_migrated_artifact_id, batch_link_artifact_ids = _migrate_artifacts_batch(
             db, db_session, last_migrated_artifact_id, batch_size
         )
+        if batch_link_artifact_ids:
+            link_artifact_ids.update(batch_link_artifact_ids)
+
         if last_migrated_artifact_id is None:
             # we're done
             break
-        _update_last_migrated_artifact_id(last_migrated_artifact_id)
+        _update_state_file(last_migrated_artifact_id, link_artifact_ids)
+
+    # find the best iteration artifacts the link artifacts point at ,
+    # and mark them as best iteration artifacts in the new artifacts_v2 table
+    _mark_best_iteration_artifacts(db, db_session, link_artifact_ids)
 
     # delete the state file
     _delete_state_file()
@@ -674,6 +686,7 @@ def _migrate_artifacts_batch(
     new_artifacts = []
     artifacts_tags_to_migrate = []
     artifacts_labels_to_migrate = []
+    link_artifact_ids = []
 
     # get artifacts from the db, sorted by id
     query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
@@ -689,18 +702,24 @@ def _migrate_artifacts_batch(
 
     if len(artifacts) == 0:
         # we're done
-        return None
+        return None, None
 
     for artifact in artifacts:
         new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
 
         artifact_dict = artifact.struct
+
         if is_legacy_artifact(artifact_dict):
             # convert the legacy artifact to the new format, by setting a metadata field and spec field
             # and copying the old fields to the spec
             artifact_dict = mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
                 artifact_dict
             ).to_dict()
+
+        # if it is a link artifact, keep its id. we will use it later to update the best iteration artifacts
+        if is_link_artifact(artifact_dict):
+            link_artifact_ids.append(artifact.id)
+            continue
 
         artifact_metadata = artifact_dict.get("metadata", None)
 
@@ -713,11 +732,6 @@ def _migrate_artifacts_batch(
             old_uid = artifact_metadata.get("tree", None)
         new_artifact.producer_id = old_uid
 
-        # uid - calculate as the hash of the artifact object
-        tag = artifact_metadata.get("tag", "")
-        uid = fill_object_hash(artifact_dict, "uid", tag)
-        new_artifact.uid = uid
-
         # project - copy as is
         new_artifact.project = artifact_metadata.get("project", None)
 
@@ -728,7 +742,20 @@ def _migrate_artifacts_batch(
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
         if iteration is not None:
-            new_artifact.iter = int(iteration)
+            new_artifact.iteration = int(iteration)
+
+        # best iteration
+        # if iteration == 0 it means it is from a single run since link artifacts were already
+        # handled above - so we can set is as best iteration.
+        # otherwise set to false, the best iteration artifact will be updated later
+        if iteration is not None and iteration == 0:
+            new_artifact.best_iteration = True
+        else:
+            new_artifact.best_iteration = False
+
+        # uid - calculate as the hash of the artifact object
+        uid = fill_artifact_object_hash(artifact_dict, "uid", iteration)
+        new_artifact.uid = uid
 
         # kind - doesn't exist in v1, will be set to "artifact" by default
         new_artifact.kind = artifact_dict.get("kind", mlrun.artifacts.Artifact.kind)
@@ -750,6 +777,7 @@ def _migrate_artifacts_batch(
         last_migrated_artifact_id = artifact.id
 
         # save the artifact's tags and labels to migrate them later
+        tag = artifact_metadata.get("tag", "")
         if tag:
             artifacts_tags_to_migrate.append((new_artifact, tag))
         labels = artifact_metadata.get("labels", {})
@@ -768,7 +796,7 @@ def _migrate_artifacts_batch(
     # commit the changes
     db._commit(db_session, new_artifacts + new_labels + new_tags)
 
-    return last_migrated_artifact_id
+    return last_migrated_artifact_id, link_artifact_ids
 
 
 def _migrate_artifact_labels(
@@ -810,6 +838,118 @@ def _migrate_artifact_tags(
     if tags:
         db_session.add_all(tags)
     return tags
+
+
+def _mark_best_iteration_artifacts(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    link_artifact_ids: list,
+):
+    artifacts_to_commit = []
+
+    # get all link artifacts
+    link_artifacts = (
+        db_session.query(mlrun.api.db.sqldb.models.Artifact)
+        .filter(mlrun.api.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
+        .all()
+    )
+
+    # get all the artifacts that are attached to the link artifacts
+    for link_artifact in link_artifacts:
+        link_artifact_dict = link_artifact.struct
+        if is_legacy_artifact(link_artifact_dict):
+
+            # convert the legacy artifact to the new format, so we can use the same logic
+            link_artifact_dict = (
+                mlrun.artifacts.base.convert_legacy_artifact_to_new_format(
+                    link_artifact_dict
+                ).to_dict()
+            )
+
+        # get the artifacts attached to the link artifact
+        # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key
+        link_artifact_key = link_artifact_dict.get("spec").get(
+            "link_key", None
+        ) or link_artifact_dict.get("key", None)
+        link_iteration = link_artifact_dict.get("spec").get("link_iteration", None)
+        link_tree = link_artifact_dict.get("spec").get("link_tree", None)
+
+        if not link_iteration:
+            logger.warning(
+                "Link artifact is missing link iteration, skipping",
+                link_artifact_key=link_artifact_key,
+                link_artifact_id=link_artifact.id,
+            )
+            continue
+
+        # get the artifacts attached to the link artifact
+        query = db._query(db_session, mlrun.api.db.sqldb.models.ArtifactV2).filter(
+            mlrun.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
+            mlrun.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
+        )
+        if link_tree:
+            query = query.filter(
+                mlrun.api.db.sqldb.models.ArtifactV2.producer_id == link_tree
+            )
+
+        artifact = query.one_or_none()
+        if not artifact:
+            logger.warning(
+                "Link artifact is pointing to a non-existent artifact, skipping",
+                link_artifact_key=link_artifact_key,
+                link_iteration=link_iteration,
+                link_artifact_id=link_artifact.id,
+            )
+            continue
+
+        artifact.best_iteration = True
+        artifacts_to_commit.append(artifact)
+
+    db._commit(db_session, artifacts_to_commit)
+
+
+def _add_default_hub_source_if_needed(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    try:
+        hub_marketplace_source = db.get_hub_source(
+            db_session, config.hub.default_source.name
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        hub_marketplace_source = None
+    except pydantic.error_wrappers.ValidationError as exc:
+
+        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
+        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
+        # that a default hub source exists
+        if all(
+            [
+                "validation error for HubSource" in str(exc),
+                "value is not a valid enumeration member" in str(exc),
+            ]
+        ):
+            logger.info("Found existing default hub source, data migration needed")
+            hub_marketplace_source = True
+        else:
+            raise exc
+
+    if not hub_marketplace_source:
+        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
+        # hub_source will be None if the configuration has hub.default_source.create=False
+        if hub_source:
+            logger.info("Adding default hub source")
+            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
+            hub_record = db._transform_hub_source_schema_to_record(
+                mlrun.common.schemas.IndexedHubSource(
+                    index=mlrun.common.schemas.hub.last_source_index,
+                    source=hub_source,
+                )
+            )
+            db_session.add(hub_record)
+            db_session.commit()
+        else:
+            logger.info("Not adding default hub source, per configuration")
+    return
 
 
 def _add_data_version(
@@ -874,7 +1014,7 @@ def _resolve_current_data_version(
         raise exc
 
 
-def _get_last_migrated_artifact_id():
+def _get_migration_state():
     """
     Get the id of the last migrated artifact from the state file.
     If the state file does not exist, return 0.
@@ -884,12 +1024,14 @@ def _get_last_migrated_artifact_id():
             config.artifacts.artifact_migration_state_file_path, "r"
         ) as state_file:
             state = json.load(state_file)
-            return state.get("last_migrated_id", 0)
+            return state.get("last_migrated_id", 0), set(
+                state.get("link_artifact_ids", [])
+            )
     except FileNotFoundError:
-        return 0
+        return 0, set()
 
 
-def _update_last_migrated_artifact_id(last_migrated_id: int):
+def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
     """Create or update the state file with the given batch index.
 
     :param last_migrated_id: The id of the last migrated artifact.
@@ -901,6 +1043,7 @@ def _update_last_migrated_artifact_id(last_migrated_id: int):
     with open(state_file_path, "w") as state_file:
         state = {
             "last_migrated_id": last_migrated_id,
+            "link_artifact_ids": list(link_artifact_ids),
         }
         json.dump(state, state_file)
 

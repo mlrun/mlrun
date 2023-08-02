@@ -205,7 +205,7 @@ class DBInterface(ABC):
     def del_artifacts(self, session, name="", project="", tag="", labels=None):
         pass
 
-    # Artifact v2 APIs - Delete when v1 is deprecated!
+    # Artifact v1 APIs - Delete when v1 is deprecated!
     def store_artifact_v1(
         self,
         session,
@@ -733,4 +733,34 @@ class DBInterface(ABC):
         identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
         **kwargs,
     ):
+        pass
+
+    def store_datastore_profile(
+        self,
+        session,
+        profile: mlrun.common.schemas.DatastoreProfile,
+    ) -> str:
+        pass
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        pass
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

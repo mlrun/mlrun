@@ -183,7 +183,7 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
-        kind = Column(String(255, collation=SQLCollationUtil.collation()))
+        kind = Column(String(255, collation=SQLCollationUtil.collation()), index=True)
         producer_id = Column(String(255, collation=SQLCollationUtil.collation()))
         iteration = Column(Integer)
         best_iteration = Column(BOOLEAN, default=False, index=True)
@@ -567,6 +567,18 @@ with warnings.catch_warnings():
 
         def get_identifier_string(self) -> str:
             return f"{self.version}"
+
+    class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "datastore_profiles"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        type = Column(String(255, collation=SQLCollationUtil.collation()))
+        body = Column(String(1024, collation=SQLCollationUtil.collation()))
 
 
 # Must be after all table definitions

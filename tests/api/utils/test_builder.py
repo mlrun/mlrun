@@ -21,6 +21,7 @@ from contextlib import nullcontext as does_not_raise
 
 import deepdiff
 import pytest
+from kubernetes import client
 
 import mlrun
 import mlrun.api.api.utils
@@ -430,11 +431,12 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
             "AWS_SECRET_ACCESS_KEY": "test-b",
         }
     )
-    function = project.set_function(
-        "hub://describe",
-        name="some-function",
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
         kind="job",
     )
+    function = project.set_function(function)
     mlrun.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
@@ -790,28 +792,35 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 )
 def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
     _patch_k8s_helper(monkeypatch)
-    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        docker_registry = "default.docker.registry/default-repository"
+        config.httpdb.builder.docker_registry = docker_registry
 
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
-        kind="job",
-    )
-    if clone_target_dir is not None:
-        function.spec.clone_target_dir = clone_target_dir
-    function.spec.build.source = "/path/some-source.tgz"
-    mlrun.api.utils.builder.build_runtime(
-        mlrun.common.schemas.AuthInfo(),
-        function,
-    )
-    dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
-    dockerfile_lines = dockerfile.splitlines()
-    expected_workdir_re = re.compile(expected_workdir)
-    assert expected_workdir_re.match(dockerfile_lines[1])
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            image="mlrun/mlrun",
+            kind="job",
+        )
+        if clone_target_dir is not None:
+            function.spec.clone_target_dir = clone_target_dir
+        function.spec.build.source = "/path/some-source.tgz"
+        mlrun.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
+        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile_lines = dockerfile.splitlines()
+        dockerfile_lines = [
+            line
+            for line in list(dockerfile_lines)
+            if not line.startswith(("ARG", "ENV"))
+        ]
+        expected_workdir_re = re.compile(expected_workdir)
+        assert expected_workdir_re.match(dockerfile_lines[1])
 
 
 @pytest.mark.parametrize(
@@ -829,43 +838,56 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
 )
 def test_builder_source(monkeypatch, source, expectation):
     _patch_k8s_helper(monkeypatch)
-    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.MagicMock()
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        docker_registry = "default.docker.registry/default-repository"
+        config.httpdb.builder.docker_registry = docker_registry
 
-    function = mlrun.new_function(
-        "some-function",
-        "some-project",
-        "some-tag",
-        image="mlrun/mlrun",
-        kind="job",
-    )
-
-    with expectation:
-        function.spec.build.source = source
-        mlrun.api.utils.builder.build_runtime(
-            mlrun.common.schemas.AuthInfo(),
-            function,
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            image="mlrun/mlrun",
+            kind="job",
         )
 
-        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
-        dockerfile_lines = dockerfile.splitlines()
-
-        expected_source = source
-        if "://" in source:
-            _, expected_source = os.path.split(source)
-
-        if source.endswith(".zip"):
-            expected_output_re = re.compile(
-                rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+        with expectation:
+            function.spec.build.source = source
+            mlrun.api.utils.builder.build_runtime(
+                mlrun.common.schemas.AuthInfo(),
+                function,
             )
-            expected_line_index = 4
 
-        else:
-            expected_output_re = re.compile(rf"ADD {expected_source} .*/tmp.*/mlrun")
-            expected_line_index = 2
+            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                "dockertext"
+            ]
+            dockerfile_lines = dockerfile.splitlines()
+            dockerfile_lines = [
+                line
+                for line in list(dockerfile_lines)
+                if not line.startswith(("ARG", "ENV"))
+            ]
 
-        assert expected_output_re.match(dockerfile_lines[expected_line_index].strip())
+            expected_source = source
+            if "://" in source:
+                _, expected_source = os.path.split(source)
+
+            if source.endswith(".zip"):
+                expected_output_re = re.compile(
+                    rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+                )
+                expected_line_index = 3
+
+            else:
+                expected_output_re = re.compile(
+                    rf"ADD {expected_source} .*/tmp.*/mlrun"
+                )
+                expected_line_index = 2
+
+            assert expected_output_re.match(
+                dockerfile_lines[expected_line_index].strip()
+            )
 
 
 @pytest.mark.parametrize(
@@ -991,3 +1013,384 @@ def _mock_default_service_account(monkeypatch, service_account):
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
     )
+
+
+@pytest.mark.parametrize(
+    "builder_env,source,commands,extra_args,expected_in_stage",
+    [
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
+            None,
+            ["git+https://${GIT_TOKEN}@github.com/GiladShapira94/new-mlrun.git}"],
+            "--build-arg A=b C=d --test",
+            [
+                "ARG GIT_TOKEN_ARG",
+                "ARG A_ARG",
+                "ARG C_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ENV A=$A_ARG",
+                "ENV C=$C_ARG",
+            ],
+        ),
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
+            "source.zip",
+            ["echo bla"],
+            [],
+            [
+                "ARG GIT_TOKEN_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+            ],
+        ),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="jfksjnflsfnhg"),
+                client.V1EnvVar(name="Test", value="test"),
+            ],
+            "source.zip",
+            [],
+            [],
+            [
+                "ARG GIT_TOKEN_ARG",
+                "ARG Test_ARG",
+                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ENV Test=$Test_ARG",
+            ],
+        ),
+        (None, "source.zip", [], "", []),
+    ],
+)
+def test_make_dockerfile_with_build_and_extra_args(
+    builder_env,
+    source,
+    commands,
+    extra_args,
+    expected_in_stage,
+):
+    dock = mlrun.api.utils.builder.make_dockerfile(
+        base_image="mlrun/mlrun",
+        builder_env=builder_env,
+        source=source,
+        commands=commands,
+        extra_args=extra_args,
+    )
+
+    # Check that the ARGS and ENV vars are declared in each stage of the Dockerfile
+    pattern = r"^FROM.*$"
+    lines = dock.strip().split("\n")
+    lines = [line.strip() for line in lines]
+
+    for i, line in enumerate(lines):
+        if re.match(pattern, line):
+            assert lines[i + 1 : i + 1 + len(expected_in_stage)] == expected_in_stage
+
+
+@pytest.mark.parametrize(
+    "builder_env,extra_args,parsed_extra_args",
+    [
+        ([client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")], "", []),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i"),
+                client.V1EnvVar(name="TEST", value="test"),
+            ],
+            "",
+            [],
+        ),
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")],
+            "--build-arg test1=val1",
+            ["test1_ARG=val1"],
+        ),
+        ([], "", []),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i"),
+                client.V1EnvVar(name="TEST", value="test"),
+            ],
+            "--build-arg a=b c=d",
+            ["a_ARG=b", "c_ARG=d"],
+        ),
+    ],
+)
+def test_make_kaniko_pod_command_using_build_args(
+    builder_env, extra_args, parsed_extra_args
+):
+    with unittest.mock.patch(
+        "mlrun.api.api.utils.resolve_project_default_service_account",
+        return_value=(None, None),
+    ):
+        kpod = mlrun.api.utils.builder.make_kaniko_pod(
+            project="test",
+            context="/context",
+            dest="docker-hub/",
+            dockerfile="./Dockerfile",
+            builder_env=builder_env,
+            extra_args=extra_args,
+        )
+
+    expected_env_vars = [
+        f"{env_var.name}_ARG={env_var.value}" for env_var in builder_env
+    ]
+    if extra_args:
+        expected_env_vars.extend(parsed_extra_args)
+
+    args = kpod.args
+    actual_env_vars = [
+        args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
+    ]
+    assert expected_env_vars == actual_env_vars
+
+
+@pytest.mark.parametrize(
+    "extra_args,expected_result",
+    [
+        ("--arg1 value1", {"--arg1": ["value1"]}),
+        ("--arg1 value1 --arg2 value2", {"--arg1": ["value1"], "--arg2": ["value2"]}),
+        (
+            "--arg1 value1 value2 value3 --arg2 value4 value5",
+            {"--arg1": ["value1", "value2", "value3"], "--arg2": ["value4", "value5"]},
+        ),
+        ("--arg1 --arg2", {"--arg1": [], "--arg2": []}),
+        ("--arg1 value1 --arg1 value2", {"--arg1": ["value1", "value2"]}),
+        (
+            "--arg1 value1 --arg2 value2 --arg1 value3",
+            {"--arg1": ["value1", "value3"], "--arg2": ["value2"]},
+        ),
+        ("", {}),
+    ],
+)
+def test_parse_extra_args(extra_args, expected_result):
+    assert mlrun.api.utils.builder._parse_extra_args(extra_args) == expected_result
+
+
+@pytest.mark.parametrize(
+    "extra_args,expected",
+    [
+        ("--build-arg KEY1=VALUE1 --build-arg KEY2=VALUE2", does_not_raise()),
+        ("--build-arg KEY=VALUE", does_not_raise()),
+        ("--build-arg KEY=VALUE key2=value2", does_not_raise()),
+        ("--build-arg KEY=abc_ABC", does_not_raise()),
+        (
+            "--build-arg",
+            pytest.raises(
+                ValueError,
+                match="Invalid '--build-arg' usage. It must be followed by a non-flag argument.",
+            ),
+        ),
+        (
+            "--build-arg KEY=VALUE invalid_argument",
+            pytest.raises(
+                ValueError,
+                match="Invalid arguments format: 'invalid_argument'."
+                " Please make sure all arguments are in a valid format",
+            ),
+        ),
+        (
+            "a5 --build-arg --tls --build-arg a=7 c",
+            pytest.raises(
+                ValueError,
+                match="Invalid argument sequence. Value must be followed by a flag preceding it.",
+            ),
+        ),
+        (
+            "--build-arg a=3 b=4 --tls --build-arg a=7 c d",
+            pytest.raises(
+                ValueError,
+                match="Invalid arguments format: 'c,d'. Please make sure all arguments are in a valid format",
+            ),
+        ),
+    ],
+)
+def test_validate_extra_args(extra_args, expected):
+    with expected:
+        mlrun.api.utils.builder._validate_extra_args(extra_args)
+
+
+@pytest.mark.parametrize(
+    "args, extra_args, expected_result",
+    [
+        # Test cases with different input arguments and expected results
+        (
+            ["--arg1", "--arg2", "value2"],
+            "--build-arg KEY1=VALUE1 --build-arg KEY2=VALUE2",
+            [
+                "--arg1",
+                "--arg2",
+                "value2",
+                "--build-arg",
+                "KEY1_ARG=VALUE1",
+                "--build-arg",
+                "KEY2_ARG=VALUE2",
+            ],
+        ),
+        (
+            ["--arg1", "--arg2", "value2"],
+            "--build-arg KEY1=VALUE1 --arg1 new_value1 --build-arg KEY2=new_value2",
+            [
+                "--arg1",
+                "--arg2",
+                "value2",
+                "--build-arg",
+                "KEY1_ARG=VALUE1",
+                "--build-arg",
+                "KEY2_ARG=new_value2",
+            ],
+        ),
+        (
+            ["--arg1", "value1"],
+            "--build-arg KEY1=VALUE1 --build-arg KEY2=VALUE2",
+            [
+                "--arg1",
+                "value1",
+                "--build-arg",
+                "KEY1_ARG=VALUE1",
+                "--build-arg",
+                "KEY2_ARG=VALUE2",
+            ],
+        ),
+        (
+            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
+            "--build-arg KEY2=VALUE2",
+            [
+                "--arg1",
+                "--build-arg",
+                "KEY1_ARG=VALUE1",
+                "--build-arg",
+                "KEY2_ARG=VALUE2",
+            ],
+        ),
+        (
+            [],
+            "--build-arg KEY1=VALUE1",
+            ["--build-arg", "KEY1_ARG=VALUE1"],
+        ),
+        (
+            ["--arg1"],
+            "--build-arg KEY1=VALUE1",
+            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
+        ),
+        (
+            [],
+            "",
+            [],
+        ),
+    ],
+)
+def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_result):
+    assert (
+        mlrun.api.utils.builder._validate_and_merge_args_with_extra_args(
+            args, extra_args
+        )
+        == expected_result
+    )
+
+
+@pytest.mark.parametrize(
+    "extra_args, expected_result",
+    [
+        # Test cases with valid --build-arg values
+        ("--build-arg KEY=VALUE --skip-tls-verify", {"KEY": "VALUE"}),
+        (
+            "--build-arg KEY=VALUE --build-arg ANOTHER=123 --context context",
+            {"KEY": "VALUE", "ANOTHER": "123"},
+        ),
+        ("--build-arg name=Name30", {"name": "Name30"}),
+        (
+            "--build-arg _var=value1 --build-arg var2=val2",
+            {"_var": "value1", "var2": "val2"},
+        ),
+        # Test cases with invalid --build-arg values
+        (
+            "--build-arg KEY",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY"),
+        ),
+        (
+            "--build-arg =VALUE",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: =VALUE"),
+        ),
+        (
+            "--build-arg 123=456",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: 123=456"),
+        ),
+        (
+            "--build-arg KEY==VALUE",
+            pytest.raises(ValueError, match=r"Invalid --build-arg value: KEY==VALUE"),
+        ),
+        (
+            "--build-arg KEY=name=Name",
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: KEY=name=Name"
+            ),
+        ),
+        (
+            "--build-arg VALID=valid --build-arg invalid=inv=alid",
+            pytest.raises(
+                ValueError, match=r"Invalid --build-arg value: invalid=inv=alid"
+            ),
+        ),
+    ],
+)
+def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
+    if isinstance(expected_result, dict):
+        assert (
+            mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+            == expected_result
+        )
+    else:
+        with expected_result:
+            mlrun.api.utils.builder._parse_extra_args_for_dockerfile(extra_args)
+
+
+@pytest.mark.parametrize(
+    "builder_env,source,extra_args",
+    [
+        (
+            [client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy")],
+            None,
+            "--build-arg A=b C=d --test",
+        ),
+        (
+            [
+                client.V1EnvVar(name="GIT_TOKEN", value="blakjhuy"),
+                client.V1EnvVar(name="TETS", value="test"),
+            ],
+            None,
+            "--build-arg A=b C=d --test --build-arg X=y",
+        ),
+    ],
+)
+def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
+    dock = mlrun.api.utils.builder.make_dockerfile(
+        base_image="mlrun/mlrun",
+        builder_env=builder_env,
+        source=source,
+        commands=None,
+        extra_args=extra_args,
+    )
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
+        return_value=[],
+    ):
+        kpod = mlrun.api.utils.builder.make_kaniko_pod(
+            project="test",
+            context="/context",
+            dest="docker-hub/",
+            dockerfile="./Dockerfile",
+            builder_env=builder_env,
+            extra_args=extra_args,
+        )
+
+    kpod_args = kpod.args
+    kpod_build_args = [
+        kpod_args[i + 1]
+        for i in range(len(kpod.args) - 1)
+        if kpod_args[i] == "--build-arg"
+    ]
+
+    dock_arg_lines = [line for line in dock.splitlines() if line.startswith("ARG")]
+    dock_env_lines = [line for line in dock.splitlines() if line.startswith("ENV")]
+    for arg in kpod_build_args:
+        arg_key, arg_val = arg.split("=")
+        assert f"ARG {arg_key}" in dock_arg_lines
+        assert f"ENV {arg_key.replace('_ARG', '')}=${arg_key}" in dock_env_lines

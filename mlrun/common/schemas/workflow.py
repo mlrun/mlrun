@@ -30,7 +30,6 @@ class WorkflowSpec(pydantic.BaseModel):
     args_schema: typing.Optional[list] = None
     schedule: typing.Union[str, ScheduleCronTrigger] = None
     run_local: typing.Optional[bool] = None
-    override: typing.Optional[bool] = None
     image: typing.Optional[str] = None
 
 

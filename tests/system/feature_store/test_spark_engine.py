@@ -1809,6 +1809,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
+            how="right",
         )
 
         col_1 = ["name_employees", "name_departments"]
@@ -1901,18 +1902,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
-            relations={
-                "department_id": departments_set_entity,
-                "class_id": classes_set_entity,
-            },
         )
         self.set_targets(mini_employees_set, also_in_remote=True)
         fstore.ingest(mini_employees_set, employees_with_class)
 
+        extra_relations = {
+            "mini-employees": {
+                "department_id": departments_set_entity,
+                "class_id": "c_id",
+            }
+        }
+
         features = ["employees.name"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1941,7 +1948,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1966,7 +1976,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector(
-            "man-vec", features, description="Employees feature vector"
+            "man-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1987,7 +2000,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
-            "mini-emp-vec", features, description="Employees feature vector"
+            "mini-emp-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -2011,9 +2027,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "mini-employees.name as mini_name",
             "classes.name as name_cls",
         ]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees")
+            .inner(departments_set)
+            .inner("mini-employees")
+            .right("classes")
+        )
 
         vector = fstore.FeatureVector(
-            "four-vec", features, description="Employees feature vector"
+            "four-vec",
+            features,
+            join_graph=join_graph,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -2032,7 +2058,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [False, True])
-    def test_relation_asof_join(self, with_indexes):
+    @pytest.mark.parametrize("with_graph", [False, True])
+    def test_relation_asof_join(self, with_indexes, with_graph):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
@@ -2094,9 +2121,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(employees_set, employees_with_department)
 
         features = ["employees.name as n", "departments.name as n2"]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees").left(
+                "departments", asof_join=True
+            )
+            if with_graph
+            else None
+        )
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            join_graph=join_graph,
         )
         vector.save()
         target = ParquetTarget(

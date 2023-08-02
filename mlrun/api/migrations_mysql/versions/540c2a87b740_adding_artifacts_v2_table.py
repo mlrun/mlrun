@@ -14,19 +14,20 @@
 #
 """adding artifacts_v2 table
 
-Revision ID: da4aa88f7e1c
-Revises: 4acd9430b093
-Create Date: 2023-06-27 17:55:19.401051
+Revision ID: 540c2a87b740
+Revises: b1d1e7ab5dec
+Create Date: 2023-08-02 14:49:02.538629
 
 """
 import sqlalchemy as sa
+import sqlalchemy.dialects.mysql
 from alembic import op
 
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
-revision = "da4aa88f7e1c"
-down_revision = "4acd9430b093"
+revision = "540c2a87b740"
+down_revision = "b1d1e7ab5dec"
 branch_labels = None
 depends_on = None
 
@@ -36,16 +37,37 @@ def upgrade():
     op.create_table(
         "artifacts_v2",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("uid", sa.String(length=255), nullable=True),
-        sa.Column("project", sa.String(length=255), nullable=True),
-        sa.Column("key", sa.String(length=255), nullable=True),
-        sa.Column("kind", sa.String(length=255), nullable=True),
-        sa.Column("producer_id", sa.String(length=255), nullable=True),
+        sa.Column(
+            "uid",
+            sa.String(length=255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
+        sa.Column(
+            "project",
+            sa.String(length=255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
+        sa.Column(
+            "key",
+            sa.String(length=255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
+        sa.Column(
+            "kind",
+            sa.String(length=255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+            index=True,
+        ),
+        sa.Column(
+            "producer_id",
+            sa.String(length=255, collation=SQLCollationUtil.collation()),
+            nullable=True,
+        ),
         sa.Column("iteration", sa.Integer(), nullable=True),
-        sa.Column("best_iteration", sa.BOOLEAN(), nullable=True),
-        sa.Column("object", sa.BLOB(), nullable=True),
-        sa.Column("created", sa.TIMESTAMP(), nullable=True),
-        sa.Column("updated", sa.TIMESTAMP(), nullable=True),
+        sa.Column("best_iteration", sa.BOOLEAN(), nullable=True, index=True),
+        sa.Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
+        sa.Column("created", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
+        sa.Column("updated", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
     )

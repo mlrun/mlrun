@@ -46,6 +46,7 @@ from .packagers_testers.python_standard_library_packagers_testers import (
     FrozensetPackagerTester,
     IntPackagerTester,
     ListPackagerTester,
+    NonePackagerTester,
     PathPackagerTester,
     SetPackagerTester,
     StrPackagerTester,
@@ -55,6 +56,7 @@ from .packagers_testers.python_standard_library_packagers_testers import (
 # All the testers to be included in the tests:
 _PACKAGERS_TESTERS = [
     DefaultPackagerTester,
+    NonePackagerTester,
     BoolPackagerTester,
     BytearrayPackagerTester,
     BytesPackagerTester,

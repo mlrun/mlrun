@@ -447,7 +447,7 @@ class SQLRunDB(RunDBInterface):
         try:
             return func(*args, **kwargs)
         except DBError as exc:
-            raise mlrun.db.RunDBError(exc.args)
+            raise mlrun.db.RunDBError(exc.args) from exc
 
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
@@ -681,6 +681,50 @@ class SQLRunDB(RunDBInterface):
             uid,
         )
 
+    def store_run_notifications(
+        self,
+        notification_objects: List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        return self._transform_db_error(
+            mlrun.api.crud.Notifications().store_run_notifications,
+            self.session,
+            notification_objects,
+            run_uid,
+            project,
+            mask_params,
+        )
+
+    def function_status(self, project, name, kind, selector):
+        """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
+
+        :param project:     The project of the function, not needed here.
+        :param name:        The name of the function, not needed here.
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().get_function_status,
+            kind,
+            selector,
+        )
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        """Execute a function remotely, Used for ``dask`` functions.
+
+        :param func_url: URL to the function to be executed.
+        :param function: The function object to start.
+        :returns: A BackgroundTask object, with details on execution process and its status.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().start_function,
+            function,
+        )
+
     def list_pipelines(
         self,
         project: str,
@@ -806,7 +850,12 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         raise NotImplementedError()
 
     def get_hub_source(self, source_name: str):
@@ -841,6 +890,27 @@ class SQLRunDB(RunDBInterface):
         # on server side authorization is done in endpoint anyway, so for server side we can "pass" on check
         # done from ingest()
         pass
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        raise NotImplementedError("Watching logs is not supported on the server")
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        raise NotImplementedError()
+
+    def delete_datastore_profile(self, name: str, project: str):
+        raise NotImplementedError()
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        raise NotImplementedError()
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        raise NotImplementedError()
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

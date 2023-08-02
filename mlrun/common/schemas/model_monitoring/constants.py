@@ -15,6 +15,7 @@
 import enum
 import hashlib
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import mlrun.common.helpers
@@ -49,6 +50,7 @@ class EventFieldType:
     ENTITIES = "entities"
     FIRST_REQUEST = "first_request"
     LAST_REQUEST = "last_request"
+    METRIC = "metric"
     METRICS = "metrics"
     TIME_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
     BATCH_INTERVALS_DICT = "batch_intervals_dict"
@@ -71,6 +73,7 @@ class EventFieldType:
     MONITOR_CONFIGURATION = "monitor_configuration"
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
+    VALUE = "value"
 
 
 class EventLiveStats:
@@ -129,6 +132,15 @@ class EndpointType(enum.IntEnum):
     LEAF_EP = 3  # end point that is a child of a router
 
 
+class PrometheusMetric:
+    PREDICTIONS_TOTAL = "predictions_total"
+    MODEL_LATENCY_SECONDS = "model_latency_seconds"
+    INCOME_FEATURES = "income_features"
+    ERRORS_TOTAL = "errors_total"
+    DRIFT_METRICS = "drift_metrics"
+    DRIFT_STATUS = "drift_status"
+
+
 @dataclass
 class FunctionURI:
     project: str
@@ -184,3 +196,13 @@ class EndpointUID:
 
     def __str__(self):
         return self.uid
+
+
+class DriftStatus(Enum):
+    """
+    Enum for the drift status values.
+    """
+
+    NO_DRIFT = "NO_DRIFT"
+    DRIFT_DETECTED = "DRIFT_DETECTED"
+    POSSIBLE_DRIFT = "POSSIBLE_DRIFT"

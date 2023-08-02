@@ -137,6 +137,8 @@ class ModelObj:
 
 # model class for building ModelObj dictionaries
 class ObjectDict:
+    kind = "object_dict"
+
     def __init__(self, classes_map, default_kind=""):
         self._children = OrderedDict()
         self._default_kind = default_kind
@@ -354,6 +356,8 @@ class ImageBuilder(ModelObj):
         with_mlrun=None,
         auto_build=None,
         requirements: list = None,
+        extra_args=None,
+        builder_env=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -365,6 +369,8 @@ class ImageBuilder(ModelObj):
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands
         self.extra = extra  #: extra
+        self.extra_args = extra_args  #: extra args
+        self.builder_env = builder_env  #: builder env
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
@@ -406,6 +412,8 @@ class ImageBuilder(ModelObj):
         requirements=None,
         requirements_file=None,
         overwrite=False,
+        extra_args=None,
+        builder_env=None,
     ):
         if image:
             self.image = image
@@ -427,6 +435,10 @@ class ImageBuilder(ModelObj):
             self.with_mlrun = with_mlrun
         if auto_build:
             self.auto_build = auto_build
+        if extra_args:
+            self.extra_args = extra_args
+        if builder_env:
+            self.builder_env = builder_env
 
     def with_commands(
         self,
@@ -1309,25 +1321,17 @@ class RunObject(RunTemplate):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
+
         if not db:
-            print("DB is not configured, cannot show logs")
+            logger.warning("DB is not configured, cannot show logs")
             return None
 
-        new_offset = 0
-        if db.kind == "http":
-            state, new_offset = db.watch_log(
-                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
-            )
-        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
-        else:
-            state, text = db.get_log(
-                self.metadata.uid, self.metadata.project, offset=offset
-            )
-            if text:
-                print(text.decode())
-
+        state, new_offset = db.watch_log(
+            self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+        )
         if state:
-            print(f"final state: {state}")
+            logger.debug("Run reached terminal state", state=state)
+
         return state, new_offset
 
     def wait_for_completion(

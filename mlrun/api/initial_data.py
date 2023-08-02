@@ -20,7 +20,6 @@ import pathlib
 import typing
 
 import dateutil.parser
-import pydantic.error_wrappers
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -239,7 +238,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_3_data_migrations(db, db_session)
             if current_data_version < 4:
                 _perform_version_4_data_migrations(db, db_session)
-
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -549,7 +547,70 @@ def _rename_marketplace_kind_to_hub(
 def _perform_version_4_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
+    _update_default_hub_source(db, db_session)
     _migrate_artifacts_table_v2(db, db_session)
+
+
+def _add_default_hub_source_if_needed(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    hub_source = (
+        db_session.query(mlrun.api.db.sqldb.models.HubSource)
+        .filter(
+            mlrun.api.db.sqldb.models.HubSource.index
+            == mlrun.common.schemas.hub.last_source_index
+        )
+        .one_or_none()
+    )
+
+    if not hub_source:
+        _update_default_hub_source(db, db_session)
+
+
+def _update_default_hub_source(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
+    """
+    Updates default hub source in db.
+    """
+    hub_source = mlrun.common.schemas.HubSource.generate_default_source()
+    # hub_source will be None if the configuration has hub.default_source.create=False
+    if hub_source:
+        _delete_default_hub_source(db_session)
+        logger.info("Adding default hub source")
+        # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
+        hub_record = db._transform_hub_source_schema_to_record(
+            mlrun.common.schemas.IndexedHubSource(
+                index=mlrun.common.schemas.hub.last_source_index,
+                source=hub_source,
+            )
+        )
+        db_session.add(hub_record)
+        db_session.commit()
+    else:
+        logger.info("Not adding default hub source, per configuration")
+
+
+def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
+    """
+    Delete default hub source directly from db
+    """
+    # Not using db.delete_hub_source() since it doesn't allow deleting the default hub source.
+    default_record = (
+        db_session.query(mlrun.api.db.sqldb.models.HubSource)
+        .filter(
+            mlrun.api.db.sqldb.models.HubSource.index
+            == mlrun.common.schemas.last_source_index
+        )
+        .one_or_none()
+    )
+    if default_record:
+        logger.info(f"Deleting default hub source {default_record.name}")
+        db_session.delete(default_record)
+        db_session.commit()
+    else:
+        logger.info("Default hub source not found")
 
 
 def _migrate_artifacts_table_v2(
@@ -583,8 +644,7 @@ def _migrate_artifacts_table_v2(
             db, db_session, last_migrated_artifact_id, batch_size
         )
         if batch_link_artifact_ids:
-            link_artifact_ids.extend(batch_link_artifact_ids)
-            link_artifact_ids = list(set(link_artifact_ids))
+            link_artifact_ids.update(batch_link_artifact_ids)
 
         if last_migrated_artifact_id is None:
             # we're done
@@ -677,7 +737,9 @@ def _migrate_artifacts_batch(
         if iteration is not None:
             new_artifact.iteration = int(iteration)
 
-        # best iteration - if iteration == 0 it means it is from a single run - we can set is as best iteration
+        # best iteration
+        # if iteration == 0 it means it is from a single run since link artifacts were already
+        # handled above - so we can set is as best iteration.
         # otherwise set to false, the best iteration artifact will be updated later
         if iteration is not None and iteration == 0:
             new_artifact.best_iteration = True
@@ -798,9 +860,11 @@ def _mark_best_iteration_artifacts(
             )
 
         # get the artifacts attached to the link artifact
-        link_artifact_key = link_artifact_dict.get("key", None)
+        # if the link key was set explicitly, we should use it to find the artifacts, otherwise use the artifact's key
+        link_artifact_key = link_artifact_dict.get("spec").get(
+            "link_key", None
+        ) or link_artifact_dict.get("key", None)
         link_iteration = link_artifact_dict.get("spec").get("link_iteration", None)
-        link_key = link_artifact_dict.get("spec").get("link_key", None)
         link_tree = link_artifact_dict.get("spec").get("link_tree", None)
 
         if not link_iteration:
@@ -809,13 +873,10 @@ def _mark_best_iteration_artifacts(
                 link_artifact_key=link_artifact_key,
                 link_artifact_id=link_artifact.id,
             )
-
-        # if the link key was set explicitly, we should use it to find the artifacts
-        if link_key:
-            link_artifact_key = link_key
+            continue
 
         # get the artifacts attached to the link artifact
-        query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact).filter(
+        query = db._query(db_session, mlrun.api.db.sqldb.models.ArtifactV2).filter(
             mlrun.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
             mlrun.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
         )
@@ -832,55 +893,12 @@ def _mark_best_iteration_artifacts(
                 link_iteration=link_iteration,
                 link_artifact_id=link_artifact.id,
             )
+            continue
 
         artifact.best_iteration = True
         artifacts_to_commit.append(artifact)
 
     db._commit(db_session, artifacts_to_commit)
-
-
-def _add_default_hub_source_if_needed(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    try:
-        hub_marketplace_source = db.get_hub_source(
-            db_session, config.hub.default_source.name
-        )
-    except mlrun.errors.MLRunNotFoundError:
-        hub_marketplace_source = None
-    except pydantic.error_wrappers.ValidationError as exc:
-
-        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
-        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
-        # that a default hub source exists
-        if all(
-            [
-                "validation error for HubSource" in str(exc),
-                "value is not a valid enumeration member" in str(exc),
-            ]
-        ):
-            logger.info("Found existing default hub source, data migration needed")
-            hub_marketplace_source = True
-        else:
-            raise exc
-
-    if not hub_marketplace_source:
-        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
-        # hub_source will be None if the configuration has hub.default_source.create=False
-        if hub_source:
-            logger.info("Adding default hub source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
-            hub_record = db._transform_hub_source_schema_to_record(
-                mlrun.common.schemas.IndexedHubSource(
-                    index=mlrun.common.schemas.hub.last_source_index,
-                    source=hub_source,
-                )
-            )
-            db_session.add(hub_record)
-            db_session.commit()
-        else:
-            logger.info("Not adding default hub source, per configuration")
-    return
 
 
 def _add_data_version(
@@ -955,12 +973,14 @@ def _get_migration_state():
             config.artifacts.artifact_migration_state_file_path, "r"
         ) as state_file:
             state = json.load(state_file)
-            return state.get("last_migrated_id", 0), state.get("link_artifact_ids", [])
+            return state.get("last_migrated_id", 0), set(
+                state.get("link_artifact_ids", [])
+            )
     except FileNotFoundError:
-        return 0, []
+        return 0, set()
 
 
-def _update_state_file(last_migrated_id: int, link_artifact_ids: list):
+def _update_state_file(last_migrated_id: int, link_artifact_ids: set):
     """Create or update the state file with the given batch index.
 
     :param last_migrated_id: The id of the last migrated artifact.
@@ -972,7 +992,7 @@ def _update_state_file(last_migrated_id: int, link_artifact_ids: list):
     with open(state_file_path, "w") as state_file:
         state = {
             "last_migrated_id": last_migrated_id,
-            "link_artifact_ids": link_artifact_ids,
+            "link_artifact_ids": list(link_artifact_ids),
         }
         json.dump(state, state_file)
 

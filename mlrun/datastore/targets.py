@@ -36,6 +36,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
+from .datastore_profile import datastore_profile_read
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -1171,20 +1172,24 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        parsed_endpoint = urlparse(endpoint)
-        if parsed_endpoint.username or parsed_endpoint.password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Provide Redis username and password only via secrets"
-            )
-        user = self._get_credential("REDIS_USER", "")
-        password = self._get_credential("REDIS_PASSWORD", "")
-        host = parsed_endpoint.hostname
-        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
-        scheme = parsed_endpoint.scheme
-        if user or password:
-            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+        if endpoint.startswith("ds"):
+            datastore_profile = datastore_profile_read(endpoint)
+            endpoint = datastore_profile.url_with_credentials()
         else:
-            endpoint = f"{scheme}://{host}:{port}"
+            parsed_endpoint = urlparse(endpoint)
+            if parsed_endpoint.username or parsed_endpoint.password:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Provide Redis username and password only via secrets"
+                )
+            user = self._get_credential("REDIS_USER", "")
+            password = self._get_credential("REDIS_PASSWORD", "")
+            host = parsed_endpoint.hostname
+            port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+            scheme = parsed_endpoint.scheme
+            if user or password:
+                endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+            else:
+                endpoint = f"{scheme}://{host}:{port}"
         return endpoint, uri
 
     def get_table_object(self):

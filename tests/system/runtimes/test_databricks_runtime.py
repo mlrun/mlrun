@@ -21,7 +21,7 @@ import yaml
 import mlrun
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
-from tests.datastore.dbfs_utils import is_dbfs_configured
+from tests.datastore.databricks_utils import is_dbfs_configured
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "assets" / "test_databricks_runtime.yml"

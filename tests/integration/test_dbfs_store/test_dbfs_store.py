@@ -26,7 +26,7 @@ from databricks.sdk import WorkspaceClient
 import mlrun
 import mlrun.errors
 
-from tests.datastore.dbfs_utils import MLRUN_ROOT_DIR, is_dbfs_configured, setup_dbfs_dirs, teardown_dbfs_dirs
+from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, is_dbfs_configured, setup_dbfs_dirs, teardown_dbfs_dirs
 
 
 @pytest.mark.skipif(

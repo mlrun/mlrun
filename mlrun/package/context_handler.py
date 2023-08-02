@@ -17,6 +17,7 @@ import os
 from collections import OrderedDict
 from typing import Dict, List, Union
 
+from mlrun import mlconf
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
@@ -24,7 +25,7 @@ from mlrun.run import get_or_create_ctx
 
 from .errors import MLRunPackageCollectionError, MLRunPackagePackingError
 from .packagers_manager import PackagersManager
-from .utils import ArtifactType, LogHintKey, LogHintUtils, TypeHintUtils
+from .utils import LogHintUtils, TypeHintUtils
 
 
 class ContextHandler:
@@ -187,61 +188,44 @@ class ContextHandler:
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
         be ignored to not fail a run. A warning with the error wil be printed.
 
+        Only the logging worker will pack and log the outputs.
+
         :param outputs:   List of outputs to log.
         :param log_hints: List of log hints (logging configurations) to use.
         """
-        # Verify the outputs and log hints are the same length:
-        if len(outputs) != len(log_hints):
-            self._context.logger.warn(
-                f"The amount of outputs objects returned from the function ({len(outputs)}) does not match the amount "
-                f"of provided log hints ({len(log_hints)})."
+        # Pack and log only from the logging worker (in case of multi-workers job like OpenMPI):
+        if self._is_logging_worker():
+            # Verify the outputs and log hints are the same length:
+            self._validate_objects_to_log_hints_length(
+                outputs=outputs, log_hints=log_hints
             )
-            if len(outputs) > len(log_hints):
-                ignored_outputs = [str(output) for output in outputs[len(log_hints) :]]
-                self._context.logger.warn(
-                    f"The following outputs will not be logged: {', '.join(ignored_outputs)}"
-                )
-            if len(outputs) < len(log_hints):
-                ignored_log_hints = [
-                    str(log_hint) for log_hint in log_hints[len(outputs) :]
-                ]
-                self._context.logger.warn(
-                    f"The following log hints will be ignored: {', '.join(ignored_log_hints)}"
-                )
-
-        # Go over the outputs and pack them:
-        for obj, log_hint in zip(outputs, log_hints):
-            try:
-                # Check if needed to log (not None):
-                if log_hint is None:
-                    continue
-                # Parse the log hint:
-                log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
-                # Check if the object to log is None (None values are only logged if the artifact type is Result):
-                if (
-                    obj is None
-                    and log_hint.get(LogHintKey.ARTIFACT_TYPE, ArtifactType.RESULT)
-                    != ArtifactType.RESULT
-                ):
-                    continue
-                # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
-                # enable linking extra data of some artifacts):
-                self._packagers_manager.pack(obj=obj, log_hint=log_hint)
-            except (MLRunInvalidArgumentError, MLRunPackagePackingError) as error:
-                self._context.logger.warn(
-                    f"Skipping logging an object with the log hint '{log_hint}' due to the following error:\n{error}"
-                )
-
-        # Link packages:
-        self._packagers_manager.link_packages(
-            additional_artifacts=self._context.artifacts,
-            additional_results=self._context.results,
-        )
-
-        # Log the packed results and artifacts:
-        self._context.log_results(results=self._packagers_manager.results)
-        for artifact in self._packagers_manager.artifacts:
-            self._context.log_artifact(item=artifact)
+            # Go over the outputs and pack them:
+            for obj, log_hint in zip(outputs, log_hints):
+                try:
+                    # Check if needed to log (not None):
+                    if log_hint is None:
+                        continue
+                    # Parse the log hint:
+                    log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
+                    # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
+                    # enable linking extra data of some artifacts):
+                    self._packagers_manager.pack(obj=obj, log_hint=log_hint)
+                except (MLRunInvalidArgumentError, MLRunPackagePackingError) as error:
+                    self._context.logger.warn(
+                        f"Skipping logging an object with the log hint '{log_hint}' "
+                        f"due to the following error:\n{error}"
+                    )
+            # Link packages:
+            self._packagers_manager.link_packages(
+                additional_artifacts=self._context.artifacts,
+                additional_results=self._context.results,
+            )
+            # Log the packed results and artifacts:
+            self._context.log_results(results=self._packagers_manager.results)
+            for artifact in self._packagers_manager.artifacts:
+                self._context.log_artifact(item=artifact)
+        else:
+            self._context.logger.debug("Skipping logging - not the logging worker.")
 
         # Clear packagers outputs:
         self._packagers_manager.clear_packagers_outputs()
@@ -323,3 +307,50 @@ class ContextHandler:
                 is_mandatory=False,
                 is_custom_packagers=False,
             )
+
+    def _is_logging_worker(self):
+        """
+        Check if the current worker is the logging worker.
+
+        :return: True if the context belongs to the logging worker and False otherwise.
+        """
+        # If it's a OpenMPI job:
+        if self._context.labels.get("kind", "job") == "mpijob":
+            from mpi4py import MPI
+
+            # Get the global and compare to the logging rank (worker) set in MLRun's configuration:
+            comm = MPI.COMM_WORLD
+            return comm.Get_rank() == mlconf.package.logging_worker
+
+        # Single worker is always the logging worker:
+        return True
+
+    def _validate_objects_to_log_hints_length(
+        self,
+        outputs: list,
+        log_hints: List[Union[Dict[str, str], str, None]],
+    ):
+        """
+        Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will
+        be ignored.
+
+        :param outputs:   List of outputs to log.
+        :param log_hints: List of log hints (logging configurations) to use.
+        """
+        if len(outputs) != len(log_hints):
+            self._context.logger.warn(
+                f"The amount of outputs objects returned from the function ({len(outputs)}) does not match the amount "
+                f"of provided log hints ({len(log_hints)})."
+            )
+            if len(outputs) > len(log_hints):
+                ignored_outputs = [str(output) for output in outputs[len(log_hints) :]]
+                self._context.logger.warn(
+                    f"The following outputs will not be logged: {', '.join(ignored_outputs)}"
+                )
+            if len(outputs) < len(log_hints):
+                ignored_log_hints = [
+                    str(log_hint) for log_hint in log_hints[len(outputs) :]
+                ]
+                self._context.logger.warn(
+                    f"The following log hints will be ignored: {', '.join(ignored_log_hints)}"
+                )

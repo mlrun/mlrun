@@ -33,7 +33,7 @@ import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.projects.pipelines
-from mlrun.api.api.utils import log_and_raise, parse_reference
+from mlrun.api.api.utils import log_and_raise
 from mlrun.utils.helpers import logger
 
 router = fastapi.APIRouter()
@@ -295,13 +295,13 @@ def _update_dict(dict_1: dict, dict_2: dict):
 
 
 @router.get(
-    "/projects/{project}/workflows/{name}/references/{reference}",
+    "/projects/{project}/workflows/{name}/runs/{uid}",
     response_model=mlrun.common.schemas.GetWorkflowResponse,
 )
 async def get_workflow_id(
     project: str,
     name: str,
-    reference: str,
+    uid: str,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request
     ),
@@ -322,14 +322,13 @@ async def get_workflow_id(
 
     :param project:     name of the project
     :param name:        name of the workflow
-    :param reference:   the id of the running job that runs the workflow
+    :param uid:         the id of the running job that runs the workflow
     :param auth_info:   auth info of the request
     :param db_session:  session that manages the current dialog with the database
     :param engine:      pipeline runner, for example: "kfp"
 
     :returns: workflow id
     """
-    _, uid = parse_reference(reference)
     # Check permission READ run:
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.run,

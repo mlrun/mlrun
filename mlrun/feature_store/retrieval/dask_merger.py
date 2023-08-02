@@ -41,8 +41,9 @@ class DaskFeatureMerger(BaseMerger):
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset,
-        featureset_df,
+        featureset_name: str,
+        featureset_timestamp: str,
+        featureset_df: list,
         left_keys: list,
         right_keys: list,
     ):
@@ -53,20 +54,20 @@ class DaskFeatureMerger(BaseMerger):
             sort_partition, timestamp=entity_timestamp_column
         )
         featureset_df = featureset_df.map_partitions(
-            sort_partition, timestamp=featureset.spec.timestamp_key
+            sort_partition, timestamp=featureset_timestamp
         )
 
         merged_df = merge_asof(
             entity_df,
             featureset_df,
             left_on=entity_timestamp_column,
-            right_on=featureset.spec.timestamp_key,
+            right_on=featureset_timestamp,
             left_by=left_keys or None,
             right_by=right_keys or None,
-            suffixes=("", f"_{featureset.metadata.name}_"),
+            suffixes=("", f"_{featureset_name}_"),
         )
         for col in merged_df.columns:
-            if re.findall(f"_{featureset.metadata.name}_$", col):
+            if re.findall(f"_{featureset_name}_$", col):
                 self._append_drop_column(col)
 
         return merged_df
@@ -75,23 +76,23 @@ class DaskFeatureMerger(BaseMerger):
         self,
         entity_df,
         entity_timestamp_column: str,
-        featureset,
+        featureset_name,
+        featureset_timestamp,
         featureset_df,
         left_keys: list,
         right_keys: list,
     ):
 
-        fs_name = featureset.metadata.name
         merged_df = merge(
             entity_df,
             featureset_df,
             how=self._join_type,
             left_on=left_keys,
             right_on=right_keys,
-            suffixes=("", f"_{fs_name}_"),
+            suffixes=("", f"_{featureset_name}_"),
         )
         for col in merged_df.columns:
-            if re.findall(f"_{fs_name}_$", col):
+            if re.findall(f"_{featureset_name}_$", col):
                 self._append_drop_column(col)
         return merged_df
 
@@ -155,3 +156,9 @@ class DaskFeatureMerger(BaseMerger):
 
     def _order_by(self, order_by_active):
         self._result_df.sort_values(by=order_by_active)
+
+    def _convert_entity_rows_to_engine_df(self, entity_rows):
+        if entity_rows is not None and not hasattr(entity_rows, "dask"):
+            return dd.from_pandas(entity_rows, npartitions=len(entity_rows.columns))
+
+        return entity_rows

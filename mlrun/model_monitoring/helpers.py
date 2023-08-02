@@ -14,9 +14,10 @@
 #
 
 
+import typing
+
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
-from mlrun.config import is_running_as_api
 
 
 def get_stream_path(project: str = None):
@@ -35,31 +36,20 @@ def get_stream_path(project: str = None):
     )
 
 
-def get_connection_string(project: str = None):
-    """Get endpoint store connection string from the project secret.
-    If wasn't set, take it from the system configurations"""
+def get_connection_string(secret_provider: typing.Callable = None) -> str:
+    """Get endpoint store connection string from the project secret. If wasn't set, take it from the system
+    configurations.
 
-    if is_running_as_api():
-        # Running on API server side
-        import mlrun.api.crud.secrets
-        import mlrun.common.schemas
+    :param secret_provider: An optional secret provider to get the connection string secret.
 
-        return (
-            mlrun.api.crud.secrets.Secrets().get_project_secret(
-                project=project,
-                provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
-                allow_secrets_from_k8s=True,
-                secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
-            )
-            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    :return:                Valid SQL connection string.
+
+    """
+
+    return (
+        mlrun.get_secret_or_env(
+            key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION,
+            secret_provider=secret_provider,
         )
-    else:
-        # Running on stream server side
-        import mlrun
-
-        return (
-            mlrun.get_secret_or_env(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ENDPOINT_STORE_CONNECTION
-            )
-            or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
-        )
+        or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    )

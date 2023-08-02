@@ -31,7 +31,13 @@ from mlrun.utils import logger
 router = fastapi.APIRouter()
 
 
-@router.get("/files")
+# TODO: Remove in 1.7.0
+@router.get(
+    "/files",
+    deprecated=True,
+    description="'/files' and '/filestat' will be removed in 1.7.0, "
+    "use /projects/{project}/files instead.",
+)
 def get_files(
     schema: str = "",
     objpath: str = fastapi.Query("", alias="path"),
@@ -73,7 +79,13 @@ async def get_files_with_project_secrets(
     )
 
 
-@router.get("/filestat")
+# TODO: Remove in 1.7.0
+@router.get(
+    "/filestat",
+    deprecated=True,
+    description="'/files' and '/filestat' will be removed in 1.7.0, "
+    "use /projects/{project}/filestat instead.",
+)
 def get_filestat(
     schema: str = "",
     path: str = "",

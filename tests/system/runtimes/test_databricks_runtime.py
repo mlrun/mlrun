@@ -21,6 +21,7 @@ import yaml
 import mlrun
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
+from tests.datastore.dbfs_utils import is_dbfs_configured
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "assets" / "test_databricks_runtime.yml"
@@ -28,15 +29,8 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 
-MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
-
-
-def is_databricks_env_configured():
-    return all(var in config["env"] for var in MUST_HAVE_VARIABLES)
-
-
 @pytest.mark.skipif(
-    not is_databricks_env_configured(),
+    not is_dbfs_configured(config_file_path),
     reason="databricks parameters not configured",
 )
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

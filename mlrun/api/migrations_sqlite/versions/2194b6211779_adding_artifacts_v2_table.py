@@ -26,8 +26,8 @@ from alembic import op
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
-revision = "4ce6906ae318"
-down_revision = "28383af526f3"
+revision = "2194b6211779"
+down_revision = "6e0c9531edc7"
 branch_labels = None
 depends_on = None
 

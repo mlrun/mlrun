@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
+
 import yaml
 from databricks.sdk import WorkspaceClient
 
@@ -19,14 +21,12 @@ MUST_HAVE_VARIABLES = ["DATABRICKS_TOKEN", "DATABRICKS_HOST"]
 MLRUN_ROOT_DIR = "/mlrun_tests"
 
 
-def is_dbfs_configured(config_file_path):
+def is_dbfs_configured(config_file_path, by_env=False):
+    if by_env:
+        return all(var in os.environ.get(var) for var in MUST_HAVE_VARIABLES)
     with config_file_path.open() as fp:
         config = yaml.safe_load(fp)
-    env_params = config["env"]
-    for necessary_variable in MUST_HAVE_VARIABLES:
-        if env_params.get(necessary_variable, None) is None:
-            return False
-    return True
+    return all(var in config["env"] for var in MUST_HAVE_VARIABLES)
 
 
 def setup_dbfs_dirs(workspace: WorkspaceClient, specific_test_class_dir: str, subdirs: list):

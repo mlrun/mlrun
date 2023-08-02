@@ -56,6 +56,7 @@ def upgrade():
             "kind",
             sa.String(length=255, collation=SQLCollationUtil.collation()),
             nullable=True,
+            index=True,
         ),
         sa.Column(
             "producer_id",
@@ -63,6 +64,7 @@ def upgrade():
             nullable=True,
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
+        sa.Column("best_iteration", sa.BOOLEAN(), nullable=True, index=True),
         sa.Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
         sa.Column("created", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.Column("updated", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),

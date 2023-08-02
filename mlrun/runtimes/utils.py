@@ -29,11 +29,9 @@ import mlrun.common.schemas
 import mlrun.utils.regex
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
 from ..config import config, is_running_as_api
-from ..k8s_utils import is_running_inside_kubernetes_cluster
 from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
@@ -57,55 +55,6 @@ class _ContextStore:
 
 
 global_context = _ContextStore()
-
-
-cached_mpijob_crd_version = None
-
-
-# resolve mpijob runtime according to the mpi-operator's supported crd-version
-# if specified on mlrun config set it likewise,
-# if not specified, try resolving it according to the mpi-operator, otherwise set to default
-# since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
-# will change in any context - cache it
-def resolve_mpijob_crd_version():
-    global cached_mpijob_crd_version
-    if not cached_mpijob_crd_version:
-
-        # config override everything
-        # on client side, expecting it to get enriched from the API through the client-spec
-        mpijob_crd_version = config.mpijob_crd_version
-
-        if not mpijob_crd_version:
-            in_k8s_cluster = is_running_inside_kubernetes_cluster()
-
-            if in_k8s_cluster and is_running_as_api():
-                import mlrun.api.utils.singletons.k8s
-
-                k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
-                namespace = k8s_helper.resolve_namespace()
-
-                # try resolving according to mpi-operator that's running
-                res = k8s_helper.list_pods(
-                    namespace=namespace, selector="component=mpi-operator"
-                )
-                if len(res) > 0:
-                    mpi_operator_pod = res[0]
-                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
-                        "crd-version"
-                    )
-
-            # backoff to use default if wasn't resolved in API
-            if not mpijob_crd_version:
-                mpijob_crd_version = MPIJobCRDVersions.default()
-
-        if mpijob_crd_version not in MPIJobCRDVersions.all():
-            raise ValueError(
-                f"unsupported mpijob crd version: {mpijob_crd_version}. "
-                f"supported versions: {MPIJobCRDVersions.all()}"
-            )
-        cached_mpijob_crd_version = mpijob_crd_version
-
-    return cached_mpijob_crd_version
 
 
 def resolve_spark_operator_version():

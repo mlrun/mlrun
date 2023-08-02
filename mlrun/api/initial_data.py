@@ -20,7 +20,6 @@ import pathlib
 import typing
 
 import dateutil.parser
-import pydantic.error_wrappers
 import pymysql.err
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -234,7 +233,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 _perform_version_3_data_migrations(db, db_session)
             if current_data_version < 4:
                 _perform_version_4_data_migrations(db, db_session)
-
             db.create_data_version(db_session, str(latest_data_version))
 
 
@@ -744,48 +742,72 @@ def _migrate_artifact_tags(
     return tags
 
 
+def _perform_version_4_data_migrations(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    _update_default_hub_source(db, db_session)
+
+
 def _add_default_hub_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    try:
-        hub_marketplace_source = db.get_hub_source(
-            db_session, config.hub.default_source.name
+    hub_source = (
+        db_session.query(mlrun.api.db.sqldb.models.HubSource)
+        .filter(
+            mlrun.api.db.sqldb.models.HubSource.index
+            == mlrun.common.schemas.hub.last_source_index
         )
-    except mlrun.errors.MLRunNotFoundError:
-        hub_marketplace_source = None
-    except pydantic.error_wrappers.ValidationError as exc:
+        .one_or_none()
+    )
 
-        # following the renaming of 'marketplace' to 'hub', validation errors can occur on the old 'marketplace'.
-        # this will be handled later in the data migrations, but for now - if a validation error occurs, we assume
-        # that a default hub source exists
-        if all(
-            [
-                "validation error for HubSource" in str(exc),
-                "value is not a valid enumeration member" in str(exc),
-            ]
-        ):
-            logger.info("Found existing default hub source, data migration needed")
-            hub_marketplace_source = True
-        else:
-            raise exc
+    if not hub_source:
+        _update_default_hub_source(db, db_session)
 
-    if not hub_marketplace_source:
-        hub_source = mlrun.common.schemas.HubSource.generate_default_source()
-        # hub_source will be None if the configuration has hub.default_source.create=False
-        if hub_source:
-            logger.info("Adding default hub source")
-            # Not using db.store_marketplace_source() since it doesn't allow changing the default hub source.
-            hub_record = db._transform_hub_source_schema_to_record(
-                mlrun.common.schemas.IndexedHubSource(
-                    index=mlrun.common.schemas.hub.last_source_index,
-                    source=hub_source,
-                )
+
+def _update_default_hub_source(
+    db: mlrun.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+):
+    """
+    Updates default hub source in db.
+    """
+    hub_source = mlrun.common.schemas.HubSource.generate_default_source()
+    # hub_source will be None if the configuration has hub.default_source.create=False
+    if hub_source:
+        _delete_default_hub_source(db_session)
+        logger.info("Adding default hub source")
+        # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
+        hub_record = db._transform_hub_source_schema_to_record(
+            mlrun.common.schemas.IndexedHubSource(
+                index=mlrun.common.schemas.hub.last_source_index,
+                source=hub_source,
             )
-            db_session.add(hub_record)
-            db_session.commit()
-        else:
-            logger.info("Not adding default hub source, per configuration")
-    return
+        )
+        db_session.add(hub_record)
+        db_session.commit()
+    else:
+        logger.info("Not adding default hub source, per configuration")
+
+
+def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
+    """
+    Delete default hub source directly from db
+    """
+    # Not using db.delete_hub_source() since it doesn't allow deleting the default hub source.
+    default_record = (
+        db_session.query(mlrun.api.db.sqldb.models.HubSource)
+        .filter(
+            mlrun.api.db.sqldb.models.HubSource.index
+            == mlrun.common.schemas.last_source_index
+        )
+        .one_or_none()
+    )
+    if default_record:
+        logger.info(f"Deleting default hub source {default_record.name}")
+        db_session.delete(default_record)
+        db_session.commit()
+    else:
+        logger.info("Default hub source not found")
 
 
 def _add_data_version(

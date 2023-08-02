@@ -15,7 +15,7 @@
 import os
 import pathlib
 import tempfile
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -33,6 +33,30 @@ from .default_packager import DefaultPackager
 # ----------------------------------------------------------------------------------------------------------------------
 # builtins packagers:
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+class NonePackager(DefaultPackager):
+    """
+    `None` packager.
+    """
+
+    # TODO: From python 3.10 the `PACKABLE_OBJECT_TYPE` should be changed to `types.NoneType`
+    PACKABLE_OBJECT_TYPE = type(None)
+    DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
+
+    # TODO: `None` as pickle will be available from Python 3.10, so this method can be removed once we move to 3.10.
+    @classmethod
+    def get_supported_artifact_types(cls) -> List[str]:
+        """
+        Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
+        'object' artifact type support (None cannot be pickled, only from Python 3.10, and it should not be pickled
+        anyway as it is simply None - a result will do).
+
+        :return: A list of all the supported artifact types.
+        """
+        supported_artifacts = super().get_supported_artifact_types()
+        supported_artifacts.remove("object")
+        return supported_artifacts
 
 
 class IntPackager(DefaultPackager):

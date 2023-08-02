@@ -35,3 +35,8 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
+
+
+class DatabricksRuntimeHandler(KubeRuntimeHandler):
+    kind = "databricks"
+    class_modes = {RuntimeClassMode.run: "databricks"}

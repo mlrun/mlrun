@@ -339,10 +339,6 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
-            )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"
             )
@@ -445,6 +441,16 @@ class HTTPRunDB(RunDBInterface):
                 or config.model_endpoint_monitoring.store_type
             )
             config.packagers = server_cfg.get("packagers") or config.packagers
+            data_prefixes = server_cfg.get("feature_store_data_prefixes", {})
+            config.feature_store.data_prefixes.default = data_prefixes.get(
+                "default", config.feature_store.data_prefixes.default
+            )
+            config.feature_store.data_prefixes.nosql = data_prefixes.get(
+                "nosql", config.feature_store.data_prefixes.nosql
+            )
+            config.feature_store.data_prefixes.redisnosql = data_prefixes.get(
+                "default", config.feature_store.data_prefixes.redisnosql
+            )
 
         except Exception as exc:
             logger.warning(

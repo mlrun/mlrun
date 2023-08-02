@@ -15,7 +15,6 @@
 import os
 import time
 import warnings
-from base64 import b64decode, b64encode
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -113,6 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
+        extra_args=None,
+        builder_env=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -137,6 +138,8 @@ class KubejobRuntime(KubeResource):
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param extra_args: A string containing additional arguments in the format of command-line options,
+         e.g. extra_args="--skip-tls-verify --build-arg A=val""
         """
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
@@ -153,6 +156,8 @@ class KubejobRuntime(KubeResource):
             requirements,
             requirements_file,
             overwrite,
+            extra_args,
+            builder_env,
         )
 
         if verify_base_image or prepare_image_for_deploy:
@@ -388,56 +393,3 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         ]
 
     return pod_spec
-
-
-class DatabricksRuntime(KubejobRuntime):
-    kind = "databricks"
-    _is_remote = True
-
-    def get_internal_code(self, runobj: RunObject):
-        """
-        Return the internal function code.
-        """
-        encoded_code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
-        )
-        decoded_code = b64decode(encoded_code).decode("utf-8")
-        code = _databricks_script_code + decoded_code
-        if runobj.spec.handler:
-            code += f"\n{runobj.spec.handler}(**handler_arguments)\n"
-        code = b64encode(code.encode("utf-8")).decode("utf-8")
-        return code
-
-    def _pre_run(self, runspec: RunObject, execution):
-        internal_code = self.get_internal_code(runspec)
-        if internal_code:
-            runspec.spec.parameters["mlrun_internal_code"] = self.get_internal_code(
-                runspec
-            )
-
-            current_file = os.path.abspath(__file__)
-            current_dir = os.path.dirname(current_file)
-            databricks_runtime_wrap_path = os.path.join(
-                current_dir, "databricks_runtime_wrapper.py"
-            )
-            with open(
-                databricks_runtime_wrap_path, "r"
-            ) as databricks_runtime_wrap_file:
-                wrap_code = databricks_runtime_wrap_file.read()
-                wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
-            self.spec.build.functionSourceCode = wrap_code
-            runspec.spec.handler = "run_mlrun_databricks_job"
-        else:
-            raise ValueError("Databricks function must be provided with user code")
-
-
-_databricks_script_code = """
-
-import argparse
-import json
-parser = argparse.ArgumentParser()
-parser.add_argument('handler_arguments')
-handler_arguments = parser.parse_args().handler_arguments
-handler_arguments = json.loads(handler_arguments)
-
-"""

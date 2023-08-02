@@ -43,7 +43,6 @@ from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
-    DatabricksRuntime,
     HandlerRuntime,
     KubejobRuntime,
     LocalRuntime,
@@ -56,6 +55,7 @@ from .runtimes import (
     Spark3Runtime,
     get_runtime_class,
 )
+from .runtimes.databricks.databricks import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
@@ -935,6 +935,8 @@ def code_to_function(
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
+    build.extra_args = get_in(spec, "spec.build.extra_args")
+    build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
             r.spec.command = code_output

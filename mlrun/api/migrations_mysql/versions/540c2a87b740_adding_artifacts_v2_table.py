@@ -14,9 +14,9 @@
 #
 """adding artifacts_v2 table
 
-Revision ID: 4ce6906ae318
-Revises: 28383af526f3
-Create Date: 2023-06-27 15:40:19.146907
+Revision ID: 540c2a87b740
+Revises: b1d1e7ab5dec
+Create Date: 2023-08-02 14:49:02.538629
 
 """
 import sqlalchemy as sa

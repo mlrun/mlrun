@@ -441,16 +441,13 @@ class HTTPRunDB(RunDBInterface):
                 or config.model_endpoint_monitoring.store_type
             )
             config.packagers = server_cfg.get("packagers") or config.packagers
-            data_prefixes = server_cfg.get("feature_store_data_prefixes", {})
-            config.feature_store.data_prefixes.default = data_prefixes.get(
-                "default", config.feature_store.data_prefixes.default
-            )
-            config.feature_store.data_prefixes.nosql = data_prefixes.get(
-                "nosql", config.feature_store.data_prefixes.nosql
-            )
-            config.feature_store.data_prefixes.redisnosql = data_prefixes.get(
-                "default", config.feature_store.data_prefixes.redisnosql
-            )
+            server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
+            for prefix in ["default", "nosql", "redisnosql"]:
+                server_prefix_value = server_data_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.feature_store.data_prefixes, prefix, server_prefix_value
+                    )
 
         except Exception as exc:
             logger.warning(

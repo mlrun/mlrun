@@ -63,11 +63,13 @@ class TrackerManager:
                 context, include_status=True, store_run=False
             )
 
-        for tracker in self._trackers:
-            if tracker.is_enabled():
-                tracker.post_run(context)
-        self.clear_trackers()
-        context.commit()
+        if self._trackers:
+            for tracker in self._trackers:
+                if tracker.is_enabled():
+                    tracker.post_run(context)
+
+            context.commit()
+            self.clear_trackers()
         return context.to_dict() if is_context_dict else context
 
     @property

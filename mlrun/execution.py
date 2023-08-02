@@ -28,7 +28,7 @@ from mlrun.datastore.store_resources import get_store_resource
 from mlrun.errors import MLRunInvalidArgumentError
 
 from .artifacts import DatasetArtifact
-from .artifacts.manager import ArtifactManager, extend_artifact_path
+from .artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from .datastore import store_manager
 from .features import Feature
 from .model import HyperParamOptions
@@ -325,9 +325,12 @@ class MLClientCtx(object):
         status = attrs.get("status")
         if include_status and status:
             self._results = status.get("results", self._results)
-            self._artifacts_manager.artifacts = status.get(
+            for artifact in status.get(
                 "artifacts", self._artifacts_manager.artifact_list()
-            )
+            ):
+                key = artifact["metadata"]["key"]
+                artifact_obj = dict_to_artifact(artifact)
+                self._artifacts_manager.artifacts[key] = artifact_obj
             self._state = status.get("state", self._state)
 
         if store_run:

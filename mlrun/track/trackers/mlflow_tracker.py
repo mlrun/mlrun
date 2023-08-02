@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import os
 import pathlib
 import tempfile
@@ -91,7 +90,10 @@ class MLFlowTracker(BaseTracker):
         for key, val in run.data.params.items():
             context._parameters[key] = val
         logger.debug("Finished to log MLFlow params")
-        context.log_results({"mlflow_run_metrics": run.data.metrics})
+        self._metrics_result_key = (
+            "mlflow-run-metrics}"  # todo: define unique internal keys
+        )
+        context.log_results({self._metrics_result_key: run.data.metrics})
         context.set_label("mlflow-runid", run.info.run_id)
         context.set_label("mlflow-experiment", run.info.experiment_id)
         logger.debug("Starting to log MLFlow artifacts")

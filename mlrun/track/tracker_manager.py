@@ -53,7 +53,7 @@ class TrackerManager:
 
     def post_run(self, context: Union[MLClientCtx, dict]):
         """
-        goes over all trackers and calls there post_run function
+        goes over all trackers and calls their post_run function
         :param context: current mlrun context
         """
         is_context_dict = False

@@ -13,11 +13,10 @@
 # limitations under the License.
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from mlrun.config import config as mlconf
-
-from .base_tracker import BaseTracker
-from .tracker import Tracker
-from .tracker_manager import TrackerManager
-from .trackers import MLFlowTracker
+from mlrun.track.base_tracker import BaseTracker
+from mlrun.track.tracker import Tracker
+from mlrun.track.tracker_manager import TrackerManager
+from mlrun.track.trackers import MLFlowTracker
 
 # Add a tracker to this list for it to be added into the global tracker manager:
 _AVAILABLE_TRACKERS = [MLFlowTracker]

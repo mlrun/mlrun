@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import importlib
 import tempfile
 from random import randint, random
 
@@ -134,20 +133,13 @@ def test_is_enabled(rundb_mock, enable_tracking):
     # enable tracking in config for inspection
     mlrun.mlconf.external_platform_tracking.enabled = enable_tracking
     # see if mlflow is in scope
-    try:
-        importlib.import_module("mlflow")
-        relevant = True
-    except Exception:
-        relevant = False
     mlflow_tracker = MLFlowTracker()
     # check all the stuff we check in is_enabled
     enabled = (
         mlflow_tracker._tracked_platform is not None
         and getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).mode
         == "enabled"
-        and relevant
     )
-
     assert mlflow_tracker.is_enabled() == enabled
 
 
@@ -198,7 +190,7 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
     for metric in run_to_comp.data.metrics:
         assert (
             run_to_comp.data.metrics[metric]
-            == run.status.results["mlflow_run_metrics"][metric]
+            == run.status.results["mlflow-run-metrics}"][metric]
         )
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds

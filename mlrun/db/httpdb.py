@@ -440,7 +440,7 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
-            config.tracking = (
+            config.external_platform_tracking = (
                 server_cfg.get("external_platform_tracking")
                 or config.external_platform_tracking
             )

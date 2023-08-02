@@ -17,8 +17,7 @@ from abc import abstractmethod
 
 import mlrun
 from mlrun.execution import MLClientCtx
-
-from .tracker import Tracker
+from mlrun.track.tracker import Tracker
 
 
 class BaseTracker(Tracker):

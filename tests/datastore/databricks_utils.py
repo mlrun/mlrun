@@ -29,13 +29,17 @@ def is_databricks_configured(config_file_path=None):
     return all(var in config["env"] for var in MUST_HAVE_VARIABLES)
 
 
-def setup_dbfs_dirs(workspace: WorkspaceClient, specific_test_class_dir: str, subdirs: list):
+def setup_dbfs_dirs(
+    workspace: WorkspaceClient, specific_test_class_dir: str, subdirs: list
+):
     all_paths = [file_info.path for file_info in workspace.dbfs.list("/")]
     if MLRUN_ROOT_DIR not in all_paths:
         workspace.dbfs.mkdirs(MLRUN_ROOT_DIR)
         return
     specific_test_class_path = f"{MLRUN_ROOT_DIR}{specific_test_class_dir}"
-    mlrun_test_dirs = [file_info.path for file_info in workspace.dbfs.list(MLRUN_ROOT_DIR)]
+    mlrun_test_dirs = [
+        file_info.path for file_info in workspace.dbfs.list(MLRUN_ROOT_DIR)
+    ]
     if specific_test_class_path in mlrun_test_dirs:
         workspace.dbfs.delete(specific_test_class_path, recursive=True)
     for test_dir in subdirs:

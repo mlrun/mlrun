@@ -25,12 +25,18 @@ from databricks.sdk import WorkspaceClient
 
 import mlrun
 import mlrun.errors
-
-from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, is_databricks_configured, setup_dbfs_dirs, teardown_dbfs_dirs
+from tests.datastore.databricks_utils import (
+    MLRUN_ROOT_DIR,
+    is_databricks_configured,
+    setup_dbfs_dirs,
+    teardown_dbfs_dirs,
+)
 
 
 @pytest.mark.skipif(
-    not is_databricks_configured(Path(__file__).absolute().parent / "test-dbfs-store.yml"),
+    not is_databricks_configured(
+        Path(__file__).absolute().parent / "test-dbfs-store.yml"
+    ),
     reason="DBFS storage parameters not configured",
 )
 class TestDBFSStore:
@@ -61,11 +67,16 @@ class TestDBFSStore:
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self):
-        setup_dbfs_dirs(workspace=self.workspace, specific_test_class_dir=self.dbfs_store_dir,
-                        subdirs=[self.parquets_dir, self.csv_dir])
+        setup_dbfs_dirs(
+            workspace=self.workspace,
+            specific_test_class_dir=self.dbfs_store_dir,
+            subdirs=[self.parquets_dir, self.csv_dir],
+        )
 
     def teardown_class(self):
-        teardown_dbfs_dirs(workspace=self.workspace, specific_test_class_dir=self.dbfs_store_dir)
+        teardown_dbfs_dirs(
+            workspace=self.workspace, specific_test_class_dir=self.dbfs_store_dir
+        )
 
     def _get_data_item(self, secrets={}):
         object_path = f"{self.dbfs_store_path}/file_{uuid.uuid4()}.txt"
@@ -126,9 +137,9 @@ class TestDBFSStore:
         "file_extension, local_file_path, reader",
         [
             (
-                    "parquet",
-                    parquet_path,
-                    pd.read_parquet,
+                "parquet",
+                parquet_path,
+                pd.read_parquet,
             ),
             ("csv", csv_path, pd.read_csv),
             ("json", json_path, pd.read_json),
@@ -136,7 +147,9 @@ class TestDBFSStore:
     )
     def test_as_df(self, file_extension: str, local_file_path: str, reader: callable):
         source = reader(local_file_path)
-        upload_file_path = f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
+        upload_file_path = (
+            f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
+        )
         upload_data_item = mlrun.run.get_dataitem(
             self._dbfs_schema + upload_file_path,
         )
@@ -148,19 +161,21 @@ class TestDBFSStore:
         "file_extension, local_file_path, reader",
         [
             (
-                    "parquet",
-                    parquet_path,
-                    dd.read_parquet,
+                "parquet",
+                parquet_path,
+                dd.read_parquet,
             ),
             ("csv", csv_path, dd.read_csv),
             ("json", json_path, dd.read_json),
         ],
     )
     def test_as_df_dd(
-            self, file_extension: str, local_file_path: str, reader: callable
+        self, file_extension: str, local_file_path: str, reader: callable
     ):
         source = reader(local_file_path)
-        upload_file_path = f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
+        upload_file_path = (
+            f"{self.dbfs_store_path}/file_{uuid.uuid4()}.{file_extension}"
+        )
         upload_data_item = mlrun.run.get_dataitem(
             self._dbfs_schema + upload_file_path,
         )
@@ -169,7 +184,7 @@ class TestDBFSStore:
         assert dd.assert_eq(source, response)
 
     def _setup_df_dir(
-            self, first_file_path, second_file_path, file_extension, directory
+        self, first_file_path, second_file_path, file_extension, directory
     ):
         uploaded_file_path = (
             f"{self.dbfs_store_path}{directory}/file_{uuid.uuid4()}.{file_extension}"
@@ -192,22 +207,22 @@ class TestDBFSStore:
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    parquets_dir,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    pd.read_parquet,
+                parquets_dir,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                pd.read_parquet,
             ),
             (csv_dir, "csv", "csv", [csv_path, additional_csv_path], pd.read_csv),
         ],
     )
     def test_check_read_df_dir(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
@@ -236,22 +251,22 @@ class TestDBFSStore:
         "directory, file_format, file_extension, files_paths, reader",
         [
             (
-                    parquets_dir,
-                    "parquet",
-                    "parquet",
-                    [parquet_path, additional_parquet_path],
-                    dd.read_parquet,
+                parquets_dir,
+                "parquet",
+                "parquet",
+                [parquet_path, additional_parquet_path],
+                dd.read_parquet,
             ),
             (csv_dir, "csv", "csv", [csv_path, additional_csv_path], dd.read_csv),
         ],
     )
     def test_check_read_df_dir_dd(
-            self,
-            directory: str,
-            file_format: str,
-            file_extension: str,
-            files_paths: List[Path],
-            reader: callable,
+        self,
+        directory: str,
+        file_format: str,
+        file_extension: str,
+        files_paths: List[Path],
+        reader: callable,
     ):
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]

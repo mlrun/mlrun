@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import sys
+import unittest.mock
 from types import FunctionType
 
 import pytest
@@ -107,3 +109,10 @@ def test_custom_packagers(
         assert False
     except RunError:
         pass
+
+
+def test_is_logging_worker(patch_mpi4py):
+    context_handler = ContextHandler()
+    context_handler._context = MLClientCtx()
+    context_handler._context.set_label("kind", "mpijob")
+    assert context_handler._is_logging_worker() is True

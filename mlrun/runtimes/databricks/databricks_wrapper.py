@@ -35,7 +35,9 @@ def run_mlrun_databricks_job(
 ):
 
     logger = context.logger
-    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=mlrun_internal_token_key))
+    workspace = WorkspaceClient(
+        token=mlrun.get_secret_or_env(key=mlrun_internal_token_key)
+    )
     mlrun_databricks_job_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
@@ -80,7 +82,8 @@ def run_mlrun_databricks_job(
         )
         logger.info(f"starting to poll: {waiter.mlrun_databricks_job_id}")
         run = waiter.result(
-            timeout=datetime.timedelta(minutes=mlrun_internal_timeout_minutes), callback=print_status
+            timeout=datetime.timedelta(minutes=mlrun_internal_timeout_minutes),
+            callback=print_status,
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].mlrun_databricks_job_id)

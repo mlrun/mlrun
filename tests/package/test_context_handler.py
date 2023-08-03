@@ -107,3 +107,10 @@ def test_custom_packagers(
         assert False
     except RunError:
         pass
+
+
+def test_is_logging_worker(patch_mpi4py):
+    context_handler = ContextHandler()
+    context_handler._context = MLClientCtx()
+    context_handler._context.set_label("kind", "mpijob")
+    assert context_handler._is_logging_worker() is True

@@ -15,8 +15,8 @@
 import inspect
 import os
 import shutil
-import tempfile
 import sys
+import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus

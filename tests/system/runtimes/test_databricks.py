@@ -88,7 +88,7 @@ def print_kwargs(**kwargs):
         run = function.run(
             handler="print_kwargs",
             project="databricks-proj",
-            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
+            params={"mlrun_internal_timeout_minutes": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"
 
@@ -108,6 +108,6 @@ def print_kwargs(**kwargs):
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
+            params={"mlrun_internal_timeout_minutes": 15, "param1": "value1", "param2": "value2"},
         )
         assert run.status.state == "completed"

@@ -28,13 +28,14 @@ import mlrun
 def run_mlrun_databricks_job(
     context,
     mlrun_internal_code,
-    token_key="DATABRICKS_TOKEN",
-    timeout_minutes=20,
+    mlrun_internal_token_key="DATABRICKS_TOKEN",
+    mlrun_internal_timeout_minutes=20,
+    mlrun_internal_number_of_workers=1,
     **kwargs,
 ):
 
     logger = context.logger
-    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
+    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=mlrun_internal_token_key))
     run_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
@@ -62,7 +63,7 @@ def run_mlrun_databricks_job(
                     long_term_support=True
                 ),
                 node_type_id=workspace.clusters.select_node_type(local_disk=True),
-                num_workers=1,
+                num_workers=mlrun_internal_number_of_workers,
             )
         waiter = workspace.jobs.submit(
             run_name=f"py-sdk-run-{run_id}",
@@ -79,7 +80,7 @@ def run_mlrun_databricks_job(
         )
         logger.info(f"starting to poll: {waiter.run_id}")
         run = waiter.result(
-            timeout=datetime.timedelta(minutes=timeout_minutes), callback=print_status
+            timeout=datetime.timedelta(minutes=mlrun_internal_timeout_minutes), callback=print_status
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)

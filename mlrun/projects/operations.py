@@ -74,6 +74,7 @@ def run_function(
     artifact_path: str = None,
     notifications: List[mlrun.model.Notification] = None,
     returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+    builder_env: Optional[list] = None,
 ) -> Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -156,6 +157,7 @@ def run_function(
                             * A dictionary of configurations to use when logging. Further info per object type and
                               artifact type can be given there. The artifact key must appear in the dictionary as
                               "key": "the_key".
+    :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
     :return: MLRun RunObject or KubeFlow containerOp
     """
     engine, function = _get_engine_and_function(function, project_object)
@@ -201,6 +203,7 @@ def run_function(
             auto_build=auto_build,
             schedule=schedule,
             notifications=notifications,
+            builder_env=builder_env,
         )
         if run_result:
             run_result._notified = False
@@ -241,26 +244,29 @@ def build_function(
     builder_env: dict = None,
     project_object=None,
     overwrite_build_params: bool = False,
+    extra_args: str = None,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
-    :param function:        name of the function (in the project) or function object
-    :param with_mlrun:      add the current mlrun package to the container build
-    :param skip_deployed:   skip the build if we already have an image for the function
-    :param image:           target image name/path
-    :param base_image:      base image name/path (commands and source code will be added to it)
-    :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
-    :param secret_name:     k8s secret for accessing the docker registry
-    :param requirements:    list of python packages, defaults to None
+    :param function:        Name of the function (in the project) or function object
+    :param with_mlrun:      Add the current mlrun package to the container build
+    :param skip_deployed:   Skip the build if we already have an image for the function
+    :param image:           Target image name/path
+    :param base_image:      Base image name/path (commands and source code will be added to it)
+    :param commands:        List of docker build (RUN) commands e.g. ['pip install pandas']
+    :param secret_name:     K8s secret for accessing the docker registry
+    :param requirements:    List of python packages, defaults to None
     :param requirements_file:    pip requirements file path, defaults to None
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param project_object:  override the project object to use, will default to the project set in the runtime context.
-    :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
-     to existing parameters
+        e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param project_object:  Override the project object to use, will default to the project set in the runtime context.
+    :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+        requirements and commands)
+        * False: The new params are merged with the existing
+        * True: The existing params are replaced by the new ones
+    :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+        e.g. extra_args="--skip-tls-verify --build-arg A=val"
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
@@ -290,6 +296,7 @@ def build_function(
             secret=secret_name,
             requirements=requirements,
             overwrite=overwrite_build_params,
+            extra_args=extra_args,
         )
         ready = function.deploy(
             watch=True,

@@ -2515,6 +2515,7 @@ class MlrunProject(ModelObj):
         artifact_path: str = None,
         notifications: typing.List[mlrun.model.Notification] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        builder_env: Optional[dict] = None,
     ) -> typing.Union[mlrun.model.RunObject, kfp.dsl.ContainerOp]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -2567,7 +2568,7 @@ class MlrunProject(ModelObj):
                                 * A dictionary of configurations to use when logging. Further info per object type and
                                   artifact type can be given there. The artifact key must appear in the dictionary as
                                   "key": "the_key".
-
+        :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :return: MLRun RunObject or KubeFlow containerOp
         """
         return run_function(
@@ -2592,6 +2593,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             notifications=notifications,
             returns=returns,
+            builder_env=builder_env,
         )
 
     def build_function(
@@ -2608,6 +2610,7 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        extra_args: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2622,9 +2625,13 @@ class MlrunProject(ModelObj):
         :param requirements_file:   pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
-                                    e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
-         add to existing parameters
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
         return build_function(
             function,
@@ -2640,6 +2647,7 @@ class MlrunProject(ModelObj):
             builder_env=builder_env,
             project_object=self,
             overwrite_build_params=overwrite_build_params,
+            extra_args=extra_args,
         )
 
     def build_config(
@@ -2653,6 +2661,8 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        builder_env: dict = None,
+        extra_args: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2665,11 +2675,14 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  overwrite existing build configuration (default False)
-
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
-           * True: the existing params are replaced by the new ones
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
@@ -2685,6 +2698,8 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite=overwrite_build_params,
+            builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         if set_as_default and image != self.default_image:
@@ -2704,6 +2719,7 @@ class MlrunProject(ModelObj):
         builder_env: dict = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        extra_args: str = None,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2720,12 +2736,13 @@ class MlrunProject(ModelObj):
         :param requirements_file:  pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  overwrite existing build configuration (default False)
-
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
-           * True: the existing params are replaced by the new ones
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
         """
 
         self.build_config(
@@ -2755,6 +2772,7 @@ class MlrunProject(ModelObj):
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         try:

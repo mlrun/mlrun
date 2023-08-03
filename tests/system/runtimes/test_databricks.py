@@ -77,7 +77,7 @@ def print_kwargs(**kwargs):
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="tomermamia855/mlrun-api:tomer-databricks-runtime",  # TODO replace it after PR
+            image="mlrun/mlrun"
             name="databricks-test",
         )
 
@@ -103,7 +103,7 @@ def print_kwargs(**kwargs):
             kind="databricks",
             project=self.project_name,
             filename=code_path,
-            image="tomermamia855/mlrun-api:tomer-databricks-runtime",
+            image="mlrun/mlrun"
         )
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)

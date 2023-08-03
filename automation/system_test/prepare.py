@@ -774,10 +774,11 @@ class SystemTestPreparer:
         try:
             self._ssh_client.exec_command("ls > /dev/null")
         except Exception as exc:
-            self._logger.log("warning", "Failed to execute command", exc=exc)
+            exc_msg = str(exc)
+            self._logger.log("warning", "Failed to execute command", exc=exc_msg)
             if any(
                 map(
-                    lambda err_msg: err_msg.lower() in str(exc).lower(),
+                    lambda err_msg: err_msg.lower() in exc_msg.lower(),
                     [
                         "No existing session",
                         "session not active",

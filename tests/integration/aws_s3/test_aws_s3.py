@@ -16,13 +16,18 @@ import os
 import random
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 
 import mlrun
 import mlrun.errors
+import mlrun.feature_store as fstore
+from mlrun.datastore.datastore_profile import DatastoreProfileS3
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
+from tests.system.base import TestMLRunSystem
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-aws-s3.yml"
@@ -49,9 +54,31 @@ def aws_s3_configured(extra_params=None):
     return True
 
 
+@TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
-class TestAwsS3:
+@pytest.mark.parametrize("use_datastore_profile", [False, True])
+@pytest.mark.enterprise
+class TestAwsS3(TestMLRunSystem):
+    def custom_setup(self):
+        pass
+
+    def _make_target_names(
+        self, prefix, bucket_name, object_dir, object_file, csv_file
+    ):
+        res = {}
+        res["bucket_path"] = prefix + bucket_name
+        res["object_path"] = object_dir + "/" + object_file
+        res["df_path"] = object_dir + "/" + csv_file
+
+        res["object_url"] = res["bucket_path"] + "/" + res["object_path"]
+        res["df_url"] = res["bucket_path"] + "/" + res["df_path"]
+        res["blob_url"] = res["object_url"] + ".blob"
+        res["parquet_url"] = res["object_url"] + ".parquet"
+
+        return res
+
     def setup_method(self, method):
+        super().setup_method(method)
         self._bucket_name = config["env"].get("bucket_name")
         self._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
         self._secret_access_key = config["env"].get("AWS_SECRET_ACCESS_KEY")
@@ -60,20 +87,31 @@ class TestAwsS3:
         object_file = f"file_{random.randint(0, 1000)}.txt"
         csv_file = f"file_{random.randint(0,1000)}.csv"
 
-        self._bucket_path = "s3://" + self._bucket_name
-        self._object_path = object_dir + "/" + object_file
-        self._df_path = object_dir + "/" + csv_file
+        self.s3 = {}
+        self.s3["s3"] = self._make_target_names(
+            "s3://", self._bucket_name, object_dir, object_file, csv_file
+        )
+        self.s3["ds"] = self._make_target_names(
+            "ds://s3ds_profile/", self._bucket_name, object_dir, object_file, csv_file
+        )
 
-        self._object_url = self._bucket_path + "/" + self._object_path
-        self._df_url = self._bucket_path + "/" + self._df_path
-        self._blob_url = self._object_url + ".blob"
+        logger.info(f'DS Object URL: {self.s3["ds"]["object_url"]}')
+        logger.info(f'S3 Object URL: {self.s3["s3"]["object_url"]}')
 
-        logger.info(f"Object URL: {self._object_url}")
+        project = mlrun.get_or_create_project("default", "./")
+        profile = DatastoreProfileS3(
+            name="s3ds_profile",
+            access_key=self._access_key_id,
+            secret_key=self._secret_access_key,
+        )
+        project.register_datastore_profile(profile)
 
-    def _perform_aws_s3_tests(self, secrets=None):
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+    def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+
+        data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
         data_item.put(test_string)
-        df_data_item = mlrun.run.get_dataitem(self._df_url, secrets=secrets)
+        df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
         df_data_item.put(test_df_string)
 
         response = data_item.get()
@@ -85,11 +123,11 @@ class TestAwsS3:
         stat = data_item.stat()
         assert stat.size == len(test_string), "Stat size different than expected"
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
-        assert self._object_path in dir_list, "File not in container dir-list"
-        assert self._df_path in dir_list, "CSV file not in container dir-list"
+        dir_list = mlrun.run.get_dataitem(param["bucket_path"]).listdir()
+        assert param["object_path"] in dir_list, "File not in container dir-list"
+        assert param["df_path"] in dir_list, "CSV file not in container dir-list"
 
-        upload_data_item = mlrun.run.get_dataitem(self._blob_url)
+        upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
@@ -100,7 +138,7 @@ class TestAwsS3:
         assert list(df) == ["col1", "col2", "col3"]
         assert df.shape == (1, 3)
 
-    def test_project_secrets_credentials(self):
+    def test_project_secrets_credentials(self, use_datastore_profile):
         # This simulates running a job in a pod with project-secrets assigned to it
         for param in credential_params:
             os.environ.pop(param, None)
@@ -108,45 +146,45 @@ class TestAwsS3:
                 "env"
             ][param]
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in credential_params:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param))
 
-    def test_using_env_variables(self):
+    def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.
         for param in credential_params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in credential_params:
             os.environ.pop(param)
 
-    def test_using_dataitem_secrets(self):
+    def test_using_dataitem_secrets(self, use_datastore_profile):
         # make sure no other auth method is configured
         for param in credential_params:
             os.environ.pop(param, None)
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         secrets = {param: config["env"][param] for param in credential_params}
-        self._perform_aws_s3_tests(secrets=secrets)
+        self._perform_aws_s3_tests(use_datastore_profile, secrets=secrets)
 
     @pytest.mark.skipif(
         not aws_s3_configured(extra_params=["MLRUN_AWS_ROLE_ARN"]),
         reason="Role ARN not configured",
     )
-    def test_using_role_arn(self):
+    def test_using_role_arn(self, use_datastore_profile):
         params = credential_params.copy()
         params.append("MLRUN_AWS_ROLE_ARN")
         for param in params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in params:
@@ -156,15 +194,27 @@ class TestAwsS3:
         not aws_s3_configured(extra_params=["AWS_PROFILE"]),
         reason="AWS profile not configured",
     )
-    def test_using_profile(self):
+    def test_using_profile(self, use_datastore_profile):
         params = credential_params.copy()
         params.append("AWS_PROFILE")
         for param in params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in params:
             os.environ.pop(param)
+
+    def test_ingest_single_parquet_file(self, use_datastore_profile):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+
+        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
+
+        targets = [ParquetTarget(path=param["parquet_url"])]
+
+        fset = fstore.FeatureSet(
+            name="overwrite-pq-spec-path", entities=[fstore.Entity("name")]
+        )
+        fstore.ingest(fset, df1, targets=targets)

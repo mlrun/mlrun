@@ -26,6 +26,7 @@ from mlrun.datastore import KafkaSource
 from mlrun.datastore.azure_blob import AzureBlobStore
 from mlrun.datastore.base import HttpStore
 from mlrun.datastore.datastore import schema_to_store
+from mlrun.datastore.datastore_profile import DatastoreProfileKafkaSource
 from mlrun.datastore.dbfs_store import DBFSStore
 from mlrun.datastore.filestore import FileStore
 from mlrun.datastore.google_cloud_storage import GoogleCloudStorageStore
@@ -89,6 +90,43 @@ def test_kafka_source_with_attributes():
         },
     )
     function = new_function(kind="remote")
+    source.add_nuclio_trigger(function)
+    attributes = function.spec.config["spec.triggers.kafka"]["attributes"]
+    assert attributes["brokers"] == ["broker_host:9092"]
+    assert attributes["topics"] == ["mytopic"]
+    assert attributes["consumerGroup"] == "mygroup"
+    assert attributes["sasl"] == {
+        "enabled": True,
+        "user": "myuser",
+        "password": "mypassword",
+        "handshake": True,
+    }
+
+
+def test_kafka_source_with_attributes_as_ds_profile():
+    from unittest.mock import Mock
+
+    ds = DatastoreProfileKafkaSource(
+        name="dskafkasrc",
+        brokers="broker_host:9092",
+        topics="mytopic",
+        group="mygroup",
+        sasl_user="myuser",
+        sasl_pass="mypassword",
+        kwargs_public={
+            "sasl": {
+                "handshake": True,
+            },
+        },
+        kwargs_private={
+            "sasl": {
+                "password": "wrong_password",
+            },
+        },
+    )
+    source = KafkaSource(path="ds://dskafkasrc")
+    function = new_function(kind="remote")
+    mlrun.datastore.sources.datastore_profile_read = Mock(return_value=ds)
     source.add_nuclio_trigger(function)
     attributes = function.spec.config["spec.triggers.kafka"]["attributes"]
     assert attributes["brokers"] == ["broker_host:9092"]

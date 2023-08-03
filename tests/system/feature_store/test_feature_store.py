@@ -41,6 +41,7 @@ import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaTarget,
     DatastoreProfileRedis,
     register_temporary_client_datastore_profile,
 )
@@ -260,9 +261,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp = fstore.get_offline_features(
             vector,
-            entity_rows=trades.set_index(
-                "ticker"
-            ),  # test when the relation keys are indexes.
+            entity_rows=trades,
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
         )
@@ -336,7 +335,6 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("with_graph", [True, False])
     def test_ingest_and_query(self, engine, entity_timestamp_column, with_graph):
-
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
 
@@ -3045,7 +3043,6 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_set_event_with_spaces_or_hyphens(self, engine):
-
         lst_1 = [
             " Private",
             " Private",
@@ -3130,8 +3127,41 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.skipif(
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
-    def test_kafka_target(self, kafka_consumer):
+    def test_kafka_target_datastore_profile(self, kafka_consumer):
+        project = mlrun.get_or_create_project(self.project_name)
+        profile = DatastoreProfileKafkaTarget(
+            name="dskafkatarget", bootstrap_servers=kafka_brokers, topic=kafka_topic
+        )
+        project.register_datastore_profile(profile)
 
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fstore.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        target = KafkaTarget(path="ds://dskafkatarget")
+        fstore.ingest(stocks_set, stocks, [target])
+
+        expected_records = [
+            b'{"ticker": "MSFT", "name": "Microsoft Corporation", "booly": true}',
+            b'{"ticker": "GOOG", "name": "Alphabet Inc", "booly": false}',
+            b'{"ticker": "AAPL", "name": "Apple Inc", "booly": true}',
+        ]
+
+        kafka_consumer.subscribe([kafka_topic])
+        for expected_record in expected_records:
+            record = next(kafka_consumer)
+            assert record.value == expected_record
+
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
+    def test_kafka_target(self, kafka_consumer):
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -3164,7 +3194,6 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_bad_kafka_options(self):
-
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],

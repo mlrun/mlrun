@@ -4035,8 +4035,8 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         query_results = self._query(session, DatastoreProfile, project=project)
         return [
-            self._transform_datastore_profile_model_to_schema(query)
-            for query in query_results
+            self._transform_datastore_profile_model_to_schema(datastore_record)
+            for datastore_record in query_results
         ]
 
     def delete_datastore_profiles(

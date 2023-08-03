@@ -32,6 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
+from .datastore_profile import datastore_profile_read
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -953,7 +954,11 @@ class KafkaSource(OnlineSource):
         )
 
     def add_nuclio_trigger(self, function):
-        extra_attributes = copy(self.attributes)
+        if self.path and self.path.startswith("ds://"):
+            datastore_profile = datastore_profile_read(self.path)
+            extra_attributes = datastore_profile.attributes()
+        else:
+            extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
         explicit_ack_mode = None
         engine = "async"

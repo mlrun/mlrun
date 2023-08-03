@@ -861,6 +861,12 @@ class StreamSource(OnlineSource):
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
         )
         res.raise_for_status([409, 204])
+
+        kwargs = {}
+        if mlrun.mlconf.is_explicit_ack() and function.spec.graph.engine == "async":
+            kwargs["explicit_ack_mode"] = "explicitOnly"
+            kwargs["workerAllocationMode"] = "static"
+
         function.add_v3io_stream_trigger(
             self.path,
             self.name,
@@ -868,6 +874,7 @@ class StreamSource(OnlineSource):
             self.attributes["seek_to"],
             self.attributes["shards"],
             extra_attributes=self.attributes.get("extra_attributes", {}),
+            **kwargs,
         )
         return function
 
@@ -936,12 +943,20 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
+        explicit_ack_mode = None
+        if mlrun.mlconf.is_explicit_ack() and function.spec.graph.engine == "async":
+            explicit_ack_mode = "explicitOnly"
+            extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                "workerAllocationMode", "static"
+            )
+
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
             topics=extra_attributes.pop("topics"),
             partitions=partitions,
             consumer_group=extra_attributes.pop("group"),
             initial_offset=extra_attributes.pop("initial_offset"),
+            explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
         )
         func = function.add_trigger("kafka", trigger)

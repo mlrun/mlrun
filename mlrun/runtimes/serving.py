@@ -474,7 +474,7 @@ class ServingRuntime(RemoteRuntime):
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
 
-                if mlrun.mlconf.is_explicit_ack():
+                if mlrun.mlconf.is_explicit_ack() and self.spec.graph.engine == "async":
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )

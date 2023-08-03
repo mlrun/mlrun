@@ -77,7 +77,7 @@ def print_kwargs(**kwargs):
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="mlrun/mlrun"
+            image="mlrun/mlrun",
             name="databricks-test",
         )
 

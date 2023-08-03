@@ -103,7 +103,7 @@ def print_kwargs(**kwargs):
             kind="databricks",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun"
+            image="mlrun/mlrun",
         )
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)

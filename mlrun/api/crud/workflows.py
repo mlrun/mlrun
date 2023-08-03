@@ -155,6 +155,8 @@ class WorkflowRunners(
                     engine=workflow_spec.engine,
                     local=workflow_spec.run_local,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                     subpath=project.spec.subpath,
                 ),
                 handler="mlrun.projects.load_and_run",
@@ -276,6 +278,8 @@ class WorkflowRunners(
                     project_name=project.metadata.name,
                     load_only=load_only,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

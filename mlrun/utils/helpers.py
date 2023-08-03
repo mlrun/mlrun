@@ -1495,10 +1495,7 @@ class DeprecationHelper(object):
 
 
 def normalize_workflow_name(name, project_name):
-    workflow_name = (
-        name.lstrip(project_name).lstrip("-") if project_name in name else name
-    )
-    return workflow_name
+    return name.removeprefix(project_name + "-")
 
 
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool

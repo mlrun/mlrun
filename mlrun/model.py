@@ -412,8 +412,8 @@ class ImageBuilder(ModelObj):
         requirements=None,
         requirements_file=None,
         overwrite=False,
-        extra_args=None,
         builder_env=None,
+        extra_args=None,
     ):
         if image:
             self.image = image
@@ -435,10 +435,10 @@ class ImageBuilder(ModelObj):
             self.with_mlrun = with_mlrun
         if auto_build:
             self.auto_build = auto_build
-        if extra_args:
-            self.extra_args = extra_args
         if builder_env:
             self.builder_env = builder_env
+        if extra_args:
+            self.extra_args = extra_args
 
     def with_commands(
         self,

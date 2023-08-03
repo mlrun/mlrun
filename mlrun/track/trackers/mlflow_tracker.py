@@ -121,32 +121,32 @@ class MLFlowTracker(BaseTracker):
     ):
 
         model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            model_zip = f"{tmp_dir}/model.zip"
-            zip_folder(model_uri, model_zip)
-            key = model_info.artifact_path
-            inputs = outputs = None
+        # with tempfile.TemporaryDirectory() as tmp_dir:
+        model_zip = "./model.zip"
+        zip_folder(model_uri, model_zip)
+        key = model_info.artifact_path
+        inputs = outputs = None
 
-            if model_info.signature is not None:
-                if model_info.signature.inputs is not None:
-                    inputs = schema_to_feature(model_info.signature.inputs)
-                if model_info.signature.outputs is not None:
-                    outputs = schema_to_feature(model_info.signature.outputs)
-            context.log_model(
-                key,
-                framework="mlflow",
-                model_file=model_zip,
-                metrics=context.results.get("mlflow_run_metrics"),
-                parameters=model_info.flavors,
-                labels={
-                    "mlflow_run_id": model_info.run_id,
-                    "mlflow_version": model_info.mlflow_version,
-                    "model_uuid": model_info.model_uuid,
-                },
-                extra_data=self._artifacts,
-                inputs=inputs,
-                outputs=outputs,
-            )
+        if model_info.signature is not None:
+            if model_info.signature.inputs is not None:
+                inputs = schema_to_feature(model_info.signature.inputs)
+            if model_info.signature.outputs is not None:
+                outputs = schema_to_feature(model_info.signature.outputs)
+        context.log_model(
+            key,
+            framework="mlflow",
+            model_file=model_zip,
+            metrics=context.results.get("mlflow_run_metrics"),
+            parameters=model_info.flavors,
+            labels={
+                "mlflow_run_id": model_info.run_id,
+                "mlflow_version": model_info.mlflow_version,
+                "model_uuid": model_info.model_uuid,
+            },
+            extra_data=self._artifacts,
+            inputs=inputs,
+            outputs=outputs,
+        )
 
     # todo add mlflow.artifact hint
     def log_artifact(self, context: MLClientCtx, local_path: str, artifact):

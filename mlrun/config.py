@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ import copy
 import json
 import os
 import typing
-import urllib.parse
 from collections.abc import Mapping
+from datetime import timedelta
 from distutils.util import strtobool
 from os.path import expanduser
 from threading import Lock
@@ -78,7 +78,6 @@ default_config = {
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
     "spark_history_server_path": "",  # spark logs directory for spark history server
     "spark_operator_version": "spark-3",  # the version of the spark operator in use
-    "builder_alpine_image": "alpine:3.13.1",  # builder alpine image (as kaniko's initContainer)
     "package_path": "mlrun",  # mlrun pip package
     "default_base_image": "mlrun/mlrun",  # default base image when doing .deploy()
     # template for project default image name. Parameter {name} will be replaced with project name
@@ -86,7 +85,6 @@ default_config = {
     "default_project": "default",  # default project name
     "default_archive": "",  # default remote archive URL (for build tar.gz)
     "mpijob_crd_version": "",  # mpijob crd version (e.g: "v1alpha1". must be in: mlrun.runtime.MPIJobCRDVersions)
-    "hub_url": "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
     "ipython_widget": True,
     "log_level": "INFO",
     # log formatter (options: human | json)
@@ -150,7 +148,7 @@ default_config = {
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600"},
+            "operations": {"migrations": "3600", "load_project": "60"},
             "runtimes": {"dask": "600"},
         },
     },
@@ -222,7 +220,7 @@ default_config = {
         "real_path": "",
         # comma delimited prefixes of paths allowed through the /files API (v3io & the real_path are always allowed).
         # These paths must be schemas (cannot be used for local files). For example "s3://mybucket,gcs://"
-        "allowed_file_paths": "s3://,gcs://,gs://,az://",
+        "allowed_file_paths": "s3://,gcs://,gs://,az://,dbfs://",
         "db_type": "sqldb",
         "max_workers": 64,
         # See mlrun.common.schemas.APIStates for options
@@ -287,6 +285,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -371,7 +370,7 @@ default_config = {
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.8.0",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.13.1",
+            "kaniko_init_container_image": "alpine:3.18",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.7.10",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
@@ -417,7 +416,8 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
-        # See mlrun.common.schemas.ModelEndpointStoreType for available options
+        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
+        # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
@@ -457,7 +457,7 @@ default_config = {
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
-        "flush_interval": 300,
+        "flush_interval": None,
     },
     "ui": {
         "projects_prefix": "projects",  # The UI link prefix for projects
@@ -469,9 +469,9 @@ default_config = {
         "default_source": {
             # Set false to avoid creating a global source (for example in a dark site)
             "create": True,
-            "name": "mlrun_global_hub",
+            "name": "default",
             "description": "MLRun global function hub",
-            "url": "https://raw.githubusercontent.com/mlrun/marketplace/master",
+            "url": "https://mlrun.github.io/marketplace",
             "object_type": "functions",
             "channel": "master",
         },
@@ -516,7 +516,11 @@ default_config = {
     "debug": {
         "expose_internal_api_endpoints": False,
     },
-    "default_workflow_runner_name": "workflow-runner-{}",
+    "workflows": {
+        "default_workflow_runner_name": "workflow-runner-{}",
+        # Default timeout seconds for retrieving workflow id after execution:
+        "timeouts": {"local": 120, "kfp": 30},
+    },
     "log_collector": {
         "address": "localhost:8282",
         # log collection mode can be one of: "sidecar", "legacy", "best-effort"
@@ -554,6 +558,23 @@ default_config = {
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
+        # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
+        # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
+        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        "logging_worker": 0,
+        # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
+        #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
+        #       log hint to average / min / max them across all the workers (default operation should be average).
+    },
+    # Events are currently (and only) used to audit changes and record access to MLRun entities (such as secrets)
+    "events": {
+        # supported modes "enabled", "disabled".
+        # "enabled" - events are emitted.
+        # "disabled" - a nop client is used (aka doing nothing).
+        "mode": "disabled",
+        "verbose": False,
+        # used for igz client when emitting events
+        "access_key": "",
     },
 }
 
@@ -644,14 +665,9 @@ class Config:
         )
 
     @staticmethod
-    def get_hub_url():
-        if not config.hub_url.endswith("function.yaml"):
-            if config.hub_url.startswith("http"):
-                return f"{config.hub_url}/{{tag}}/{{name}}/function.yaml"
-            elif config.hub_url.startswith("v3io"):
-                return f"{config.hub_url}/{{name}}/function.yaml"
-
-        return config.hub_url
+    def get_default_hub_source() -> str:
+        default_source = config.hub.default_source
+        return f"{default_source.url}/{default_source.object_type}/{default_source.channel}/"
 
     @staticmethod
     def decode_base64_config_and_load_to_object(
@@ -766,7 +782,6 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-
         # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
         #  importing mlrun.api
         if config.function.spec.security_context.enrichment_mode == "disabled":
@@ -923,36 +938,6 @@ class Config:
             # when dbpath is set we want to connect to it which will sync configuration from it to the client
             mlrun.db.get_run_db(value, force_reconnect=True)
 
-    @property
-    def iguazio_api_url(self):
-        """
-        we want to be able to run with old versions of the service who runs the API (which doesn't configure this
-        value) so we're doing best effort to try and resolve it from other configurations
-        TODO: Remove this hack when 0.6.x is old enough
-        """
-        if not self._iguazio_api_url:
-            if self.httpdb.builder.docker_registry and self.igz_version:
-                return self._extract_iguazio_api_from_docker_registry_url()
-        return self._iguazio_api_url
-
-    def _extract_iguazio_api_from_docker_registry_url(self):
-        docker_registry_url = self.httpdb.builder.docker_registry
-        # add schema otherwise parsing go wrong
-        if "://" not in docker_registry_url:
-            docker_registry_url = f"http://{docker_registry_url}"
-        parsed_registry_url = urllib.parse.urlparse(docker_registry_url)
-        registry_hostname = parsed_registry_url.hostname
-        # replace the first domain section (app service name) with dashboard
-        first_dot_index = registry_hostname.find(".")
-        if first_dot_index < 0:
-            # if not found it's not the format we know - can't resolve the api url from the registry url
-            return ""
-        return f"https://dashboard{registry_hostname[first_dot_index:]}"
-
-    @iguazio_api_url.setter
-    def iguazio_api_url(self, value):
-        self._iguazio_api_url = value
-
     def is_api_running_on_k8s(self):
         # determine if the API service is attached to K8s cluster
         # when there is a cluster the .namespace is set
@@ -1035,6 +1020,40 @@ class Config:
             ver in mlrun.mlconf.ce.mode for ver in ["lite", "full"]
         )
 
+    def get_s3_storage_options(self) -> typing.Dict[str, typing.Any]:
+        """
+        Generate storage options dictionary as required for handling S3 path in fsspec. The model monitoring stream
+        graph uses this method for generating the storage options for S3 parquet target path.
+        :return: A storage options dictionary in which each key-value pair  represents a particular configuration,
+        such as endpoint_url or aws access key.
+        """
+        key = mlrun.get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = mlrun.get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+
+        force_non_anonymous = mlrun.get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = mlrun.get_secret_or_env("AWS_PROFILE")
+
+        storage_options = dict(
+            anon=not (force_non_anonymous or (key and secret)),
+            key=key,
+            secret=secret,
+        )
+
+        endpoint_url = mlrun.get_secret_or_env("S3_ENDPOINT_URL")
+        if endpoint_url:
+            client_kwargs = {"endpoint_url": endpoint_url}
+            storage_options["client_kwargs"] = client_kwargs
+
+        if profile:
+            storage_options["profile"] = profile
+
+        return storage_options
+
+    def is_explicit_ack(self) -> bool:
+        return self.httpdb.nuclio.explicit_ack == "enabled" and (
+            not self.nuclio_version or self.nuclio_version >= "1.11.20"
+        )
+
 
 # Global configuration
 config = Config.from_dict(default_config)
@@ -1081,12 +1100,6 @@ def _do_populate(env=None, skip_errors=False):
     data = read_env(env)
     if data:
         config.update(data, skip_errors=skip_errors)
-
-    # HACK to enable config property to both have dynamic default and to use the value from dict/env like other
-    # configurations - we just need a key in the dict that is different than the property name, so simply adding prefix
-    # underscore
-    config._cfg["_iguazio_api_url"] = config._cfg["iguazio_api_url"]
-    del config._cfg["iguazio_api_url"]
 
     _validate_config(config)
 

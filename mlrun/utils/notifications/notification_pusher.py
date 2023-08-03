@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +16,12 @@ import asyncio
 import datetime
 import os
 import typing
+from concurrent.futures import ThreadPoolExecutor
 
-from fastapi.concurrency import run_in_threadpool
-
-import mlrun.api.db.base
-import mlrun.api.db.session
 import mlrun.common.schemas
 import mlrun.config
+import mlrun.db.base
+import mlrun.errors
 import mlrun.lists
 import mlrun.model
 import mlrun.utils.helpers
@@ -62,10 +61,7 @@ class NotificationPusher(object):
                 if self._should_notify(run, notification):
                     self._load_notification(run, notification)
 
-    def push(
-        self,
-        db: mlrun.api.db.base.DBInterface = None,
-    ):
+    def push(self):
         """
         Asynchronously push notifications for all runs in the initialized runs list (if they should be pushed).
         When running from a sync environment, the notifications will be pushed asynchronously however the function will
@@ -81,7 +77,6 @@ class NotificationPusher(object):
                     notification_data[0],
                     notification_data[1],
                     notification_data[2],
-                    db,
                 )
 
         async def _async_push():
@@ -92,7 +87,6 @@ class NotificationPusher(object):
                         notification_data[0],
                         notification_data[1],
                         notification_data[2],
-                        db,
                     )
                 )
 
@@ -107,16 +101,22 @@ class NotificationPusher(object):
 
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()
-        if main_event_loop.is_running():
-
-            # If running from the api or from jupyter notebook, we are already in an event loop.
-            # We add the async push function to the loop and run it.
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
-        else:
-
+        if not main_event_loop.is_running():
             # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
             # We create a new event loop and run the async push function in it.
             main_event_loop.run_until_complete(_async_push())
+        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
+            # Running in Jupyter notebook.
+            # In this case, we need to create a new thread, run a separate event loop in
+            # that thread, and use it instead of the main_event_loop.
+            # This is necessary because Jupyter Notebook has its own event loop,
+            # but it runs in the main thread. As long as a cell is running,
+            # the event loop will not execute properly
+            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
+        else:
+            # Running in mlrun api, we are in a separate thread from the one in which
+            # the main event loop, so we can just send the notifications to that loop
+            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():
@@ -193,7 +193,6 @@ class NotificationPusher(object):
         notification: NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
-        db: mlrun.api.db.base.DBInterface,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
@@ -205,8 +204,12 @@ class NotificationPusher(object):
         )
         try:
             notification.push(message, severity, runs)
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
             self._update_notification_status(
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -214,8 +217,13 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=mlrun.errors.err_to_str(exc),
+            )
             self._update_notification_status(
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -228,7 +236,6 @@ class NotificationPusher(object):
         notification: NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
-        db: mlrun.api.db.base.DBInterface,
     ):
         message, severity, runs = self._prepare_notification_args(
             run, notification_object
@@ -240,10 +247,13 @@ class NotificationPusher(object):
         )
         try:
             await notification.push(message, severity, runs)
-
-            await run_in_threadpool(
+            logger.debug(
+                "Notification sent successfully",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+            )
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -251,9 +261,14 @@ class NotificationPusher(object):
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
             )
         except Exception as exc:
-            await run_in_threadpool(
+            logger.warning(
+                "Failed to send notification",
+                notification=_sanitize_notification(notification_object),
+                run_uid=run.metadata.uid,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
-                db,
                 run.metadata.uid,
                 run.metadata.project,
                 notification_object,
@@ -263,30 +278,22 @@ class NotificationPusher(object):
 
     @staticmethod
     def _update_notification_status(
-        db: mlrun.api.db.base.DBInterface,
         run_uid: str,
         project: str,
         notification: mlrun.model.Notification,
         status: str = None,
         sent_time: typing.Optional[datetime.datetime] = None,
     ):
-
-        # nothing to update if not running as api
-        # note, the notification mechanism may run "locally" for certain runtimes
-        if not mlrun.config.is_running_as_api():
-            return
-
-        # TODO: move to api side
-        db_session = mlrun.api.db.session.create_session()
+        db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
 
-        # store directly in db, no need to use crud as the secrets are already loaded
+        # There is no need to mask the params as the secrets are already loaded
         db.store_run_notifications(
-            db_session,
             [notification],
             run_uid,
             project,
+            mask_params=False,
         )
 
 
@@ -328,16 +335,27 @@ class CustomNotificationPusher(object):
                     tasks.append(
                         notification.push(message, severity, runs, custom_html)
                     )
-
             # return exceptions to "best-effort" fire all notifications
             await asyncio.gather(*tasks, return_exceptions=True)
 
         # first push async notifications
         main_event_loop = asyncio.get_event_loop()
-        if main_event_loop.is_running():
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
-        else:
+        if not main_event_loop.is_running():
+            # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
+            # We create a new event loop and run the async push function in it.
             main_event_loop.run_until_complete(_async_push())
+        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
+            # Running in Jupyter notebook.
+            # In this case, we need to create a new thread, run a separate event loop in
+            # that thread, and use it instead of the main_event_loop.
+            # This is necessary because Jupyter Notebook has its own event loop,
+            # but it runs in the main thread. As long as a cell is running,
+            # the event loop will not execute properly
+            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
+        else:
+            # Running in mlrun api, we are in a separate thread from the one in which
+            # the main event loop, so we can just send the notifications to that loop
+            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():
@@ -352,12 +370,28 @@ class CustomNotificationPusher(object):
             self._sync_notifications[notification_type].load_notification(params)
         else:
             notification = NotificationTypes(notification_type).get_notification()(
-                params
+                params=params,
             )
             if notification.is_async:
                 self._async_notifications[notification_type] = notification
             else:
                 self._sync_notifications[notification_type] = notification
+
+    def remove_notification(self, notification_type: str):
+        if notification_type in self._async_notifications:
+            del self._async_notifications[notification_type]
+
+        elif notification_type in self._sync_notifications:
+            del self._sync_notifications[notification_type]
+
+        else:
+            logger.warning(f"No notification of type {notification_type} in project")
+
+    def edit_notification(
+        self, notification_type: str, params: typing.Dict[str, str] = None
+    ):
+        self.remove_notification(notification_type)
+        self.add_notification(notification_type, params)
 
     def should_push_notification(self, notification_type):
         notifications = {}
@@ -389,7 +423,7 @@ class CustomNotificationPusher(object):
         pipeline_id: str = None,
         has_workflow_url: bool = False,
     ):
-        message = f"Pipeline started in project {project}"
+        message = f"Workflow started in project {project}"
         if pipeline_id:
             message += f" id={pipeline_id}"
         commit_id = (
@@ -458,3 +492,26 @@ def _separate_sync_notifications(
         else:
             sync_notifications.append(notification)
     return sync_notifications, async_notifications
+
+
+def _run_coroutine_in_jupyter_notebook(coroutine_method):
+    """
+    Execute a coroutine in a Jupyter Notebook environment.
+
+    This function creates a new thread pool executor with a single thread and a new event loop.
+    It sets the created event loop as the current event loop.
+    Then, it submits the coroutine to the event loop and waits for its completion.
+
+    This approach is used in Jupyter Notebook to ensure the proper execution of the event loop in a separate thread,
+    allowing for the asynchronous push operation to be executed while the notebook is running.
+
+    :param coroutine_method: The coroutine method to be executed.
+    :return: The result of the executed coroutine.
+    """
+    thread_pool_executer = ThreadPoolExecutor(1)
+    async_event_loop = asyncio.new_event_loop()
+    thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
+    result = thread_pool_executer.submit(
+        async_event_loop.run_until_complete, coroutine_method()
+    ).result()
+    return result

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import os.path
 from copy import deepcopy
 from typing import Dict, List, Union
 
+import inflection
 from kfp import dsl
 from kubernetes import client as k8s_client
 
@@ -25,7 +26,6 @@ import mlrun
 from mlrun.errors import err_to_str
 
 from .config import config
-from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions, RunSpec
 from .utils import (
     dict_to_yaml,
@@ -296,7 +296,7 @@ def mlrun_op(
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
-    rundb = rundb or get_or_set_dburl()
+    rundb = rundb or mlrun.db.get_or_set_dburl()
     cmd = [
         "python",
         "-m",
@@ -712,6 +712,14 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
         record = {
             k: node[k] for k in ["phase", "startedAt", "finishedAt", "type", "id"]
         }
+
+        # snake case
+        # align kfp fields to mlrun snake case convention
+        # create snake_case for consistency.
+        # retain the camelCase for compatibility
+        for key in list(record.keys()):
+            record[inflection.underscore(key)] = record[key]
+
         record["parent"] = node.get("boundaryID", "")
         record["name"] = name
         record["children"] = node.get("children", [])
@@ -723,7 +731,7 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     return dag, project, workflow["status"].get("message", "")
 
 
-def format_summary_from_kfp_run(kfp_run, project=None, session=None):
+def format_summary_from_kfp_run(kfp_run, project=None):
     override_project = project if project and project != "*" else None
     dag, project, message = generate_kfp_dag_and_resolve_project(
         kfp_run, override_project
@@ -731,12 +739,7 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
     run_id = get_in(kfp_run, "run.id")
 
     # enrich DAG with mlrun run info
-    if session:
-        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
-            session, project=project, labels=f"workflow={run_id}"
-        )
-    else:
-        runs = get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
+    runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
 
     for run in runs:
         step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])
@@ -747,21 +750,9 @@ def format_summary_from_kfp_run(kfp_run, project=None, session=None):
             if error:
                 dag[step]["error"] = error
 
-    short_run = {"graph": dag}
-    short_run["run"] = {
-        k: str(v)
-        for k, v in kfp_run["run"].items()
-        if k
-        in [
-            "id",
-            "name",
-            "status",
-            "error",
-            "created_at",
-            "scheduled_at",
-            "finished_at",
-            "description",
-        ]
+    short_run = {
+        "graph": dag,
+        "run": mlrun.utils.helpers.format_run(kfp_run["run"]),
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -52,7 +53,7 @@ from mlrun.api.utils.singletons.project_member import (
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -607,14 +608,16 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     # Unmasking the run parameters from secrets before handing them over to the notification handler
     # as importing the `Secrets` crud in the notification handler will cause a circular import
     unmasked_runs = [
-        mlrun.api.api.utils.unmask_notification_params_secret_on_task(run)
+        mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+            db, db_session, run
+        )
         for run in runs
     ]
 
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
     _last_notification_push_time = now
 

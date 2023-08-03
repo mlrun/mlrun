@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
   mariadb-client \
  && rm -rf /var/lib/apt/lists/*
 
-ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PIP_VERSION=23.2.1
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 WORKDIR /mlrun

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -73,8 +73,7 @@ def test_client_spec(
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
-    for key in ["scrape_metrics", "hub_url"]:
-        assert response_body[key] is None
+    assert response_body["scrape_metrics"] is None
     assert response_body["ui_projects_prefix"] == overridden_ui_projects_prefix
     assert response_body["nuclio_version"] == nuclio_version
 

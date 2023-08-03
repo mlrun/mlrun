@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 
 import asyncio
 import builtins
+import copy
+import json
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -313,22 +315,59 @@ async def test_git_notification(monkeypatch, params, expected_url, expected_head
     git_notification = mlrun.utils.notifications.GitNotification("git", params)
     expected_body = "[info] git: test-message"
 
-    response_json_future = asyncio.Future()
-    response_json_future.set_result({"id": "response-id"})
-    response_mock = unittest.mock.MagicMock()
-    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
+    requests_mock = _mock_async_response(monkeypatch, "post", {"id": "response-id"})
 
-    request_future = asyncio.Future()
-    request_future.set_result(response_mock)
-
-    requests_mock = unittest.mock.MagicMock(return_value=request_future)
-    monkeypatch.setattr(aiohttp.ClientSession, "post", requests_mock)
     await git_notification.push("test-message", "info", [])
 
     requests_mock.assert_called_once_with(
         expected_url,
         headers=expected_headers,
         json={"body": expected_body},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("test_method", ["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def test_webhook_notification(monkeypatch, test_method):
+    requests_mock = _mock_async_response(monkeypatch, test_method.lower(), None)
+
+    test_url = "https://test-url"
+    test_headers = {"test-header": "test-value"}
+    test_override_body = {
+        "test-key": "test-value",
+    }
+    test_message = "test-message"
+    test_severity = "info"
+    test_runs_info = ["some-run"]
+    webhook_notification = mlrun.utils.notifications.WebhookNotification(
+        "webhook",
+        {
+            "url": test_url,
+            "method": test_method,
+            "headers": test_headers,
+        },
+    )
+
+    await webhook_notification.push(test_message, test_severity, test_runs_info)
+
+    requests_mock.assert_called_once_with(
+        test_url,
+        headers=test_headers,
+        json={
+            "message": test_message,
+            "severity": test_severity,
+            "runs": test_runs_info,
+        },
+    )
+
+    webhook_notification.params["override_body"] = test_override_body
+
+    await webhook_notification.push("test-message", "info", ["some-run"])
+
+    requests_mock.assert_called_with(
+        test_url,
+        headers=test_headers,
+        json=test_override_body,
     )
 
 
@@ -395,6 +434,54 @@ def test_notification_params_masking_on_run(monkeypatch):
     )
 
 
+def test_notification_params_unmasking_on_run(monkeypatch):
+
+    secret_value = {"sensitive": "sensitive-value"}
+    run = {
+        "metadata": {"uid": "test-run-uid", "project": "test-project"},
+        "spec": {
+            "notifications": [
+                {
+                    "name": "test-notification",
+                    "when": ["completed"],
+                    "params": {"secret": "secret-name"},
+                },
+            ],
+        },
+    }
+
+    def _get_valid_project_secret(*args, **kwargs):
+        return json.dumps(secret_value)
+
+    def _get_invalid_project_secret(*args, **kwargs):
+        return json.dumps(secret_value)[:5]
+
+    db_mock = unittest.mock.Mock()
+    db_session_mock = unittest.mock.Mock()
+
+    monkeypatch.setattr(
+        mlrun.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
+    )
+
+    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+        db_mock, db_session_mock, copy.deepcopy(run)
+    )
+    assert "sensitive" in unmasked_run.spec.notifications[0].params
+    assert "secret" not in unmasked_run.spec.notifications[0].params
+    assert unmasked_run.spec.notifications[0].params == secret_value
+
+    monkeypatch.setattr(
+        mlrun.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
+    )
+    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+        db_mock, db_session_mock, copy.deepcopy(run)
+    )
+    assert len(unmasked_run.spec.notifications) == 0
+    db_mock.store_run_notifications.assert_called_once()
+    args, _ = db_mock.store_run_notifications.call_args
+    assert args[1][0].status == mlrun.common.schemas.NotificationStatus.ERROR
+
+
 NOTIFICATION_VALIDATION_PARMETRIZE = [
     (
         {
@@ -432,6 +519,42 @@ NOTIFICATION_VALIDATION_PARMETRIZE = [
         },
         does_not_raise(),
     ),
+    (
+        {
+            "when": "invalid-when",
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "when": ["completed", "error"],
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "message": {"my-message": "invalid"},
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "message": "completed",
+        },
+        does_not_raise(),
+    ),
+    (
+        {
+            "condition": ["invalid-condition"],
+        },
+        pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+    ),
+    (
+        {
+            "condition": "valid-condition",
+        },
+        does_not_raise(),
+    ),
 ]
 
 
@@ -444,6 +567,24 @@ def test_notification_validation_on_object(
 ):
     with expectation:
         mlrun.model.Notification(**notification_kwargs)
+
+
+def test_notification_validation_defaults(monkeypatch):
+    notification = mlrun.model.Notification()
+    notification_fields = {
+        "kind": mlrun.common.schemas.notification.NotificationKind.slack,
+        "message": "",
+        "severity": mlrun.common.schemas.notification.NotificationSeverity.INFO,
+        "when": ["completed"],
+        "condition": "",
+        "name": "",
+    }
+
+    for field, expected_value in notification_fields.items():
+        value = getattr(notification, field)
+        assert (
+            value == expected_value
+        ), f"{field} field value is {value}, expected {expected_value}"
 
 
 @pytest.mark.parametrize(
@@ -555,3 +696,18 @@ def test_notification_name_uniqueness_validation(
             notifications=[notification1, notification2],
             local=True,
         )
+
+
+def _mock_async_response(monkeypatch, method, result):
+    response_json_future = asyncio.Future()
+    response_json_future.set_result(result)
+    response_mock = unittest.mock.MagicMock()
+    response_mock.json = unittest.mock.MagicMock(return_value=response_json_future)
+
+    request_future = asyncio.Future()
+    request_future.set_result(response_mock)
+
+    requests_mock = unittest.mock.MagicMock(return_value=request_future)
+    monkeypatch.setattr(aiohttp.ClientSession, method, requests_mock)
+
+    return requests_mock

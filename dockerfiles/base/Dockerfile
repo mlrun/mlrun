@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ RUN chmod 777 /mlrun
 ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
 
 # install miniconda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_4.12.0-Linux-x86_64.sh -O ~/installconda.sh && \
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
@@ -53,7 +53,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH /opt/conda/bin:$PATH
 
-ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PIP_VERSION=23.2.1
 RUN conda config --add channels conda-forge && \
     conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy

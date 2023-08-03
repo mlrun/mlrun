@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -273,7 +273,7 @@ class FeatureSetStatus(ModelObj):
         :param run_uri: last run used for ingestion
         """
 
-        self.state = state or "created"
+        self.state = state or mlrun.common.schemas.object.ObjectStatusState.CREATED
         self._targets: ObjectList = None
         self.targets = targets or []
         self.stats = stats or {}
@@ -418,16 +418,6 @@ class FeatureSet(ModelObj):
             fullname += ":" + self._metadata.tag
         return fullname
 
-    def _override_run_db(
-        self,
-        session,
-    ):
-        # Import here, since this method only runs in API context. If this import was global, client would need
-        # API requirements and would fail.
-        from ..api.api.utils import get_run_db_instance
-
-        self._run_db = get_run_db_instance(session)
-
     def _get_run_db(self):
         if self._run_db:
             return self._run_db
@@ -477,7 +467,7 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             self.spec.with_default_targets = True
-            targets.extend(get_default_targets())
+            targets.extend(get_default_targets(offline_only=self.spec.passthrough))
         else:
             self.spec.with_default_targets = False
 
@@ -944,8 +934,9 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                start_time=start_time,
-                end_time=end_time,
+                start_time=start_time
+                or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
+                end_time=end_time or pd.Timestamp.max,
                 time_field=time_column,
                 **kwargs,
             )

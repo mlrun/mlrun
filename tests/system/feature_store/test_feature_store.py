@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import pandas as pd
 import pyarrow
 import pyarrow.parquet as pq
 import pytest
+import pytz
 import requests
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
@@ -38,6 +39,7 @@ import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
+from mlrun.datastore.datastore_profile import DatastoreProfileRedis
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -232,12 +234,25 @@ class TestFeatureStore(TestMLRunSystem):
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
 
     def _get_offline_vector(
-        self, features, features_size, entity_timestamp_column, engine=None
+        self,
+        features,
+        features_size,
+        entity_timestamp_column,
+        engine=None,
+        join_graph=None,
     ):
-        vector = fstore.FeatureVector("myvector", features, "stock-quotes.xx")
+        vector = fstore.FeatureVector(
+            "myvector",
+            features,
+            "stock-quotes.xx",
+            join_graph=join_graph,
+            relations={"stocks": {"name": "id_y"}},  # dummy relations
+        )
         resp = fstore.get_offline_features(
             vector,
-            entity_rows=trades,
+            entity_rows=trades.set_index(
+                "ticker"
+            ),  # test when the relation keys are indexes.
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
         )
@@ -267,9 +282,14 @@ class TestFeatureStore(TestMLRunSystem):
         df = resp.to_dataframe()
         assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
-    def _get_online_features(self, features, features_size):
+    def _get_online_features(self, features, features_size, join_graph=None):
         # test real-time query
-        vector = fstore.FeatureVector("my-vec", features)
+        vector = fstore.FeatureVector(
+            "my-vec",
+            features,
+            join_graph=join_graph,
+            relations={"stocks": {"name": "id_y"}},  # dummy relations
+        )
         with fstore.get_online_feature_service(vector) as svc:
             # check non existing column
             resp = svc.get([{"bb": "AAPL"}])
@@ -304,7 +324,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("entity_timestamp_column", [None, "time"])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_ingest_and_query(self, engine, entity_timestamp_column):
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_ingest_and_query(self, engine, entity_timestamp_column, with_graph):
 
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
@@ -323,16 +344,28 @@ class TestFeatureStore(TestMLRunSystem):
             len(features) + 1 + 1
         )  # (*) returns 2 features, label adds 1 feature
 
+        join_graph = None
+        if with_graph:
+            if entity_timestamp_column:
+                join_graph = (
+                    fstore.JoinGraph()
+                    .left("stock-quotes", asof_join=True)
+                    .inner("stocks")
+                )
+            else:
+                join_graph = fstore.JoinGraph().inner("stock-quotes").inner("stocks")
+
         # test fetch
         self._get_offline_vector(
             features,
             features_size,
             engine=engine,
             entity_timestamp_column=entity_timestamp_column,
+            join_graph=join_graph,
         )
 
         self._logger.debug("Get online feature vector")
-        self._get_online_features(features, features_size)
+        self._get_online_features(features, features_size, join_graph=join_graph)
 
     def test_get_offline_features_with_or_without_indexes(self):
         # ingest test data
@@ -376,7 +409,7 @@ class TestFeatureStore(TestMLRunSystem):
         assert "ticker" not in default_df.columns
 
         # with_indexes = False, entity_timestamp_column = "time"
-        resp = fstore.get_offline_features(vector, entity_timestamp_column="time")
+        resp = fstore.get_offline_features(vector)
         df_no_time = resp.to_dataframe()
 
         tmpdir = tempfile.mkdtemp()
@@ -763,7 +796,8 @@ class TestFeatureStore(TestMLRunSystem):
             verify_ingest(data, key, targets=[TargetTypes.nosql])
             verify_ingest(data, key, targets=[TargetTypes.nosql], infer=True)
 
-    def test_filtering_parquet_by_time(self):
+    @pytest.mark.parametrize("with_tz", [False, True])
+    def test_filtering_parquet_by_time(self, with_tz):
         key = "patient_id"
         measurements = fstore.FeatureSet(
             "measurements", entities=[Entity(key)], timestamp_key="timestamp"
@@ -771,8 +805,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2020, 12, 1, 17, 33, 15),
-            end_time="2020-12-01 17:33:16",
+            start_time=datetime(
+                2020, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2020-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(
@@ -786,8 +822,10 @@ class TestFeatureStore(TestMLRunSystem):
         source = ParquetSource(
             "myparquet",
             path=os.path.relpath(str(self.assets_path / "testdata.parquet")),
-            start_time=datetime(2022, 12, 1, 17, 33, 15),
-            end_time="2022-12-01 17:33:16",
+            start_time=datetime(
+                2022, 12, 1, 17, 33, 15, tzinfo=pytz.UTC if with_tz else None
+            ),
+            end_time="2022-12-01 17:33:16" + ("+00:00" if with_tz else ""),
         )
 
         resp = fstore.ingest(
@@ -887,7 +925,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert result_columns.sort() == orig_columns.sort()
 
     @pytest.mark.parametrize("engine", ["storey", "pandas"])
-    def test_passthrough_feature_set(self, engine):
+    @pytest.mark.parametrize("with_start_time", [True, False])
+    @pytest.mark.parametrize("explicit_targets", [True, False])
+    def test_passthrough_feature_set(self, engine, with_start_time, explicit_targets):
         name = f"measurements_set_{uuid.uuid4()}"
         key = "patient_id"
         measurements_set = fstore.FeatureSet(
@@ -906,7 +946,10 @@ class TestFeatureStore(TestMLRunSystem):
         expected = source.to_dataframe().set_index("patient_id")
 
         # The file is sorted by time. 10 is just an arbitrary number.
-        start_time = expected["timestamp"][10]
+        if with_start_time:
+            start_time = expected["timestamp"][10]
+        else:
+            start_time = None
 
         if engine != "pandas":  # pandas engine does not support preview (ML-2694)
             preview_pd = fstore.preview(
@@ -917,11 +960,16 @@ class TestFeatureStore(TestMLRunSystem):
             preview_pd.set_index("patient_id", inplace=True)
             assert_frame_equal(expected, preview_pd, check_like=True, check_dtype=False)
 
-        fstore.ingest(measurements_set, source)
+        targets = [NoSqlTarget()] if explicit_targets else None
 
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        assert len(measurements_set.status.targets) == 1
-        assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        fstore.ingest(measurements_set, source, targets=targets)
+
+        if explicit_targets:
+            # assert that online target exist (nosql) and offline target does not (parquet)
+            assert len(measurements_set.status.targets) == 1
+            assert isinstance(measurements_set.status.targets["nosql"], DataTarget)
+        else:
+            assert len(measurements_set.status.targets) == 0
 
         # verify that get_offline (and preview) equals the source
         vector = fstore.FeatureVector("myvector", features=[f"{name}.*"])
@@ -931,31 +979,33 @@ class TestFeatureStore(TestMLRunSystem):
         get_offline_pd = resp.to_dataframe()
 
         # check time filter with passthrough
-        expected = expected[(expected["timestamp"] > start_time)]
+        if start_time:
+            expected = expected[(expected["timestamp"] > start_time)]
         assert_frame_equal(expected, get_offline_pd, check_like=True, check_dtype=False)
 
-        # assert get_online correctness
-        with fstore.get_online_feature_service(vector) as svc:
-            resp = svc.get([{"patient_id": "305-90-1613"}])
-            assert resp == [
-                {
-                    "bad": 95,
-                    "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
-                    "room": 2,
-                    "hr": 220.0,
-                    "hr_is_error": False,
-                    "rr": 25,
-                    "rr_is_error": False,
-                    "spo2": 99,
-                    "spo2_is_error": False,
-                    "movements": 4.614601941071927,
-                    "movements_is_error": False,
-                    "turn_count": 0.3582583538239813,
-                    "turn_count_is_error": False,
-                    "is_in_bed": 1,
-                    "is_in_bed_is_error": False,
-                }
-            ]
+        if explicit_targets:
+            # assert get_online correctness
+            with fstore.get_online_feature_service(vector) as svc:
+                resp = svc.get([{"patient_id": "305-90-1613"}])
+                assert resp == [
+                    {
+                        "bad": 95,
+                        "department": "01e9fe31-76de-45f0-9aed-0f94cc97bca0",
+                        "room": 2,
+                        "hr": 220.0,
+                        "hr_is_error": False,
+                        "rr": 25,
+                        "rr_is_error": False,
+                        "spo2": 99,
+                        "spo2_is_error": False,
+                        "movements": 4.614601941071927,
+                        "movements_is_error": False,
+                        "turn_count": 0.3582583538239813,
+                        "turn_count_is_error": False,
+                        "is_in_bed": 1,
+                        "is_in_bed_is_error": False,
+                    }
+                ]
 
     def test_ingest_twice_with_nulls(self):
         name = f"test_ingest_twice_with_nulls_{uuid.uuid4()}"
@@ -1396,11 +1446,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert path == data_set.get_target_path()
 
-        source = ParquetSource(
-            "myparquet",
-            path=path,
-            schedule="mock",
-        )
+        source = ParquetSource("myparquet", path=path, schedule="mock")
 
         feature_set = fstore.FeatureSet(
             name=name,
@@ -2097,7 +2143,9 @@ class TestFeatureStore(TestMLRunSystem):
         not mlrun.mlconf.redis.url,
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
-    @pytest.mark.parametrize("target_redis, ", ["", "redis://:aaa@localhost:6379"])
+    @pytest.mark.parametrize(
+        "target_redis, ", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
+    )
     def test_purge_redis(self, target_redis):
         key = "patient_id"
         fset = fstore.FeatureSet(
@@ -2108,6 +2156,13 @@ class TestFeatureStore(TestMLRunSystem):
             "mycsv",
             path=path,
         )
+        if target_redis.startswith("ds://"):
+            project = mlrun.get_or_create_project(self.project_name)
+            profile = DatastoreProfileRedis(
+                name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url
+            )
+            project.register_datastore_profile(profile)
+
         targets = [
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
@@ -2143,10 +2198,18 @@ class TestFeatureStore(TestMLRunSystem):
             api = None
             if config.v3io_api:
                 api = config.v3io_api
+
+                # strip protocol
                 if "//" in api:
                     api = api[api.find("//") + 2 :]
+
+                # strip port
                 if ":" in api:
                     api = api[: api.find(":")]
+
+                # ensure webapi prefix
+                if not api.startswith("webapi."):
+                    api = f"webapi.{api}"
             return api
 
         key = "patient_id"
@@ -2164,7 +2227,7 @@ class TestFeatureStore(TestMLRunSystem):
             ),
             NoSqlTarget(
                 name="fullpath",
-                path=f"v3io://webapi.{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
+                path=f"v3io://{get_v3io_api_host()}/bigdata/system-test-project/nosql-purge-full",
             ),
         ]
 
@@ -2751,7 +2814,7 @@ class TestFeatureStore(TestMLRunSystem):
 
     def test_two_ingests(self):
         df1 = pd.DataFrame({"name": ["AB", "CD"], "some_data": [10, 20]})
-        set1 = fstore.FeatureSet("set1", entities=[Entity("name")])
+        set1 = fstore.FeatureSet("set1", entities=[Entity("name")], engine="pandas")
         fstore.ingest(set1, df1)
 
         df2 = pd.DataFrame({"name": ["AB", "CD"], "some_data": ["Paris", "Tel Aviv"]})
@@ -3392,7 +3455,7 @@ class TestFeatureStore(TestMLRunSystem):
             {
                 "d_id": [i for i in range(1, 11, 2)],
                 "name": [f"dept{num}" for num in range(1, 11, 2)],
-                "manager_id": [i for i in range(10, 15)],
+                "m_id": [i for i in range(10, 15)],
             }
         )
 
@@ -3438,7 +3501,7 @@ class TestFeatureStore(TestMLRunSystem):
         join_employee_managers = pd.merge(
             join_employee_department,
             managers,
-            left_on=["manager_id"],
+            left_on=["m_id"],
             right_on=["m_id"],
             suffixes=("_manage", "_"),
         )
@@ -3465,6 +3528,7 @@ class TestFeatureStore(TestMLRunSystem):
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
+            how="right",
         )
 
         col_1 = ["name_employees", "name_departments"]
@@ -3525,7 +3589,7 @@ class TestFeatureStore(TestMLRunSystem):
             "managers",
             entities=[managers_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(managers_set, managers)
 
         classes_set_entity = fstore.Entity("c_id")
@@ -3533,16 +3597,16 @@ class TestFeatureStore(TestMLRunSystem):
             "classes",
             entities=[classes_set_entity],
         )
-        managers_set.set_targets(targets=["parquet"], with_defaults=False)
+        managers_set.set_targets()
         fstore.ingest(classes_set, classes)
 
         departments_set_entity = fstore.Entity("d_id")
         departments_set = fstore.FeatureSet(
             "departments",
             entities=[departments_set_entity],
-            relations={"manager_id": managers_set_entity},
+            relations={"m_id": managers_set_entity},
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+        departments_set.set_targets()
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -3551,24 +3615,32 @@ class TestFeatureStore(TestMLRunSystem):
             entities=[employees_set_entity],
             relations={"department_id": departments_set_entity},
         )
-        employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        employees_set.set_targets()
         fstore.ingest(employees_set, employees_with_department)
 
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
             relations={
-                "department_id": departments_set_entity,
-                "class_id": classes_set_entity,
+                "department_id": "a",
             },
         )
-        mini_employees_set.set_targets(targets=["parquet"], with_defaults=False)
+        mini_employees_set.set_targets()
         fstore.ingest(mini_employees_set, employees_with_class)
 
+        extra_relations = {
+            "mini-employees": {
+                "department_id": departments_set_entity,
+                "class_id": "c_id",
+            }
+        }
         features = ["employees.name"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3589,10 +3661,18 @@ class TestFeatureStore(TestMLRunSystem):
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
             )
+
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"name": "employee100"}
+
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3605,6 +3685,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_department, resp_1.to_dataframe())
 
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "n2": "dept1"}
+
         features = [
             "employees.name as n",
             "departments.name as n2",
@@ -3612,7 +3696,10 @@ class TestFeatureStore(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector(
-            "man-vec", features, description="Employees feature vector"
+            "man-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3625,10 +3712,21 @@ class TestFeatureStore(TestMLRunSystem):
         )
         assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
 
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "man_name": "manager10",
+            }
+
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
-            "mini-emp-vec", features, description="Employees feature vector"
+            "mini-emp-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3640,6 +3738,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="name",
         )
         assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
 
         features = [
             "employees.name as n",
@@ -3647,9 +3748,19 @@ class TestFeatureStore(TestMLRunSystem):
             "mini-employees.name as mini_name",
             "classes.name as name_cls",
         ]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees")
+            .inner(departments_set)
+            .inner("mini-employees")
+            .right("classes")
+        )
 
         vector = fstore.FeatureVector(
-            "four-vec", features, description="Employees feature vector"
+            "four-vec",
+            features,
+            join_graph=join_graph,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -3661,6 +3772,15 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(join_all, resp_4.to_dataframe())
+
+        with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
+            resp = svc.get({"id": 100})
+            assert resp[0] == {
+                "n": "employee100",
+                "n2": "dept1",
+                "mini_name": "employee100",
+                "name_cls": "class20",
+            }
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
@@ -3758,7 +3878,8 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
-    def test_relation_asof_join(self, with_indexes, engine):
+    @pytest.mark.parametrize("with_graph", [True, False])
+    def test_relation_asof_join(self, with_indexes, engine, with_graph):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
@@ -3834,8 +3955,18 @@ class TestFeatureStore(TestMLRunSystem):
 
         features = ["employees.name as n", "departments.name as n2"]
 
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees").left(
+                "departments", asof_join=True
+            )
+            if with_graph
+            else None
+        )
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            join_graph=join_graph,
         )
         vector.save()
         resp_1 = fstore.get_offline_features(
@@ -4201,6 +4332,29 @@ class TestFeatureStore(TestMLRunSystem):
             fstore.get_online_feature_service(
                 f"store://feature-vectors/{self.project_name}/my-vector:latest"
             )
+
+    def test_ingest_with_rename_columns(self):
+        csv_path = str(self.assets_path / "fields_with_space.csv")
+        name = f"test_ingest_with_rename_columns_{uuid.uuid4()}"
+        data = pd.read_csv(csv_path)
+        expected_result = data.copy().rename(columns={"city of birth": "city_of_birth"})
+        expected_result.set_index("name", inplace=True)
+        feature_set = fstore.FeatureSet(
+            name=name,
+            entities=[fstore.Entity("name")],
+        )
+        fstore.preview(
+            feature_set,
+            data,
+        )
+        inspect_result = fstore.ingest(feature_set, data)
+        feature_vector = fstore.FeatureVector(
+            name=name, features=[f"{self.project_name}/{name}.*"]
+        )
+        feature_vector.spec.with_indexes = True
+        offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
+        assert offline_features_df.equals(inspect_result)
+        assert offline_features_df.equals(expected_result)
 
 
 def verify_purge(fset, targets):

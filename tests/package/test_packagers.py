@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ from .packagers_testers.python_standard_library_packagers_testers import (
     FrozensetPackagerTester,
     IntPackagerTester,
     ListPackagerTester,
+    NonePackagerTester,
     PathPackagerTester,
     SetPackagerTester,
     StrPackagerTester,
@@ -55,6 +56,7 @@ from .packagers_testers.python_standard_library_packagers_testers import (
 # All the testers to be included in the tests:
 _PACKAGERS_TESTERS = [
     DefaultPackagerTester,
+    NonePackagerTester,
     BoolPackagerTester,
     BytearrayPackagerTester,
     BytesPackagerTester,

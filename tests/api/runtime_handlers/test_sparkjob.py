@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,9 +19,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
-from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 

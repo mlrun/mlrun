@@ -20,7 +20,7 @@ The serving graphs can be composed of [pre-defined graph steps](./available-step
 data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.html), or from native python 
 classes/functions. A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.html)). Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
 
-![serving graph high level](../_static/images/serving-graph-high-level.png)
+![serving graph high-level](../_static/images/serving-graph-high-level.png)
   
 Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse 
 them from other graphs, as well as scale up and down the different components individually.

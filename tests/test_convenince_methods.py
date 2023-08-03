@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,12 +25,6 @@ import mlrun.projects.project
 from tests.conftest import out_path
 
 assets_path = pathlib.Path(__file__).parent / "assets"
-
-
-def test_set_environment_with_invalid_project_name():
-    invalid_name = "project_name"
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        mlrun.set_environment(project=invalid_name)
 
 
 def test_set_environment_cred():

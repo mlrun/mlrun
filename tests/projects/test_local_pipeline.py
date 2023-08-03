@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
         project.set_artifact("z", mlrun.artifacts.Artifact(src_path="body.txt"))
         project.register_artifacts()
 
-        artifacts = project.list_artifacts().objects()
+        artifacts = project.list_artifacts().to_objects()
         assert len(artifacts) == 2
 
         expected_body_map = {"y": "123", "z": b"ABC"}

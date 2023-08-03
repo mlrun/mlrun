@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             )
 
         arguments = {"p1": 8}
-        run_id = mlrun.run_pipeline(
+        run_id = mlrun._run_pipeline(
             job_pipeline,
             arguments,
             experiment="my-job",

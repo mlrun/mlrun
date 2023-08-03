@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,4 +14,5 @@
 #
 # flake8: noqa: F401 - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+from .helpers import get_stream_path
 from .model_endpoints import ModelEndpoints

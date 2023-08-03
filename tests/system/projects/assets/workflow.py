@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import mlrun
 
 
 def kfpipeline():
+    # sleeping for 60 seconds to be able to abort the run in the middle of the execution
     time_to_sleep = 60
 
     step_1 = mlrun.run_function(

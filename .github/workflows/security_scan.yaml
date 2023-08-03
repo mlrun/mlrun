@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,10 +43,21 @@ on:
         description: 'The minimum severity of vulnerabilities to report ("negligible", "low", "medium", "high" and "critical".)'
         required: false
         default: 'medium'
+        type: choice
+        options:
+          - 'negligible'
+          - 'low'
+          - 'medium'
+          - 'high'
+          - 'critical'
       only_fixed:
         description: 'Whether to scan only fixed vulnerabilities ("true" or "false")'
         required: false
         default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   matrix_prep:

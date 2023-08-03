@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
@@ -186,7 +187,7 @@ def test_get_frontend_spec_nuclio_streams(
         },
     ]:
         # init cached value to None in the beginning of each test case
-        mlrun.runtimes.utils.cached_nuclio_version = None
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
         mlrun.mlconf.igz_version = test_case.get("iguazio_version")
         mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 

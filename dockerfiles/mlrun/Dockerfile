@@ -1,5 +1,5 @@
 
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-ARG MLRUN_PIP_VERSION=22.3.0
+ARG MLRUN_PIP_VERSION=23.2.1
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt

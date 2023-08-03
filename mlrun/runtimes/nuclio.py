@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@ import json
 import os
 import socket
 
-from ..db import get_or_set_dburl
+import mlrun.db
+
 from ..errors import err_to_str
 from ..execution import MLClientCtx
 from ..model import RunTemplate
@@ -60,7 +61,7 @@ def nuclio_jobs_handler(context, event):
             status_code=400,
         )
 
-    out = get_or_set_dburl()
+    out = mlrun.db.get_or_set_dburl()
     if out:
         context.logger.info(f"logging run results to: {out}")
 

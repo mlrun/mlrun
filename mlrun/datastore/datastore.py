@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,6 +86,10 @@ def schema_to_store(schema):
                 "Google cloud storage packages are missing, use pip install mlrun[google-cloud-storage]"
             )
         return GoogleCloudStorageStore
+    elif schema == "dbfs":
+        from .dbfs_store import DBFSStore
+
+        return DBFSStore
     else:
         raise ValueError(f"unsupported store scheme ({schema})")
 
@@ -175,11 +179,25 @@ class StoreManager:
             )
 
         store, subpath = self.get_or_create_store(url, secrets=secrets)
+        schema, endpoint, parsed_url = parse_url(url)
+        #  TODO: Modify the URL replacement to be outside of the dataitem. Dataitem class should
+        #   be implemented as a generic class.
+        if endpoint and schema == "dbfs":
+            url = url.replace(endpoint, "", 1)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
     def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
+        datastore_type = schema
+
+        if schema == "ds":
+            profile_name = endpoint
+            project_name = urlparse(url).username or mlrun.mlconf.default_project
+            datastore = mlrun.db.get_run_db(
+                secrets=self._secrets
+            ).get_datastore_profile(profile_name, project_name)
+            datastore_type = datastore.type
 
         if schema == "memory":
             subpath = url[len("memory://") :]
@@ -199,7 +217,7 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(schema)(
+        store = schema_to_store(datastore_type)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
         if not secrets and not mlrun.config.is_running_as_api():

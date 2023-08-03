@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,12 +16,9 @@
 
 import mlrun
 from mlrun.config import config
-from mlrun.utils.helpers import (
-    is_legacy_artifact,
-    parse_artifact_uri,
-    parse_versioned_object_uri,
-)
+from mlrun.utils.helpers import is_legacy_artifact, parse_artifact_uri
 
+from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
 from .targets import get_online_target

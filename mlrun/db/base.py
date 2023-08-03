@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -565,7 +565,12 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     @abstractmethod
@@ -619,5 +624,45 @@ class RunDBInterface(ABC):
         project: str,
         runs: typing.List[mlrun.model.RunObject],
         notifications: typing.List[mlrun.model.Notification],
+    ):
+        pass
+
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        pass
+
+    def watch_log(self, uid, project="", watch=True, offset=0):
+        pass
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        pass
+
+    def list_datastore_profile(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        pass
+
+    def function_status(self, project, name, kind, selector):
+        pass
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
     ):
         pass

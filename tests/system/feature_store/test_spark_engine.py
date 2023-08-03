@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,6 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
-from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -822,9 +821,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector("my-vec", features)
-        resp = fstore.get_offline_features(
-            vector, entity_timestamp_column="time", with_indexes=True
-        )
+        resp = fstore.get_offline_features(vector, with_indexes=True)
 
         # We can't count on the order when reading the results back
         result_records = (
@@ -1399,20 +1396,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             passthrough=passthrough,
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
-        self.set_targets(measurements)
+        if not passthrough:
+            self.set_targets(measurements)
         fstore.ingest(
             measurements,
             source,
             spark_context=self.spark_service,
             run_config=fstore.RunConfig(local=self.run_local),
         )
-        if not self.run_local:
+        if passthrough:
+            assert len(measurements.status.targets) == 0
+        elif not self.run_local:
             assert measurements.status.targets[0].run_id is not None
-
-        # assert that online target exist (nosql) and offline target does not (parquet)
-        if passthrough and not self.run_local:
-            assert len(measurements.status.targets) == 1
-            assert isinstance(measurements.status.targets["nosql"], DataTarget)
 
         fv_name = "measurements-fv"
         features = [
@@ -1664,8 +1659,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
         targets = [CSVTarget(name="csv", path=csv_path_spark)]
+        error_type = (
+            mlrun.errors.MLRunBadRequestError
+            if self.run_local
+            else mlrun.runtimes.utils.RunError
+        )
         with pytest.raises(
-            mlrun.runtimes.utils.RunError,
+            error_type,
             match="^MapValues - mapping that changes column type must change all values accordingly,"
             " which is not the case for column 'hr_is_error'$",
         ):
@@ -1809,6 +1809,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             left_on=["class_id"],
             right_on=["c_id"],
             suffixes=("_e_mini", "_cls"),
+            how="right",
         )
 
         col_1 = ["name_employees", "name_departments"]
@@ -1901,18 +1902,24 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         mini_employees_set = fstore.FeatureSet(
             "mini-employees",
             entities=[employees_set_entity],
-            relations={
-                "department_id": departments_set_entity,
-                "class_id": classes_set_entity,
-            },
         )
         self.set_targets(mini_employees_set, also_in_remote=True)
         fstore.ingest(mini_employees_set, employees_with_class)
 
+        extra_relations = {
+            "mini-employees": {
+                "department_id": departments_set_entity,
+                "class_id": "c_id",
+            }
+        }
+
         features = ["employees.name"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1941,7 +1948,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = ["employees.name as n", "departments.name as n2"]
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1966,7 +1976,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         ]
 
         vector = fstore.FeatureVector(
-            "man-vec", features, description="Employees feature vector"
+            "man-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -1987,7 +2000,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         features = ["employees.name as n", "mini-employees.name as mini_name"]
 
         vector = fstore.FeatureVector(
-            "mini-emp-vec", features, description="Employees feature vector"
+            "mini-emp-vec",
+            features,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -2011,9 +2027,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "mini-employees.name as mini_name",
             "classes.name as name_cls",
         ]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees")
+            .inner(departments_set)
+            .inner("mini-employees")
+            .right("classes")
+        )
 
         vector = fstore.FeatureVector(
-            "four-vec", features, description="Employees feature vector"
+            "four-vec",
+            features,
+            join_graph=join_graph,
+            description="Employees feature vector",
+            relations=extra_relations,
         )
         vector.save()
 
@@ -2032,7 +2058,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         assert_frame_equal(join_all, resp_4.to_dataframe())
 
     @pytest.mark.parametrize("with_indexes", [False, True])
-    def test_relation_asof_join(self, with_indexes):
+    @pytest.mark.parametrize("with_graph", [False, True])
+    def test_relation_asof_join(self, with_indexes, with_graph):
         """Test 3 option of using get offline feature with relations"""
         departments = pd.DataFrame(
             {
@@ -2094,9 +2121,19 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fstore.ingest(employees_set, employees_with_department)
 
         features = ["employees.name as n", "departments.name as n2"]
+        join_graph = (
+            fstore.JoinGraph(first_feature_set="employees").left(
+                "departments", asof_join=True
+            )
+            if with_graph
+            else None
+        )
 
         vector = fstore.FeatureVector(
-            "employees-vec", features, description="Employees feature vector"
+            "employees-vec",
+            features,
+            description="Employees feature vector",
+            join_graph=join_graph,
         )
         vector.save()
         target = ParquetTarget(

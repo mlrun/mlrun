@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,11 +93,14 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "aiobotocore": {"~=2.4.2"},
-        "storey": {"~=1.4.3"},
+        "aiobotocore": {"~=2.5.2"},
+        "storey": {"~=1.5.2"},
+        "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         "typing-extensions": {">=3.10.0,<5"},
-        "sphinx": {"~=4.3.0"},
+        # protobuf is limited just for docs
+        "protobuf": {"~=3.20.3"},
+        "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},
@@ -110,19 +113,19 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {"~=2023.1.0"},
-        "adlfs": {"~=2022.2.0"},
-        "s3fs": {"~=2023.1.0"},
-        "gcsfs": {"~=2023.1.0"},
+        "fsspec": {"~=2023.6.0"},
+        "adlfs": {"~=2023.4.0"},
+        "s3fs": {"~=2023.6.0"},
+        "gcsfs": {"~=2023.6.0"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
-        "urllib3": {">=1.25.4, <1.27"},
+        "urllib3": {">=1.26.9, <1.27"},
         "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
         "alembic": {"~=1.4,<1.6.0"},
-        "boto3": {"~=1.24.59"},
+        "boto3": {"~=1.26.161"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
@@ -131,6 +134,7 @@ def test_requirement_specifiers_convention():
         "importlib_metadata": {">=3.6"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "orjson": {"~=3.3, <3.8.12"},
+        "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding

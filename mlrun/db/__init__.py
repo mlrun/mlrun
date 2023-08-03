@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from os import environ
-from urllib.parse import urlparse
 
 from ..config import config
-from ..platforms import add_or_refresh_credentials
-from ..utils import logger
 from .base import RunDBError, RunDBInterface  # noqa
-from .nopdb import NopDB
-from .sqldb import SQLDB
 
 
 def get_or_set_dburl(default=""):
@@ -29,69 +24,10 @@ def get_or_set_dburl(default=""):
     return config.dbpath
 
 
-def get_httpdb_kwargs(host, username, password):
-    username = username or config.httpdb.user
-    password = password or config.httpdb.password
-
-    username, password, token = add_or_refresh_credentials(
-        host, username, password, config.httpdb.token
-    )
-
-    return {
-        "user": username,
-        "password": password,
-        "token": token,
-    }
-
-
-_run_db = None
-_last_db_url = None
-
-
 def get_run_db(url="", secrets=None, force_reconnect=False):
     """Returns the runtime database"""
-    global _run_db, _last_db_url
+    # import here to avoid circular import
+    import mlrun.db.factory
 
-    if not url:
-        url = get_or_set_dburl("./")
-
-    if (
-        _last_db_url is not None
-        and url == _last_db_url
-        and _run_db
-        and not force_reconnect
-    ):
-        return _run_db
-    _last_db_url = url
-
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme.lower()
-    kwargs = {}
-    if "://" not in str(url) or scheme in ["file", "s3", "v3io", "v3ios"]:
-        logger.warning(
-            "Could not detect path to API server, not connected to API server!"
-        )
-        logger.warning(
-            "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API server"
-            " in order to connect"
-        )
-        cls = NopDB
-
-    elif scheme in ("http", "https"):
-        # import here to avoid circular imports
-        from .httpdb import HTTPRunDB
-
-        cls = HTTPRunDB
-        kwargs = get_httpdb_kwargs(
-            parsed_url.hostname, parsed_url.username, parsed_url.password
-        )
-        endpoint = parsed_url.hostname
-        if parsed_url.port:
-            endpoint += f":{parsed_url.port}"
-        url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
-    else:
-        cls = SQLDB
-
-    _run_db = cls(url, **kwargs)
-    _run_db.connect(secrets=secrets)
-    return _run_db
+    run_db_factory = mlrun.db.factory.RunDBFactory()
+    return run_db_factory.create_run_db(url, secrets, force_reconnect)

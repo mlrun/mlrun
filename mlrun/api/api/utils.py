@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.crud
+import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.k8s
@@ -36,15 +37,16 @@ import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
-from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger, parse_versioned_object_uri
+from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -154,12 +156,8 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(
-    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-):
+def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     function_dict, function_url, task = parse_submit_run_body(data)
-    # TODO: block exec for function["kind"] in ["", "local]  (must be a
-    # remote/container runtime)
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -186,7 +184,6 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function, auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -202,7 +199,6 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(task):
-
     # Masking notification config params from the task object
     mask_notification_params_on_task(task)
 
@@ -245,14 +241,43 @@ def mask_notification_params_with_secret(
     return notification_object
 
 
-def unmask_notification_params_secret_on_task(run):
+def unmask_notification_params_secret_on_task(
+    db: mlrun.api.db.base.DBInterface,
+    db_session: Session,
+    run: typing.Union[dict, mlrun.model.RunObject],
+):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
 
-    run.spec.notifications = [
-        unmask_notification_params_secret(run.metadata.project, notification)
-        for notification in run.spec.notifications
-    ]
+    notifications = []
+    for notification in run.spec.notifications:
+        invalid_notifications = []
+        try:
+            notifications.append(
+                unmask_notification_params_secret(run.metadata.project, notification)
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to unmask notification params, notification will not be sent",
+                project=run.metadata.project,
+                run_uid=run.metadata.uid,
+                notification=notification.name,
+                exc=err_to_str(exc),
+            )
+            # set error status in order to later save the db
+            notification.status = mlrun.common.schemas.NotificationStatus.ERROR
+            invalid_notifications.append(notification)
+
+        if invalid_notifications:
+            db.store_run_notifications(
+                db_session,
+                invalid_notifications,
+                run.metadata.uid,
+                run.metadata.project,
+            )
+
+    run.spec.notifications = notifications
+
     return run
 
 
@@ -787,7 +812,6 @@ def ensure_function_security_context(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
         mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
-
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:
@@ -854,16 +878,8 @@ def submit_run_sync(
     project = None
     response = None
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(
-            db_session, auth_info, data
-        )
-        if (
-            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
-            and not mlrun.mlconf.httpdb.jobs.allow_local_run
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Local runtimes can not be run through API (not locally)"
-            )
+        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
@@ -873,7 +889,6 @@ def submit_run_sync(
             if isinstance(cron_trigger, dict):
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            created = False
 
             # if the task is pointing to a remote function (hub://), we need to save it to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
@@ -884,42 +899,26 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
-            try:
-                get_scheduler().update_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(
-                    "No existing schedule found, creating a new one",
-                    project=task["metadata"]["project"],
-                    name=task["metadata"]["name"],
-                )
-                get_scheduler().create_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    mlrun.common.schemas.ScheduleKinds.job,
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-                created = True
-            project = task["metadata"]["project"]
+            is_update = get_scheduler().store_schedule(
+                db_session,
+                auth_info,
+                task["metadata"]["project"],
+                task["metadata"]["name"],
+                mlrun.common.schemas.ScheduleKinds.job,
+                data,
+                cron_trigger,
+                schedule_labels,
+            )
 
+            project = task["metadata"]["project"]
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if created else "modified",
+                "action": "modified" if is_update else "created",
             }
+
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
             # locally from the mlrun service pod) - include project secrets and the caller's access key
@@ -936,7 +935,12 @@ def submit_run_sync(
                 auth_info.data_session or auth_info.access_key
             )
 
-            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
+            run = fn.run(
+                task,
+                watch=False,
+                param_file_secrets=param_file_secrets,
+                auth_info=auth_info,
+            )
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:

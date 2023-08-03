@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ from .feature_set import FeatureSet
 from .feature_vector import (
     FeatureVector,
     FixedWindowType,
+    JoinGraph,
     OfflineVectorResponse,
     OnlineVectorService,
 )

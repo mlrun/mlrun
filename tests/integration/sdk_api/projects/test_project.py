@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert fn.metadata.name == "describe", "func did not return"
 
         # test that functions can be fetched from the DB (w/o set_function)
-        mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+        mlrun.import_function("hub://auto_trainer", new_name="train").save()
         fn = project.get_function("train")
         assert fn.metadata.name == "train", "train func did not return"
 

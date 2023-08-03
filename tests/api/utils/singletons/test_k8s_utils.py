@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ import unittest.mock
 
 import pytest
 
+import mlrun.api.runtime_handlers.mpijob
 import mlrun.api.utils.singletons.k8s
 import mlrun.runtimes
 
@@ -33,7 +34,7 @@ def test_get_logger_pods_label_selector(
     monkeypatch, run_type, mpi_version, extra_selector
 ):
     monkeypatch.setattr(
-        mlrun.runtimes.utils,
+        mlrun.api.runtime_handlers.mpijob,
         "cached_mpijob_crd_version",
         mpi_version or mlrun.runtimes.constants.MPIJobCRDVersions.default(),
     )

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,6 +96,20 @@ class Client(
         """
         return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules/{name}", request
+        )
+
+    async def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        request: fastapi.Request,
+        json: dict,
+    ) -> fastapi.Response:
+        """
+        Workflow schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/workflows/{name}/submit", request, json
         )
 
     async def delete_schedules(

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ class NotificationKind(mlrun.common.types.StrEnum):
     git = "git"
     ipython = "ipython"
     slack = "slack"
+    webhook = "webhook"
 
 
 class NotificationSeverity(mlrun.common.types.StrEnum):
@@ -42,12 +43,12 @@ class NotificationStatus(mlrun.common.types.StrEnum):
 
 
 class Notification(pydantic.BaseModel):
-    kind: NotificationKind = None
-    name: str = None
-    message: str = None
-    severity: NotificationSeverity = None
-    when: typing.List[str] = None
-    condition: str = None
+    kind: NotificationKind
+    name: str
+    message: str
+    severity: NotificationSeverity
+    when: typing.List[str]
+    condition: str
     params: typing.Dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None

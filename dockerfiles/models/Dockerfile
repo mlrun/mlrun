@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,11 +42,6 @@ RUN HOROVOD_WITH_MPI=1 HOROVOD_WITH_TENSORFLOW=1 HOROVOD_WITH_PYTORCH=1  \
 # sure the python in /usr/local/bin is pointing to the conda env python (which "knows" horovod)
 # TODO: find nicer solution
 RUN ln -sf /opt/conda/bin/python3 /usr/local/bin/python3
-
-# Resolves anaconda issue on top of python 3.7 - https://github.com/cocodataset/cocoapi/issues/94
-# TODO: remove when we drop support for python 3.7
-ARG MLRUN_CFLAGS
-ENV CFLAGS="$MLRUN_CFLAGS $CFLAGS"
 
 COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
 

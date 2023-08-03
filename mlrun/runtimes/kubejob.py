@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,14 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.errors
-from mlrun.runtimes.base import BaseRuntimeHandler
 
-from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError, RuntimeClassMode
+from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import get_k8s
 
@@ -113,6 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
+        extra_args=None,
+        builder_env=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -137,6 +138,8 @@ class KubejobRuntime(KubeResource):
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param extra_args: A string containing additional arguments in the format of command-line options,
+         e.g. extra_args="--skip-tls-verify --build-arg A=val""
         """
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
@@ -153,6 +156,8 @@ class KubejobRuntime(KubeResource):
             requirements,
             requirements_file,
             overwrite,
+            extra_args,
+            builder_env,
         )
 
         if verify_base_image or prepare_image_for_deploy:
@@ -257,7 +262,7 @@ class KubejobRuntime(KubeResource):
         offset = 0
         try:
             text, _ = db.get_builder_status(self, 0, logs=logs)
-        except RunDBError:
+        except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 
         def print_log(text):
@@ -360,10 +365,8 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.clone_target_dir:
             workdir = workdir or ""
-            if workdir.startswith("./"):
-                # TODO: use 'removeprefix' when we drop python 3.7 support
-                # workdir.removeprefix("./")
-                workdir = workdir[2:]
+            workdir = workdir.removeprefix("./")
+
             return os.path.join(self.spec.clone_target_dir, workdir)
 
         return workdir
@@ -390,24 +393,3 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         ]
 
     return pod_spec
-
-
-class KubeRuntimeHandler(BaseRuntimeHandler):
-    kind = "job"
-    class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
-
-    @staticmethod
-    def _expect_pods_without_uid() -> bool:
-        """
-        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
-        don't have the uid in their labels
-        """
-        return True
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"

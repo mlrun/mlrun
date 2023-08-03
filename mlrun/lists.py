@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import warnings
 from copy import copy
 from typing import List
 
@@ -92,7 +91,9 @@ class RunList(list):
 
         return [list_header] + rows
 
-    def to_df(self, flat=False, extend_iterations=False, cache=True):
+    def to_df(
+        self, flat: bool = False, extend_iterations: bool = False, cache: bool = True
+    ) -> pd.DataFrame:
         """convert the run list to a dataframe"""
         if hasattr(self, "_df") and cache:
             return self._df
@@ -179,10 +180,16 @@ class ArtifactList(list):
             "producer": ["producer", "spec.producer"],
             "sources": ["sources", "spec.sources"],
             "labels": ["labels", "metadata.labels"],
+            # important: the uri item must be the last one in this dict since there is no artifact.uri, and we fill it
+            # in the following for loop as the "last_index" in the dict
+            "uri": ["uri", "uri"],
         }
         for artifact in self:
             fields_index = 0 if is_legacy_artifact(artifact) else 1
             row = [get_in(artifact, v[fields_index], "") for k, v in head.items()]
+            artifact_uri = dict_to_artifact(artifact).uri
+            last_index = len(row) - 1
+            row[last_index] = artifact_uri
             rows.append(row)
 
         return [head.keys()] + rows
@@ -210,16 +217,6 @@ class ArtifactList(list):
 
     def to_objects(self) -> List[Artifact]:
         """return as a list of artifact objects"""
-        return [dict_to_artifact(artifact) for artifact in self]
-
-    def objects(self) -> List[Artifact]:
-        """return as a list of artifact objects"""
-        warnings.warn(
-            "'objects' is deprecated in 1.3.0 and will be removed in 1.5.0. "
-            "Use 'to_objects' instead.",
-            # TODO: remove in 1.5.0
-            FutureWarning,
-        )
         return [dict_to_artifact(artifact) for artifact in self]
 
     def dataitems(self) -> List["mlrun.DataItem"]:

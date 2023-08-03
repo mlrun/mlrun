@@ -3,19 +3,24 @@
 
 An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 
-Artifacts metadata is stored in the project's database. The main types of artifacts are:
--  **Files** &mdash; files, directories, images, figures, and plotlines
--  **Datasets** &mdash; any data, such as tables and DataFrames
--  **Models** &mdash; all trained models
--  **Feature Store Objects** &mdash; Feature sets and feature vectors
+Artifacts metadata is stored in the project’s database. The main types of artifacts are:
+
+- Files — files, directories, images, figures, and plotlines
+- Datasets — any data, such as tables and DataFrames
+- Models — all trained models
+- Feature Store Objects — Feature sets and feature vectors
 
 **In this section**
 - [Viewing artifacts](#viewing-artifacts)
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
-- [See also](#see-also)
+- [Customizing the allowed paths](#customizing-the-allowed-paths)
 
+**See also:**
+- {ref}`working-with-data-and-model-artifacts`
+- {ref}`models`
+- {ref}`logging_datasets`
 
 ## Viewing artifacts
 
@@ -37,9 +42,11 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 
 ## Artifact path
 
-Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are system-configured as "allowed" in the MLRun service are visible in the UI. These are:
+Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
+system-configured as "allowed" in the MLRun service are visible in the UI. These are:
 - MLRun < 1.2: The allowed paths include only v3io paths
-- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// ` 
+- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// `. `http://` paths are not visible
+ due to security reasons.
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 
@@ -114,10 +121,5 @@ Example artifact URLs:
 
 <!-- ## Dataset artifacts moved to data coll and prep, model and plot artifacts to working-with-data-and-model-artifacts -->
 
-## See also
-
-- {ref}`working-with-data-and-model-artifacts`
-- {ref}`models`
-- {ref}`logging_datasets`
 
 [Back to top](#top)

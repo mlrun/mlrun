@@ -35,6 +35,8 @@ These cases are:
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent.
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
+> **Disclaimer:** Local notifications aren't persisted in mlrun API
+
 ## Notification Params and Secrets
 The notification parameters might contain sensitive information (slack webhook, git token, etc.). For this reason, 
 when a notification is created its params are masked in a kubernetes secret. The secret is named 
@@ -55,6 +57,12 @@ Currently, the supported notification kinds and their params are as follows:
                      If using merge request, the issue will be ignored, and vice versa.
   - `server`: The git server to which to send the notification.
   - `gitlab`: (bool) Whether the git server is gitlab or not.
+- `webhook`:
+  - `url`: The webhook url to which to send the notification.
+  - `method`: The http method to use when sending the notification (GET, POST, PUT, etc...).
+  - `headers`: (dict) The http headers to send with the notification.
+  - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
+                     `name`, `message`, `severity`, and the `runs` list of the completed runs.
 - `console` (no params, local only)
 - `ipython` (no params, local only)
 
@@ -79,11 +87,18 @@ For pipelines, you configure the notifications on the project notifiers. For exa
 
 ```python
 project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})
+project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"})
 ```
 Instead of passing the webhook in the notification params, it is also possible in a Jupyter notebook to use the ` %env` 
 magic command:
 ```
 %env SLACK_WEBHOOK=<slack webhook url>
+```
+
+Editing and removing notifications is done similarly with the following methods:
+```python
+project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
+project.notifiers.remove_notification(notification_type="slack")
 ```
 
 ## Setting Notifications on Live Runs

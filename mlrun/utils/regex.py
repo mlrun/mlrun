@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+# pipeline param format which is passed when running a pipeline (e.g. {{pipelineparam:op=;name=mem}})
+# https://github.com/kubeflow/pipelines/blob/16edebf4eaf84cd7478e2601ef4878ab339a7854/sdk/python/kfp/dsl/_pipeline_param.py#L213
+# this is expected to be resolved at runtime
+pipeline_param = [r"{{pipelineparam:op=([\w\s_-]*);name=([\w\s_-]+)}}"]
 
 # k8s character limit is for 63 characters
 k8s_character_limit = [r"^.{0,63}$"]
@@ -67,8 +72,8 @@ sparkjob_name = label_value + sprakjob_length + sparkjob_service_name
 # A project name have the following restrictions:
 # It should be a valid Nuclio Project CRD name which is dns 1123 subdomain
 # It should be a valid k8s label value since Nuclio use the project name in labels of resources
-# It should be a valid namespace name (cause we plan to map it to one) which is dns 1123 label
-# of the 3 restrictions, dns 1123 label is the most strict, so we enforce only it
+# It should be a valid namespace name (because we plan to map it to one) which is dns 1123 label
+# of the 3 restrictions, dns 1123 label is strictest, so we enforce only it
 project_name = dns_1123_label
 
 # Special characters are not permitted in tag names because they can be included in the url and cause problems.
@@ -78,3 +83,8 @@ tag_name = label_value
 secret_key = k8s_secret_and_config_map_key
 
 artifact_key = [r"[^\/\\]+$"]
+
+# must not start with _
+# must be alphanumeric or _
+# max 256 length
+v3io_stream_consumer_group = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]

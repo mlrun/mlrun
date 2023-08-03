@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,9 +62,12 @@ def run_merge_job(
     function = run_config.to_function(kind, merger.get_default_image(kind))
 
     # Avoid overriding a handler that was provided by the user
-    # The user shouldn't have to provide a handler, but we leave this option open just in case
     if not run_config.handler:
         function.with_code(body=default_code)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "get_offline_features does not support run_config with a handler"
+        )
 
     function.metadata.project = vector.metadata.project
     function.metadata.name = function.metadata.name or name
@@ -130,15 +133,16 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(vector, run)
+    return RemoteVectorResponse(vector, run, with_indexes)
 
 
 class RemoteVectorResponse:
     """get_offline_features response object"""
 
-    def __init__(self, vector, run):
+    def __init__(self, vector, run, with_indexes=False):
         self.run = run
         self.vector = vector
+        self.with_indexes = with_indexes or self.vector.spec.with_indexes
 
     @property
     def status(self):
@@ -164,7 +168,7 @@ class RemoteVectorResponse:
         df = mlrun.get_dataitem(self.target_uri).as_df(
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )
-        if self.vector.spec.with_indexes:
+        if self.with_indexes:
             df.set_index(
                 list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
             )

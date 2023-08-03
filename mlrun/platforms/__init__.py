@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@ from .iguazio import (
     add_or_refresh_credentials,
     is_iguazio_session_cookie,
     mount_v3io,
-    mount_v3io_extended,
-    mount_v3io_legacy,
     v3io_cred,
 )
 from .other import (

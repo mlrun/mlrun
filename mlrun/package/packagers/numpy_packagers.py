@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -600,7 +600,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
 
 class NumPyNumberPackager(DefaultPackager):
     """
-    ``numpy.number`` packager. It is also used for all `number` inheriting numpy objects (`float32`, uint8, etc).
+    ``numpy.number`` packager. It is also used for all `number` inheriting numpy objects (`float32`, uint8, etc.).
     """
 
     PACKABLE_OBJECT_TYPE = np.number

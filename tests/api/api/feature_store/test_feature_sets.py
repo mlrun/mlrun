@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,13 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from functools import partial
 from http import HTTPStatus
+from unittest.mock import Mock
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import tests.api.api.utils
+from mlrun.api.crud.feature_store import FeatureStore
+from mlrun.common.schemas.feature_store import (
+    FeatureSet,
+    FeatureSetSpec,
+    ObjectMetadata,
+    ObjectStatus,
+)
+from mlrun.common.schemas.object import ObjectStatusState
 
 from .base import (
     _assert_diff_as_expected_except_for_specific_metadata,
@@ -778,7 +789,10 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
 
     allowed_added_fields = ["created", "updated", "tag", "uid", "project"]
     _assert_diff_as_expected_except_for_specific_metadata(
-        feature_set, feature_set_response, allowed_added_fields
+        feature_set,
+        feature_set_response,
+        allowed_added_fields,
+        allowed_spec_fields=["engine"],
     )
     assert feature_set_response["metadata"]["uid"] is None
 
@@ -805,7 +819,10 @@ def test_unversioned_feature_set_actions(db: Session, client: TestClient) -> Non
     )
 
     _assert_diff_as_expected_except_for_specific_metadata(
-        feature_set, feature_set_response, allowed_added_fields
+        feature_set,
+        feature_set_response,
+        allowed_added_fields,
+        allowed_spec_fields=["engine"],
     )
     assert feature_set_response["metadata"]["uid"] is None
 
@@ -889,3 +906,37 @@ def test_multi_label_query(db: Session, client: TestClient) -> None:
         "label=serial_number=0&label=serial_number=1",
         0,
     )
+
+
+class TestStatus:
+    @staticmethod
+    @pytest.fixture
+    def empty_feature_set() -> FeatureSet:
+        return FeatureSet(
+            metadata=ObjectMetadata(name="test"),
+            spec=FeatureSetSpec(),
+            status=ObjectStatus(),
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def mock_feature_store() -> FeatureStore:
+        store = Mock(spec=FeatureStore)
+        store.store_feature_set = partial(FeatureStore.store_feature_set, self=store)
+        return store
+
+    @staticmethod
+    def test_created_when_missing(
+        mock_feature_store: FeatureStore,
+        empty_feature_set: FeatureSet,
+    ) -> None:
+        mock_feature_store.store_feature_set(
+            db_session=Mock(),
+            project=Mock(),
+            name=Mock(),
+            feature_set=empty_feature_set,
+        )
+        method = mock_feature_store._store_object
+        method.assert_called_once()
+        feature_set = method.call_args.args[3]
+        assert feature_set.status.state == ObjectStatusState.CREATED

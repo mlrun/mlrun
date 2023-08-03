@@ -110,6 +110,10 @@ def test_custom_packagers(
 
 
 def test_is_logging_worker(patch_mpi4py):
+    """
+    Test the `_is_logging_worker` method of the context handler to return True for when there is an `mpi4py` mock.
+    :param patch_mpi4py: A `mpi4py` module mock fixture.
+    """
     context_handler = ContextHandler()
     context_handler._context = MLClientCtx()
     context_handler._context.set_label("kind", "mpijob")

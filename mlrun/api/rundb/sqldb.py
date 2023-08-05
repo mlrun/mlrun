@@ -41,15 +41,29 @@ class SQLRunDB(RunDBInterface):
         dsn,
         session=None,
     ):
-        self.session = session
+        self._session = session
         self.dsn = dsn
         self.db = None
 
     def connect(self, secrets=None):
-        if not self.session:
-            self.session = create_session()
+        if not self._session:
+            self._session = create_session()
         self.db = SQLDB(self.dsn)
         return self
+
+    @property
+    def session(self):
+        return next(self._session_manager())
+
+    def _session_manager(self):
+        """
+        This is a context manager for the session, it ensures session commits and rollbacks after the context ends.
+        See https://docs.sqlalchemy.org/en/14/orm/session_transaction.html#transactions-and-connection-management
+        for more details.
+        :return: sql session
+        """
+        with self._session.begin_nested():
+            yield self._session
 
     def store_log(self, uid, project="", body=b"", append=False):
         return self._transform_db_error(

@@ -4172,15 +4172,15 @@ class TestFeatureStore(TestMLRunSystem):
         reason="databricks storage parameters not configured",
     )
     @pytest.mark.parametrize(
-        "source_class, target_class, local_file_name, reader, reader_kwargs",drop_index
-        [
+        "source_class, target_class, local_file_name, reader, reader_kwargs",
+        drop_index[
             (
                 CSVSource,
                 CSVTarget,
                 "testdata_short.csv",
                 pd.read_csv,
                 {"parse_dates": ["date_of_birth"]},
-                False
+                False,
             ),
             (
                 ParquetSource,
@@ -4188,12 +4188,18 @@ class TestFeatureStore(TestMLRunSystem):
                 "testdata_short.parquet",
                 pd.read_parquet,
                 {},
-                True
+                True,
             ),
         ],
     )
     def test_ingest_with_dbfs(
-        self, source_class, target_class, local_file_name, reader, reader_kwargs,drop_index
+        self,
+        source_class,
+        target_class,
+        local_file_name,
+        reader,
+        reader_kwargs,
+        drop_index,
     ):
         local_source_path = os.path.relpath(str(self.assets_path / local_file_name))
         drop_column = "number"

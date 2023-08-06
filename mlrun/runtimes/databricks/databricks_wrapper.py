@@ -87,7 +87,7 @@ def run_mlrun_databricks_job(
         )
 
         run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
-        context.log_result("databricks_runtime_task:", run_output)
+        context.log_result("databricks_runtime_task", run_output)
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
 

@@ -40,10 +40,12 @@ class SQLRunDB(RunDBInterface):
         self,
         dsn,
         session=None,
+        secrets=None,
     ):
         self.session = session
         self.dsn = dsn
         self.db = None
+        self.connect(secrets)
 
     def connect(self, secrets=None):
         if not self.session:
@@ -911,4 +913,4 @@ class SQLRunDB(RunDBInterface):
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)
 @containers.override(mlrun.db.factory.RunDBContainer)
 class SQLRunDBContainer(containers.DeclarativeContainer):
-    run_db = providers.Factory(SQLRunDB)
+    sql_db = providers.Factory(SQLRunDB)

@@ -28,18 +28,23 @@ class RunDBFactory(
         self._last_db_url = None
         self._rundb_container = RunDBContainer()
 
-    def create_run_db(self, url="", secrets=None, force_reconnect=False):
-        """Returns the runtime database"""
+    def create_run_db(
+        self, url="", secrets=None, force_reconnect=False, **kwargs
+    ) -> mlrun.db.RunDBInterface:
+        """
+        Returns the runtime database
+        :param url:             DB URL to connect to
+        :param secrets:         DB connection secrets
+        :param force_reconnect: Force reconnect to the DB
+        :param kwargs:          Extra arguments to pass to the Run DB constructor
+        :return:                Run DB implementation of :py:class:`~mlrun.db.RunDBInterface`
+        """
         if not url:
             url = mlrun.db.get_or_set_dburl("./")
 
-        if (
-            self._last_db_url is not None
-            and url == self._last_db_url
-            and self._run_db
-            and not force_reconnect
-        ):
-            return self._run_db
+        if url != self._last_db_url:
+            # if the url changed, we need to reconnect
+            force_reconnect = True
 
         self._last_db_url = url
 
@@ -51,15 +56,22 @@ class RunDBFactory(
                 "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API server"
                 " in order to connect"
             )
-            self._run_db = self._rundb_container.nop(url)
+            factory = self._rundb_container.nop
+
+        elif url.startswith("http"):
+            if force_reconnect:
+                # httpdb is a singleton, so we need to reset it in order to reconnect
+                self._rundb_container.http_db.reset()
+
+            factory = self._rundb_container.http_db
 
         else:
-            self._run_db = self._rundb_container.run_db(url)
+            factory = self._rundb_container.sql_db
 
-        self._run_db.connect(secrets=secrets)
-        return self._run_db
+        return factory(url, secrets=secrets, **kwargs)
 
 
 class RunDBContainer(containers.DeclarativeContainer):
     nop = providers.Factory(mlrun.db.nopdb.NopDB)
-    run_db = providers.Factory(mlrun.db.httpdb.HTTPRunDB)
+    http_db = providers.Singleton(mlrun.db.httpdb.HTTPRunDB)
+    sql_db = providers.Factory(mlrun.db.RunDBInterface)

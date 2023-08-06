@@ -61,7 +61,10 @@ class NotificationPusher(object):
                 if self._should_notify(run, notification):
                     self._load_notification(run, notification)
 
-    def push(self):
+    def push(
+        self,
+        db_session=None,
+    ):
         """
         Asynchronously push notifications for all runs in the initialized runs list (if they should be pushed).
         When running from a sync environment, the notifications will be pushed asynchronously however the function will
@@ -74,11 +77,13 @@ class NotificationPusher(object):
         def _sync_push():
             for notification_data in self._sync_notifications:
                 self._push_notification_sync(
+                    db_session,
                     notification_data[0],
                     notification_data[1],
                     notification_data[2],
                 )
 
+        # Do not propagate the db session to the async push function until our sql connection uses async engine
         async def _async_push():
             tasks = []
             for notification_data in self._async_notifications:
@@ -190,6 +195,7 @@ class NotificationPusher(object):
 
     def _push_notification_sync(
         self,
+        db_session,
         notification: NotificationBase,
         run: mlrun.model.RunObject,
         notification_object: mlrun.model.Notification,
@@ -215,6 +221,7 @@ class NotificationPusher(object):
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.SENT,
                 sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+                db_session=db_session,
             )
         except Exception as exc:
             logger.warning(
@@ -228,6 +235,7 @@ class NotificationPusher(object):
                 run.metadata.project,
                 notification_object,
                 status=mlrun.common.schemas.NotificationStatus.ERROR,
+                db_session=db_session,
             )
             raise exc
 
@@ -283,8 +291,9 @@ class NotificationPusher(object):
         notification: mlrun.model.Notification,
         status: str = None,
         sent_time: typing.Optional[datetime.datetime] = None,
+        db_session=None,
     ):
-        db = mlrun.get_run_db()
+        db = mlrun.get_run_db(session=db_session)
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
 

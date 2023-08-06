@@ -24,10 +24,10 @@ def get_or_set_dburl(default=""):
     return config.dbpath
 
 
-def get_run_db(url="", secrets=None, force_reconnect=False):
+def get_run_db(url="", secrets=None, force_reconnect=False, **kwargs):
     """Returns the runtime database"""
     # import here to avoid circular import
     import mlrun.db.factory
 
     run_db_factory = mlrun.db.factory.RunDBFactory()
-    return run_db_factory.create_run_db(url, secrets, force_reconnect)
+    return run_db_factory.create_run_db(url, secrets, force_reconnect, **kwargs)

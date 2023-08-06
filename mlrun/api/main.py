@@ -617,7 +617,9 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(
+        db_session=db_session
+    )
 
     _last_notification_push_time = now
 

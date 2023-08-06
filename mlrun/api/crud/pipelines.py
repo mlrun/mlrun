@@ -95,7 +95,7 @@ class Pipelines(
             runs = [run.to_dict() for run in response.runs or []]
             total_size = response.total_size
             next_page_token = response.next_page_token
-        runs = self._format_runs(runs, format_)
+        runs = self._format_runs(db_session, runs, format_)
 
         return total_size, next_page_token, runs
 
@@ -225,12 +225,13 @@ class Pipelines(
 
     def _format_runs(
         self,
+        db_session: sqlalchemy.orm.Session,
         runs: typing.List[dict],
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
         formatted_runs = []
         for run in runs:
-            formatted_runs.append(self._format_run(run, format_))
+            formatted_runs.append(self._format_run(run, format_, db_session=db_session))
         return formatted_runs
 
     def _format_run(
@@ -238,6 +239,7 @@ class Pipelines(
         run: dict,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         api_run_detail: typing.Optional[dict] = None,
+        db_session: sqlalchemy.orm.Session = None,
     ) -> dict:
         run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
@@ -253,7 +255,7 @@ class Pipelines(
                     "The full kfp api_run_detail object is needed to generate the summary format"
                 )
             return mlrun.kfpops.format_summary_from_kfp_run(
-                api_run_detail, run["project"]
+                api_run_detail, run["project"], session=db_session
             )
         else:
             raise NotImplementedError(

@@ -109,7 +109,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?run\/.+\/.+",
     ]
 
-    def __init__(self, url):
+    def __init__(self, url, secrets=None, **kwargs):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -119,6 +119,7 @@ class HTTPRunDB(RunDBInterface):
         self.python_version = str(version.Version().get_python_version())
 
         self._enrich_and_validate(url)
+        self.connect(secrets)
 
     def _enrich_and_validate(self, url):
         parsed_url = urlparse(url)
@@ -309,6 +310,7 @@ class HTTPRunDB(RunDBInterface):
         # hack to allow unit tests to instantiate HTTPRunDB without a real server behind
         if "mock-server" in self.base_url:
             return
+
         resp = self.api_call("GET", "client-spec", timeout=5)
         try:
             server_cfg = resp.json()

@@ -183,9 +183,10 @@ project.build_function(
 
 ### Extra arguments
 it is also possible to pass custom arguments and flags to Kaniko.
-The extra_args parameter can be utilized in the build_image, build_function, or during the deployment of the function. It provides a powerful way to fine-tune the Kaniko build process according to your specific needs.
+The extra_args parameter can be utilized in the build_image, build_function, or during the deployment of the function.
+It provides a way to fine-tune the Kaniko build process according to your specific needs.
 
-You can provide the extra_args as a string in the format of a CLI command line, just as you would when using Kaniko directly. For instance, if you want to pass custom Kaniko flags,
+You can provide the extra_args as a string in the format of a CLI command line, just as you would when using Kaniko directly,
 for example:
 
 ```python

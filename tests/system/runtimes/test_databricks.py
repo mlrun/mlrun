@@ -95,8 +95,10 @@ def print_kwargs(**kwargs):
             },
         )
         assert run.status.state == "completed"
-        assert run.status.results['databricks_runtime_task'][
-                   'logs'] == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+        assert (
+            run.status.results["databricks_runtime_task"]["logs"]
+            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+        )
 
     def test_kwargs_from_file(self):
         code_path = str(self.assets_path / "databricks_function_print_kwargs.py")
@@ -121,4 +123,7 @@ def print_kwargs(**kwargs):
             },
         )
         assert run.status.state == "completed"
-        assert run.status.results['databricks_runtime_task']['logs'] == "{'param1': 'value1', 'param2': 'value2'}\n"
+        assert (
+            run.status.results["databricks_runtime_task"]["logs"]
+            == "{'param1': 'value1', 'param2': 'value2'}\n"
+        )

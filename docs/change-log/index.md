@@ -16,7 +16,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-4303 | Duplicate project records in zebo caused data loss in MLRun. |
-| ML-4232 | Consumer group names now cannot inclde the character "-". |
+| ML-4232 | Consumer group names now cannot include the character "-". |
 
 ## v1.4.0 (23 July 2023)
 

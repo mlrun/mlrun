@@ -10,7 +10,7 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.4.8 (8 August 2023)
+## v1.4.1 (8 August 2023)
 
 ###  Closed issues
 | ID   | Description                                                    |

@@ -72,7 +72,6 @@ async def list_pipelines(
         )
         total_size, next_page_token, runs = await run_in_threadpool(
             mlrun.api.crud.Pipelines().list_pipelines,
-            db_session,
             project,
             namespace,
             sort_by,

@@ -40,7 +40,6 @@ class Pipelines(
 ):
     def list_pipelines(
         self,
-        db_session: sqlalchemy.orm.Session,
         project: str,
         namespace: typing.Optional[str] = None,
         sort_by: str = "",
@@ -95,7 +94,7 @@ class Pipelines(
             runs = [run.to_dict() for run in response.runs or []]
             total_size = response.total_size
             next_page_token = response.next_page_token
-        runs = self._format_runs(db_session, runs, format_)
+        runs = self._format_runs(runs, format_)
 
         return total_size, next_page_token, runs
 
@@ -225,12 +224,14 @@ class Pipelines(
 
     def _format_runs(
         self,
-        db_session: sqlalchemy.orm.Session,
         runs: typing.List[dict],
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
+        db_session: sqlalchemy.orm.Session = None,
     ) -> typing.List[dict]:
         formatted_runs = []
         for run in runs:
+            # Currently, we do not use the db session because summary format is not supported via list pipelines.
+            # The db session is passed to the format run method to allow reusing it instead of creating many sessions.
             formatted_runs.append(self._format_run(run, format_, db_session=db_session))
         return formatted_runs
 

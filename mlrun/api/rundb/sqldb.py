@@ -40,12 +40,11 @@ class SQLRunDB(RunDBInterface):
         self,
         dsn,
         session=None,
-        secrets=None,
+        **kwargs,
     ):
         self.session = session
         self.dsn = dsn
         self.db = None
-        self.connect(secrets)
 
     def connect(self, secrets=None):
         if not self.session:

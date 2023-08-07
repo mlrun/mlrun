@@ -68,7 +68,9 @@ class RunDBFactory(
         else:
             factory = self._rundb_container.sql_db
 
-        return factory(url, secrets=secrets, **kwargs)
+        run_db = factory(url, **kwargs)
+        run_db.connect(secrets=secrets)
+        return run_db
 
 
 class RunDBContainer(containers.DeclarativeContainer):

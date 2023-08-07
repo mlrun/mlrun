@@ -454,7 +454,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         )
 
         monitoring_feature_set = mlrun.feature_store.get_feature_set(
-            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+            model_endpoint.status.monitoring_feature_set_uri
         )
 
         # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version

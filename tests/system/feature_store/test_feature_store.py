@@ -4172,8 +4172,8 @@ class TestFeatureStore(TestMLRunSystem):
         reason="databricks storage parameters not configured",
     )
     @pytest.mark.parametrize(
-        "source_class, target_class, local_file_name, reader, reader_kwargs",
-        drop_index[
+        "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
+        [
             (
                 CSVSource,
                 CSVTarget,

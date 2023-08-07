@@ -4172,7 +4172,7 @@ class TestFeatureStore(TestMLRunSystem):
         reason="databricks storage parameters not configured",
     )
     @pytest.mark.parametrize(
-        "source_class, target_class, local_file_name, reader, reader_kwargs",
+        "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
         [
             (
                 CSVSource,
@@ -4180,6 +4180,7 @@ class TestFeatureStore(TestMLRunSystem):
                 "testdata_short.csv",
                 pd.read_csv,
                 {"parse_dates": ["date_of_birth"]},
+                False,
             ),
             (
                 ParquetSource,
@@ -4187,11 +4188,18 @@ class TestFeatureStore(TestMLRunSystem):
                 "testdata_short.parquet",
                 pd.read_parquet,
                 {},
+                True,
             ),
         ],
     )
     def test_ingest_with_dbfs(
-        self, source_class, target_class, local_file_name, reader, reader_kwargs
+        self,
+        source_class,
+        target_class,
+        local_file_name,
+        reader,
+        reader_kwargs,
+        drop_index,
     ):
         local_source_path = os.path.relpath(str(self.assets_path / local_file_name))
         drop_column = "number"
@@ -4209,16 +4217,14 @@ class TestFeatureStore(TestMLRunSystem):
             specific_test_class_dir=test_dir,
             subdirs=[f'/{extension.replace(".", "")}_{generated_uuid}'],
         )
-        dbfs_source_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/source_{base_filename}{extension}"
-        dbfs_target_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/target_{base_filename}{extension}"
-        with open(local_source_path, "rb") as source_file:
-            content = source_file.read()
-        with workspace.dbfs.open(dbfs_source_path, write=True, overwrite=True) as f:
-            f.write(content)
-
         try:
+            dbfs_source_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/source_{base_filename}{extension}"
+            dbfs_target_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/target_{base_filename}{extension}"
+            with open(local_source_path, "rb") as source_file:
+                content = source_file.read()
+            with workspace.dbfs.open(dbfs_source_path, write=True, overwrite=True) as f:
+                f.write(content)
             measurements.graph.to(DropFeatures(features=[drop_column]))
-            # upload file to databricks
             source = source_class("mycsv", dbfs_source_path, **reader_kwargs)
 
             target = target_class(name="specified-path", path=dbfs_target_path)
@@ -4229,8 +4235,7 @@ class TestFeatureStore(TestMLRunSystem):
                     f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}"
                 )
             )
-            if len(target_generated_dirs) > 2:
-                raise Exception("target generated more then 1 folder")
+            assert len(target_generated_dirs) == 1
             target_generated_dir_path = (
                 target_generated_dirs[0].path
                 if not target_generated_dirs[0].path.endswith(
@@ -4249,9 +4254,8 @@ class TestFeatureStore(TestMLRunSystem):
                 },
                 **reader_kwargs,
             )
-            if not result.index.equals(pd.RangeIndex(start=0, stop=len(result))):
+            if drop_index:
                 result.reset_index(inplace=True, drop=False)
-            if not expected.index.equals(pd.RangeIndex(start=0, stop=len(result))):
                 expected.reset_index(inplace=True, drop=False)
 
             assert_frame_equal(

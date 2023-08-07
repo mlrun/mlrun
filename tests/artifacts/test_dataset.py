@@ -230,6 +230,25 @@ def test_dataset_stats():
             assert dataset_artifact.status.stats is not None
 
 
+def test_get_log_dataset_dont_duplicate_index_column():
+    source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
+    df = mlrun.get_dataitem(source_url).as_df()
+    artifact = mlrun.get_or_create_ctx("test").log_dataset("iris", df=df, upload=False)
+    index_counter = 0
+    for field in artifact.spec.schema["fields"]:
+        if field["name"] == "index":
+            index_counter += 1
+    assert index_counter == 1
+
+    df = df.set_index("label")
+    artifact = mlrun.get_or_create_ctx("test").log_dataset("iris", df=df, upload=False)
+    index_counter = 0
+    for field in artifact.spec.schema["fields"]:
+        if field["name"] == "index":
+            index_counter += 1
+    assert index_counter == 1
+
+
 def _generate_dataset_artifact(format_):
     data_frame = pandas.DataFrame({"x": [1, 2]})
     target_path = pathlib.Path(tests.conftest.results) / "dataset"

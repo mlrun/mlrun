@@ -152,13 +152,13 @@ project.build_function(
 
 #### Using self-signed registry
 If you need to build your function and push the resulting container image to an external Docker registry that uses a self-signed SSL certificate,
-you can use Kaniko with the --skip-tls-verify flag.
-This flag allows Kaniko to ignore SSL certificate verification while pulling base images or pushing the final built image to the registry over HTTPS.
+you can use Kaniko with the `--skip-tls-verify` flag.
+When using this flag, Kaniko ignores the SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
 
-Note: Using the --skip-tls-verify flag poses security risks as it bypasses SSL certificate validation. 
+Caution: Using the --skip-tls-verify flag poses security risks since it bypasses SSL certificate validation.
 Only use this flag in trusted environments or with private registries where you are confident in the security of the network connections.
 
-In order to use this flag you can simply pass it in the `extra_args` parameter, for example:
+To use this flag, pass it in the extra_args parameter, for example:
 ```python
 # AWS credentials stored in a k8s secret -
 # kubectl create secret generic ecr-credentials --from-file=<path to .aws/credentials>
@@ -182,8 +182,8 @@ project.build_function(
 ```
 
 ### Extra arguments
-it is also possible to pass custom arguments and flags to Kaniko.
-The extra_args parameter can be utilized in the build_image, build_function, or during the deployment of the function.
+It is also possible to pass custom arguments and flags to Kaniko.
+The `extra_args` parameter can be utilized in the `build_image`, `build_function`, or during the deployment of the function.
 It provides a way to fine-tune the Kaniko build process according to your specific needs.
 
 You can provide the extra_args as a string in the format of a CLI command line, just as you would when using Kaniko directly,

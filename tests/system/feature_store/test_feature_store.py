@@ -4235,7 +4235,7 @@ class TestFeatureStore(TestMLRunSystem):
                     f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}"
                 )
             )
-            assert len(target_generated_dirs) == 1
+            assert len(target_generated_dirs) == 2  # should has source csv file and target dir.
             target_generated_dir_path = (
                 target_generated_dirs[0].path
                 if not target_generated_dirs[0].path.endswith(

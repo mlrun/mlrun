@@ -19,7 +19,8 @@ import datetime
 import json
 import os
 import re
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, Type, Union
+from collections.abc import Callable
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, Type, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -472,6 +473,120 @@ def calculate_inputs_statistics(
     return inputs_statistics
 
 
+class BatchWindower:
+    def __init__(
+        self,
+        window_len: datetime.timedelta,
+        model_endpoint_data: Dict[str, Any],
+    ) -> None:
+        self._window_len = window_len
+        self._model_endpoint_data = model_endpoint_data
+
+    def _has_last_analyzed_key(self) -> bool:
+        """Older systems (before v1.5.0) may not have the last_analyzed key - check it"""
+        return (
+            mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED
+            in self._model_endpoint_data
+        )
+
+    def _get_datetime_field(self, key: str) -> Optional[datetime.datetime]:
+        if dt := self._model_endpoint_data.get(key):
+            dt = datetime.datetime.fromisoformat(dt)
+        return cast(Optional[datetime.datetime], dt)
+
+    def _get_last_analyzed_time(self) -> Optional[datetime.datetime]:
+        return self._get_datetime_field(
+            mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED
+        )
+
+    def _get_first_request_time(self) -> Optional[datetime.datetime]:
+        return self._get_datetime_field(
+            mlrun.common.schemas.model_monitoring.EventFieldType.FIRST_REQUEST
+        )
+
+    def _get_start_time(
+        self, query_start: datetime.datetime
+    ) -> Optional[datetime.datetime]:
+        start_time = self._get_first_request_time()
+        if not start_time:
+            logger.info("No requests have been made yet.")
+            return None
+        last_analyzed = self._get_last_analyzed_time()
+        if last_analyzed:
+            logger.info("Found latest analyzed time {}", start_time)
+            start_time = last_analyzed
+        elif self._has_last_analyzed_key():
+            logger.info(
+                "No latest analyzed time was found, probably as this is the first run "
+                "of the batch monitoring job. Starting at {}",
+                start_time,
+            )
+        else:
+            start_time = self._get_window_start_time(query_start)
+            logger.info(
+                "No latest analyzed time was found, probably as it's an old system. "
+                "Starting at {}",
+                start_time,
+            )
+        return start_time
+
+    def _get_window_end_time(self, start_time: datetime.datetime) -> datetime.datetime:
+        return start_time + self._window_len
+
+    def _get_window_start_time(self, end_time: datetime.datetime) -> datetime.datetime:
+        return end_time - self._window_len
+
+    def get_windows(
+        self, now_func: Callable[[], datetime.datetime]
+    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
+        """Get batch window time ranges"""
+        query_start = now_func()
+        start_time = self._get_start_time(query_start)
+        if not start_time:
+            return None
+        end_time = self._get_window_end_time(start_time)
+
+        if end_time > query_start:
+            logger.info(
+                "The query window isn't over yet. Wait for the next time window."
+            )
+
+        while end_time <= query_start:
+            yield start_time, end_time
+            start_time = end_time
+            end_time = self._get_window_end_time(start_time)
+
+    @classmethod
+    def batch_dict2window_len(cls, batch_dict: dict) -> datetime.datetime:
+        # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
+        # Convert batch dict string into a dictionary
+        if isinstance(batch_dict, str):
+            cls._parse_batch_dict_str(batch_dict)
+
+        return datetime.timedelta(
+            minutes=batch_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
+            ],
+            hours=batch_dict[
+                mlrun.common.schemas.model_monitoring.EventFieldType.HOURS
+            ],
+            days=batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
+        )
+
+    @staticmethod
+    def _parse_batch_dict_str(batch_dict: dict) -> None:
+        """Convert inplace a batch dictionary string into a valid dictionary"""
+        characters_to_remove = "{} "
+        pattern = "[" + characters_to_remove + "]"
+        # Remove unnecessary characters from the provided string
+        batch_list = re.sub(pattern, "", batch_dict).split(",")
+        # Initialize the dictionary of batch interval ranges
+        batch_dict = {}
+        for pair in batch_list:
+            pair_list = pair.split(":")
+            batch_dict[pair_list[0]] = float(pair_list[1])
+
+
 class BatchProcessor:
     """
     The main object to handle the batch processing job. This object is used to get the required configurations and
@@ -521,47 +636,16 @@ class BatchProcessor:
         # If an error occurs, it will be raised using the following argument
         self.exception = None
 
-        # Get the batch interval range
-        self._interval_len = self._get_interval_len(
-            context.parameters[
+        self._window_len = BatchWindower.batch_dict2window_len(
+            batch_dict=context.parameters[
                 mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
-            ]
+            ],
         )
 
         # If provided, only model endpoints in that that list will be analyzed
         self.model_endpoints = context.parameters.get(
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
         )
-
-    @classmethod
-    def _get_interval_len(cls, batch_dict: dict) -> datetime.timedelta:
-        # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
-        # Convert batch dict string into a dictionary
-        if isinstance(batch_dict, str):
-            cls._parse_batch_dict_str(batch_dict)
-
-        return datetime.timedelta(
-            minutes=batch_dict[
-                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
-            ],
-            hours=batch_dict[
-                mlrun.common.schemas.model_monitoring.EventFieldType.HOURS
-            ],
-            days=batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
-        )
-
-    @staticmethod
-    def _parse_batch_dict_str(batch_dict: dict) -> None:
-        """Convert inplace a batch dictionary string into a valid dictionary"""
-        characters_to_remove = "{} "
-        pattern = "[" + characters_to_remove + "]"
-        # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", batch_dict).split(",")
-        # Initialize the dictionary of batch interval ranges
-        batch_dict = {}
-        for pair in batch_list:
-            pair_list = pair.split(":")
-            batch_dict[pair_list[0]] = float(pair_list[1])
 
     def _initialize_v3io_configurations(self):
         self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
@@ -661,8 +745,16 @@ class BatchProcessor:
                         f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
                     )
                     continue
-                for start_time, end_time in self._get_interval_ranges(
-                    endpoint, query_start=datetime.datetime.now()
+
+                for start_time, end_time in BatchWindower(
+                    window_len=self._window_len,
+                    model_endpoint_data=self.db.get_model_endpoint(
+                        endpoint_id=endpoint[
+                            mlrun.common.schemas.model_monitoring.EventFieldType.UID
+                        ]
+                    ),
+                ).get_windows(
+                    now_func=lambda: datetime.datetime.now(datetime.timezone.utc),
                 ):
                     self.update_drift_metrics(
                         endpoint=endpoint, start_time=start_time, end_time=end_time
@@ -817,7 +909,9 @@ class BatchProcessor:
                     drift_result
                 ),
                 mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
-                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED: end_time,
+                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED: str(
+                    end_time
+                ),
             }
             self.db.update_model_endpoint(
                 endpoint_id=endpoint[
@@ -859,47 +953,6 @@ class BatchProcessor:
                 mlrun.common.schemas.model_monitoring.EventFieldType.UID
             ],
         )
-
-    def _get_latest_analyzed_time(self, endpoint: dict) -> Optional[datetime.datetime]:
-        """Return the latest analyzed time (end) if exists"""
-        return self.db.get_model_endpoint(
-            endpoint_id=endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.UID
-            ]
-        ).get(mlrun.common.schemas.model_monitoring.EventFieldType.LAST_ANALYZED)
-
-    def _get_interval_start_time(
-            self, endpoint: dict, query_start: datetime.datetime
-        ) -> datetime.datetime:
-        """Return the start time. This time should always be in the past."""
-        latest_analyzed = self._get_latest_analyzed_time(endpoint)
-        if latest_analyzed:
-            start_time = latest_analyzed
-            logger.debug("Found latest analyzed time {}", start_time)
-        else:
-            start_time = query_start - self._interval_len
-            logger.info(
-                "No latest analyzed time was found, probably as this is the first run "
-                "of the batch monitoring job, or that it's an old system. Starting at {}",
-                start_time,
-            )
-        return start_time
-
-    def _get_interval_ranges(
-        self, endpoint: dict, query_start: datetime.datetime
-    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
-        """Getting batch interval time range"""
-        querying = True
-        while querying:
-            start_time = self._get_interval_start_time(endpoint, query_start=query_start)
-            end_time = start_time + self._interval_len
-            if end_time > query_start:
-                querying = False
-                logger.debug(
-                    "The query window isn't over yet. Wait for the next interval time."
-                )
-                return
-            yield start_time, end_time
 
     def _update_drift_in_v3io_tsdb(
         self,

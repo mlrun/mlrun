@@ -122,7 +122,10 @@ html_theme_options = {
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
     "google_analytics_id": "",
-    "navbar_end": ["navbar-icon-links.html", "search-field.html"]
+}
+
+html_sidebars = {
+    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
 }
 
 copybutton_selector = "div:not(.output) > div.highlight pre"

@@ -98,9 +98,8 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
-    def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project: str):
+    def delete_pipelines_runs(self, project: str):
         _, _, project_pipeline_runs = self.list_pipelines(
-            db_session=db_session,
             project=project,
             format_=mlrun.common.schemas.PipelinesFormat.metadata_only,
         )

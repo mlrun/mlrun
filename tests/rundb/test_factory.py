@@ -36,7 +36,7 @@ def test_create_http_db(monkeypatch):
 def test_schema_validation():
     factory = mlrun.db.factory.RunDBFactory()
     with pytest.raises(ValueError):
-        factory.create_run_db(url="not-https://localhost")
+        factory.create_run_db(url="https-not://localhost")
 
 
 def test_create_nop_db():

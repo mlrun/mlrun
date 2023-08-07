@@ -124,9 +124,15 @@ def test_api_call_enum_conversion():
     ],
 )
 def test_connection_reset_causes_retries(
-    feature_config, exception_type, exception_args, call_amount
+    monkeypatch, feature_config, exception_type, exception_args, call_amount
 ):
     mlrun.config.config.httpdb.retry_api_call_on_exception = feature_config
+    monkeypatch.setattr(
+        mlrun.db.httpdb.HTTPRunDB,
+        "connect",
+        lambda *args, **kwargs: unittest.mock.Mock(),
+    )
+
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()

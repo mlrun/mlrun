@@ -752,16 +752,16 @@ class HTTPRunDB(RunDBInterface):
                 FutureWarning,
             )
 
-        endpoint_path = f"projects/{project}/artifacts/{key}"
+        endpoint_path = f"projects/{project}/artifacts"
 
         error = f"store artifact {project}/{key}"
 
-        # artifact = self._set_artifact_metadata(artifact, key, iter, tag, tree)
-        params = self._get_store_artifact_params(iter, tag, tree)
+        artifact = self._set_artifact_metadata(artifact, key, iter, tag, tree)
+        # params = self._get_store_artifact_params(iter, tag, tree)
 
         body = _as_json(artifact)
         self.api_call(
-            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+            "POST", endpoint_path, error, body=body, version="v2"
         )
 
     def read_artifact(

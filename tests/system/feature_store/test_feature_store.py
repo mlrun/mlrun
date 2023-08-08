@@ -596,7 +596,7 @@ class TestFeatureStore(TestMLRunSystem):
     def test_ingest_with_format_run_project(self, local):
         first_data = pd.read_csv("/Users/Tomer_Mamia/Downloads/first_data.csv")
         feature_set_1 = fstore.FeatureSet(
-            name=f"fs_run_project_format_local_{local}",
+            name=f"fs-run_project-format-local-{local}",
             entities=["entity"],
             timestamp_key="time",
         )

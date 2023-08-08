@@ -614,8 +614,13 @@ class TestFeatureStore(TestMLRunSystem):
             )
         else:
             fstore.ingest(featureset=feature_set_1, source=first_data)
-        target_dir_path = os.path.dirname(os.path.dirname(feature_set_1.get_target_path()))
-        assert artifact_path.replace("{{run.project}}", self.project_name) == target_dir_path
+        target_dir_path = os.path.dirname(
+            os.path.dirname(feature_set_1.get_target_path())
+        )
+        assert (
+            artifact_path.replace("{{run.project}}", self.project_name)
+            == target_dir_path
+        )
 
     def test_feature_set_db(self):
         name = "stocks_test"

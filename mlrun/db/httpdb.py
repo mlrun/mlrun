@@ -760,9 +760,7 @@ class HTTPRunDB(RunDBInterface):
         # params = self._get_store_artifact_params(iter, tag, tree)
 
         body = _as_json(artifact)
-        self.api_call(
-            "POST", endpoint_path, error, body=body, version="v2"
-        )
+        self.api_call("POST", endpoint_path, error, body=body, version="v2")
 
     def read_artifact(
         self,

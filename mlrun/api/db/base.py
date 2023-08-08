@@ -212,69 +212,6 @@ class DBInterface(ABC):
     ):
         pass
 
-    # Artifact v1 APIs - Delete when v1 is deprecated!
-    def store_artifact_v1(
-        self,
-        session,
-        key,
-        artifact,
-        uid,
-        iter=None,
-        tag="",
-        project="",
-    ):
-        pass
-
-    def list_artifacts_v1(
-        self,
-        session,
-        name="",
-        project="",
-        tag="",
-        labels=None,
-        since=None,
-        until=None,
-        kind=None,
-        category: mlrun.common.schemas.ArtifactCategories = None,
-        iter: int = None,
-        best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
-    ):
-        pass
-
-    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
-        pass
-
-    def del_artifact_v1(self, session, key, tag="", project=""):
-        pass
-
-    def del_artifacts_v1(self, session, name="", project="", tag="*", labels=None):
-        pass
-
-    def list_artifact_tags_v1(
-        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
-    ):
-        pass
-
-    def overwrite_artifacts_with_tag_v1(
-        self,
-        session,
-        project,
-        tag,
-        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
-        pass
-
-    def append_tag_to_artifacts_v1(
-        self,
-        session,
-        project: str,
-        tag: str,
-        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
-        pass
-
     # TODO: Make these abstract once filedb implements them
     def store_metric(
         self, session, uid, project="", keyvals=None, timestamp=None, labels=None

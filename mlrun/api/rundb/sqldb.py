@@ -334,13 +334,7 @@ class SQLRunDB(RunDBInterface):
         )
 
     def store_schedule(self, data):
-        session = create_session()
-        try:
-            return self._create_session_and_transform_db_error(
-                self.db.store_schedule, session, data
-            )
-        finally:
-            session.close()
+        return self._create_session_and_transform_db_error(self.db.store_schedule, data)
 
     def list_schedules(self):
         return self._create_session_and_transform_db_error(self.db.list_schedules)
@@ -543,17 +537,12 @@ class SQLRunDB(RunDBInterface):
         )
 
     def create_feature_vector(self, feature_vector, project="", versioned=True):
-        session = create_session()
-        try:
-            return self._create_session_and_transform_db_error(
-                mlrun.api.crud.FeatureStore().create_feature_vector,
-                session,
-                project,
-                feature_vector,
-                versioned,
-            )
-        finally:
-            session.close()
+        return self._create_session_and_transform_db_error(
+            mlrun.api.crud.FeatureStore().create_feature_vector,
+            project,
+            feature_vector,
+            versioned,
+        )
 
     def get_feature_vector(
         self, name: str, project: str = "", tag: str = None, uid: str = None

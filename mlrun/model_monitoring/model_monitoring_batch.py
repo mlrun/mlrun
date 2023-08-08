@@ -20,7 +20,18 @@ import json
 import os
 import re
 from collections.abc import Callable
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, Type, Union, cast
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import numpy as np
 import pandas as pd

@@ -128,25 +128,25 @@ class SQLRunDB(RunDBInterface):
     ):
         return self._transform_db_error(
             mlrun.api.crud.Runs().list_runs,
-            self.session,
-            name,
-            uid,
-            project,
-            labels,
-            mlrun.utils.helpers.as_list(state) if state is not None else None,
-            sort,
-            last,
-            iter,
-            start_time_from,
-            start_time_to,
-            last_update_time_from,
-            last_update_time_to,
-            partition_by,
-            rows_per_partition,
-            partition_sort_by,
-            partition_order,
-            max_partitions,
-            with_notifications,
+            db_session=self.session,
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            states=mlrun.utils.helpers.as_list(state) if state is not None else None,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            with_notifications=with_notifications,
         )
 
     def del_run(self, uid, project=None, iter=None):
@@ -690,6 +690,34 @@ class SQLRunDB(RunDBInterface):
             run_uid,
             project,
             mask_params,
+        )
+
+    def function_status(self, project, name, kind, selector):
+        """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
+
+        :param project:     The project of the function, not needed here.
+        :param name:        The name of the function, not needed here.
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().get_function_status,
+            kind,
+            selector,
+        )
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
+        """Execute a function remotely, Used for ``dask`` functions.
+
+        :param func_url: URL to the function to be executed.
+        :param function: The function object to start.
+        :returns: A BackgroundTask object, with details on execution process and its status.
+        """
+        return self._transform_db_error(
+            mlrun.api.crud.Functions().start_function,
+            function,
         )
 
     def list_pipelines(

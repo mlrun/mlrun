@@ -15,8 +15,8 @@
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
 from mlrun.config import Config, config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
 class ClientSpec(
@@ -104,6 +104,7 @@ class ClientSpec(
             model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.store_type"
             ),
+            packagers=self._get_config_value_if_not_default("packagers"),
         )
 
     @staticmethod

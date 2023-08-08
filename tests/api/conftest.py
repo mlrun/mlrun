@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 
 import mlrun.api.launcher
 import mlrun.api.rundb.sqldb
+import mlrun.api.runtime_handlers.mpijob
 import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.api.utils.singletons.db
@@ -53,6 +54,7 @@ def api_config_test():
     mlrun.api.utils.singletons.logs_dir.logs_dir = None
 
     mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
+    mlrun.api.runtime_handlers.mpijob.cached_mpijob_crd_version = None
 
     mlrun.config._is_running_as_api = True
 

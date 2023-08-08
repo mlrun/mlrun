@@ -339,10 +339,6 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
-            )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"
             )
@@ -444,6 +440,14 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.packagers = server_cfg.get("packagers") or config.packagers
+            server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
+            for prefix in ["default", "nosql", "redisnosql"]:
+                server_prefix_value = server_data_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.feature_store.data_prefixes, prefix, server_prefix_value
+                    )
 
         except Exception as exc:
             logger.warning(
@@ -1264,10 +1268,13 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
+        :param function: The function object to start, not needed here.
         :returns: A BackgroundTask object, with details on execution process and its status.
         """
 
@@ -1312,13 +1319,13 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, project, name, kind, selector):
+    def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
-        :param project: The project of the function
-        :param name: The name of the function
-        :param kind: The kind of the function, currently ``dask`` is supported.
-        :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
+        :param project:     The project of the function
+        :param name:        The name of the function
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
@@ -2866,7 +2873,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedHubeSource(
+            private_source = mlrun.common.schemas.IndexedHubSource(
                 order=-1,
                 source=mlrun.common.schemas.HubSource(
                     metadata=mlrun.common.schemas.HubObjectMetadata(

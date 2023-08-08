@@ -37,10 +37,12 @@ import pandas
 import semver
 import yaml
 from dateutil import parser
+from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
 from yaml.representer import RepresenterError
 
 import mlrun
+import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
@@ -59,6 +61,19 @@ DB_SCHEMA = "store"
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
+
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'parse_versioned_object_uri' will be removed from this file in 1.7.0, use "
+    "'mlrun.common.helpers.parse_versioned_object_uri' instead",
+    category=FutureWarning,
+)
+def parse_versioned_object_uri(uri: str, default_project: str = ""):
+    return mlrun.common.helpers.parse_versioned_object_uri(
+        uri=uri, default_project=default_project
+    )
 
 
 class StorePrefix:
@@ -706,10 +721,10 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     if "/" in name:
         try:
             source_name, name = name.split("/")
-        except ValueError:
+        except ValueError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid character '/' in function name or source name"
-            )
+            ) from exc
     name = normalize_name(name=name, verbose=False)
     if not source_name:
         # Searching item in all sources
@@ -1480,10 +1495,7 @@ class DeprecationHelper(object):
 
 
 def normalize_workflow_name(name, project_name):
-    workflow_name = (
-        name.lstrip(project_name).lstrip("-") if project_name in name else name
-    )
-    return workflow_name
+    return name.removeprefix(project_name + "-")
 
 
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool

@@ -308,7 +308,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 
-    project_name = "pr-regression-model-monitoring"
+    project_name = "pr-regression-model-monitoring-v4"
 
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
@@ -449,20 +449,15 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         # ) + len(model_endpoint.spec.label_names)
 
         # Validate monitoring feature set URI
-        assert mlrun.feature_store.get_feature_set(
-            model_endpoint.status.monitoring_feature_set_uri
-        )
-
         monitoring_feature_set = mlrun.feature_store.get_feature_set(
-            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+            model_endpoint.status.monitoring_feature_set_uri
         )
 
-        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
-        # tag from the feature set URI)
-        assert (
-            model_endpoint.status.monitoring_feature_set_uri
-            == monitoring_feature_set.uri.replace(":latest", "")
+        expected_uri = (
+            f"store://feature-sets/{self.project_name}/monitoring-"
+            f"{serving_fn.metadata.name}-{model_name}-latest:{model_endpoint.metadata.uid}_"
         )
+        assert expected_uri == monitoring_feature_set.uri
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

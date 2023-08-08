@@ -34,7 +34,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
         self.name = "test-mpi-v1"
         mlconf.mpijob_crd_version = MPIJobCRDVersions.v1
 
-    def test_run_v1_sanity(self, db: Session, client: TestClient):
+    def test_run_v1_sanity(self, db: Session, client: TestClient, k8s_secrets_mock):
         mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()

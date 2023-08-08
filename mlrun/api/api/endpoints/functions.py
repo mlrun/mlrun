@@ -711,16 +711,11 @@ def _build_function(
         fn.set_db_connection(run_db)
 
         # enrich runtime with project defaults
-        launcher = mlrun.api.launcher.ServerSideLauncher()
+        launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
         launcher.enrich_runtime(runtime=fn)
 
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
-                auth_info,
-            )
-
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:

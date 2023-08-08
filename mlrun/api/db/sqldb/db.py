@@ -949,11 +949,36 @@ class SQLDB(DBInterface):
 
             # we want to tag the artifact also as "latest" if it's the first time we store it
             if tag != "latest":
-                self.tag_objects_v2(
-                    session, [db_artifact], project, "latest", obj_name_attribute="key"
-                )
+                self._tag_artifact_as_latest(session, db_artifact, project)
 
         return uid
+
+    def _tag_artifact_as_latest(self, session, db_artifact, project):
+
+        # find if there is already a "latest" tag for an artifact with the same key
+        latest_tag_uids = self._resolve_class_tag_uids(
+            session, ArtifactV2, project, "latest", db_artifact.key
+        )
+        if latest_tag_uids:
+            artifacts = (
+                self._query(session, ArtifactV2)
+                .filter(ArtifactV2.uid.in_(latest_tag_uids))
+                .all()
+            )
+
+            # delete the "latest" tag that points to the previous artifact
+            self._delete_artifacts_tags(
+                session,
+                project,
+                artifacts,
+                tags=["latest"],
+                commit=False,
+            )
+
+        # tag the artifact as "latest"
+        self.tag_objects_v2(
+            session, [db_artifact], project, "latest", obj_name_attribute="key"
+        )
 
     def _list_artifacts_for_tagging(
         self,

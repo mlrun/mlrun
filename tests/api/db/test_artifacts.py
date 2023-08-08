@@ -84,6 +84,10 @@ def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == len(test_iters) * 2
 
+    # look for the artifact with the "latest" tag
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, tag="latest")
+    assert len(artifacts) == 1
+
     # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
     for iter in test_iters:
         artifacts = db.list_artifacts(db_session, iter=iter)

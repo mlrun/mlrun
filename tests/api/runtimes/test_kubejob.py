@@ -754,6 +754,9 @@ def my_func(context):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ), unittest.mock.patch(
+            "mlrun.api.api.utils.apply_enrichment_and_validation_on_function",
+            unittest.mock.MagicMock(),
         ):
 
             runtime = self._generate_runtime()
@@ -874,6 +877,9 @@ def my_func(context):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+        ), unittest.mock.patch(
+            "mlrun.api.api.utils.apply_enrichment_and_validation_on_function",
+            unittest.mock.MagicMock(),
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"

@@ -10,21 +10,6 @@
     "include-suffix":""
   },
   {
-    "image-name":"base",
-    "python-version":"3.9",
-    "include-suffix":""
-  },
-  {
-    "image-name":"models",
-    "python-version":"3.9",
-    "include-suffix":""
-  },
-  {
-    "image-name":"models-gpu",
-    "python-version":"3.9",
-    "include-suffix":""
-  },
-  {
     "image-name":"jupyter",
     "python-version":"3.9",
     "include-suffix":""

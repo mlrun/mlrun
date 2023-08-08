@@ -46,7 +46,9 @@ class TestChurn(TestDemo):
             name="clean_data",
             kind="job",
             filename=function_path,
-            image="mlrun/ml-models-gpu" if self.use_gpus else "mlrun/ml-models",
+            image="mlrun/ml-models-gpu"
+            if self.use_gpus
+            else "mlrun/ml-models",  # TODO: change the images
             description="clean and encode raw data",
             categories=["data-prep"],
             labels={"author": "yasha", "framework": "xgboost"},

@@ -25,6 +25,7 @@ from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
 
 
+# TODO: v1alpha1 is not used anymore, remove this class
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     _mpijob_template = {
         "apiVersion": "kubeflow.org/v1alpha1",

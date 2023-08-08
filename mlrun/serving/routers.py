@@ -537,7 +537,7 @@ class VotingEnsemble(ParallelRun):
             fn = mlrun.code_to_function(name='ensemble',
                                         kind='serving',
                                         filename='model-server.py'
-                                        image='mlrun/ml-models')
+                                        image='mlrun/mlrun')
 
             # Set the router class
             # You can set your own classes by simply changing the `class_name`
@@ -1240,7 +1240,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
             fn = mlrun.code_to_function(name='ensemble',
                                         kind='serving',
                                         filename='model-server.py'
-                                        image='mlrun/ml-models')
+                                        image='mlrun/mlrun')
 
             # Set the router class
             # You can set your own classes by simply changing the `class_name`

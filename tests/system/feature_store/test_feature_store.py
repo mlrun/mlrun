@@ -2928,7 +2928,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3447,7 +3449,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3795,7 +3799,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3890,7 +3896,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4269,7 +4277,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4331,7 +4341,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-models",  # TODO: change the images
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True

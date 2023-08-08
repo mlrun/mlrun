@@ -178,8 +178,6 @@ default_config = {
             "serving": "mlrun/mlrun",
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
-            "dask": "mlrun/ml-base",
-            "mpijob": "mlrun/ml-models",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options

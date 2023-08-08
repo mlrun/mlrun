@@ -616,6 +616,7 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
     if build.base_image:
+        # TODO: ml-base, ml-models, and ml-models-gpu were removed in 1.5.0. remove them from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
             "mlrun/ml-base",

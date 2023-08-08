@@ -58,7 +58,8 @@ async def create_artifact(
     key = data.get("metadata").get("key", None)
     tag = data.get("metadata").get("tag", None)
     iteration = data.get("metadata").get("iter", None)
-    logger.debug("Storing artifact", project=project, key=key, tag=tag, iter=iter)
+    tree = data.get("metadata").get("tree", None)
+    logger.debug("Creating artifact", project=project, key=key, tag=tag, iter=iter)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -75,6 +76,7 @@ async def create_artifact(
         tag,
         iteration,
         project,
+        tree,
     )
     return {}
 
@@ -104,7 +106,7 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.debug("Updating artifact", project=project, key=key, tag=tag, iter=iter)
+    logger.debug("Storing artifact", project=project, key=key, tag=tag, iter=iter)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -272,5 +274,7 @@ async def delete_artifacts(
         name,
         tag,
         labels,
+        auth_info,
+        tree=tree,
     )
     return {}

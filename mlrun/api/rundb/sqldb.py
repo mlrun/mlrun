@@ -208,6 +208,7 @@ class SQLRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         if category and isinstance(category, str):
             category = mlrun.common.schemas.ArtifactCategories(category)
@@ -225,6 +226,7 @@ class SQLRunDB(RunDBInterface):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
+            tree=tree,
         )
 
     def del_artifact(self, key, tag="", project="", tree=None, uid=None):

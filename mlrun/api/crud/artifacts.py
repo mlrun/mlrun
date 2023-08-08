@@ -159,10 +159,11 @@ class Artifacts(
         tag: str = "latest",
         labels: typing.List[str] = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        tree: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         mlrun.api.utils.singletons.db.get_db().del_artifacts(
-            db_session, name, project, tag, labels
+            db_session, name, project, tag, labels, tree=tree
         )
 
 

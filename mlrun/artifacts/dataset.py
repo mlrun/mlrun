@@ -603,7 +603,7 @@ def update_dataset_meta(
     mlrun.get_run_db().store_artifact(
         artifact_spec.spec.db_key,
         artifact_spec.to_dict(),
-        artifact_spec.metadata.tree,
+        tree=artifact_spec.metadata.tree,
         iter=artifact_spec.metadata.iter,
         project=artifact_spec.metadata.project,
     )

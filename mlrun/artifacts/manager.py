@@ -291,7 +291,7 @@ class ArtifactManager:
             self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
-                item.tree,
+                tree=item.tree,
                 iter=item.iter,
                 tag=tag or item.tag,
                 project=project,
@@ -325,7 +325,7 @@ class ArtifactManager:
             self.artifact_db.store_artifact(
                 item.db_key,
                 item.to_dict(),
-                item.tree,
+                tree=item.tree,
                 iter=iter,
                 tag=tag,
                 project=project,

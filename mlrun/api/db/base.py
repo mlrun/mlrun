@@ -202,7 +202,14 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
-    def del_artifacts(self, session, name="", project="", tag="", labels=None):
+    def del_artifacts(
+        self, session, name="", project="", tag="*", labels=None, ids=None, tree=None
+    ):
+        pass
+
+    def list_artifact_tags(
+        self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
+    ):
         pass
 
     # Artifact v1 APIs - Delete when v1 is deprecated!
@@ -211,22 +218,19 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
-        uid=None,
+        uid,
         iter=None,
         tag="",
         project="",
-        best_iteration=False,
-        always_overwrite=False,
     ):
         pass
 
     def list_artifacts_v1(
         self,
         session,
-        name=None,
-        project=None,
-        tag=None,
-        uid=None,
+        name="",
+        project="",
+        tag="",
         labels=None,
         since=None,
         until=None,
@@ -235,30 +239,17 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
+        use_tag_as_uid: bool = None,
     ):
         pass
 
-    def read_artifact_v1(
-        self,
-        session,
-        key: str,
-        project: str = None,
-        iter: int = None,
-        producer_id: str = None,
-        tag: str = None,
-        uid: str = None,
-        raise_on_not_found: bool = True,
-    ):
+    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
         pass
 
-    def del_artifact_v1(
-        self, session, key, tag="", project="", uid=None, producer_id=None
-    ):
+    def del_artifact_v1(self, session, key, tag="", project=""):
         pass
 
-    def del_artifacts_v1(
-        self, session, name="", project="", tag=None, labels=None, ids=None
-    ):
+    def del_artifacts_v1(self, session, name="", project="", tag="*", labels=None):
         pass
 
     def list_artifact_tags_v1(
@@ -650,14 +641,6 @@ class DBInterface(ABC):
         uid=None,
     ):
         pass
-
-    def list_artifact_tags(
-        self,
-        session,
-        project,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-    ):
-        return []
 
     def create_hub_source(
         self, session, ordered_source: mlrun.common.schemas.IndexedHubSource

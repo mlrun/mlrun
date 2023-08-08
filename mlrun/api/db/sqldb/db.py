@@ -551,7 +551,7 @@ class SQLDB(DBInterface):
                 db_artifact = ArtifactV2(project=project, key=key)
 
             self._update_artifact_record_from_dict(
-                db_artifact, artifact_dict, project, uid, iter, best_iteration, tag
+                db_artifact, artifact_dict, project, key, uid, iter, best_iteration, tag
             )
             self._upsert(session, [db_artifact])
             if tag:
@@ -615,7 +615,7 @@ class SQLDB(DBInterface):
                 ids = self._resolve_tag(session, Artifact, project, tag)
 
         artifacts = ArtifactList()
-        artifact_records = self._find_artifacts(
+        artifact_records = self._find_artifacts_v1(
             session,
             project,
             ids,
@@ -715,6 +715,7 @@ class SQLDB(DBInterface):
         as_records: bool = False,
         use_tag_as_uid: bool = None,
         uid=None,
+        producer_id=None,
     ):
         project = project or config.default_project
 
@@ -723,10 +724,10 @@ class SQLDB(DBInterface):
                 "best-iteration cannot be used when iter is specified"
             )
 
-        artifact_records = self._find_artifacts_v2(
+        artifact_records = self._find_artifacts(
             session,
             project,
-            ids=None,  # id is None because we are in "list" mode
+            ids=None,  # id is None because we are in "list" operation
             tag=tag,
             labels=labels,
             since=since,
@@ -736,6 +737,7 @@ class SQLDB(DBInterface):
             category=category,
             iter=iter,
             uid=uid,
+            producer_id=producer_id,
             best_iteration=best_iteration,
         )
         if as_records:
@@ -743,11 +745,6 @@ class SQLDB(DBInterface):
 
         artifacts = ArtifactList()
         for artifact in artifact_records:
-
-            # TODO: handle the case where we have a link artifact with best iteration
-            if best_iteration:
-                pass
-
             artifact_struct = artifact.full_object
 
             # set the tags in the artifact struct
@@ -885,7 +882,7 @@ class SQLDB(DBInterface):
             return
 
         # deleting tags and labels, because in sqlite the relationships aren't necessarily cascading
-        self._delete_artifact_tags(session, project, key, tag, commit=False)
+        self._delete_artifact_tags_v1(session, project, key, tag, commit=False)
         self._delete_class_labels(
             session, Artifact, project=project, key=key, commit=False
         )
@@ -894,7 +891,7 @@ class SQLDB(DBInterface):
         session.commit()
 
     def del_artifact(
-        self, session, key, tag=None, project=None, uid=None, producer_id=None
+        self, session, key, tag="", project="", uid=None, producer_id=None
     ):
         project = project or config.default_project
         self._delete_tagged_object(
@@ -915,7 +912,7 @@ class SQLDB(DBInterface):
             ids = self._resolve_tag(session, Artifact, project, tag)
         distinct_keys = {
             artifact.key
-            for artifact in self._find_artifacts(
+            for artifact in self._find_artifacts_v1(
                 session, project, ids, labels, name=name
             )
         }
@@ -1006,7 +1003,7 @@ class SQLDB(DBInterface):
         # TODO - refactor once we have the artifact kind as a field in the DB, the filtering on category can be done
         # as a simple SQL query, and don't need to use the extra processing of listing tags etc.
 
-        artifacts = self.list_artifacts(
+        artifacts = self.list_artifacts_v1(
             session, project=project, tag="*", category=category
         )
         results = []
@@ -1045,6 +1042,29 @@ class SQLDB(DBInterface):
 
     # TODO: remove this method once the endpoints are updated to use the v2 method
     @retry_on_conflict
+    def overwrite_artifacts_with_tag_v1(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self._list_artifacts_for_tagging_v1(
+                session,
+                project_name=project,
+                identifier=identifier,
+            )
+        # TODO remove duplicates artifacts entries
+        # delete related tags from artifacts identifiers
+        # not committing the session here because we want to do it atomic with the next query
+        self._delete_artifacts_tags(session, project, artifacts, commit=False)
+        # tag artifacts with tag
+        self.tag_artifacts(session, artifacts, project, name=tag)
+
+    @retry_on_conflict
     def overwrite_artifacts_with_tag(
         self,
         session: Session,
@@ -1060,29 +1080,6 @@ class SQLDB(DBInterface):
                 project_name=project,
                 identifier=identifier,
             )
-        # TODO remove duplicates artifacts entries
-        # delete related tags from artifacts identifiers
-        # not committing the session here because we want to do it atomic with the next query
-        self._delete_artifacts_tags(session, project, artifacts, commit=False)
-        # tag artifacts with tag
-        self.tag_artifacts(session, artifacts, project, name=tag)
-
-    @retry_on_conflict
-    def overwrite_artifacts_with_tag_v2(
-        self,
-        session: Session,
-        project: str,
-        tag: str,
-        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
-        # query all artifacts which match the identifiers
-        artifacts = []
-        for identifier in identifiers:
-            artifacts += self._list_artifacts_for_tagging_v2(
-                session,
-                project_name=project,
-                identifier=identifier,
-            )
 
         # TODO: remove duplicates artifacts entries
 
@@ -1092,6 +1089,24 @@ class SQLDB(DBInterface):
 
         # tag artifacts with tag
         self.tag_objects_v2(session, artifacts, project, name=tag)
+
+    @retry_on_conflict
+    def append_tag_to_artifacts_v1(
+        self,
+        session: Session,
+        project: str,
+        tag: str,
+        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+    ):
+        # query all artifacts which match the identifiers
+        artifacts = []
+        for identifier in identifiers:
+            artifacts += self._list_artifacts_for_tagging_v1(
+                session,
+                project_name=project,
+                identifier=identifier,
+            )
+        self.tag_artifacts(session, artifacts, project, name=tag)
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -1105,24 +1120,6 @@ class SQLDB(DBInterface):
         artifacts = []
         for identifier in identifiers:
             artifacts += self._list_artifacts_for_tagging(
-                session,
-                project_name=project,
-                identifier=identifier,
-            )
-        self.tag_artifacts(session, artifacts, project, name=tag)
-
-    @retry_on_conflict
-    def append_tag_to_artifacts_v2(
-        self,
-        session: Session,
-        project: str,
-        tag: str,
-        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
-        # query all artifacts which match the identifiers
-        artifacts = []
-        for identifier in identifiers:
-            artifacts += self._list_artifacts_for_tagging_v2(
                 session,
                 project_name=project,
                 identifier=identifier,
@@ -1252,13 +1249,13 @@ class SQLDB(DBInterface):
         artifact_record,
         artifact_dict: dict,
         project: str,
+        key: str,
         uid: str,
         iter: int = None,
         best_iteration: bool = False,
         tag: str = None,
     ):
         artifact_record.project = project
-        artifact_record.iteration = iter
         kind = artifact_dict.get("kind") or "artifact"
         artifact_record.kind = kind
         artifact_record.producer_id = artifact_dict["metadata"].get("tree")
@@ -1271,6 +1268,9 @@ class SQLDB(DBInterface):
                 if created
                 else datetime.now(timezone.utc)
             )
+
+        # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
+        artifact_record.iteration = iter or 0
         if best_iteration:
             artifact_record.best_iteration = True
 
@@ -1281,6 +1281,10 @@ class SQLDB(DBInterface):
         artifact_dict["kind"] = kind
         if tag:
             artifact_dict["metadata"]["tag"] = tag
+
+        db_key = artifact_dict["spec"].get("db_key")
+        if not db_key:
+            artifact_dict["spec"]["db_key"] = key
 
         artifact_record.full_object = artifact_dict
 
@@ -1310,7 +1314,7 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
-            db_artifact, artifact, project, uid, iteration, best_iteration, tag
+            db_artifact, artifact, project, key, uid, iteration, best_iteration, tag
         )
 
         self._upsert(session, [db_artifact])
@@ -3815,7 +3819,7 @@ class SQLDB(DBInterface):
             if object_record is None:
                 return None, None
             object_id = object_record.id
-        elif tag:
+        elif tag and tag != "*":
             tag_record = self._query(
                 session, cls.Tag, project=project, name=tag, obj_name=obj_name
             ).one_or_none()
@@ -3831,7 +3835,9 @@ class SQLDB(DBInterface):
             self._delete(session, cls, id=object_id)
         else:
             if not commit:
-                return "name", obj_name if name else "key", obj_name
+                if name:
+                    return "name", obj_name
+                return "key", obj_name
             # If we got here, neither tag nor uid were provided - delete all references by name.
             # deleting tags, because in sqlite the relationships aren't necessarily cascading
             identifier = {"name": obj_name} if name else {"key": obj_name}

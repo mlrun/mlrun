@@ -726,7 +726,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         key,
         artifact,
-        # TODO: deprecated, remove in 1.5.0
+        # TODO: deprecated, remove in 1.7.0
         uid=None,
         iter=None,
         tag=None,
@@ -743,28 +743,26 @@ class HTTPRunDB(RunDBInterface):
             be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
         """
         if uid:
             warnings.warn(
-                "'uid' is deprecated, use 'tree' instead. "
-                "This will be removed in 1.7.0",
+                "'uid' is deprecated." "This will be removed in 1.7.0",
                 # TODO: Remove this in 1.7.0
                 FutureWarning,
             )
 
-        endpoint_path = f"projects/{project}/artifacts"
+        endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
 
+        # artifact = self._set_artifact_metadata(artifact, key, iter, tag, tree)
+        params = self._get_store_artifact_params(iter, tag, tree)
+
         body = _as_json(artifact)
-        body.setdefault("metadata", {})
-        if iter:
-            body["metadata"]["iter"] = iter
-        if tag:
-            body["metadata"]["tag"] = tag
-        if tree:
-            body["metadata"]["tree"] = tree
-        self.api_call("POST", endpoint_path, error, body=body, version="v2")
+        self.api_call(
+            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+        )
 
     def read_artifact(
         self,
@@ -3389,6 +3387,31 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of("projects", project, "datastore_profiles")
 
         self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
+
+    @staticmethod
+    def _set_artifact_metadata(artifact, key, iter, tag, tree):
+        artifact_dict = artifact if isinstance(artifact, dict) else artifact.to_dict()
+        artifact_dict.setdefault("metadata", {})
+        if key and key != artifact_dict["metadata"].get("key"):
+            artifact_dict["metadata"]["key"] = key
+        if iter:
+            artifact_dict["metadata"]["iter"] = iter
+        if tag:
+            artifact_dict["metadata"]["tag"] = tag
+        if tree:
+            artifact_dict["metadata"]["tree"] = tree
+        return Artifact.from_dict(artifact_dict)
+
+    @staticmethod
+    def _get_store_artifact_params(iter, tag, tree):
+        params = {}
+        if iter:
+            params["iter"] = str(iter)
+        if tag:
+            params["tag"] = tag
+        if tree:
+            params["tree"] = tree
+        return params
 
 
 def _as_json(obj):

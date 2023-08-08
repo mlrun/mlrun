@@ -708,7 +708,7 @@ def update_model(
         mlrun.get_run_db().store_artifact(
             model_spec.db_key,
             model_spec.to_dict(),
-            model_spec.tree,
+            tree=model_spec.tree,
             iter=model_spec.iter,
             project=model_spec.project,
         )

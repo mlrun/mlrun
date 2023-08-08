@@ -216,7 +216,6 @@ class MonitoringDeployment:
             fn = self._get_model_monitoring_batch_function(
                 project=project,
                 model_monitoring_access_key=model_monitoring_access_key,
-                db_session=db_session,
                 auth_info=auth_info,
                 tracking_policy=tracking_policy,
             )
@@ -320,7 +319,6 @@ class MonitoringDeployment:
         self,
         project: str,
         model_monitoring_access_key: str,
-        db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
     ):
@@ -347,7 +345,6 @@ class MonitoringDeployment:
             image=tracking_policy.default_batch_image,
             handler="handler",
         )
-        function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 
         # Set the project to the job function
         function.metadata.project = project

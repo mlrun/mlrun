@@ -47,8 +47,7 @@ def db(request):
         _init_engine(dsn=dsn)
         init_data()
         initialize_db()
-        db_session = create_session()
-        db = sqldb.SQLRunDB(dsn, session=db_session)
+        db = sqldb.SQLRunDB(dsn)
     else:
         assert False, f"unknown db type - {request.param}"
 

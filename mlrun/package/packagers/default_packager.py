@@ -65,6 +65,13 @@ class _DefaultPackagerMeta(_PackagerMeta):
 
         **Packing Sub-Classes**: True / False
 
+        * **Priority**: ...
+
+        **Default Artifact Types**:
+
+          * **Packing**: ...
+          * **Unpacking**: ...
+
         **Artifact Types**:
 
         * **type 1**: ...
@@ -98,6 +105,29 @@ class _DefaultPackagerMeta(_PackagerMeta):
         # Subclasses support section:
         packing_sub_classes = f"**Packing Sub-Classes**: {cls.PACK_SUBCLASSES}"
 
+        # Priority section:
+        priority_value = (
+            cls.PRIORITY if cls.PRIORITY is not ... else "Default priority (5)"
+        )
+        priority = f"**Priority**: {priority_value}"
+
+        # Default artifact types:
+        def get_default_artifact_type(pack_or_unpack: str) -> str:
+            pack_or_unpack = f"default_{pack_or_unpack}ing_artifact_type"
+            method_name = f"get_{pack_or_unpack}"
+            argument_name = pack_or_unpack.upper()
+            return (
+                getattr(cls, argument_name)
+                if cls.__name__ == "DefaultPackager" or method_name not in cls.__dict__
+                else f"Refer to the packager's :py:meth:`~{cls.__module__}.{cls.__name__}.{method_name}` method."
+            )
+
+        default_artifact_types = (
+            f"**Default Artifact Types**:"
+            f"\n\n* **Packing**: {get_default_artifact_type('pack')}"
+            f"\n\n* **Unpacking**: {get_default_artifact_type('unpack')}"
+        )
+
         # Artifact types section:
         artifact_types = "**Artifact Types**:"
         for artifact_type in cls.get_supported_artifact_types():
@@ -109,7 +139,10 @@ class _DefaultPackagerMeta(_PackagerMeta):
             artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
                 "\n", ""
             )
-            artifact_types += f"\n\n* **{artifact_type}** - " + artifact_type_doc
+            artifact_types += (
+                f"\n\n* :py:meth:`{artifact_type}<{cls.__module__}.{cls.__name__}.pack_{artifact_type}>` - "
+                + artifact_type_doc
+            )
             # Add the artifact type configurations (ignoring the `obj` and `key` parameters):
             configurations_doc = "\n\n  * ".join(
                 "{} - {}".format(
@@ -126,6 +159,8 @@ class _DefaultPackagerMeta(_PackagerMeta):
             "\n\n.. rubric:: Packager Summary"
             f"\n\n{packing_type}"
             f"\n\n{packing_sub_classes}"
+            f"\n\n{priority}"
+            f"\n\n{default_artifact_types}"
             f"\n\n{artifact_types}"
             f"\n\n"
         )
@@ -140,61 +175,65 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     use cases. In order to work with this class, you shouldn't override the abstract class methods, but follow the
     guidelines below:
 
-    * The class variable ``PACKABLE_OBJECT_TYPE``: The type of object this packager can pack and unpack (used in the
-      ``is_packable`` method).
-    * The class variable ``PACK_SUBCLASSES``: A flag that indicates whether to pack all subclasses of the
-      ``PACKABLE_OBJECT_TYPE` (used in the ``is_packable`` method). Default is False.
-    * The class variable ``DEFAULT_PACKING_ARTIFACT_TYPE``: The default artifact type to pack as. It is being returned
-      from the method ``get_default_packing_artifact_type``
-    * The class variable ``DEFAULT_UNPACKING_ARTIFACT_TYPE``: The default artifact type to unpack from. It is being
-      returned from the method ``get_default_unpacking_artifact_type``.
-    * The abstract class method ``pack``: The method is implemented to get the object and send it to the relevant
-      packing method by the artifact type given using the following naming: "pack_<artifact_type>". (if artifact type
-      was not provided, the default one will be used). For example: if the artifact type is "object" then the class
-      method ``pack_object`` must be implemented. The signature of each pack class method must be::
+    * **The class variable** :py:meth:`PACKABLE_OBJECT_TYPE<PACKABLE_OBJECT_TYPE>`: The type of object this packager can
+      pack and unpack (used in the ``is_packable`` method).
+    * **The class variable** :py:meth:`PACK_SUBCLASSES<PACK_SUBCLASSES>`: A flag that indicates whether to pack all
+      subclasses of the ``PACKABLE_OBJECT_TYPE`` (used in the ``is_packable`` method). Default is False.
+    * **The class variable** :py:meth:`DEFAULT_PACKING_ARTIFACT_TYPE<DEFAULT_PACKING_ARTIFACT_TYPE>`: The default
+      artifact type to pack as. It is being returned from the method ``get_default_packing_artifact_type``.
+    * **The class variable** :py:meth:`DEFAULT_UNPACKING_ARTIFACT_TYPE<DEFAULT_UNPACKING_ARTIFACT_TYPE>`: The default
+      artifact type to unpack from. It is being returned from the method
+      ``get_default_unpacking_artifact_type``.
+    * **The abstract class method** :py:meth:`pack`: The method is implemented to get the object and send it to the
+      relevant packing method by the artifact type given using the following naming: "pack_<artifact_type>". (if
+      artifact type was not provided, the default one will be used). For example: if the artifact type is `x` then
+      the class method ``pack_x`` must be implemented. The signature of each pack class method must be::
 
           @classmethod
-          def pack_x(cls, obj: Any, ...) -> Union[Tuple[Artifact, dict], dict]:
+          def pack_x(cls, obj: Any, key: str, ...) -> Union[Tuple[Artifact, dict], dict]:
               pass
 
-      Where 'x' is the artifact type, 'obj' is the object to pack, ... are additional custom log hint configurations and
-      the returning values are the packed artifact and the instructions for unpacking it, or in case of result, the
-      dictionary of the result with its key and value. The log hint configurations are sent by the user and shouldn't be
-      mandatory, meaning they should have a default value (otherwise, the user will have to add them to every log hint).
-    * The abstract class method ``unpack``: The method is implemented to get a ``DataItem`` and send it to the relevant
-      unpacking method by the artifact type using the following naming: "unpack_<artifact_type>" (if artifact type was
-      not provided, the default one will be used). For example: if the artifact type stored within the ``DataItem`` is
-      "object" then the class method ``unpack_object`` must be implemented. The signature of each unpack class method
-      must be::
+      Where 'x' is the artifact type, 'obj' is the object to pack, `key` is the key to name the artifact and `...` are
+      additional custom log hint configurations and the returning values are the packed artifact and the instructions
+      for unpacking it, or in case of result, the dictionary of the result with its key and value. The log hint
+      configurations are sent by the user and shouldn't be mandatory, meaning they should have a default value
+      (otherwise, the user will have to add them to every log hint).
+    * **The abstract class method** :py:meth:`unpack`: The method is implemented to get a
+      :py:meth:`DataItem<mlrun.datastore.base.DataItem>` and send it to the relevant unpacking method by the artifact
+      type using the following naming: `"unpack_<artifact_type>"` (if artifact type was not provided, the default one
+      will be used). For example: if the artifact type stored within the ``DataItem`` is `x` then the class method
+      ``unpack_x`` must be implemented. The signature of each unpack class method must be::
 
           @classmethod
           def unpack_x(cls, data_item: mlrun.DataItem, ...) -> Any:
               pass
 
-      Where 'x' is the artifact type, 'data_item' is the artifact's data item to unpack, ... are the instructions that
+      Where 'x' is the artifact type, 'data_item' is the artifact's data item to unpack, `...` are the instructions that
       were originally returned from ``pack_x`` (Each instruction must be optional (have a default value) to support
       objects from this type that were not packaged but customly logged) and the returning value is the unpacked
       object.
-    * The abstract class method ``is_packable``: The method is implemented to validate the object type and artifact type
-      automatically by the following rules:
+    * **The abstract class method** :py:meth:`is_packable`: The method is implemented to validate the object type and
+      artifact type automatically by the following rules:
 
-      * Object type validation: Checking if the object type given match to the variable ``PACKABLE_OBJECT_TYPE`` with
-        respect to the ``PACK_SUBCLASSES`` class variable.
-      * Artifact type validation: Checking if the artifact type given is in the list returned from
+      * **Object type validation**: Checking if the object type given match to the variable ``PACKABLE_OBJECT_TYPE``
+        with respect to the ``PACK_SUBCLASSES`` class variable.
+      * **Artifact type validation**: Checking if the artifact type given is in the list returned from
         ``get_supported_artifact_types``.
 
-    * The abstract class method ``is_unpackable``: The method is left as implemented in ``Packager``.
-    * The abstract class method ``get_supported_artifact_types``: The method is implemented to look for all
+    * **The abstract class method** :py:meth:`is_unpackable`: The method is left as implemented in ``Packager``.
+    * **The abstract class method** :py:meth:`get_supported_artifact_types`: The method is implemented to look for all
       pack + unpack class methods implemented to collect the supported artifact types. If ``PackagerX`` has ``pack_y``,
-      ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are 'y' and 'z'.
-    * The abstract class method ``get_default_packing_artifact_type``: The method is implemented to return the new class
-      variable ``DEFAULT_PACKING_ARTIFACT_TYPE``. You may still override the method if the default artifact type you
-      need may change according to the object that's about to be packed.
-    * The abstract class method ``get_default_unpacking_artifact_type``: The method is implemented to return the new
-      class variable ``DEFAULT_UNPACKING_ARTIFACT_TYPE``. You may still override the method if the default artifact type
-      you need may change according to the data item that's about to be unpacked.
+      ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are `y` and `z`.
+    * **The abstract class method** :py:meth:`get_default_packing_artifact_type`: The method is implemented to return
+      the new class variable ``DEFAULT_PACKING_ARTIFACT_TYPE``. You may still override the method if the default
+      artifact type you need may change according to the object that's about to be packed.
+    * **The abstract class method** :py:meth:`get_default_unpacking_artifact_type`: The method is implemented to return
+      the new class variable ``DEFAULT_UNPACKING_ARTIFACT_TYPE``. You may still override the method if the default
+      artifact type you need may change according to the data item that's about to be unpacked.
 
-    Important to remember (from the ``Packager`` docstring):
+    .. rubric:: Important to remember
+
+    From the :py:meth:`Packager<mlrun.package.packager.Packager>` docstring:
 
     * **Linking artifacts** ("extra data"): In order to link between packages (using the extra data or metrics spec
       attributes of an artifact), you should use the key as if it exists and as value ellipses (...). The manager will
@@ -207,7 +246,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
     * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted once done
       with logging the artifact. The packager can mark paths of files and directories to delete after logging using the
-      class method ``future_clear``.
+      class method ``add_future_clearing_path``.
 
       For example, in the following packager's ``pack`` method we can write a text file, create an Artifact and then
       mark the text file to be deleted once the artifact is logged::
@@ -275,6 +314,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     def pack(
         cls,
         obj: Any,
+        key: str = None,
         artifact_type: str = None,
         configurations: dict = None,
     ) -> Union[Tuple[Artifact, dict], dict]:
@@ -282,6 +322,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         Pack an object as the given artifact type using the provided configurations.
 
         :param obj:            The object to pack.
+        :param key:            The key of the artifact.
         :param artifact_type:  Artifact type to log to MLRun. If passing `None`, the default artifact type will be used.
         :param configurations: Log hints configurations to pass to the packing method.
 
@@ -306,7 +347,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         )
 
         # Call the packing method and return the package:
-        return pack_method(obj, **configurations)
+        return pack_method(obj=obj, key=key, **configurations)
 
     @classmethod
     def unpack(
@@ -348,7 +389,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         return unpack_method(data_item, **instructions)
 
     @classmethod
-    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
+    def is_packable(
+        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+    ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
 
@@ -356,8 +399,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         match to the variable ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable. If it
         does, it will check if the artifact type given is in the list returned from ``get_supported_artifact_types``.
 
-        :param obj:           The object to pack.
-        :param artifact_type: The artifact type to log the object as.
+        :param obj:            The object to pack.
+        :param artifact_type:  The artifact type to log the object as.
+        :param configurations: The log hint configurations passed by the user.
 
         :return: True if packable and False otherwise.
         """
@@ -497,7 +541,15 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             and parameter.kind
             not in [inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL]
         ]
-        mandatory_arguments.remove("obj" if is_packing else "data_item")
+
+        # Remove non-configuration (or non-instructions in case of unpacking) arguments:
+        if is_packing:
+            mandatory_arguments.remove("obj")
+            if "key" in mandatory_arguments:
+                # Default keys may be an option in the future, so it is not necessary a mandatory argument:
+                mandatory_arguments.remove("key")
+        else:
+            mandatory_arguments.remove("data_item")
 
         # Validate there are no missing arguments (only mandatory ones):
         missing_arguments = [

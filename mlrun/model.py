@@ -32,9 +32,10 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_artifact_path_template,
     get_artifact_target,
     is_legacy_artifact,
-    logger, fill_artifact_path_template,
+    logger,
 )
 
 # Changing {run_id} will break and will not be backward compatible.
@@ -1581,9 +1582,13 @@ class TargetPathObject:
         return self.full_path_template
 
     def get_absolute_path(self):
-        formatted_path = fill_artifact_path_template(artifact_path=self.full_path_template,
-                                                     project=mlrun.get_current_project().name)
-        return formatted_path.format(run_id=self.run_id) if self.run_id else formatted_path
+        formatted_path = fill_artifact_path_template(
+            artifact_path=self.full_path_template,
+            project=mlrun.get_current_project().name,
+        )
+        return (
+            formatted_path.format(run_id=self.run_id) if self.run_id else formatted_path
+        )
 
 
 class DataSource(ModelObj):

@@ -619,9 +619,9 @@ class TestRuntimeBase:
             "name": "v3io",
         }
         if masked:
-            expected_volume["flexVolume"]["secretRef"][
-                "name"
-            ] = f"secret-ref-{v3io_user}-{v3io_access_key}"
+            expected_volume["flexVolume"]["secretRef"] = {
+                "name": f"secret-ref-{v3io_user}-{v3io_access_key}"
+            }
         else:
             expected_volume["flexVolume"]["options"]["accessKey"] = v3io_access_key
 

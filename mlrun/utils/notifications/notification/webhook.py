@@ -42,7 +42,7 @@ class WebhookNotification(NotificationBase):
         method = self.params.get("method", "post").lower()
         headers = self.params.get("headers", {})
         override_body = self.params.get("override_body", None)
-        verify_ssl = self.params.get("verify_ssl", False)
+        verify_ssl = self.params.get("verify_ssl", True)
 
         request_body = {
             "message": message,

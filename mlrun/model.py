@@ -1587,10 +1587,8 @@ class TargetPathObject:
         path = fill_artifact_path_template(
             artifact_path=self.full_path_template,
             project=project_name,
-            )
-        return (
-            path.format(run_id=self.run_id) if self.run_id else path
         )
+        return path.format(run_id=self.run_id) if self.run_id else path
 
 
 class DataSource(ModelObj):

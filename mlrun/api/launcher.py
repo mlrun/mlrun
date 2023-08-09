@@ -187,7 +187,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         )
 
         if full:
-            self._enrich_before_run(runtime)
+            self._enrich_full_spec(runtime)
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
@@ -204,7 +204,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False
             )
 
-    def _enrich_before_run(
+    def _enrich_full_spec(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
     ):

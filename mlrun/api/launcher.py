@@ -168,6 +168,12 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
+        ensure_auth: bool = True,
+        perform_auto_mount: bool = True,
+        validate_service_account: bool = True,
+        mask_sensitive_data: bool = True,
+        ensure_security_context: bool = True,
+        **kwargs,
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -176,7 +182,13 @@ class ServerSideLauncher(launcher.BaseLauncher):
         """
         if self._auth_info:
             mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                runtime, self._auth_info
+                runtime,
+                self._auth_info,
+                ensure_auth=ensure_auth,
+                perform_auto_mount=perform_auto_mount,
+                validate_service_account=validate_service_account,
+                mask_sensitive_data=mask_sensitive_data,
+                ensure_security_context=ensure_security_context,
             )
 
         # ensure the runtime has a project before we enrich it with the project's spec

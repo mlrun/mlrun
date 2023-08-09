@@ -707,9 +707,17 @@ def _build_function(
         )
     try:
 
-        # enrich runtime with project defaults
+        # Enrich runtime with project defaults
         launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        launcher.enrich_runtime(runtime=fn)
+        # Just mask the credentials in the function
+        launcher.enrich_runtime(
+            runtime=fn,
+            ensure_auth=False,
+            perform_auto_mount=False,
+            validate_service_account=False,
+            mask_sensitive_data=True,
+            ensure_security_context=False,
+        )
 
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():

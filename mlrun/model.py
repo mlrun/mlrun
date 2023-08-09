@@ -1582,12 +1582,14 @@ class TargetPathObject:
         return self.full_path_template
 
     def get_absolute_path(self):
-        formatted_path = fill_artifact_path_template(
+        project = mlrun.get_current_project(silent=True)
+        project_name = project.name if project else None
+        path = fill_artifact_path_template(
             artifact_path=self.full_path_template,
-            project=mlrun.get_current_project().name,
-        )
+            project=project_name,
+            )
         return (
-            formatted_path.format(run_id=self.run_id) if self.run_id else formatted_path
+            path.format(run_id=self.run_id) if self.run_id else path
         )
 
 

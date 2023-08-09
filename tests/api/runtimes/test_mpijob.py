@@ -20,6 +20,7 @@ from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.api.utils.builder
+import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.api.utils.singletons.k8s import get_k8s_helper
@@ -47,6 +48,7 @@ class TestMpiV1Runtime(TestRuntimeBase):
             run = mpijob_function.run(
                 artifact_path="v3io:///mypath",
                 watch=False,
+                auth_info=mlrun.common.schemas.AuthInfo(),
             )
 
             assert run.status.state == "running"

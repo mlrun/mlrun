@@ -259,11 +259,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 "Local runtimes can not be run through API (not locally)"
             )
 
-        if not runtime.metadata.credentials.access_key:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Runtime access key is required"
-            )
-
         super()._validate_runtime(runtime, run)
 
 

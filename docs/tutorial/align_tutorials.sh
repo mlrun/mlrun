@@ -40,7 +40,7 @@ echo "Detected MLRun version: ${mlrun_version}"
 # Verifying mlrun >= 1.4.0
 tag_prefix=`echo ${mlrun_version} | cut -d . -f1-2`
 if [[ "${tag_prefix}" < "1.4" ]]; then
-    error_exit "MLRun version too old. Aborting..."
+    error_exit "MLRun version must be 1.4.0 or above. Aborting..."
 fi
 
 # removing old tutorial folder

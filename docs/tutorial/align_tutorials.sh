@@ -37,6 +37,12 @@ fi
 mlrun_version=$(echo "${pip_mlrun##Version: }" | sed 's/\([0-9]\)rc/\1-rc/')
 echo "Detected MLRun version: ${mlrun_version}"
 
+# Verifying mlrun >= 1.4.0
+tag_prefix=`echo ${mlrun_version} | cut -d . -f1-2`
+if [[ "${tag_prefix}" < "1.4" ]]; then
+    error_exit "MLRun version too old. Aborting..."
+fi
+
 # removing old tutorial folder
 rm -rf "${tutorial_dir}/tutorial"
 

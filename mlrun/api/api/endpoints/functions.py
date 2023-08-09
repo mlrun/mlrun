@@ -706,21 +706,14 @@ def _build_function(
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
+        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
 
         # Enrich runtime with project defaults
         launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # Just mask the credentials (other enrichments are not relevant for build)
-        launcher.enrich_runtime(
-            runtime=fn,
-            ensure_auth=False,
-            perform_auto_mount=False,
-            validate_service_account=False,
-            mask_sensitive_data=True,
-            ensure_security_context=False,
-        )
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
+        if is_nuclio_runtime:
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:

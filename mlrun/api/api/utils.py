@@ -362,6 +362,7 @@ def validate_and_mask_notification_list(
     ]
 
 
+# TODO: split enrichment and validation to separate functions should be in the launcher
 def apply_enrichment_and_validation_on_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,

@@ -168,28 +168,27 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
-        ensure_auth: bool = True,
-        perform_auto_mount: bool = True,
-        validate_service_account: bool = True,
-        mask_sensitive_data: bool = True,
-        ensure_security_context: bool = True,
+        full: bool = True,
         **kwargs,
     ):
         """
         Enrich the runtime object with the project spec and metadata.
         This is done only on the server side, since it's the source of truth for the project, and we want to keep the
         client side enrichment as minimal as possible.
+        :param runtime:         the runtime object to enrich
+        :param project_name:    the project name of the project to enrich the runtime with
+        :param full:            whether to enrich the runtime with the project's full spec (before run)
+                                e.g. mount, service account, etc.
         """
-        if self._auth_info:
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                runtime,
-                self._auth_info,
-                ensure_auth=ensure_auth,
-                perform_auto_mount=perform_auto_mount,
-                validate_service_account=validate_service_account,
-                mask_sensitive_data=mask_sensitive_data,
-                ensure_security_context=ensure_security_context,
-            )
+
+        # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+        # be able to communicate with the api
+        mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
+            runtime, self._auth_info
+        )
+
+        if full:
+            self._enrich_before_run(runtime)
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
@@ -205,6 +204,22 @@ class ServerSideLauncher(launcher.BaseLauncher):
             mlrun.projects.pipelines.enrich_function_object(
                 project, runtime, copy_function=False
             )
+
+    def _enrich_before_run(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+    ):
+
+        # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
+        # config and params passed in the auth_info.
+        # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+        mlrun.api.api.utils.try_perform_auto_mount(runtime, self._auth_info)
+
+        # Validate function's service-account, based on allowed SAs for the project,
+        # if existing in a project-secret.
+        mlrun.api.api.utils.process_function_service_account(runtime)
+
+        mlrun.api.api.utils.ensure_function_security_context(runtime, self._auth_info)
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):
@@ -243,6 +258,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Local runtimes can not be run through API (not locally)"
+            )
+
+        if not runtime.metadata.credentials.access_key:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Runtime access key is required"
             )
 
         super()._validate_runtime(runtime, run)

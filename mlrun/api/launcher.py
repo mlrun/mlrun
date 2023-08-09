@@ -169,7 +169,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
         full: bool = True,
-        **kwargs,
     ):
         """
         Enrich the runtime object with the project spec and metadata.
@@ -184,7 +183,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
         # be able to communicate with the api
         mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
-            runtime, self._auth_info
+            runtime, self._auth_info, allow_empty_access_key=not full
         )
 
         if full:

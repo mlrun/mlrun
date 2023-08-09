@@ -32,6 +32,7 @@ import mlrun.api.crud
 import mlrun.api.main
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
@@ -507,6 +508,12 @@ def test_build_function_masks_access_key(
     client: fastapi.testclient.TestClient,
     k8s_secrets_mock,
 ):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
     tests.api.api.utils.create_project(client, PROJECT)
     function_dict = {
         "kind": "job",
@@ -543,6 +550,66 @@ def test_build_function_masks_access_key(
     assert function.get_env("V3IO_ACCESS_KEY") == {
         "secretKeyRef": {"key": "accessKey", "name": "secret-ref-user-123456789"}
     }
+
+
+@pytest.mark.parametrize(
+    "kind, expected_status_code, expected_reason",
+    [
+        ("job", HTTPStatus.OK.value, None),
+        (
+            "nuclio",
+            HTTPStatus.BAD_REQUEST.value,
+            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+        ),
+        (
+            "serving",
+            HTTPStatus.BAD_REQUEST.value,
+            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+        ),
+    ],
+)
+def test_build_no_access_key(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+    kind,
+    expected_status_code,
+    expected_reason,
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
+
+    tests.api.api.utils.create_project(client, PROJECT)
+    function_dict = {
+        "kind": kind,
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "env": [],
+        },
+    }
+
+    monkeypatch.setattr(
+        mlrun.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.status_code == expected_status_code
+    if expected_reason:
+        assert response.json()["detail"]["reason"] == expected_reason
 
 
 def test_start_function_succeeded(

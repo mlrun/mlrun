@@ -706,7 +706,7 @@ def _build_function(
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
-        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
+        is_nuclio_runtime = bool(fn.kind in RuntimeKinds.nuclio_runtimes())
 
         # Enrich runtime with project defaults
         launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)

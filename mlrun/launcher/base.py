@@ -79,7 +79,7 @@ class BaseLauncher(abc.ABC):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
-        **kwargs,
+        full: bool = True,
     ):
         pass
 

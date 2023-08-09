@@ -709,7 +709,7 @@ def _build_function(
 
         # Enrich runtime with project defaults
         launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
-        # Just mask the credentials in the function
+        # Just mask the credentials (other enrichments are not relevant for build)
         launcher.enrich_runtime(
             runtime=fn,
             ensure_auth=False,

@@ -501,6 +501,50 @@ def test_build_function_with_project_repo(
     mlrun.api.utils.builder.build_image = original_build_runtime
 
 
+def test_build_function_masks_access_key(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "env": [
+                {
+                    "name": "V3IO_ACCESS_KEY",
+                    "value": "123456789",
+                },
+                {
+                    "name": "V3IO_USERNAME",
+                    "value": "user",
+                },
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        mlrun.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    function = mlrun.new_function(runtime=response.json()["data"])
+    assert function.get_env("V3IO_ACCESS_KEY") == {
+        "secretKeyRef": {"key": "accessKey", "name": "secret-ref-user-123456789"}
+    }
+
+
 def test_start_function_succeeded(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, monkeypatch
 ):

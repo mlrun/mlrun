@@ -36,8 +36,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -128,18 +126,6 @@ def get_secrets(
     return {
         "V3IO_ACCESS_KEY": auth_info.data_session,
     }
-
-
-def get_run_db_instance(
-    db_session: Session,
-):
-    db = get_db()
-    if isinstance(db, SQLDB):
-        run_db = SQLRunDB(db.dsn, db_session)
-    else:
-        run_db = db.db
-    run_db.connect()
-    return run_db
 
 
 def parse_submit_run_body(data):
@@ -880,8 +866,6 @@ def submit_run_sync(
     try:
         fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
 
-        run_db = get_run_db_instance(db_session)
-        fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
         schedule = data.get("schedule")
         if schedule:

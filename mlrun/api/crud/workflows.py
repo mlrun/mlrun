@@ -18,10 +18,10 @@ from typing import Dict
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.utils.singleton
 from mlrun.api.api.utils import (
     apply_enrichment_and_validation_on_function,
-    get_run_db_instance,
     get_scheduler,
 )
 from mlrun.config import config
@@ -35,7 +35,6 @@ class WorkflowRunners(
     def create_runner(
         run_name: str,
         project: str,
-        db_session: Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         image: str,
     ) -> mlrun.run.KubejobRuntime:
@@ -58,8 +57,6 @@ class WorkflowRunners(
             # For preventing deployment:
             image=image,
         )
-
-        runner.set_db_connection(get_run_db_instance(db_session))
 
         # Enrichment and validation requires access key
         runner.metadata.credentials.access_key = Credentials.generate_access_key

@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
+
 import mlrun
 import tests.system.base
 
@@ -178,6 +180,62 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             self._logger,
             True,
             _assert_notification_in_schedule,
+        )
+
+    @pytest.mark.parametrize(
+        "verify_ssl,expected_run_status",
+        [
+            (True, "error"),
+            (False, "sent"),
+        ],
+    )
+    def test_webhook_notification_ssl(self, verify_ssl, expected_run_status):
+        notification_name = "ssl-notification"
+
+        def _assert_notifications():
+            runs = self._run_db.list_runs(
+                project=self.project_name,
+                with_notifications=True,
+            )
+            assert len(runs) == 1
+            run_notifications = runs[0]["status"]["notifications"]
+            assert len(run_notifications) == 1
+            assert run_notifications[notification_name]["status"] == expected_run_status
+
+        notification = self._create_notification(
+            kind="webhook",
+            when=["completed", "error"],
+            name=notification_name,
+            message="completed",
+            severity="info",
+            params={
+                "url": "https://self-signed.badssl.com/",
+                "method": "GET",
+                "verify_ssl": verify_ssl,
+            },
+        )
+
+        function = mlrun.new_function(
+            "function-from-module",
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+
+        run = function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification],
+        )
+        assert run.output("return") == '{"x": 99}'
+
+        # the notifications are sent asynchronously, so we need to wait for them
+        mlrun.utils.retry_until_successful(
+            1,
+            40,
+            self._logger,
+            True,
+            _assert_notifications,
         )
 
     @staticmethod

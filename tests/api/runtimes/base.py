@@ -424,6 +424,7 @@ class TestRuntimeBase:
             name=self.name,
             project=self.project,
             artifact_path=self.artifact_path,
+            auth_info=mlrun.common.schemas.AuthInfo(),
             **kwargs,
         )
 
@@ -496,18 +497,30 @@ class TestRuntimeBase:
             assert diff_result == {}
 
     @staticmethod
-    def _assert_pod_env(pod_env, expected_variables):
+    def _assert_pod_env(pod_env, expected_variables, expected_secrets=None):
+        expected_secrets = expected_secrets or {}
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
-                env_variable = dict(name=env_variable.name, value=env_variable.value)
+                env_variable = env_variable.to_dict()
             name = env_variable["name"]
             if name in expected_variables:
                 if expected_variables[name]:
                     assert expected_variables[name] == env_variable["value"]
                 expected_variables.pop(name)
+            elif name in expected_secrets:
+                assert (
+                    env_variable["value_from"]["secret_key_ref"]["name"]
+                    == expected_secrets[name]["name"]
+                )
+                assert (
+                    env_variable["value_from"]["secret_key_ref"]["key"]
+                    == expected_secrets[name]["key"]
+                )
+                expected_secrets.pop(name)
 
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
+        assert len(expected_secrets) == 0
 
     @staticmethod
     def _assert_pod_env_from_secrets(pod_env, expected_variables):
@@ -574,10 +587,15 @@ class TestRuntimeBase:
         pod_env = container_spec.env
         self._assert_pod_env(
             pod_env,
-            {
+            expected_variables={
                 "V3IO_API": None,
                 "V3IO_USERNAME": v3io_user,
-                "V3IO_ACCESS_KEY": v3io_access_key,
+            },
+            expected_secrets={
+                "V3IO_ACCESS_KEY": {
+                    "name": f"secret-ref-{v3io_user}-{v3io_access_key}",
+                    "key": "accessKey",
+                },
             },
         )
 
@@ -589,7 +607,10 @@ class TestRuntimeBase:
         expected_volume = {
             "flexVolume": {
                 "driver": "v3io/fuse",
-                "options": {"accessKey": v3io_access_key},
+                "options": {},
+                "secretRef": {
+                    "name": f"secret-ref-{v3io_user}-{v3io_access_key}",
+                },
             },
             "name": "v3io",
         }

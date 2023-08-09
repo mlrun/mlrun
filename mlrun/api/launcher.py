@@ -182,12 +182,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
         # be able to communicate with the api
-        mlrun.api.api.utils.ensure_function_auth_and_sensitive_data_is_masked(
+        mlrun.api.api.utils.ensure_function_has_auth_set(
             runtime, self._auth_info, allow_empty_access_key=not full
         )
 
         if full:
             self._enrich_full_spec(runtime)
+
+        # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
+        mlrun.api.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
 
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (

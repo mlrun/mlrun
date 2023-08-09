@@ -77,7 +77,7 @@ def print_kwargs(**kwargs):
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="tomermamia855/mlrun-api:tomer-databricks-runtime",  # TODO replace it after PR
+            image="mlrun/mlrun",
             name="databricks-test",
         )
 
@@ -88,9 +88,17 @@ def print_kwargs(**kwargs):
         run = function.run(
             handler="print_kwargs",
             project="databricks-proj",
-            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
+            params={
+                "mlrun_internal_timeout_minutes": 15,
+                "param1": "value1",
+                "param2": "value2",
+            },
         )
         assert run.status.state == "completed"
+        assert (
+            run.status.results["databricks_runtime_task"]["logs"]
+            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+        )
 
     def test_kwargs_from_file(self):
         code_path = str(self.assets_path / "databricks_function_print_kwargs.py")
@@ -99,7 +107,7 @@ def print_kwargs(**kwargs):
             kind="databricks",
             project=self.project_name,
             filename=code_path,
-            image="tomermamia855/mlrun-api:tomer-databricks-runtime",
+            image="mlrun/mlrun",
         )
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
@@ -108,6 +116,14 @@ def print_kwargs(**kwargs):
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params={"timeout_minutes": 15, "param1": "value1", "param2": "value2"},
+            params={
+                "mlrun_internal_timeout_minutes": 15,
+                "param1": "value1",
+                "param2": "value2",
+            },
         )
         assert run.status.state == "completed"
+        assert (
+            run.status.results["databricks_runtime_task"]["logs"]
+            == "{'param1': 'value1', 'param2': 'value2'}\n"
+        )

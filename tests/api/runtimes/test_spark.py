@@ -583,7 +583,12 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_image_pull_secret(new_image_pull_secret)
 
-    def test_get_offline_features(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
+    def test_get_offline_features(
+        self,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
+    ):
         # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
         #   once moved, the `watch=False` can be removed
         import mlrun.feature_store as fstore
@@ -592,6 +597,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         fv.save = unittest.mock.Mock()
 
         runtime = self._generate_runtime()
+        # auto mount requires auth info but this test is supposed to run in the client
+        # re-enable when test is moved
+        runtime.spec.disable_auto_mount = True
         runtime.with_igz_spark = unittest.mock.Mock()
 
         self._reset_mocks()
@@ -614,8 +622,8 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
                 target=ParquetTarget(),
             )
 
-        # self.project = "default"
-        # self._create_project(client)
+        self.project = "default"
+        self._create_project(client)
 
         resp = fstore.get_offline_features(
             fv,
@@ -710,7 +718,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
-            runtime.run()
+            runtime.run(auth_info=mlrun.common.schemas.AuthInfo())
 
         assert (
             str(exc.value) == "Sparkjob does not support loading source code on run, "

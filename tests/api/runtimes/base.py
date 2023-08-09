@@ -578,25 +578,32 @@ class TestRuntimeBase:
         return args[0]
 
     def _assert_v3io_mount_or_creds_configured(
-        self, v3io_user, v3io_access_key, cred_only=False
+        self, v3io_user, v3io_access_key, cred_only=False, masked=True
     ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
 
         pod_env = container_spec.env
-        self._assert_pod_env(
-            pod_env,
-            expected_variables={
-                "V3IO_API": None,
-                "V3IO_USERNAME": v3io_user,
-            },
-            expected_secrets={
+        expected_variables = {
+            "V3IO_API": None,
+            "V3IO_USERNAME": v3io_user,
+        }
+        expected_secrets = {}
+        if masked:
+            expected_secrets = {
                 "V3IO_ACCESS_KEY": {
                     "name": f"secret-ref-{v3io_user}-{v3io_access_key}",
                     "key": "accessKey",
                 },
-            },
+            }
+        else:
+            expected_variables["V3IO_ACCESS_KEY"] = v3io_access_key
+
+        self._assert_pod_env(
+            pod_env,
+            expected_variables=expected_variables,
+            expected_secrets=expected_secrets,
         )
 
         if cred_only:
@@ -608,12 +615,16 @@ class TestRuntimeBase:
             "flexVolume": {
                 "driver": "v3io/fuse",
                 "options": {},
-                "secretRef": {
-                    "name": f"secret-ref-{v3io_user}-{v3io_access_key}",
-                },
             },
             "name": "v3io",
         }
+        if masked:
+            expected_volume["flexVolume"]["secretRef"][
+                "name"
+            ] = f"secret-ref-{v3io_user}-{v3io_access_key}"
+        else:
+            expected_volume["flexVolume"]["options"]["accessKey"] = v3io_access_key
+
         assert (
             deepdiff.DeepDiff(pod_spec.volumes[0], expected_volume, ignore_order=True)
             == {}

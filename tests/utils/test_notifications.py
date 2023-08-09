@@ -16,6 +16,7 @@ import asyncio
 import builtins
 import copy
 import json
+import ssl
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
@@ -347,28 +348,27 @@ async def test_webhook_notification(monkeypatch, test_method):
             "headers": test_headers,
         },
     )
-
     await webhook_notification.push(test_message, test_severity, test_runs_info)
 
-    requests_mock.assert_called_once_with(
-        test_url,
-        headers=test_headers,
-        json={
-            "message": test_message,
-            "severity": test_severity,
-            "runs": test_runs_info,
-        },
-    )
+    call_args = requests_mock.call_args.args
+    call_kwargs = requests_mock.call_args.kwargs
+    assert call_args[0] == test_url
+    assert call_kwargs.get("headers") == test_headers
+    assert call_kwargs.get("json") == {
+        "message": test_message,
+        "severity": test_severity,
+        "runs": test_runs_info,
+    }
+    assert call_kwargs.get("ssl").verify_mode == ssl.CERT_REQUIRED
 
     webhook_notification.params["override_body"] = test_override_body
 
     await webhook_notification.push("test-message", "info", ["some-run"])
 
-    requests_mock.assert_called_with(
-        test_url,
-        headers=test_headers,
-        json=test_override_body,
-    )
+    call_args = requests_mock.call_args
+    assert call_args.args[0] == test_url
+    assert call_args.kwargs.get("headers") == test_headers
+    assert call_args.kwargs.get("json") == test_override_body
 
 
 @pytest.mark.parametrize(

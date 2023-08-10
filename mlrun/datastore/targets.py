@@ -600,7 +600,8 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_target_path(self):
         path_object = self._target_path_object
-        return path_object.get_absolute_path() if path_object else None
+        project_name = self._resource.metadata.project if self._resource else None
+        return path_object.get_absolute_path(project_name=project_name) if path_object else None
 
     def get_target_path_with_credentials(self):
         return self.get_target_path()

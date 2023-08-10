@@ -110,7 +110,6 @@ def retry_on_conflict(function):
             try:
                 return function(*args, **kwargs)
             except Exception as exc:
-
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
@@ -1102,7 +1101,6 @@ class SQLDB(DBInterface):
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
-
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
 
@@ -1244,7 +1242,6 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         next_run_time: datetime = None,
     ) -> mlrun.common.schemas.ScheduleRecord:
-
         schedule_record = self._create_schedule_db_record(
             project=project,
             name=name,
@@ -2216,7 +2213,6 @@ class SQLDB(DBInterface):
         partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
     ):
-
         partition_field = partition_by.to_partition_by_db_field(cls)
         sort_by_field = partition_sort_by.to_db_field(cls)
 
@@ -2484,7 +2480,6 @@ class SQLDB(DBInterface):
             if uid == existing_feature_set.uid or always_overwrite:
                 db_feature_set = existing_feature_set
             else:
-
                 # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
                 # was found - Check If an object with the same computed uid but different tag already exists
                 # and re-tag it.
@@ -2814,7 +2809,6 @@ class SQLDB(DBInterface):
             if uid == existing_feature_vector.uid or always_overwrite:
                 db_feature_vector = existing_feature_vector
             else:
-
                 # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
                 # was found - Check If an object with the same computed uid but different tag already exists
                 # and re-tag it.
@@ -3862,7 +3856,6 @@ class SQLDB(DBInterface):
         run_uid: str,
         project: str = "",
     ) -> typing.List[mlrun.model.Notification]:
-
         # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
         run = self._get_run(session, run_uid, project, 0)
         if not run:
@@ -3885,7 +3878,6 @@ class SQLDB(DBInterface):
     ):
         run_id = None
         if run_uid:
-
             # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
             run = self._get_run(session, run_uid, project, 0)
             if not run:
@@ -3947,6 +3939,12 @@ class SQLDB(DBInterface):
             )
         self._commit(session, [run], ignore=True)
 
+    @staticmethod
+    def _transform_datastore_profile_model_to_schema(
+        query,
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        return mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+
     def store_datastore_profile(
         self, session, info: mlrun.common.schemas.DatastoreProfile
     ):
@@ -3959,18 +3957,17 @@ class SQLDB(DBInterface):
         info.project = info.project or config.default_project
         profile = self._query(
             session, DatastoreProfile, name=info.name, project=info.project
-        )
-        first = profile.first()
-        if first:
-            first.type = info.type
-            first.body = info.body
+        ).one_or_none()
+        if profile:
+            profile.type = info.type
+            profile.object = info.object
             self._commit(session, [profile])
         else:
             profile = DatastoreProfile(
                 name=info.name,
                 type=info.type,
                 project=info.project,
-                body=info.body,
+                full_object=info.object,
             )
             self._upsert(session, [profile])
 
@@ -3990,8 +3987,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         res = self._query(session, DatastoreProfile, name=profile, project=project)
         if res.first():
-            r = res.first().to_dict(exclude=["id"])
-            return mlrun.common.schemas.DatastoreProfile(**r)
+            return self._transform_datastore_profile_model_to_schema(res.first())
         else:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Datastore profile '{profile}' not found in project '{project}'"
@@ -4027,7 +4023,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         query_results = self._query(session, DatastoreProfile, project=project)
         return [
-            mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+            self._transform_datastore_profile_model_to_schema(query)
             for query in query_results
         ]
 

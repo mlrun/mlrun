@@ -532,7 +532,16 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         type = Column(String(255, collation=SQLCollationUtil.collation()))
-        body = Column(String(1024, collation=SQLCollationUtil.collation()))
+        object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self.object:
+                return self.object
+
+        @full_object.setter
+        def full_object(self, value):
+            self.object = value
 
 
 # Must be after all table definitions

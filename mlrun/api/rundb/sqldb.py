@@ -847,7 +847,7 @@ class SQLRunDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()

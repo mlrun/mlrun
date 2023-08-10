@@ -133,6 +133,8 @@ def get_secrets(
 def get_run_db_instance(
     db_session: Session,
 ):
+    # TODO: getting the run db should be seamlessly created from the run db factory and not require this logic to
+    #  inject the session
     db = get_db()
     if isinstance(db, SQLDB):
         run_db = SQLRunDB(db.dsn, db_session)

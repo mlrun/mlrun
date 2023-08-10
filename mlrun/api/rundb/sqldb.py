@@ -16,8 +16,10 @@ import datetime
 from typing import List, Optional, Union
 
 from dependency_injector import containers, providers
+from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.api.crud
+import mlrun.api.db.session
 import mlrun.common.schemas
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
@@ -437,13 +439,6 @@ class SQLRunDB(RunDBInterface):
             state=state,
         )
 
-    @staticmethod
-    def _transform_db_error(func, *args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except DBError as exc:
-            raise mlrun.db.RunDBError(exc.args) from exc
-
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().create_feature_set,
@@ -684,8 +679,8 @@ class SQLRunDB(RunDBInterface):
         mask_params: bool = True,
     ):
         return self._transform_db_error(
+            mlrun.api.db.session.run_function_with_new_db_session,
             mlrun.api.crud.Notifications().store_run_notifications,
-            self.session,
             notification_objects,
             run_uid,
             project,
@@ -906,6 +901,19 @@ class SQLRunDB(RunDBInterface):
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         raise NotImplementedError()
+
+    def _transform_db_error(self, func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+
+        except SQLAlchemyError as exc:
+            # If we got a SQLAlchemyError, it means the error was not handled by the SQLDB and we need to rollback
+            # to make the session usable again
+            self.session.rollback()
+            raise mlrun.db.RunDBError(exc.args) from exc
+
+        except DBError as exc:
+            raise mlrun.db.RunDBError(exc.args) from exc
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

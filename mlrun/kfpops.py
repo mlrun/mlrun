@@ -739,6 +739,7 @@ def format_summary_from_kfp_run(kfp_run, project=None):
     run_id = get_in(kfp_run, "run.id")
 
     # enrich DAG with mlrun run info
+    # TODO: create new session if in API?
     runs = mlrun.db.get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
 
     for run in runs:

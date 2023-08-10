@@ -388,6 +388,7 @@ async def load_project(
         mlrun.api.crud.WorkflowRunners().create_runner,
         run_name=f"load-{name}",
         project=name,
+        db_session=db_session,
         auth_info=auth_info,
         image=mlrun.mlconf.default_base_image,
     )

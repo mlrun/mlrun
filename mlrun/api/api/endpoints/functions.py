@@ -47,7 +47,7 @@ import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import log_and_raise, log_path
+from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -706,6 +706,10 @@ def _build_function(
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
+        # connect to run db
+        run_db = get_run_db_instance(db_session)
+        fn.set_db_connection(run_db)
+
         is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
 
         # Enrich runtime with project defaults
@@ -836,26 +840,32 @@ def _start_function(
     client_version: str = None,
     client_python_version: str = None,
 ):
+    db_session = mlrun.api.db.session.create_session()
     try:
-        mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-            function,
-            auth_info,
-        )
+        try:
+            run_db = get_run_db_instance(db_session)
+            function.set_db_connection(run_db)
+            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+                function,
+                auth_info,
+            )
 
-        mlrun.api.crud.Functions().start_function(
-            function, client_version, client_python_version
-        )
-        logger.info("Fn:\n %s", function.to_yaml())
+            mlrun.api.crud.Functions().start_function(
+                function, client_version, client_python_version
+            )
+            logger.info("Fn:\n %s", function.to_yaml())
 
-    except mlrun.errors.MLRunBadRequestError:
-        raise
+        except mlrun.errors.MLRunBadRequestError:
+            raise
 
-    except Exception as err:
-        logger.error(traceback.format_exc())
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason=f"Runtime error: {err_to_str(err)}",
-        )
+        except Exception as err:
+            logger.error(traceback.format_exc())
+            log_and_raise(
+                HTTPStatus.BAD_REQUEST.value,
+                reason=f"Runtime error: {err_to_str(err)}",
+            )
+    finally:
+        mlrun.api.db.session.close_session(db_session)
 
 
 async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):

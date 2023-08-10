@@ -28,7 +28,8 @@ def close_session(db_session):
 def run_function_with_new_db_session(func, *args, **kwargs):
     """
     Run a function with a new db session, useful for cuncurrent requests where we can't share a single session.
-    However, any changes made by the new session will not be visible to other sessions until they commit.
+    However, any changes made by the new session will not be visible to old sessions until the old sessions commit
+    due to isolation level.
     """
     session = create_session()
     try:

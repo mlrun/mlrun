@@ -102,36 +102,33 @@ class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     KL Divergence of 0, indicates two identical distributions.
     """
 
+    @staticmethod
+    def _calc_kl_div(
+        actual_dist: np.array, expected_dist: np.array, kld_scaling: float
+    ) -> float:
+        """Return the assymetric KL divergence"""
+        return np.sum(
+            np.where(
+                actual_dist != 0,
+                (actual_dist)
+                * np.log(
+                    actual_dist
+                    / np.where(expected_dist != 0, expected_dist, kld_scaling)
+                ),
+                0,
+            )
+        )
+
     def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
         :param capping:      A bounded value for the KL Divergence. For infinite distance, the result is replaced with
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
 
-        :returns: KL Divergence
+        :returns: symmetric KL Divergence
         """
-        t_u = np.sum(
-            np.where(
-                self.distrib_t != 0,
-                (self.distrib_t)
-                * np.log(
-                    self.distrib_t
-                    / np.where(self.distrib_u != 0, self.distrib_u, kld_scaling)
-                ),
-                0,
-            )
-        )
-        u_t = np.sum(
-            np.where(
-                self.distrib_u != 0,
-                (self.distrib_u)
-                * np.log(
-                    self.distrib_u
-                    / np.where(self.distrib_t != 0, self.distrib_t, kld_scaling)
-                ),
-                0,
-            )
-        )
+        t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
+        u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
         result = t_u + u_t
         if capping:
             return capping if result == float("inf") else result

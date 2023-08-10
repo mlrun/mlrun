@@ -56,9 +56,14 @@ class WebhookNotification(NotificationBase):
         if override_body:
             request_body = override_body
 
-        ssl_context = ssl.SSLContext()
-        # Disable SSL verification if verify_ssl is False
-        ssl_context.verify_mode = ssl.CERT_NONE if not verify_ssl else ssl.CERT_REQUIRED
+        # Create an SSL context only for HTTPS endpoints
+        ssl_context = None
+        if url.startswith("https"):
+            ssl_context = ssl.SSLContext()
+            # If verify_ssl is set to False, disable SSL certificate verification
+            ssl_context.verify_mode = (
+                ssl.CERT_NONE if not verify_ssl else ssl.CERT_REQUIRED
+            )
 
         async with aiohttp.ClientSession() as session:
             response = await getattr(session, method)(

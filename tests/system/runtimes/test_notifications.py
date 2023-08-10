@@ -183,13 +183,15 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         )
 
     @pytest.mark.parametrize(
-        "verify_ssl,expected_run_status",
+        "verify_ssl,expected_run_status,url",
         [
-            (True, "error"),
-            (False, "sent"),
+            (True, "error", "https://self-signed.badssl.com/"),
+            (False, "sent", "https://self-signed.badssl.com/"),
+            (True, "sent", "http://httpstat.us/200"),
+            (False, "sent", "http://httpstat.us/200"),
         ],
     )
-    def test_webhook_notification_ssl(self, verify_ssl, expected_run_status):
+    def test_webhook_notification_ssl(self, verify_ssl, expected_run_status, url):
         notification_name = "ssl-notification"
 
         def _assert_notifications():
@@ -209,7 +211,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             message="completed",
             severity="info",
             params={
-                "url": "https://self-signed.badssl.com/",
+                "url": url,
                 "method": "GET",
                 "verify_ssl": verify_ssl,
             },

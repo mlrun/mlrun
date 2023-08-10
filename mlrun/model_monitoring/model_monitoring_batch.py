@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import abc
 import collections
 import dataclasses
 import datetime
 import json
 import os
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -39,11 +40,9 @@ DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float
 
 
 @dataclasses.dataclass
-class TotalVarianceDistance:
+class HistogramDistanceMetric(abc.ABC):
     """
-    Provides a symmetric drift distance between two periods t and u
-    Z - vector of random variables
-    Pt - Probability distribution over time span t
+    An abstract base class for distance metrics between histograms.
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
@@ -52,7 +51,23 @@ class TotalVarianceDistance:
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
-    NAME: ClassVar[str] = "tvd"
+    NAME: ClassVar[str]
+
+    def __init_subclass__(cls, *, metric_name: str, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.NAME = metric_name
+
+    @abc.abstractmethod
+    def compute(self) -> float:
+        raise NotImplementedError
+
+
+class TotalVarianceDistance(HistogramDistanceMetric, metric_name="tvd"):
+    """
+    Provides a symmetric drift distance between two periods t and u
+    Z - vector of random variables
+    Pt - Probability distribution over time span t
+    """
 
     def compute(self) -> float:
         """
@@ -63,22 +78,13 @@ class TotalVarianceDistance:
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
-@dataclasses.dataclass
-class HellingerDistance:
+class HellingerDistance(HistogramDistanceMetric, metric_name="hellinger"):
     """
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
-
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "hellinger"
 
     def compute(self) -> float:
         """
@@ -89,21 +95,12 @@ class HellingerDistance:
         return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
-@dataclasses.dataclass
-class KullbackLeiblerDivergence:
+class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     """
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
-
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "kld"
 
     def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
@@ -173,10 +170,13 @@ class VirtualDrift:
         self.capping = inf_capping
 
         # Initialize objects of the current metrics
-        self.metrics = {
-            TotalVarianceDistance.NAME: TotalVarianceDistance,
-            HellingerDistance.NAME: HellingerDistance,
-            KullbackLeiblerDivergence.NAME: KullbackLeiblerDivergence,
+        self.metrics: Dict[str, Type[HistogramDistanceMetric]] = {
+            metric_class.NAME: metric_class
+            for metric_class in (
+                TotalVarianceDistance,
+                HellingerDistance,
+                KullbackLeiblerDivergence,
+            )
         }
 
     @staticmethod

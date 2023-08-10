@@ -42,7 +42,7 @@ def get_files(
     schema: str = "",
     objpath: str = fastapi.Query("", alias="path"),
     user: str = "",
-    size: int = 0,
+    size: int = None,
     offset: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         mlrun.api.api.deps.authenticate_request

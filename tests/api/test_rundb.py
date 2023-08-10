@@ -25,7 +25,7 @@ import mlrun.errors
 from mlrun.api.initial_data import init_data
 from mlrun.api.rundb import sqldb
 from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.common.db.sql_session import _init_engine
+from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db.base import RunDBInterface
 from tests.conftest import new_run, run_now
@@ -47,7 +47,8 @@ def db(request):
         _init_engine(dsn=dsn)
         init_data()
         initialize_db()
-        db = sqldb.SQLRunDB(dsn)
+        db_session = create_session()
+        db = sqldb.SQLRunDB(dsn, session=db_session)
     else:
         assert False, f"unknown db type - {request.param}"
 

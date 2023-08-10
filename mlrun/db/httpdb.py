@@ -111,7 +111,7 @@ class HTTPRunDB(RunDBInterface):
 
     def __init__(self, url):
         self.server_version = ""
-        self._session = None
+        self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
         self._wait_for_background_task_terminal_state_retry_interval = 3
         self._wait_for_project_deletion_interval = 3
@@ -244,12 +244,12 @@ class HTTPRunDB(RunDBInterface):
                         dict_[key] = dict_[key].value
 
         # if the method is POST, we need to update the session with the appropriate retry policy
-        if not self._session or method == "POST":
+        if not self.session or method == "POST":
             retry_on_post = self._is_retry_on_post_allowed(method, path)
-            self._session = self._init_session(retry_on_post)
+            self.session = self._init_session(retry_on_post)
 
         try:
-            response = self._session.request(
+            response = self.session.request(
                 method, url, timeout=timeout, verify=False, **kw
             )
         except requests.RequestException as exc:

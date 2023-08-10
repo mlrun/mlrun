@@ -141,6 +141,7 @@ async def submit_workflow(
             workflow_spec.name
         ),
         project=project.metadata.name,
+        db_session=db_session,
         auth_info=auth_info,
         image=workflow_spec.image
         or project.spec.default_image

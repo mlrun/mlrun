@@ -35,7 +35,7 @@ class SomeEnumClass(str, enum.Enum):
 
 def test_api_call_enum_conversion():
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-    db._session = unittest.mock.Mock()
+    db.session = unittest.mock.Mock()
 
     # ensure not exploding when no headers/params
     db.api_call("GET", "some-path")
@@ -47,7 +47,7 @@ def test_api_call_enum_conversion():
         params={"enum-value": SomeEnumClass.value2, "string-value": "value"},
     )
     for dict_key in ["headers", "params"]:
-        for value in db._session.request.call_args_list[1][1][dict_key].values():
+        for value in db.session.request.call_args_list[1][1][dict_key].values():
             assert type(value) == str
 
 
@@ -221,7 +221,7 @@ def test_retriable_post_requests(path, call_amount):
     mlrun.config.config.httpdb.retry_api_call_on_exception = "enabled"
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     # init the session to make sure it will be reinitialized when needed
-    db._session = db._init_session(False)
+    db.session = db._init_session(False)
     original_request = requests.Session.request
     requests.Session.request = unittest.mock.Mock()
     requests.Session.request.side_effect = ConnectionRefusedError(
@@ -285,8 +285,8 @@ def test_watch_logs_continue():
         f"https://wherever.com/api/v1/log/{project}/{run_uid}",
         content=callback,
     )
-    db._session = db._init_session()
-    db._session.mount("https://", adapter)
+    db.session = db._init_session()
+    db.session.mount("https://", adapter)
     mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
     with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
         db.watch_log(run_uid, project=project)

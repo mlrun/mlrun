@@ -98,6 +98,8 @@ class TestDBFSStore:
 
             response = data_item.get(offset=20)
             assert response.decode() == self.test_string[20:]
+            response = data_item.get(offset=20, size=10)
+            assert response.decode() == self.test_string[20:30]
 
         finally:
             if use_secrets_as_parameters:

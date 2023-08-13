@@ -597,8 +597,10 @@ class TestFeatureStore(TestMLRunSystem):
         source_path = str(self.assets_path / "testdata.csv")
         if not local:
             data = pd.read_csv(source_path)
-            source_path = f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/" \
-                          f"{uuid.uuid4()}/source.csv"
+            source_path = (
+                f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/"
+                f"{uuid.uuid4()}/source.csv"
+            )
             data.to_csv(source_path)
         source = CSVSource("mycsv", path=source_path)
         feature_set = fstore.FeatureSet(
@@ -621,8 +623,8 @@ class TestFeatureStore(TestMLRunSystem):
             os.path.dirname(feature_set.get_target_path())
         )
         assert (
-                artifact_path.replace("{{run.project}}", self.project_name)
-                == target_dir_path
+            artifact_path.replace("{{run.project}}", self.project_name)
+            == target_dir_path
         )
 
     def test_feature_set_db(self):

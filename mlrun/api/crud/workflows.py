@@ -24,9 +24,9 @@ from mlrun.api.api.utils import (
     get_run_db_instance,
     get_scheduler,
 )
-from  mlrun.utils import fill_project_path_template
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
+from mlrun.utils import fill_project_path_template
 
 
 class WorkflowRunners(
@@ -162,9 +162,12 @@ class WorkflowRunners(
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=fill_project_path_template((
-                    workflow_request.artifact_path or config.artifact_path
-                ).replace("{{run.uid}}", meta_uid),project.metadata.name),
+                output_path=fill_project_path_template(
+                    (workflow_request.artifact_path or config.artifact_path).replace(
+                        "{{run.uid}}", meta_uid
+                    ),
+                    project.metadata.name,
+                ),
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name

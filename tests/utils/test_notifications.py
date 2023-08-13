@@ -16,7 +16,6 @@ import asyncio
 import builtins
 import copy
 import json
-import ssl
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 

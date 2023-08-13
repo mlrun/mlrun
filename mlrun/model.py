@@ -32,7 +32,7 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
-    fill_artifact_path_template,
+    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
@@ -1585,7 +1585,7 @@ class TargetPathObject:
         # if not project_name:
         #     project = mlrun.get_current_project(silent=True)
         #     project_name = project.name if project else None
-        path = fill_artifact_path_template(
+        path = fill_project_path_template(
             artifact_path=self.full_path_template,
             project=project_name,
         )

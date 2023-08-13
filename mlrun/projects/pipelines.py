@@ -375,7 +375,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, copy_function=True
+    project, function, decorator=None, copy_function=True, try_auto_mount=True
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -409,11 +409,12 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
-    if (
-        decorator and AutoMountType.is_auto_modifier(decorator)
-    ) or project.spec.disable_auto_mount:
-        f.spec.disable_auto_mount = True
-    f.try_auto_mount_based_on_config()
+    if try_auto_mount:
+        if (
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
+            f.spec.disable_auto_mount = True
+        f.try_auto_mount_based_on_config()
 
     return f
 

@@ -509,6 +509,8 @@ def test_build_function_masks_access_key(
     k8s_secrets_mock,
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    # set auto mount to ensure it doesn't override the access key
+    mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
     monkeypatch.setattr(
         mlrun.api.utils.clients.iguazio,
         "AsyncClient",

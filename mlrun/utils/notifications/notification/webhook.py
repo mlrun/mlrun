@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ssl
 import typing
 
 import aiohttp
@@ -41,6 +42,7 @@ class WebhookNotification(NotificationBase):
         method = self.params.get("method", "post").lower()
         headers = self.params.get("headers", {})
         override_body = self.params.get("override_body", None)
+        verify_ssl = self.params.get("verify_ssl", True)
 
         request_body = {
             "message": message,
@@ -54,8 +56,17 @@ class WebhookNotification(NotificationBase):
         if override_body:
             request_body = override_body
 
+        # Create an SSL context only for HTTPS endpoints
+        ssl_context = None
+        if url.startswith("https"):
+            ssl_context = ssl.SSLContext()
+            # If verify_ssl is set to False, disable SSL certificate verification
+            ssl_context.verify_mode = (
+                ssl.CERT_NONE if not verify_ssl else ssl.CERT_REQUIRED
+            )
+
         async with aiohttp.ClientSession() as session:
             response = await getattr(session, method)(
-                url, headers=headers, json=request_body
+                url, headers=headers, json=request_body, ssl=ssl_context
             )
             response.raise_for_status()

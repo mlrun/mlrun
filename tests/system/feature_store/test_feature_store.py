@@ -594,9 +594,13 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("local", [True, False])
     def test_ingest_with_format_run_project(self, local):
-        first_data = pd.read_csv(
-            os.path.relpath(str(self.assets_path / "testdata.csv"))
-        )
+        source_path = str(self.assets_path / "testdata.csv")
+        if not local:
+            data = pd.read_csv(source_path)
+            source_path = f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/" \
+                          f"{uuid.uuid4()}/source.csv"
+            data.to_csv(source_path)
+        source = CSVSource("mycsv", path=source_path)
         feature_set = fstore.FeatureSet(
             name=f"fs-run_project-format-local-{local}",
             entities=[Entity("patient_id")],
@@ -608,18 +612,17 @@ class TestFeatureStore(TestMLRunSystem):
         ]
         feature_set.set_targets(targets=targets, with_defaults=False)
         feature_set.plot(with_targets=True)
-        config_kwargs = {"run_config": fstore.RunConfig(local=True)} if local else {}
         fstore.ingest(
             featureset=feature_set,
-            source=first_data,
-            **config_kwargs,
+            source=source,
+            run_config=fstore.RunConfig(local=local),
         )
         target_dir_path = os.path.dirname(
             os.path.dirname(feature_set.get_target_path())
         )
         assert (
-            artifact_path.replace("{{run.project}}", self.project_name)
-            == target_dir_path
+                artifact_path.replace("{{run.project}}", self.project_name)
+                == target_dir_path
         )
 
     def test_feature_set_db(self):

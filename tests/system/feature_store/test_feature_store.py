@@ -594,32 +594,32 @@ class TestFeatureStore(TestMLRunSystem):
 
     @pytest.mark.parametrize("local", [True, False])
     def test_ingest_with_format_run_project(self, local):
-        first_data = pd.read_csv("/Users/Tomer_Mamia/Downloads/first_data.csv")
-        feature_set_1 = fstore.FeatureSet(
+        first_data = pd.read_csv(os.path.relpath(str(self.assets_path / "testdata.csv")))
+        feature_set = fstore.FeatureSet(
             name=f"fs-run_project-format-local-{local}",
-            entities=["entity"],
-            timestamp_key="time",
+            entities=[Entity('patient_id')],
+            timestamp_key="timestamp",
         )
         artifact_path = mlrun.mlconf.artifact_path
         targets = [
             CSVTarget(name="labels", path=os.path.join(artifact_path, "file.csv"))
         ]
-        feature_set_1.set_targets(targets=targets, with_defaults=False)
-        feature_set_1.plot(with_targets=True)
+        feature_set.set_targets(targets=targets, with_defaults=False)
+        feature_set.plot(with_targets=True)
         if local:
             fstore.ingest(
-                featureset=feature_set_1,
+                featureset=feature_set,
                 source=first_data,
                 run_config=fstore.RunConfig(local=local),
             )
         else:
-            fstore.ingest(featureset=feature_set_1, source=first_data)
+            fstore.ingest(featureset=feature_set, source=first_data)
         target_dir_path = os.path.dirname(
-            os.path.dirname(feature_set_1.get_target_path())
+            os.path.dirname(feature_set.get_target_path())
         )
         assert (
-            artifact_path.replace("{{run.project}}", self.project_name)
-            == target_dir_path
+                artifact_path.replace("{{run.project}}", self.project_name)
+                == target_dir_path
         )
 
     def test_feature_set_db(self):

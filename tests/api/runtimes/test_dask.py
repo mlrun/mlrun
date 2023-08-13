@@ -167,7 +167,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_scheduler_pod_args()
 
@@ -195,7 +195,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_pods_resources(
             expected_worker_requests={
@@ -249,7 +249,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_pods_resources(
             expected_requests,

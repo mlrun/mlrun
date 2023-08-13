@@ -133,6 +133,8 @@ def get_secrets(
 def get_run_db_instance(
     db_session: Session,
 ):
+    # TODO: getting the run db should be done seamlessly by the run db factory and not require this logic to
+    #  inject the session
     db = get_db()
     if isinstance(db, SQLDB):
         run_db = SQLRunDB(db.dsn, db_session)
@@ -376,6 +378,7 @@ def validate_and_mask_notification_list(
     ]
 
 
+# TODO: split enrichment and validation to separate functions should be in the launcher
 def apply_enrichment_and_validation_on_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,

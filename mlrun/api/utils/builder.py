@@ -63,11 +63,8 @@ def make_dockerfile(
     :param enriched_group_id: The group ID to be used in the Docker image for running processes.
     :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
                         to be set during the build process.
-    :param project_secrets: A dictionary containing project secrets to be included in the Docker image.
-                            The keys represent the names of the environment variables, and the values
-                            are the corresponding secret values.
-    :param extra_args: Additional build arguments provided by the user.
-                       These arguments are formatted as a space-separated string.
+    :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
 
     :return: The content of the Dockerfile as a string.
     """
@@ -397,13 +394,13 @@ def build_image(
 ):
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
-    runtime_extra_args = runtime_spec.build.extra_args or {}
 
     extra_args = extra_args or {}
     builder_env = builder_env or {}
 
     builder_env = runtime_builder_env | builder_env or {}
-    _validate_extra_args(runtime_extra_args | extra_args)
+    # no need to enrich extra args because we get them from the build anyway
+    _validate_extra_args(extra_args)
 
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
@@ -863,7 +860,8 @@ def _parse_extra_args(extra_args: str) -> dict:
     """
     Parses a string of extra arguments into a dictionary format.
 
-    :param extra_args: A string containing additional arguments in the format of command-line options.
+    :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
 
     :return: A dictionary where each key corresponds to an option flag (e.g., "--option_name"),
              and the associated value is a list of values provided for that option.
@@ -883,12 +881,20 @@ def _parse_extra_args(extra_args: str) -> dict:
     extra_args = extra_args.split()
     args = defaultdict(list)
 
+    current_flag = None
     for arg in extra_args:
         if arg.startswith("--"):
             current_flag = arg
-            args[current_flag]
-        else:
+            # explicitly set the key in the dictionary
+            args.setdefault(current_flag, [])
+        elif current_flag:
             args[current_flag].append(arg)
+
+        # sanity, args should be validated by now
+        else:
+            raise ValueError(
+                "Invalid argument sequence. Value must be followed by a flag preceding it."
+            )
     return args
 
 

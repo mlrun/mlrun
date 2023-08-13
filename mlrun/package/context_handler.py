@@ -320,7 +320,7 @@ class ContextHandler:
 
             # Get the global and compare to the logging rank (worker) set in MLRun's configuration:
             comm = MPI.COMM_WORLD
-            return comm.Get_rank() == mlconf.package.logging_worker
+            return comm.Get_rank() == mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
         return True

@@ -31,6 +31,7 @@ import pyarrow.parquet as pq
 import pytest
 import pytz
 import requests
+from databricks.sdk import WorkspaceClient
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
 
@@ -64,6 +65,12 @@ from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
+from ...datastore.databricks_utils import (
+    MLRUN_ROOT_DIR,
+    is_databricks_configured,
+    setup_dbfs_dirs,
+    teardown_dbfs_dirs,
+)
 from .data_sample import quotes, stocks, trades
 
 
@@ -4159,6 +4166,104 @@ class TestFeatureStore(TestMLRunSystem):
             match=f"^DropFeatures can only drop features, not entities: {key_as_set}$",
         ):
             fstore.ingest(measurements, source)
+
+    @pytest.mark.skipif(
+        not is_databricks_configured(),
+        reason="databricks storage parameters not configured",
+    )
+    @pytest.mark.parametrize(
+        "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
+        [
+            (
+                CSVSource,
+                CSVTarget,
+                "testdata_short.csv",
+                pd.read_csv,
+                {"parse_dates": ["date_of_birth"]},
+                False,
+            ),
+            (
+                ParquetSource,
+                ParquetTarget,
+                "testdata_short.parquet",
+                pd.read_parquet,
+                {},
+                True,
+            ),
+        ],
+    )
+    def test_ingest_with_dbfs(
+        self,
+        source_class,
+        target_class,
+        local_file_name,
+        reader,
+        reader_kwargs,
+        drop_index,
+    ):
+        local_source_path = os.path.relpath(str(self.assets_path / local_file_name))
+        drop_column = "number"
+        key = "name"
+        test_dir = "/test_feature_store"
+        expected = reader(local_source_path, **reader_kwargs).drop(drop_column, axis=1)
+
+        measurements = fstore.FeatureSet("measurements", entities=[Entity(key)])
+
+        workspace = WorkspaceClient()
+        base_filename, extension = os.path.splitext(local_file_name)
+        generated_uuid = uuid.uuid4()
+        setup_dbfs_dirs(
+            workspace=workspace,
+            specific_test_class_dir=test_dir,
+            subdirs=[f'/{extension.replace(".", "")}_{generated_uuid}'],
+        )
+        try:
+            dbfs_source_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/source_{base_filename}{extension}"
+            dbfs_target_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/target_{base_filename}{extension}"
+            with open(local_source_path, "rb") as source_file:
+                content = source_file.read()
+            with workspace.dbfs.open(dbfs_source_path, write=True, overwrite=True) as f:
+                f.write(content)
+            measurements.graph.to(DropFeatures(features=[drop_column]))
+            source = source_class("mycsv", dbfs_source_path, **reader_kwargs)
+
+            target = target_class(name="specified-path", path=dbfs_target_path)
+            fstore.ingest(measurements, source=source, targets=[target])
+
+            target_generated_dirs = list(
+                workspace.dbfs.list(
+                    f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}"
+                )
+            )
+            assert (
+                len(target_generated_dirs) == 2
+            )  # directory should have source csv file and target dir.
+            target_generated_dir_path = (
+                target_generated_dirs[0].path
+                if not target_generated_dirs[0].path.endswith(
+                    f"source_{base_filename}{extension}"
+                )
+                else target_generated_dirs[1].path
+            )
+            target_file_path = (
+                f"dbfs://{target_generated_dir_path}/target_{base_filename}{extension}"
+            )
+            result = reader(
+                target_file_path,
+                storage_options={
+                    "instance": os.environ.get("DATABRICKS_HOST"),
+                    "token": os.environ.get("DATABRICKS_TOKEN"),
+                },
+                **reader_kwargs,
+            )
+            if drop_index:
+                result.reset_index(inplace=True, drop=False)
+
+            assert_frame_equal(
+                expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+            )
+        finally:
+            teardown_dbfs_dirs(workspace=workspace, specific_test_class_dir=test_dir)
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_as_of_join_different_ts(self, engine):

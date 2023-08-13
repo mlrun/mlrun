@@ -606,14 +606,12 @@ class TestFeatureStore(TestMLRunSystem):
         ]
         feature_set.set_targets(targets=targets, with_defaults=False)
         feature_set.plot(with_targets=True)
-        if local:
-            fstore.ingest(
-                featureset=feature_set,
-                source=first_data,
-                run_config=fstore.RunConfig(local=local),
-            )
-        else:
-            fstore.ingest(featureset=feature_set, source=first_data)
+        config_kwargs = {'run_config': fstore.RunConfig(local=True)} if local else {}
+        fstore.ingest(
+            featureset=feature_set,
+            source=first_data,
+            **config_kwargs,
+        )
         target_dir_path = os.path.dirname(
             os.path.dirname(feature_set.get_target_path())
         )

@@ -440,6 +440,10 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.model_endpoint_monitoring.endpoint_store_connection = (
+                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
+                or config.model_endpoint_monitoring.endpoint_store_connection
+            )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
             for prefix in ["default", "nosql", "redisnosql"]:

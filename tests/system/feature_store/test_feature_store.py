@@ -613,7 +613,6 @@ class TestFeatureStore(TestMLRunSystem):
             CSVTarget(name="labels", path=os.path.join(artifact_path, "file.csv"))
         ]
         feature_set.set_targets(targets=targets, with_defaults=False)
-        feature_set.plot(with_targets=True)
         fstore.ingest(
             featureset=feature_set,
             source=source,

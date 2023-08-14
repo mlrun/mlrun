@@ -3941,9 +3941,14 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_datastore_profile_model_to_schema(
-        query,
+        db_object,
     ) -> mlrun.common.schemas.DatastoreProfile:
-        return mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+        return mlrun.common.schemas.DatastoreProfile(
+            name=db_object.name,
+            type=db_object.type,
+            object=db_object.full_object,
+            project=db_object.project,
+        )
 
     def store_datastore_profile(
         self, session, info: mlrun.common.schemas.DatastoreProfile
@@ -3960,7 +3965,7 @@ class SQLDB(DBInterface):
         ).one_or_none()
         if profile:
             profile.type = info.type
-            profile.object = info.object
+            profile.full_object = info.object
             self._commit(session, [profile])
         else:
             profile = DatastoreProfile(

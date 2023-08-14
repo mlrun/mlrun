@@ -40,7 +40,7 @@ def upgrade():
             "project", sa.String(length=255, collation="utf8_bin"), nullable=True
         ),
         sa.Column("type", sa.String(length=255, collation="utf8_bin"), nullable=True),
-        sa.Column("body", sa.String(length=1024, collation="utf8_bin"), nullable=True),
+        sa.Column("object", sa.JSON(), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
     )

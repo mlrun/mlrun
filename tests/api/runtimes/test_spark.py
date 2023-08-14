@@ -292,6 +292,25 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
+    def test_run_with_invalid_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        with pytest.raises(ValueError):
+            # Java notation applies to spark-operator memory requests
+            runtime.with_driver_requests(mem="2Gi", cpu="3")
+
+    def test_run_with_invalid_limits(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        with pytest.raises(ValueError):
+            runtime.with_driver_limits(cpu="not a number", gpus=1)
+
     def test_run_with_limits_and_requests_patch_true(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

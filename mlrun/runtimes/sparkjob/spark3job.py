@@ -20,11 +20,14 @@ import mlrun.common.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
 
-from ...utils import update_in, verify_and_update_in
+from ...utils import update_in, verify_and_update_in, verify_field_regex
+from ..utils import generate_resources, verify_requests
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
 class Spark3JobSpec(AbstractSparkJobSpec):
+    _jvm_memory_resource_notation = r"^[0-9]+[KkMmGg]$"
+
     # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/55732a6a392cbe1d6546c7ec6823193ab055d2fa/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L181
     _dict_fields = AbstractSparkJobSpec._dict_fields + [
         "monitoring",
@@ -285,6 +288,40 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(
                     volume_mount, volume_mounts_field_name="_executor_volume_mounts"
+                )
+
+    def _verify_jvm_memory_string(self, resources_field_name: str, memory: str):
+        verify_field_regex(
+            f"function.spec.{resources_field_name}.requests.memory",
+            memory,
+            [self._jvm_memory_resource_notation],
+        )
+
+    def _verify_and_set_requests(
+        self,
+        resources_field_name,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
+    ):
+        # Spark operator uses JVM notation for memory, so we must verify it separately
+        verify_requests(resources_field_name, cpu=cpu)
+        if mem:
+            self._verify_jvm_memory_string(resources_field_name, mem)
+        resources = generate_resources(mem=mem, cpu=cpu)
+
+        if not patch:
+            update_in(
+                getattr(self, resources_field_name),
+                "requests",
+                resources,
+            )
+        else:
+            for resource, resource_value in resources.items():
+                update_in(
+                    getattr(self, resources_field_name),
+                    f"requests.{resource}",
+                    resource_value,
                 )
 
 

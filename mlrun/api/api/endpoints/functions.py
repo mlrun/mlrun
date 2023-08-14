@@ -267,7 +267,7 @@ async def build_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info(f"build_function:\n{data}")
+    logger.info("Building function", data=data)
     function = data.get("function")
     project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
     function_name = function.get("metadata", {}).get("name")

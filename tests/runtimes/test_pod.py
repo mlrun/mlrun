@@ -19,10 +19,10 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.runtimes.databricks.databricks
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
 import mlrun.runtimes.pod
-import mlrun.runtimes.databricks.databricks
 
 
 def test_runtimes_inheritance():

@@ -235,7 +235,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
-    # FileDB is not really a thing anymore, so using SQLDB directly
     db = mlrun.api.db.sqldb.db.SQLDB("")
     _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)

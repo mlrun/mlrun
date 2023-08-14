@@ -21,7 +21,12 @@ import mlrun.errors
 import mlrun.runtimes.pod
 
 from ...utils import update_in, verify_and_update_in, verify_field_regex
-from ..utils import generate_resources, verify_requests
+from ..utils import (
+    generate_resources,
+    get_gpu_from_resource_requirement,
+    verify_limits,
+    verify_requests,
+)
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
@@ -290,12 +295,71 @@ class Spark3JobSpec(AbstractSparkJobSpec):
                     volume_mount, volume_mounts_field_name="_executor_volume_mounts"
                 )
 
-    def _verify_jvm_memory_string(self, resources_field_name: str, memory: str):
-        verify_field_regex(
-            f"function.spec.{resources_field_name}.requests.memory",
-            memory,
-            [self._jvm_memory_resource_notation],
+    def _verify_jvm_memory_string(
+        self, resources_field_name: str, memory: typing.Optional[str]
+    ):
+        if memory:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.memory",
+                memory,
+                [self._jvm_memory_resource_notation],
+            )
+
+    def enrich_resources_with_default_pod_resources(
+        self, resources_field_name: str, resources: dict
+    ):
+        resources_types = ["cpu", "memory"]
+        resource_requirements = ["requests", "limits"]
+        default_resources = mlrun.mlconf.get_default_function_pod_resources()
+
+        if resources:
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
+        # This enables the user to define that no defaults would be applied on the resources
+        elif resources == {}:
+            return resources
+        else:
+            resources = default_resources
+
+        # Spark operator uses JVM notation for memory, so we must verify it separately
+        verify_requests(
+            resources_field_name,
+            cpu=resources["requests"]["cpu"],
         )
+        self._verify_jvm_memory_string(
+            resources_field_name, resources["requests"]["memory"]
+        )
+        resources["requests"] = generate_resources(
+            mem=resources["requests"]["memory"], cpu=resources["requests"]["cpu"]
+        )
+        gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
+        verify_limits(
+            resources_field_name,
+            cpu=resources["limits"]["cpu"],
+            gpus=gpu_value,
+            gpu_type=gpu_type,
+        )
+        self._verify_jvm_memory_string(
+            resources_field_name, resources["limits"]["memory"]
+        )
+        resources["limits"] = generate_resources(
+            mem=resources["limits"]["memory"],
+            cpu=resources["limits"]["cpu"],
+            gpus=gpu_value,
+            gpu_type=gpu_type,
+        )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
+        return resources
 
     def _verify_and_set_requests(
         self,
@@ -306,8 +370,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
     ):
         # Spark operator uses JVM notation for memory, so we must verify it separately
         verify_requests(resources_field_name, cpu=cpu)
-        if mem:
-            self._verify_jvm_memory_string(resources_field_name, mem)
+        self._verify_jvm_memory_string(resources_field_name, mem)
         resources = generate_resources(mem=mem, cpu=cpu)
 
         if not patch:

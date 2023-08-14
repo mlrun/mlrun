@@ -169,19 +169,12 @@ class AbstractSparkJobSpec(KubeResourceSpec):
             clone_target_dir=clone_target_dir,
         )
 
-        driver_resources_with_defaults = (
-            mlrun.mlconf.default_spark_resources.driver.to_dict()
+        self._driver_resources = self.enrich_resources_with_default_pod_resources(
+            "driver_resources", driver_resources
         )
-        executor_resources_with_defaults = (
-            mlrun.mlconf.default_spark_resources.executor.to_dict()
+        self._executor_resources = self.enrich_resources_with_default_pod_resources(
+            "executor_resources", executor_resources
         )
-        if driver_resources:
-            driver_resources_with_defaults.update(driver_resources)
-        if executor_resources:
-            executor_resources_with_defaults.update(executor_resources)
-
-        self._driver_resources = driver_resources_with_defaults
-        self._executor_resources = executor_resources_with_defaults
         self.spark_conf = spark_conf or {}
         self.hadoop_conf = hadoop_conf or {}
         self.job_type = job_type

@@ -8,3 +8,4 @@ humanfriendly~=9.2
 fastapi~=0.95.2
 # in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
 sqlalchemy~=1.4
+pymysql~=1.0

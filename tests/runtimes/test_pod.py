@@ -19,6 +19,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.runtimes.databricks.databricks
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
 import mlrun.runtimes.pod
@@ -63,6 +64,7 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+            mlrun.runtimes.databricks.databricks.DatabricksRuntime,
         ],
     }
     invalid_classes = {}

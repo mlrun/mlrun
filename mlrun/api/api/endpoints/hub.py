@@ -81,13 +81,9 @@ async def list_sources(
         auth_info,
     )
 
-    hub_sources = await run_in_threadpool(
-        mlrun.api.utils.singletons.db.get_db().list_hub_sources, db_session
-    )
-
     return await run_in_threadpool(
-        mlrun.api.crud.Hub().filter_hub_sources,
-        hub_sources,
+        mlrun.api.crud.Hub().list_hub_sources,
+        db_session,
         item_name,
         tag,
         version,

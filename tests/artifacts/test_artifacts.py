@@ -15,6 +15,7 @@
 import pathlib
 import typing
 import unittest.mock
+import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
@@ -518,3 +519,22 @@ def test_inline_body():
     )
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
+
+
+def test_register_artifacts(rundb_mock):
+    project_name = "my-projects"
+    project = mlrun.new_project(project_name)
+    artifact_key = "my-art"
+    artifact_tag = "v1"
+    project.set_artifact(
+        artifact_key,
+        artifact=mlrun.artifacts.Artifact(key=artifact_key, body=b"x=1"),
+        tag=artifact_tag,
+    )
+
+    expected_tree = "my_uuid"
+    with unittest.mock.patch.object(uuid, "uuid4", return_value=expected_tree):
+        project.register_artifacts()
+
+    artifact = project.get_artifact(artifact_key)
+    assert artifact.tree == expected_tree

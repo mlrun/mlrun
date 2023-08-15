@@ -192,7 +192,7 @@ def _perform_schema_migrations(alembic_util: mlrun.api.utils.db.alembic.AlembicU
 
 def _is_latest_data_version():
     db_session = create_session()
-    db = mlrun.api.db.sqldb.db.SQLDB("")
+    db = mlrun.api.db.sqldb.db.SQLDB()
 
     try:
         current_data_version = _resolve_current_data_version(db, db_session)
@@ -214,8 +214,7 @@ def _perform_database_migration(
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
     if config.httpdb.db.data_migrations_mode == "enabled":
-        # FileDB is not really a thing anymore, so using SQLDB directly
-        db = mlrun.api.db.sqldb.db.SQLDB("")
+        db = mlrun.api.db.sqldb.db.SQLDB()
         current_data_version = int(db.get_current_data_version(db_session))
         if current_data_version != latest_data_version:
             logger.info(
@@ -235,8 +234,7 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
-    # FileDB is not really a thing anymore, so using SQLDB directly
-    db = mlrun.api.db.sqldb.db.SQLDB("")
+    db = mlrun.api.db.sqldb.db.SQLDB()
     _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)
 

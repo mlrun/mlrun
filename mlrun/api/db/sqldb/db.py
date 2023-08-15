@@ -140,11 +140,8 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __init__(self, dsn):
+    def __init__(self, dsn=""):
         self.dsn = dsn
-        self._cache = {
-            "project_resources_counters": {"value": None, "ttl": datetime.min}
-        }
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):

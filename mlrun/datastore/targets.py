@@ -1179,6 +1179,12 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds"):
             datastore_profile = datastore_profile_read(endpoint)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
             endpoint = datastore_profile.url_with_credentials()
         else:
             parsed_endpoint = urlparse(endpoint)

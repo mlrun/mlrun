@@ -57,6 +57,7 @@ class SQLiteMigrationUtil(object):
         "projects_labels",
         "data_versions",
         "background_tasks",
+        "datastore_profiles",
     ]
 
     def __init__(self):

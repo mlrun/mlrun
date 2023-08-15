@@ -1,7 +1,7 @@
 (change-log)=
 # Change log
 
-- [v1.4.0](#v1-4-0)
+- [v1.4.1](#v1-4-1) | [v1.4.0](#v1-4-0)
 - [v1.3.3](#v1-3-3) | [v1.3.2](#v1-3-2) | [v1.3.1](#v1-3-1) | [v1.3.0](#v1-3-0) 
 - [v1.2.3](#v1-2-3) | [v1.2.2](#v1-2-2) | [v1.2.1](#v1-2-1) | [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
@@ -10,10 +10,17 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
+## v1.4.1 (8 August 2023)
+
+###  Closed issues
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-4303 | Archive out-of-sync leader projects. |
+| ML-4232 | Consumer group names cannot include the character "-". |
+
 ## v1.4.0 (23 July 2023)
 
 ### New and updated features
-
 
 ####  Functions
 | ID   | Description                                                    |

@@ -347,7 +347,6 @@ async def test_webhook_notification(monkeypatch, test_method):
             "headers": test_headers,
         },
     )
-
     await webhook_notification.push(test_message, test_severity, test_runs_info)
 
     requests_mock.assert_called_once_with(
@@ -358,6 +357,7 @@ async def test_webhook_notification(monkeypatch, test_method):
             "severity": test_severity,
             "runs": test_runs_info,
         },
+        ssl=None,
     )
 
     webhook_notification.params["override_body"] = test_override_body
@@ -368,6 +368,7 @@ async def test_webhook_notification(monkeypatch, test_method):
         test_url,
         headers=test_headers,
         json=test_override_body,
+        ssl=None,
     )
 
 

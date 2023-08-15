@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import json
 import re
 import tempfile
 import time
@@ -1673,7 +1672,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-
         partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
@@ -2186,7 +2184,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-
             # projects is just a list of strings
             return response.json()["projects"]
 
@@ -3299,11 +3296,11 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
 
         res = self.api_call(method="GET", path=path)
-        if res and res._content:
-            public_wrapper = json.loads(res._content)
+        if res:
+            public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
                 public_json=public_wrapper["body"]
             )
@@ -3313,7 +3310,7 @@ class HTTPRunDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         pass
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass
@@ -3326,9 +3323,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles")
+        path = self._path_of("projects", project, "datastore-profiles")
 
-        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
+        self.api_call(method="PUT", path=path, json=profile.dict())
 
 
 def _as_json(obj):

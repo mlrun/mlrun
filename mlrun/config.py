@@ -453,7 +453,8 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
+            # "authority" is optional and generalizes [userinfo "@"] host [":" port]
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -1010,7 +1011,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_artifact_path_template(
+            return mlrun.utils.helpers.fill_project_path_template(
                 artifact_path=artifact_path + file_path, project=project
             )
 

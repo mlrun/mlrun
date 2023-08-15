@@ -82,6 +82,8 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 # dbfs objects will be represented with the following URL: dbfs://<path>
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
+        if not endpoint:
+            endpoint = mlrun.get_secret_or_env("DATABRICKS_HOST")
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.get_filesystem(silent=False)
 
@@ -93,7 +95,8 @@ class DBFSStore(DataStore):
 
     def get_storage_options(self):
         return dict(
-            token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint
+            token=self._get_secret_or_env("DATABRICKS_TOKEN"),
+            instance=mlrun.get_secret_or_env("DATABRICKS_HOST"),
         )
 
     def _verify_filesystem_and_key(self, key: str):
@@ -108,12 +111,12 @@ class DBFSStore(DataStore):
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         self._verify_filesystem_and_key(key)
-        if size is not None and size <= 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "size cannot be negative or zero"
-            )
+        if size is not None and size < 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("size cannot be negative")
+        if offset is None:
+            raise mlrun.errors.MLRunInvalidArgumentError("offset cannot be None")
         start = offset or None
-        end = offset + size if size is not None else None
+        end = offset + size if size else None
         return self._filesystem.cat_file(key, start=start, end=end)
 
     def put(self, key, data, append=False):

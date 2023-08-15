@@ -267,7 +267,7 @@ async def build_function(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    logger.info(f"build_function:\n{data}")
+    logger.info("Building function", data=data)
     function = data.get("function")
     project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
     function_name = function.get("metadata", {}).get("name")
@@ -710,17 +710,16 @@ def _build_function(
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        # enrich runtime with project defaults
-        launcher = mlrun.api.launcher.ServerSideLauncher()
-        launcher.enrich_runtime(runtime=fn)
+        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
+
+        # Enrich runtime with project defaults
+        launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
+        # When runtime is nuclio, building means we deploy the function and not just build its image
+        # so we need full enrichment
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
-                auth_info,
-            )
-
+        if is_nuclio_runtime:
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:

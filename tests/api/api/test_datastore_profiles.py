@@ -26,10 +26,10 @@ datastore = {
     "project": "prj",
     "name": "ds",
     "type": "nosql",
-    "body": "http://some_url_example/pp",
+    "object": "http://some_url_example/pp",
 }
 legacy_api_projects_path = "projects"
-api_datastore_path = f"/api/v1/projects/{project}/datastore_profiles"
+api_datastore_path = f"/api/v1/projects/{project}/datastore-profiles"
 
 
 def _create_project(client: TestClient, project_name: str = project):
@@ -69,7 +69,7 @@ def test_datastore_profile_update_ok(db: Session, client: TestClient):
     )
     assert resp.status_code == HTTPStatus.OK.value
     datastore_updated = datastore
-    datastore_updated["body"] = "another version of body"
+    datastore_updated["object"] = "another version of body"
     resp = client.put(
         api_datastore_path,
         data=json.dumps(datastore_updated),

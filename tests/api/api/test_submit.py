@@ -184,12 +184,8 @@ def test_submit_job_ensure_function_has_auth_set(
 
 
 def test_submit_schedule_job_from_hub_from_ui(
-    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock, monkeypatch
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
-    monkeypatch.setattr(
-        mlrun.api.rundb.sqldb.SQLRunDB, "list_hub_sources", _mock_list_hub_sources
-    )
-
     project = "my-proj1"
     hub_function_uri = "hub://aggregate"
 
@@ -213,23 +209,6 @@ def test_submit_schedule_job_from_hub_from_ui(
 
     schedule = schedules[0]
     assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
-
-
-def _mock_list_hub_sources(*args, **kwargs):
-    source = mlrun.common.schemas.IndexedHubSource(
-        index=1,
-        source=mlrun.common.schemas.HubSource(
-            metadata=mlrun.common.schemas.HubObjectMetadata(
-                name="default", description="some description"
-            ),
-            spec=mlrun.common.schemas.HubSourceSpec(
-                path=mlrun.mlconf.hub.default_source.url,
-                channel="master",
-                object_type="functions",
-            ),
-        ),
-    )
-    return [source]
 
 
 def test_submit_job_with_output_path_enrichment(

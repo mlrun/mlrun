@@ -32,6 +32,7 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
@@ -412,8 +413,8 @@ class ImageBuilder(ModelObj):
         requirements=None,
         requirements_file=None,
         overwrite=False,
-        extra_args=None,
         builder_env=None,
+        extra_args=None,
     ):
         if image:
             self.image = image
@@ -435,10 +436,10 @@ class ImageBuilder(ModelObj):
             self.with_mlrun = with_mlrun
         if auto_build:
             self.auto_build = auto_build
-        if extra_args:
-            self.extra_args = extra_args
         if builder_env:
             self.builder_env = builder_env
+        if extra_args:
+            self.extra_args = extra_args
 
     def with_commands(
         self,
@@ -1580,11 +1581,12 @@ class TargetPathObject:
     def get_templated_path(self):
         return self.full_path_template
 
-    def get_absolute_path(self):
-        if self.run_id:
-            return self.full_path_template.format(run_id=self.run_id)
-        else:
-            return self.full_path_template
+    def get_absolute_path(self, project_name=None):
+        path = fill_project_path_template(
+            artifact_path=self.full_path_template,
+            project=project_name,
+        )
+        return path.format(run_id=self.run_id) if self.run_id else path
 
 
 class DataSource(ModelObj):

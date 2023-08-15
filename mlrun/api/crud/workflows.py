@@ -26,6 +26,7 @@ from mlrun.api.api.utils import (
 )
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
+from mlrun.utils import fill_project_path_template
 
 
 class WorkflowRunners(
@@ -155,13 +156,18 @@ class WorkflowRunners(
                     engine=workflow_spec.engine,
                     local=workflow_spec.run_local,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                     subpath=project.spec.subpath,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=(
-                    workflow_request.artifact_path or config.artifact_path
-                ).replace("{{run.uid}}", meta_uid),
+                output_path=fill_project_path_template(
+                    (workflow_request.artifact_path or config.artifact_path).replace(
+                        "{{run.uid}}", meta_uid
+                    ),
+                    project.metadata.name,
+                ),
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -276,6 +282,8 @@ class WorkflowRunners(
                     project_name=project.metadata.name,
                     load_only=load_only,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

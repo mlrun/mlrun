@@ -16,8 +16,10 @@ import datetime
 from typing import List, Optional, Union
 
 from dependency_injector import containers, providers
+from sqlalchemy.exc import SQLAlchemyError
 
 import mlrun.api.crud
+import mlrun.api.db.session
 import mlrun.common.schemas
 import mlrun.db.factory
 import mlrun.model_monitoring.model_endpoint
@@ -128,25 +130,25 @@ class SQLRunDB(RunDBInterface):
     ):
         return self._transform_db_error(
             mlrun.api.crud.Runs().list_runs,
-            self.session,
-            name,
-            uid,
-            project,
-            labels,
-            mlrun.utils.helpers.as_list(state) if state is not None else None,
-            sort,
-            last,
-            iter,
-            start_time_from,
-            start_time_to,
-            last_update_time_from,
-            last_update_time_to,
-            partition_by,
-            rows_per_partition,
-            partition_sort_by,
-            partition_order,
-            max_partitions,
-            with_notifications,
+            db_session=self.session,
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            states=mlrun.utils.helpers.as_list(state) if state is not None else None,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            with_notifications=with_notifications,
         )
 
     def del_run(self, uid, project=None, iter=None):
@@ -437,13 +439,6 @@ class SQLRunDB(RunDBInterface):
             state=state,
         )
 
-    @staticmethod
-    def _transform_db_error(func, *args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except DBError as exc:
-            raise mlrun.db.RunDBError(exc.args) from exc
-
     def create_feature_set(self, feature_set, project="", versioned=True):
         return self._transform_db_error(
             mlrun.api.crud.FeatureStore().create_feature_set,
@@ -683,9 +678,11 @@ class SQLRunDB(RunDBInterface):
         project: str = None,
         mask_params: bool = True,
     ):
+        # We run this function with a new session because it may run concurrently.
+        # Older sessions will not be able to see the changes made by this function until they are committed.
         return self._transform_db_error(
+            mlrun.api.db.session.run_function_with_new_db_session,
             mlrun.api.crud.Notifications().store_run_notifications,
-            self.session,
             notification_objects,
             run_uid,
             project,
@@ -718,6 +715,20 @@ class SQLRunDB(RunDBInterface):
         return self._transform_db_error(
             mlrun.api.crud.Functions().start_function,
             function,
+        )
+
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
+        return self._transform_db_error(
+            mlrun.api.crud.Hub().list_hub_sources,
+            self.session,
+            item_name,
+            tag,
+            version,
         )
 
     def list_pipelines(
@@ -845,14 +856,6 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_hub_sources(
-        self,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
-    ):
-        raise NotImplementedError()
-
     def get_hub_source(self, source_name: str):
         raise NotImplementedError()
 
@@ -897,7 +900,7 @@ class SQLRunDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()
@@ -906,6 +909,19 @@ class SQLRunDB(RunDBInterface):
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         raise NotImplementedError()
+
+    def _transform_db_error(self, func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+
+        except SQLAlchemyError as exc:
+            # If we got a SQLAlchemyError, it means the error was not handled by the SQLDB and we need to rollback
+            # to make the session usable again
+            self.session.rollback()
+            raise mlrun.db.RunDBError(exc.args) from exc
+
+        except DBError as exc:
+            raise mlrun.db.RunDBError(exc.args) from exc
 
 
 # Once this file is imported it will override the default RunDB implementation (RunDBContainer)

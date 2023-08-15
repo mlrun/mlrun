@@ -1010,7 +1010,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_artifact_path_template(
+            return mlrun.utils.helpers.fill_project_path_template(
                 artifact_path=artifact_path + file_path, project=project
             )
 

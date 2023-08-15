@@ -420,7 +420,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
         if upload_artifacts:
-            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path = mlrun.utils.helpers.fill_project_path_template(
                 mlconf.artifact_path, project or mlconf.default_project
             )
             update_in(newspec, ["spec", run_keys.output_path], artifact_path)

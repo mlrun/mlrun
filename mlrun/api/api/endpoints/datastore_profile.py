@@ -103,19 +103,12 @@ async def list_datastore_profiles(
     )
     if len(profiles) == 0:
         return profiles
-    profile_names = [profile.name for profile in profiles]
-    allowed_profile_names = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+    filtered_data = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        profile_names,
-        lambda profile_name: (
-            project_name,
-            profile_name,
-        ),
+        profiles,
+        lambda profile: (project_name, profile.name),
         auth_info,
     )
-    filtered_data = [
-        profile for profile in profiles if profile.name in allowed_profile_names
-    ]
     return filtered_data
 
 

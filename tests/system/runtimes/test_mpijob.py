@@ -27,10 +27,14 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     #  (running in git action worker with limited resources).
     #  This mark should be removed if we shift to a new CE testing environment with adequate resources
     @pytest.mark.enterprise
-    def test_run_state_completion(self):
+    def test_mpijob_run(self):
+        """
+        Run the `handler` function in mpijob_function.py as an OpenMPI job and validate it ran properly (see the
+        docstring of the handler for more details).
+        """
         code_path = str(self.assets_path / "mpijob_function.py")
+        replicas = 4
 
-        # Create the open mpi function:
         mpijob_function = mlrun.code_to_function(
             name="mpijob-test",
             kind="mpijob",
@@ -39,12 +43,12 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             filename=code_path,
             image="mlrun/ml-models",
         )
-        mpijob_function.spec.replicas = 4
+        mpijob_function.spec.replicas = replicas
 
-        mpijob_run = mpijob_function.run()
+        mpijob_run = mpijob_function.run(returns=["reduced_result", "rank_0_result"])
         assert mpijob_run.status.state == RunStates.completed
 
-        mpijob_time = mpijob_run.status.results["time"]
-        mpijob_result = mpijob_run.status.results["result"]
-        assert mpijob_time is not None
-        assert mpijob_result == 1000
+        reduced_result = mpijob_run.status.results["reduced_result"]
+        rank_0_result = mpijob_run.status.results["rank_0_result"]
+        assert reduced_result == replicas * 10
+        assert rank_0_result == 1000

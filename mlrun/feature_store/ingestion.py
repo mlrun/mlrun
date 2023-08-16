@@ -140,6 +140,7 @@ def featureset_initializer(server):
         featureset,
         targets=targets,
         source=source,
+        context=context,
     )
     featureset.save()
     server.graph = graph

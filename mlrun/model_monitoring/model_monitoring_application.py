@@ -94,7 +94,7 @@ class ModelMonitoringApplication(StepToDict):
         :param endpoint_uid:
         :param output_stream_uri:
 
-        :return:
+        :returns: List[ModelMonitoringApplicationResult]
         """
         raise NotImplementedError
 

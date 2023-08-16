@@ -115,14 +115,6 @@ class MonitoringDeployment:
             tracking_offset=Seconds(self._max_parquet_save_interval),
             function_name="model-monitoring-application-batch",
         )
-        self.deploy_model_monitoring_application_batch_processing(
-            project=project,
-            model_monitoring_access_key=model_monitoring_access_key,
-            db_session=db_session,
-            auth_info=auth_info,
-            tracking_policy=tracking_policy,
-            tracking_offset=Seconds(self._max_parquet_save_interval),
-        )
         self.deploy_model_monitoring_writer_application(
             project=project,
             model_monitoring_access_key=model_monitoring_access_key,
@@ -261,103 +253,6 @@ class MonitoringDeployment:
                 auth_info=auth_info,
                 tracking_policy=tracking_policy,
                 function_name=function_name,
-            )
-
-            # Get the function uri
-            function_uri = fn.save(versioned=True)
-
-            if with_schedule:
-                if not overwrite:
-                    try:
-                        mlrun.api.utils.scheduler.Scheduler().get_schedule(
-                            db_session=db_session,
-                            project=project,
-                            name="model-monitoring-batch",
-                        )
-                        logger.info(
-                            "Already deployed monitoring batch scheduled job function ",
-                            project=project,
-                        )
-                        return
-                    except mlrun.errors.MLRunNotFoundError:
-                        logger.info(
-                            "Deploying monitoring batch scheduled job function ",
-                            project=project,
-                        )
-                # Submit batch scheduled job
-                self._submit_schedule_batch_job(
-                    project=project,
-                    function_uri=function_uri,
-                    db_session=db_session,
-                    auth_info=auth_info,
-                    tracking_policy=tracking_policy,
-                    tracking_offset=tracking_offset,
-                )
-        return fn
-
-    def deploy_model_monitoring_application_batch_processing(
-        self,
-        project: str,
-        model_monitoring_access_key: str,
-        db_session: sqlalchemy.orm.Session,
-        auth_info: mlrun.common.schemas.AuthInfo,
-        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
-        with_schedule: bool = True,
-        overwrite: bool = False,
-        tracking_offset: Seconds = Seconds(0),
-    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
-        """
-        Deploying model monitoring batch job. The goal of this job is to identify drift in the data
-        based on the latest batch of events. By default, this job is executed on the hour every hour.
-        Note that if the monitoring batch job was already deployed then you will either have to pass overwrite=True or
-        to delete the old monitoring batch job before deploying a new one.
-
-        :param project:                     The name of the project.
-        :param model_monitoring_access_key: Access key to apply the model monitoring process.
-        :param db_session:                  A session that manages the current dialog with the database.
-        :param auth_info:                   The auth info of the request.
-        :param tracking_policy:             Model monitoring configurations.
-        :param with_schedule:               If true, submit a scheduled batch drift job.
-        :param overwrite:                   If true, overwrite the existing model monitoring batch job.
-        :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
-
-        :return: Model monitoring batch job as a runtime function.
-        """
-
-        fn = None
-        if not overwrite:
-            logger.info(
-                "Checking if model monitoring application batch processing function is already deployed",
-                project=project,
-            )
-
-            # Try to list functions that named model monitoring batch
-            # to make sure that this job has not yet been deployed
-            try:
-                fn = mlrun.api.crud.Functions().get_function(
-                    db_session=db_session,
-                    name="model-monitoring-application-batch",
-                    project=project,
-                )
-                logger.info(
-                    "Detected model monitoring application batch processing function already deployed",
-                    project=project,
-                )
-
-            except mlrun.errors.MLRunNotFoundError:
-                logger.info(
-                    "Deploying monitoring application batch processing function ",
-                    project=project,
-                )
-
-        if not fn:
-            # Create a monitoring batch job function object
-            fn = self._get_model_monitoring_batch_function(
-                project=project,
-                model_monitoring_access_key=model_monitoring_access_key,
-                db_session=db_session,
-                auth_info=auth_info,
-                tracking_policy=tracking_policy,
             )
 
             # Get the function uri

@@ -70,7 +70,7 @@ def test_get_frontend_spec(
         == mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled
     )
     assert frontend_spec.default_function_image_by_kind is not None
-    assert frontend_spec.function_deployment_mlrun_command is not None
+    assert frontend_spec.function_deployment_mlrun_requirement is not None
     assert frontend_spec.default_artifact_path is not None
     # fields UI expects to be in the template
     assert (
@@ -102,8 +102,8 @@ def test_get_frontend_spec(
         == mlrun.api.api.utils.get_allowed_path_prefixes_list()
     )
     assert (
-        frontend_spec.function_deployment_mlrun_command
-        == f'python -m pip install "{mlrun.api.utils.builder.resolve_mlrun_install_command_version()}"'
+        frontend_spec.function_deployment_mlrun_requirement
+        == mlrun.api.utils.builder.resolve_mlrun_install_command_version()
     )
 
 

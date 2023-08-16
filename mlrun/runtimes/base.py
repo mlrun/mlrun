@@ -464,9 +464,6 @@ class BaseRuntime(ModelObj):
 
             command = "mlrun"
         else:
-            print(command)
-            print(self.spec.args)
-            print(runobj.spec.parameters)
             command = command.format(**runobj.spec.parameters)
             if self.spec.args:
                 args = [arg.format(**runobj.spec.parameters) for arg in self.spec.args]

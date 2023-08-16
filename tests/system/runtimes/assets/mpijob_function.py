@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import time
+
 from mpi4py import MPI
 
 
 def handler():
     """
-    A handler to check the `MPIJobRuntime` as a system test in `TestMpiJobRuntime`. It will:
+    A handler to check the `MPIJobRuntime` as a system test in `TestMpiJobRuntime.test_mpijob_run`. It will:
 
     * Test the OpenMPI 4 setup by getting the rank and reducing from all ranks to the root rank.
+    * Test the run state changes to completed only after the last worker finished.
     * Test the `mlrun.package` mechanism for logging returning values that were returned only from the logging worker -
       which is defaulted to rank 0.
 
-    If the handler is running with 4 workers (4 replicas) the returning values should be:
+    If the handler ran with 4 workers (4 replicas) the returning values should be:
     40 (10+10+10+10), 1000 ((0 + 1) * 1000).
     """
     # Get MPI rank:
@@ -34,6 +37,11 @@ def handler():
     # replicas to the root where it will be logged when returned:
     result = 10
     result = comm.reduce(result, op=MPI.SUM, root=0)
+
+    # Make rank 0 sleep for some time to make sure all the other ranks will finish before it to test the run state
+    # completion race case:
+    if rank == 0:
+        time.sleep(1)
 
     # Return the accumulated value and a per rank value. Notice: only values returned from root rank (#0) should be
     # logged (see `mlrun.package.context_handler.ContextHandler._is_logging_worker`):

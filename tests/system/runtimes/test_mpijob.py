@@ -27,7 +27,7 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     #  (running in git action worker with limited resources).
     #  This mark should be removed if we shift to a new CE testing environment with adequate resources
     @pytest.mark.enterprise
-    def test_run_state_completion(self):
+    def test_mpijob_run(self):
         """
         Run the `handler` function in mpijob_function.py as an OpenMPI job and validate it ran properly (see the
         docstring of the handler for more details).

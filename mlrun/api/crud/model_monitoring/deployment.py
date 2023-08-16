@@ -30,11 +30,11 @@ import mlrun.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
-from mlrun.utils import logger
 from mlrun.model_monitoring.model_monitoring_writer import (
-    ModelMonitoringWriter,
     MODEL_MONITORING_WRITER_FUNCTION_NAME,
+    ModelMonitoringWriter,
 )
+from mlrun.utils import logger
 
 _MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
 _STREAM_PROCESSING_FUNCTION_PATH = (
@@ -47,7 +47,6 @@ _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = (
 _MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "model_monitoring_application.py"
 )
-
 
 _MONITORING_WRITER_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "model_monitoring_writer.py"
@@ -435,6 +434,7 @@ class MonitoringDeployment:
             else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
+        logger.info(f"function_name={function_name}, filename={filename}, ")
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
             name=function_name,
             project=project,

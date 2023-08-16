@@ -12,29 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import enum
-import multiprocessing
-
-from ..model import ModelObj
-from ..serving.utils import StepToDict
-from .helpers import get_stream_path, get_monitoring_parquet_path
-from ..datastore import get_stream_pusher
-import mlrun
-
 import collections
 import dataclasses
 import datetime
 import json
-import os
+import multiprocessing
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import v3io
-import v3io.dataplane
-import v3io_frames
 
+import mlrun
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
@@ -42,16 +31,16 @@ import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
 from mlrun.utils import logger
-from .model_monitoring_writer import MODEL_MONITORING_WRITER_FUNCTION_NAME
+
+from ..datastore import get_stream_pusher
 from ..datastore.targets import ParquetTarget
+from ..serving.utils import StepToDict
+from .helpers import get_monitoring_parquet_path, get_stream_path
+from .model_monitoring_writer import MODEL_MONITORING_WRITER_FUNCTION_NAME
 
 
-# abstract application
-# default handler
-# write to output stream path
 @dataclasses.dataclass
 class ModelMonitoringApplicationResult:
-    """ """
 
     application_name: str
     endpoint_id: str

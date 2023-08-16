@@ -52,7 +52,12 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
+from ..model_monitoring.model_monitoring_application import PushToMonitoringWriter
+from ..model_monitoring.model_monitoring_writer import (
+    MODEL_MONITORING_WRITER_FUNCTION_NAME,
+)
 from ..run import code_to_function, get_object, import_function, new_function
+from ..runtimes.function import RemoteRuntime
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -80,12 +85,6 @@ from .pipelines import (
     get_db_function,
     get_workflow_engine,
     pipeline_context,
-)
-
-from ..model_monitoring.model_monitoring_application import PushToMonitoringWriter
-from ..runtimes.function import RemoteRuntime
-from ..model_monitoring.model_monitoring_writer import (
-    MODEL_MONITORING_WRITER_FUNCTION_NAME,
 )
 
 MODEL_MONITORING_APPLICATION_LABEL_KEY = "type"

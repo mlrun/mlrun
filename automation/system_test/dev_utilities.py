@@ -229,6 +229,7 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             print(f"Error installing local-path storage class: {output}")
     else:
         print("local-path storage class already exists.")
+    mysql_values = ("--set primary.service.nodePorts.mysql=30223 --set primary.service.type=NodePort --set networkPolicy.enabled=true")
     services = {
         "redis": {
             "chart": "bitnami/redis",
@@ -240,7 +241,7 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
         },
         "mysql": {
             "chart": "bitnami/mysql",
-            "set_values": "--set primary.service.nodePorts.mysql=30223 --set primary.service.type=NodePort --set networkPolicy.enabled=true",
+            "set_values": mysql_values,
         },
     }
     namespace = "devtools"

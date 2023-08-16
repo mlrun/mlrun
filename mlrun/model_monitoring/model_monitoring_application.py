@@ -281,7 +281,7 @@ class BatchApplicationProcessor:
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
-        if applications_names:
+        if applications_names or True:  # TODO
             pool = multiprocessing.Pool(processes=len(endpoints))
             for endpoint in endpoints:
                 if (

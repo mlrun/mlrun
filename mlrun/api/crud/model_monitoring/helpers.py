@@ -112,7 +112,9 @@ def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
 
 
 def get_monitoring_parquet_path(
-    db_session: sqlalchemy.orm.Session, project: str
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM_PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
@@ -133,14 +135,14 @@ def get_monitoring_parquet_path(
     # Generate monitoring parquet path value
     parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+        kind=kind,
         target="offline",
         artifact_path=artifact_path,
     )
     return parquet_path
 
 
-def get_stream_path(project: str = None):
+def get_stream_path(project: str = None, application_name: str = None):
     """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
 
     stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
@@ -155,5 +157,5 @@ def get_stream_path(project: str = None):
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project
+        stream_uri=stream_uri, project=project, application_name=application_name
     )

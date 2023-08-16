@@ -242,6 +242,7 @@ class ModelEndpoints:
             entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
             timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
+            passthrough=True,
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 
@@ -255,6 +256,12 @@ class ModelEndpoints:
         # Add features to the feature set according to the model object
         if model_obj.spec.inputs:
             for feature in model_obj.spec.inputs:
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature.name, value_type=feature.value_type
+                    )
+                )
+            for feature in model_obj.spec.outputs:
                 feature_set.add_feature(
                     mlrun.feature_store.Feature(
                         name=feature.name, value_type=feature.value_type
@@ -289,7 +296,8 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET, parquet_path
+            mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM_PARQUET,
+            parquet_path,
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
 

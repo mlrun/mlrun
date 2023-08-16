@@ -400,6 +400,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -414,6 +415,7 @@ default_config = {
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
@@ -965,6 +967,7 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
+        application_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
@@ -990,8 +993,10 @@ class Config:
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project)
+
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project, kind=kind
+                project=project,
+                kind=kind if application_name is None else f"{kind}_{application_name}",
             )
 
         # Get the current offline path from the configuration

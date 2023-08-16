@@ -21,6 +21,8 @@ from typing import Optional
 import mlrun.common.helpers
 import mlrun.utils
 
+MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"
+
 
 class EventFieldType:
     FUNCTION_URI = "function_uri"
@@ -117,7 +119,8 @@ class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
     STREAM = "stream"
-    PARQUET = "parquet"
+    STREAM_PARQUET = "stream_parquet"
+    BATCH_CONTROLLER_PARQUET = "stream_controller_parquet"
     LOG_STREAM = "log_stream"
 
 
@@ -139,6 +142,11 @@ class PrometheusMetric:
     ERRORS_TOTAL = "errors_total"
     DRIFT_METRICS = "drift_metrics"
     DRIFT_STATUS = "drift_status"
+
+
+class MonitoringFunctionNames:
+    WRITER = "model-monitoring-writer"
+    STREAM = "model-monitoring-stream"
 
 
 @dataclass
@@ -206,3 +214,25 @@ class DriftStatus(Enum):
     NO_DRIFT = "NO_DRIFT"
     DRIFT_DETECTED = "DRIFT_DETECTED"
     POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
+
+
+class ResultKindApp(enum.Enum):
+    """
+    Enum for the result kind values
+    """
+
+    data_drift = 0
+    concept_drift = 1
+    model_performance = 2
+    system_performance = 3
+
+
+class ResultStatusApp(enum.Enum):
+    """
+    Enum for the result status values, detected means that the app detected some problem.
+    """
+
+    irrelevant = -1
+    no_detection = 0
+    potential_detection = 1
+    detected = 2

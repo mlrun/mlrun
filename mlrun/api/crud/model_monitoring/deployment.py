@@ -31,13 +31,26 @@ from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 from mlrun.utils import logger
+from mlrun.model_monitoring.model_monitoring_writer import (
+    ModelMonitoringWriter,
+    MODEL_MONITORING_WRITER_FUNCTION_NAME,
+)
 
 _MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
 _STREAM_PROCESSING_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )
-_MONITORING_BATCH_FUNCTION_PATH = (
+_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch.py"
+)
+
+_MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_application.py"
+)
+
+
+_MONITORING_WRITER_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_writer.py"
 )
 
 
@@ -91,6 +104,31 @@ class MonitoringDeployment:
             auth_info=auth_info,
             tracking_policy=tracking_policy,
             tracking_offset=Seconds(self._max_parquet_save_interval),
+            function_name="model-monitoring-batch",
+        )
+        self.deploy_model_monitoring_batch_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=tracking_policy,
+            tracking_offset=Seconds(self._max_parquet_save_interval),
+            function_name="model-monitoring-application-batch",
+        )
+        self.deploy_model_monitoring_application_batch_processing(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=tracking_policy,
+            tracking_offset=Seconds(self._max_parquet_save_interval),
+        )
+        self.deploy_model_monitoring_writer_application(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            db_session=db_session,
+            auth_info=auth_info,
+            tracking_policy=tracking_policy,
         )
 
     def deploy_model_monitoring_stream_processing(
@@ -167,6 +205,106 @@ class MonitoringDeployment:
         with_schedule: bool = True,
         overwrite: bool = False,
         tracking_offset: Seconds = Seconds(0),
+        function_name: str = "model-monitoring-batch",
+    ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
+        """
+        Deploying model monitoring batch job. The goal of this job is to identify drift in the data
+        based on the latest batch of events. By default, this job is executed on the hour every hour.
+        Note that if the monitoring batch job was already deployed then you will either have to pass overwrite=True or
+        to delete the old monitoring batch job before deploying a new one.
+
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
+        :param with_schedule:               If true, submit a scheduled batch drift job.
+        :param overwrite:                   If true, overwrite the existing model monitoring batch job.
+        :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
+        :param function_name:
+
+        :return: Model monitoring batch job as a runtime function.
+        """
+
+        fn = None
+        if not overwrite:
+            logger.info(
+                f"Checking if {function_name.replace('-',' ')} processing function is already deployed",
+                project=project,
+            )
+
+            # Try to list functions that named model monitoring batch
+            # to make sure that this job has not yet been deployed
+            try:
+                fn = mlrun.api.crud.Functions().get_function(
+                    db_session=db_session,
+                    name=function_name,
+                    project=project,
+                )
+                logger.info(
+                    f"Detected {function_name.replace('-',' ')} processing function already deployed",
+                    project=project,
+                )
+
+            except mlrun.errors.MLRunNotFoundError:
+                logger.info(
+                    f"Deploying {function_name.replace('-',' ')} processing function ",
+                    project=project,
+                )
+
+        if not fn:
+            # Create a monitoring batch job function object
+            fn = self._get_model_monitoring_batch_function(
+                project=project,
+                model_monitoring_access_key=model_monitoring_access_key,
+                db_session=db_session,
+                auth_info=auth_info,
+                tracking_policy=tracking_policy,
+                function_name=function_name,
+            )
+
+            # Get the function uri
+            function_uri = fn.save(versioned=True)
+
+            if with_schedule:
+                if not overwrite:
+                    try:
+                        mlrun.api.utils.scheduler.Scheduler().get_schedule(
+                            db_session=db_session,
+                            project=project,
+                            name="model-monitoring-batch",
+                        )
+                        logger.info(
+                            "Already deployed monitoring batch scheduled job function ",
+                            project=project,
+                        )
+                        return
+                    except mlrun.errors.MLRunNotFoundError:
+                        logger.info(
+                            "Deploying monitoring batch scheduled job function ",
+                            project=project,
+                        )
+                # Submit batch scheduled job
+                self._submit_schedule_batch_job(
+                    project=project,
+                    function_uri=function_uri,
+                    db_session=db_session,
+                    auth_info=auth_info,
+                    tracking_policy=tracking_policy,
+                    tracking_offset=tracking_offset,
+                )
+        return fn
+
+    def deploy_model_monitoring_application_batch_processing(
+        self,
+        project: str,
+        model_monitoring_access_key: str,
+        db_session: sqlalchemy.orm.Session,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        with_schedule: bool = True,
+        overwrite: bool = False,
+        tracking_offset: Seconds = Seconds(0),
     ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
         """
         Deploying model monitoring batch job. The goal of this job is to identify drift in the data
@@ -189,7 +327,7 @@ class MonitoringDeployment:
         fn = None
         if not overwrite:
             logger.info(
-                "Checking if model monitoring batch processing function is already deployed",
+                "Checking if model monitoring application batch processing function is already deployed",
                 project=project,
             )
 
@@ -198,17 +336,18 @@ class MonitoringDeployment:
             try:
                 fn = mlrun.api.crud.Functions().get_function(
                     db_session=db_session,
-                    name="model-monitoring-batch",
+                    name="model-monitoring-application-batch",
                     project=project,
                 )
                 logger.info(
-                    "Detected model monitoring batch processing function already deployed",
+                    "Detected model monitoring application batch processing function already deployed",
                     project=project,
                 )
 
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
-                    "Deploying monitoring batch processing function ", project=project
+                    "Deploying monitoring application batch processing function ",
+                    project=project,
                 )
 
         if not fn:
@@ -252,6 +391,62 @@ class MonitoringDeployment:
                     tracking_offset=tracking_offset,
                 )
         return fn
+
+    def deploy_model_monitoring_writer_application(
+        self,
+        project,
+        model_monitoring_access_key,
+        db_session,
+        auth_info,
+        tracking_policy,
+    ):
+        """
+        Deploying model monitoring stream real time nuclio function. The goal of this real time function is
+        to monitor the log of the data stream. It is triggered when a new log entry is detected.
+        It processes the new events into statistics that are then written to statistics databases.
+
+        :param project:                     The name of the project.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process.
+        :param db_session:                  A session that manages the current dialog with the database.
+        :param auth_info:                   The auth info of the request.
+        :param tracking_policy:             Model monitoring configurations.
+        """
+
+        logger.info(
+            "Checking if model monitoring writer is already deployed",
+            project=project,
+        )
+        try:
+            # validate that the model monitoring stream has not yet been deployed
+            mlrun.runtimes.function.get_nuclio_deploy_status(
+                name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                project=project,
+                tag="",
+                auth_info=auth_info,
+            )
+            logger.info(
+                "Detected model monitoring writer processing function already deployed",
+                project=project,
+            )
+            return
+        except mlrun.errors.MLRunNotFoundError:
+            logger.info(
+                "Deploying model monitoring writer processing function", project=project
+            )
+
+        fn = self._initial_model_monitoring_writer_function(
+            project=project,
+            model_monitoring_access_key=model_monitoring_access_key,
+            tracking_policy=tracking_policy,
+            auth_info=auth_info,
+        )
+
+        # Adding label to the function - will be used to identify the stream pod
+        fn.metadata.labels = {"type": "model-monitoring-writer"}
+
+        mlrun.api.api.endpoints.functions._build_function(
+            db_session=db_session, auth_info=auth_info, function=fn
+        )
 
     def _initial_model_monitoring_stream_processing_function(
         self,
@@ -323,6 +518,7 @@ class MonitoringDeployment:
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
+        function_name: str = "model-monitoring-batch",
     ):
         """
         Initialize model monitoring batch function.
@@ -337,12 +533,16 @@ class MonitoringDeployment:
         :return:                            A function object from a mlrun runtime class
 
         """
-
+        filename = (
+            str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
+            if function_name == "model-monitoring-batch"
+            else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
+        )
         # Create job function runtime for the model monitoring batch
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
-            name="model-monitoring-batch",
+            name=function_name,
             project=project,
-            filename=str(_MONITORING_BATCH_FUNCTION_PATH),
+            filename=filename,
             kind="job",
             image=tracking_policy.default_batch_image,
             handler="handler",
@@ -437,6 +637,7 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         model_monitoring_access_key: str = None,
         auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+        application_name: str = None,
     ) -> mlrun.runtimes.ServingRuntime:
         """Adding stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
         with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema that is
@@ -454,7 +655,9 @@ class MonitoringDeployment:
 
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
-        stream_path = mlrun.api.crud.model_monitoring.get_stream_path(project=project)
+        stream_path = mlrun.api.crud.model_monitoring.get_stream_path(
+            project=project, application_name=application_name
+        )
 
         if stream_path.startswith("kafka://"):
             topic, brokers = mlrun.datastore.utils.parse_kafka_url(url=stream_path)
@@ -475,7 +678,10 @@ class MonitoringDeployment:
             if stream_path.startswith("v3io://"):
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(
-                    stream_path=stream_path, name="monitoring_stream_trigger"
+                    stream_path=stream_path,
+                    name="monitoring_stream_trigger"
+                    if application_name is None
+                    else f"monitoring_{application_name}_trigger",
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()
@@ -522,6 +728,53 @@ class MonitoringDeployment:
 
         # Ensure that the auth env vars are set
         mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+
+        return function
+
+    def _initial_model_monitoring_writer_function(
+        self, project, model_monitoring_access_key, tracking_policy, auth_info
+    ):
+        """
+        Initialize model monitoring stream processing function.
+
+        :param project:                     Project name.
+        :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE
+                                            deployments this parameter will be None.
+        :param tracking_policy:             Model monitoring configurations.
+        :param auth_info:                   The auth info of the request.
+
+        :return:                            A function object from a mlrun runtime class
+
+        """
+
+        # Create a new serving function for the streaming process
+        function = mlrun.code_to_function(
+            name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+            project=project,
+            filename=str(_MONITORING_WRITER_FUNCTION_PATH),
+            kind="serving",
+            image=tracking_policy.stream_image,
+        )
+
+        # Create writer monitoring serving graph
+        graph = function.set_topology("flow")
+        graph.to(ModelMonitoringWriter(name="king")).respond()  # writer
+
+        # Set the project to the serving function
+        function.metadata.project = project
+
+        # Add stream triggers
+        function = self._apply_stream_trigger(
+            project=project,
+            function=function,
+            model_monitoring_access_key=model_monitoring_access_key,
+            auth_info=auth_info,
+            application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+        )
+
+        # Apply feature store run configurations on the serving function
+        run_config = fstore.RunConfig(function=function, local=False)
+        function.spec.parameters = run_config.parameters
 
         return function
 

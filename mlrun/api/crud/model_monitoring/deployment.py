@@ -284,6 +284,7 @@ class MonitoringDeployment:
                     auth_info=auth_info,
                     tracking_policy=tracking_policy,
                     tracking_offset=tracking_offset,
+                    function_name=function_name
                 )
         return fn
 
@@ -470,6 +471,7 @@ class MonitoringDeployment:
         auth_info: mlrun.common.schemas.AuthInfo,
         tracking_policy: mlrun.model_monitoring.tracking_policy.TrackingPolicy,
         tracking_offset: Seconds = Seconds(0),
+        function_name: str = "model-monitoring-batch"
     ):
         """
         Create a new scheduled monitoring batch job analysis based on the model-monitoring-batch function that has
@@ -487,7 +489,7 @@ class MonitoringDeployment:
 
         function_uri = function_uri.replace("db://", "")
 
-        task = mlrun.new_task(name="model-monitoring-batch", project=project)
+        task = mlrun.new_task(name=function_name, project=project)
         task.spec.function = function_uri
 
         # Apply batching interval params
@@ -518,7 +520,7 @@ class MonitoringDeployment:
         }
 
         logger.info(
-            "Deploying model monitoring batch processing function", project=project
+            f"Deploying {function_name.replace('-',' ')} processing function", project=project
         )
 
         # Add job schedule policy (every hour by default)

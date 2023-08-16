@@ -17,19 +17,19 @@
 
 
 # Data node IPs/hostnames (required) (e.g. [1.1.1.1, 1.1.1.2, 1.1.1.3])
-DATA_NODES: [192.168.223.248]
+DATA_NODES:
 
 # Username for ssh (required)
-SSH_USER: admin
+SSH_USER:
 
 # Password for above user (required)
-SSH_PASSWORD: 24tango
+SSH_PASSWORD:
 
 # Docker registry you can push to. Make sure you are logged into it before running the script
-DOCKER_REGISTRY: docker.io/davesh0812
+DOCKER_REGISTRY:
 
 # Optional - will attempt docker login if defined, need to login manually otherwise
-REGISTRY_USERNAME: davesh0812
+REGISTRY_USERNAME:
 
 # Optional - will attempt docker login if defined
-REGISTRY_PASSWORD: Barca0812!
+REGISTRY_PASSWORD:

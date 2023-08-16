@@ -442,6 +442,7 @@ class MonitoringDeployment:
             kind="job",
             image=tracking_policy.default_batch_image,
             handler="handler",
+            with_doc=False,
         )
         function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 

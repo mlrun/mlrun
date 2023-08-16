@@ -264,16 +264,16 @@ class MonitoringDeployment:
                         mlrun.api.utils.scheduler.Scheduler().get_schedule(
                             db_session=db_session,
                             project=project,
-                            name="model-monitoring-batch",
+                            name=function_name,
                         )
                         logger.info(
-                            "Already deployed monitoring batch scheduled job function ",
+                            f"Already deployed {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
                         return
                     except mlrun.errors.MLRunNotFoundError:
                         logger.info(
-                            "Deploying monitoring batch scheduled job function ",
+                            f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
                 # Submit batch scheduled job

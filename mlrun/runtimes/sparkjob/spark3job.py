@@ -308,9 +308,15 @@ class Spark3JobSpec(AbstractSparkJobSpec):
     def enrich_resources_with_default_pod_resources(
         self, resources_field_name: str, resources: dict
     ):
+        if resources_field_name == "driver_resources":
+            role = "driver"
+        elif resources_field_name == "executor_resources":
+            role = "executor"
+        else:
+            return {}
         resources_types = ["cpu", "memory"]
         resource_requirements = ["requests", "limits"]
-        default_resources = mlrun.mlconf.get_default_function_pod_resources()
+        default_resources = mlrun.mlconf.default_spark_resources.to_dict()[role]
 
         if resources:
             for resource_requirement in resource_requirements:
@@ -348,11 +354,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             gpus=gpu_value,
             gpu_type=gpu_type,
         )
-        self._verify_jvm_memory_string(
-            resources_field_name, resources["limits"]["memory"]
-        )
         resources["limits"] = generate_resources(
-            mem=resources["limits"]["memory"],
             cpu=resources["limits"]["cpu"],
             gpus=gpu_value,
             gpu_type=gpu_type,

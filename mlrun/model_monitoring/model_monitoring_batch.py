@@ -53,6 +53,7 @@ class HistogramDistanceMetric(abc.ABC):
 
     NAME: ClassVar[str]
 
+    # noinspection PyMethodOverriding
     def __init_subclass__(cls, *, metric_name: str, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
         cls.NAME = metric_name

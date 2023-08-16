@@ -363,7 +363,7 @@ def status_h(svc):
         full_domain = "redis-master" + fqdn + ":30222"
         svc_password = get_svc_password(namespace, "redis", "redis-password")
         dict = {
-            "app_url": "redis-master-0.redis-headless.devtools.svc.cluster.local:6379",
+            "app_url": full_domain,
             "username": "default",
             "password": svc_password,
         }

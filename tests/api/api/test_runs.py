@@ -19,6 +19,7 @@ import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -448,7 +449,7 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     assert len(runs) == 1
 
 
-def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock) -> None:
+def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
     unmasked_notifications = [
         {
             "condition": "",
@@ -464,9 +465,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock) ->
     ]
 
     masked_notifications = copy.deepcopy(unmasked_notifications)
-    masked_notifications[0]["params"] = {
-        "secret": "mlrun.notifications.1234567890.notification-1"
-    }
+    masked_notifications[0]["params"]["webhook"] = "REDACTED"
 
     expected_response_params = {
         "spec.notifications": masked_notifications,

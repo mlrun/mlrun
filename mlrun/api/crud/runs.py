@@ -43,7 +43,12 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
 
-        mlrun.api.api.utils.mask_notification_params_on_task(data)
+        # Some runtimes do not use the submit job flow, so their notifications are not masked.
+        # Redact notification params if not concealed with a secret
+        mlrun.api.api.utils.mask_notification_params_on_task(
+            data, mlrun.api.api.utils.notification_params_mask_op("redact")
+        )
+
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,

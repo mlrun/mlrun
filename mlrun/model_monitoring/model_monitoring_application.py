@@ -30,13 +30,14 @@ import mlrun.common.schemas.model_monitoring
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
-from mlrun.utils import logger
-
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.serving.utils import StepToDict
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
-from mlrun.model_monitoring.model_monitoring_writer import MODEL_MONITORING_WRITER_FUNCTION_NAME
+from mlrun.model_monitoring.model_monitoring_writer import (
+    MODEL_MONITORING_WRITER_FUNCTION_NAME,
+)
+from mlrun.serving.utils import StepToDict
+from mlrun.utils import logger
 
 
 @dataclasses.dataclass
@@ -274,7 +275,9 @@ class BatchApplicationProcessor:
             pool = multiprocessing.Pool(processes=len(endpoints))
             for endpoint in endpoints:
                 if (
-                    endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE]
+                    endpoint[
+                        mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
+                    ]
                     and endpoint[
                         mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
                     ]
@@ -295,7 +298,13 @@ class BatchApplicationProcessor:
                         )
                         continue
 
-                    pool.apply_async(self.endpoint_process, args=(endpoint, applications_names,))
+                    pool.apply_async(
+                        self.endpoint_process,
+                        args=(
+                            endpoint,
+                            applications_names,
+                        ),
+                    )
 
                 self._delete_old_parquet()
 
@@ -503,9 +512,9 @@ class BatchApplicationProcessor:
         threshold_day = threshold_date.day
 
         base_directory = get_monitoring_parquet_path(
-                    project=self.project,
-                    kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
-                )
+            project=self.project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+        )
         target = ParquetTarget(path=base_directory)
         fs = target._get_store().get_filesystem()
 
@@ -514,23 +523,31 @@ class BatchApplicationProcessor:
 
         try:
             for y_subdirectory in years_subdirectories:
-                year = int(y_subdirectory["name"].split('/')[-1].split('=')[1])
+                year = int(y_subdirectory["name"].split("/")[-1].split("=")[1])
                 if year == threshold_year:
                     month_subdirectories = fs.listdir(y_subdirectory["name"])
                     for m_subdirectory in month_subdirectories:
-                        month = int(m_subdirectory["name"].split('/')[-1].split('=')[1])
+                        month = int(m_subdirectory["name"].split("/")[-1].split("=")[1])
                         if month == threshold_month:
                             day_subdirectories = fs.listdir(m_subdirectory["name"])
                             for d_subdirectory in day_subdirectories:
-                                day = int(d_subdirectory["name"].split('/')[-1].split('=')[1])
+                                day = int(
+                                    d_subdirectory["name"].split("/")[-1].split("=")[1]
+                                )
                                 if day == threshold_day - 1:
                                     fs.rm(path=d_subdirectory["name"], recursive=True)
                         elif month == threshold_month - 1 and threshold_day == 1:
                             fs.rm(path=m_subdirectory["name"], recursive=True)
-                elif year == threshold_year - 1 and threshold_month == 1 and threshold_day == 1:
+                elif (
+                    year == threshold_year - 1
+                    and threshold_month == 1
+                    and threshold_day == 1
+                ):
                     fs.rm(path=y_subdirectory["name"], recursive=True)
         except Exception as exc:
-            logger.warn(f"Batch application process were unsuccessful to remove the old parquets due to {exc}.")
+            logger.warn(
+                f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
+            )
 
 
 def handler(context: mlrun.run.MLClientCtx):

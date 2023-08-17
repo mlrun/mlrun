@@ -272,8 +272,10 @@ class BatchApplicationProcessor:
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
-        if applications_names or True:  # TODO
-            with multiprocessing.Pool(processes=len(endpoints)) as pool:
+        logger.info(f"[DAVID] starting for loop with applications_names="
+                    f"{applications_names} with len endpoint = {len(endpoints)}")
+        if True:  # TODO
+            with multiprocessing.Pool(processes=len(endpoints) + 1) as pool:
                 for endpoint in endpoints:
                     if (
                         endpoint[
@@ -298,7 +300,7 @@ class BatchApplicationProcessor:
                                 f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
                             )
                             continue
-
+                        logger.info(f"[DAVID] apply process")
                         pool.apply_async(
                             self.endpoint_process,
                             args=(

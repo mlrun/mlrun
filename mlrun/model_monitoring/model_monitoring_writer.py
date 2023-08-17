@@ -12,29 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
-import dataclasses
-import datetime
-import json
-import os
-import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
-import numpy as np
-import pandas as pd
-import v3io
-import v3io.dataplane
-import v3io_frames
-
-import mlrun.common.helpers
-import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring
-import mlrun.data_types.infer
-import mlrun.feature_store as fstore
-import mlrun.utils.v3io_clients
-from mlrun.utils import logger
-
-from ..serving.utils import StepToDict
+from mlrun.serving.utils import StepToDict
 
 MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"
 

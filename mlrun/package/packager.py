@@ -84,7 +84,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
 
     * :py:meth:`PACKABLE_OBJECT_TYPE<PACKABLE_OBJECT_TYPE>` - A class variable to specify the object type this packager
       handles. Used for the ``is_packable`` and ``repr`` methods. An ellipses (`...`) means any type.
-    * :py:meth:`PRIORITY<PRIORITY>` - The priority of this packager among the rest of the packagers. Valid values are 
+    * :py:meth:`PRIORITY<PRIORITY>` - The priority of this packager among the rest of the packagers. Valid values are
       integers between 1-10 where 1 is the highest priority and 10 is the lowest. If not set, a default priority of 5 is
       set for MLRun builtin packagers and 3 for user custom packagers.
     * :py:meth:`get_default_packing_artifact_type` - A class method to get the default artifact type for packing an
@@ -164,7 +164,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
     @abstractmethod
     def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
         """
-        Get the default artifact type used for unpacking a data item holding an object of this packager. The method 
+        Get the default artifact type used for unpacking a data item holding an object of this packager. The method
         is used when a data item is sent for unpacking without it being a package, but is a simple url or an old / manually
         logged artifact.
 

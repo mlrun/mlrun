@@ -199,7 +199,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       configurations are sent by the user and are mandatory. If unspecified, they get a default value.
     * **The abstract class method** :py:meth:`unpack`: The method is implemented to get a
       :py:meth:`DataItem<mlrun.datastore.base.DataItem>` and send it to the relevant unpacking method by the artifact
-      type using the following naming: `"unpack_<artifact_type>"`. (If the artifact type was not provided, it uses the default). 
+      type using the following naming: `"unpack_<artifact_type>"`. (If the artifact type was not provided, it uses the default).
       For example: if the artifact type stored within the ``DataItem`` is `x` then the class method
       ``unpack_x`` must be implemented. The signature of each unpack class method must be::
 
@@ -235,7 +235,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     From the :py:meth:`Packager<mlrun.package.packager.Packager>` docstring:
 
     * **Linking artifacts** ("extra data"): In order to link between packages (using the extra data or metrics spec
-      attributes of an artifact), use the key as if it exists and as value ellipses (...). The manager 
+      attributes of an artifact), use the key as if it exists and as value ellipses (...). The manager
       links all packages once it is done packing.
 
       For example, given extra data keys in the log hint as `extra_data`, set them to an artifact as follows::
@@ -284,7 +284,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     @classmethod
     def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
         """
-        Get the default artifact type used for unpacking a data item holding an object of this packager. The method 
+        Get the default artifact type used for unpacking a data item holding an object of this packager. The method
         is used when a data item is sent for unpacking without it being a package, but is a simple url or an old / manually
         logged artifact.
 

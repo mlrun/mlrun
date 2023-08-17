@@ -21,8 +21,6 @@ from typing import Optional
 import mlrun.common.helpers
 import mlrun.utils
 
-MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"
-
 
 class EventFieldType:
     FUNCTION_URI = "function_uri"

@@ -52,10 +52,8 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
+from ..model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from ..model_monitoring.model_monitoring_application import PushToMonitoringWriter
-from ..model_monitoring.model_monitoring_writer import (
-    MODEL_MONITORING_WRITER_FUNCTION_NAME,
-)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.function import RemoteRuntime
 from ..secrets import SecretsStore

@@ -15,9 +15,9 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 # for backwards compatibility
 
-
 from .helpers import get_stream_path
 from .model_endpoint import ModelEndpoint
-from .model_monitoring_writer import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
 from .tracking_policy import TrackingPolicy
+
+MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"

@@ -32,10 +32,8 @@ import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
+from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
-from mlrun.model_monitoring.model_monitoring_writer import (
-    MODEL_MONITORING_WRITER_FUNCTION_NAME,
-)
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 

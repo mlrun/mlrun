@@ -30,10 +30,8 @@ import mlrun.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
-from mlrun.model_monitoring.model_monitoring_writer import (
-    MODEL_MONITORING_WRITER_FUNCTION_NAME,
-    ModelMonitoringWriter,
-)
+from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
+from mlrun.model_monitoring.model_monitoring_writer import ModelMonitoringWriter
 from mlrun.utils import logger
 
 _MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"

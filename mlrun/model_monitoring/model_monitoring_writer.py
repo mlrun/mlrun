@@ -15,8 +15,6 @@
 
 from mlrun.serving.utils import StepToDict
 
-MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"
-
 
 class ModelMonitoringWriter(StepToDict):
     kind = "monitoring_application_stream_pusher"

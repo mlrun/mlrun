@@ -19,9 +19,9 @@ import uuid
 from base64 import b64decode
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
 from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
-from databricks.sdk.errors import OperationFailed
 
 import mlrun
 from mlrun.errors import MLRunRuntimeError
@@ -93,7 +93,7 @@ def run_mlrun_databricks_job(
             # TODO handle rerun tasks - so we can not take the first task in tasks list.
             task_run_id = workspace.jobs.get_run(run_id=waiter.run_id).tasks[0].run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
-            error_trace = error_dict.pop('error_trace')
+            error_trace = error_dict.pop("error_trace")
             custom_error = "error information and metadata:\n"
             custom_error += json.dumps(error_dict, indent=1)
             custom_error += "\nerror trace from databricks:\n"

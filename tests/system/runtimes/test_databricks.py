@@ -119,7 +119,7 @@ def print_kwargs(**kwargs):
                 == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
             )
 
-    def test_fail_in_databricks(self):
+    def test_failure_in_databricks(self):
         code = """
 
 def import_mlrun():

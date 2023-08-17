@@ -93,12 +93,12 @@ def print_kwargs(**kwargs):
         )
 
         params = {
-            "mlrun_internal_timeout_minutes": 15,
+            "task_parameters": {"timeout_minutes": 15},
             "param1": "value1",
             "param2": "value2",
         }
         if fail:
-            params["new_cluster_spec"] = {
+            params["task_parameters"]["new_cluster_spec"] = {
                 "node_type_id": "this is not a real node type so it should fail"
             }
             with pytest.raises(mlrun.runtimes.utils.RunError):
@@ -137,7 +137,7 @@ def print_kwargs(**kwargs):
             auto_build=True,
             project="databricks-proj",
             params={
-                "mlrun_internal_timeout_minutes": 15,
+                "task_parameters": {"timeout_minutes": 15},
                 "param1": "value1",
                 "param2": "value2",
             },

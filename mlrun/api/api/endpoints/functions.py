@@ -743,21 +743,12 @@ def _build_function(
                             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                         )
 
-                        stream_path = mlrun.api.crud.model_monitoring.get_stream_path(
+                        _create_model_monitoring_stream(
                             project=fn.metadata.project,
-                            application_name=fn.metadata.name
-                            if monitoring_application
-                            else None,
+                            function=fn,
+                            monitoring_application=monitoring_application,
                         )
 
-                        if stream_path.startswith("v3io://"):
-                            # Initialize model monitoring V3IO stream
-                            _create_model_monitoring_stream(
-                                project=fn.metadata.project,
-                                function=fn,
-                                stream_path=stream_path,
-                                monitoring_application=monitoring_application,
-                            )
                     if serving_to_monitor:
                         # Handle model monitoring
                         logger.info("Tracking enabled, initializing model monitoring")
@@ -929,39 +920,63 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
 
 
 def _create_model_monitoring_stream(
-    project: str, function, stream_path, monitoring_application=False
+    project: str,
+    function,
+    monitoring_application: bool,
 ):
-    _init_serving_function_stream_args(fn=function)
+    if monitoring_application:
+        stream_paths = [
+            mlrun.api.crud.model_monitoring.get_stream_path(
+                project=function.metadata.project,
+                application_name=function.metadata.name,
+            )
+        ]
+    else:
+        stream_paths = [
+            mlrun.api.crud.model_monitoring.get_stream_path(
+                project=function.metadata.project, application_name=application_name
+            )
+            for application_name in [
+                None,
+                mlrun.model_monitoring.MODEL_MONITORING_WRITER_FUNCTION_NAME,
+            ]
+        ]
 
-    _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+    for stream_path in stream_paths:
+        if stream_path.startswith("v3io://"):
+            _init_serving_function_stream_args(fn=function)
 
-    # TODO: How should we configure sharding here?
-    logger.info(
-        "Creating model endpoint stream for project",
-        project=project,
-        stream_path=stream_path,
-        container=container,
-        endpoint=config.v3io_api,
-    )
+            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
-    v3io_client = v3io.dataplane.Client(
-        endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
-    )
-    stream_args = (
-        config.model_endpoint_monitoring.application_stream_args
-        if monitoring_application
-        else config.model_endpoint_monitoring.serving_stream_args
-    )
-    response = v3io_client.create_stream(
-        container=container,
-        path=stream_path,
-        shard_count=stream_args.shard_count,
-        retention_period_hours=stream_args.retention_period_hours,
-        raise_for_status=v3io.dataplane.RaiseForStatus.never,
-    )
+            # TODO: How should we configure sharding here?
+            logger.info(
+                "Creating model endpoint stream for project",
+                project=project,
+                stream_path=stream_path,
+                container=container,
+                endpoint=config.v3io_api,
+            )
 
-    if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-        response.raise_for_status([409, 204])
+            v3io_client = v3io.dataplane.Client(
+                endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+            )
+            stream_args = (
+                config.model_endpoint_monitoring.application_stream_args
+                if monitoring_application
+                else config.model_endpoint_monitoring.serving_stream_args
+            )
+            response = v3io_client.create_stream(
+                container=container,
+                path=stream_path,
+                shard_count=stream_args.shard_count,
+                retention_period_hours=stream_args.retention_period_hours,
+                raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            )
+
+            if not (
+                response.status_code == 400 and "ResourceInUse" in str(response.body)
+            ):
+                response.raise_for_status([409, 204])
 
 
 def _init_serving_function_stream_args(fn: ServingRuntime):

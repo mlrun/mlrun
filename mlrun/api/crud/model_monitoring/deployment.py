@@ -183,7 +183,10 @@ class MonitoringDeployment:
         fn.metadata.labels = {"type": "model-monitoring-stream"}
 
         mlrun.api.api.endpoints.functions._build_function(
-            db_session=db_session, auth_info=auth_info, function=fn
+            db_session=db_session,
+            auth_info=auth_info,
+            function=fn,
+            client_python_version="python:3.9",
         )
 
     def deploy_model_monitoring_batch_processing(
@@ -340,7 +343,10 @@ class MonitoringDeployment:
         fn.metadata.labels = {"type": "model-monitoring-writer"}
 
         mlrun.api.api.endpoints.functions._build_function(
-            db_session=db_session, auth_info=auth_info, function=fn
+            db_session=db_session,
+            auth_info=auth_info,
+            function=fn,
+            client_python_version="python:3.9",
         )
 
     def _initial_model_monitoring_stream_processing_function(

@@ -18,5 +18,6 @@
 
 from .helpers import get_stream_path
 from .model_endpoint import ModelEndpoint
+from .model_monitoring_writer import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
 from .tracking_policy import TrackingPolicy

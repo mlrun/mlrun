@@ -524,10 +524,10 @@ class BatchApplicationProcessor:
         target = ParquetTarget(path=base_directory)
         fs = target._get_store().get_filesystem()
 
-        # List all subdirectories in the base directory
-        years_subdirectories = fs.listdir(base_directory)
-
         try:
+            # List all subdirectories in the base directory
+            years_subdirectories = fs.listdir(base_directory)
+
             for y_subdirectory in years_subdirectories:
                 year = int(y_subdirectory["name"].split("/")[-1].split("=")[1])
                 if year == threshold_year:
@@ -550,7 +550,7 @@ class BatchApplicationProcessor:
                     and threshold_day == 1
                 ):
                     fs.rm(path=y_subdirectory["name"], recursive=True)
-        except Exception as exc:
+        except FileNotFoundError as exc:
             logger.warn(
                 f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
             )

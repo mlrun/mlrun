@@ -184,7 +184,6 @@ class MonitoringDeployment:
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
-            client_python_version="python:3.9",
         )
 
     def deploy_model_monitoring_batch_processing(
@@ -344,7 +343,6 @@ class MonitoringDeployment:
             db_session=db_session,
             auth_info=auth_info,
             function=fn,
-            client_python_version="python:3.9",
         )
 
     def _initial_model_monitoring_stream_processing_function(

@@ -449,22 +449,36 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
 
 
 def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
-    unmasked_notifications = [
+    notifications = [
         {
             "condition": "",
             "kind": "slack",
             "message": "completed",
             "name": "notification-1",
             "params": {
-                "webhook": "https://hooks.slack.com/services/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"
+                "webhook": "https://hooks.slack.com/services/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",
+                "other_param": "other_value",
             },
             "severity": "info",
             "when": ["error"],
-        }
+        },
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            # should not redact secrets
+            "params": {
+                "secret": "my-secret",
+            },
+            "severity": "info",
+            "when": ["completed"],
+        },
     ]
 
-    masked_notifications = copy.deepcopy(unmasked_notifications)
+    masked_notifications = copy.deepcopy(notifications)
     masked_notifications[0]["params"]["webhook"] = "REDACTED"
+    masked_notifications[0]["params"]["other_param"] = "REDACTED"
 
     expected_response_params = {
         "spec.notifications": masked_notifications,
@@ -472,18 +486,18 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
 
     uid = "1234567890"
     project = "test-store-run-masking"
-    unmasked_run = {
+    run = {
         "metadata": {
             "name": "unmasked-run",
             "project": project,
             "uid": uid,
         },
         "spec": {
-            "notifications": unmasked_notifications,
+            "notifications": notifications,
         },
     }
 
-    mlrun.api.crud.Runs().store_run(db, unmasked_run, uid, project=project)
+    mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
     resp = client.get(f"run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 

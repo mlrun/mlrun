@@ -971,6 +971,7 @@ class Config:
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
+        :param application_name:
         :param project:        Project name.
         :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
         :param target:         Can be either online or offline. If the target is online, then we try to get a specific

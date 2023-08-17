@@ -31,6 +31,7 @@ def run_mlrun_databricks_job(
     mlrun_internal_token_key="DATABRICKS_TOKEN",
     mlrun_internal_timeout_minutes=20,
     mlrun_internal_number_of_workers=1,
+    new_cluster_spec=None,
     **kwargs,
 ):
 
@@ -60,13 +61,16 @@ def run_mlrun_databricks_job(
             submit_task_kwargs["existing_cluster_id"] = cluster_id
         else:
             logger.info("run with new cluster_id")
-            submit_task_kwargs["new_cluster"] = ClusterSpec(
-                spark_version=workspace.clusters.select_spark_version(
+            cluster_spec_kwargs = {
+                "spark_version": workspace.clusters.select_spark_version(
                     long_term_support=True
                 ),
-                node_type_id=workspace.clusters.select_node_type(local_disk=True),
-                num_workers=mlrun_internal_number_of_workers,
-            )
+                "node_type_id": workspace.clusters.select_node_type(local_disk=True),
+                "num_workers": mlrun_internal_number_of_workers,
+            }
+            if new_cluster_spec:
+                cluster_spec_kwargs.update(new_cluster_spec)
+            submit_task_kwargs["new_cluster"] = ClusterSpec(**cluster_spec_kwargs)
         waiter = workspace.jobs.submit(
             run_name=f"py-sdk-run-{mlrun_databricks_job_id}",
             tasks=[

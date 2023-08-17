@@ -16,6 +16,7 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.api.utils
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
@@ -41,6 +42,8 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
+
+        mlrun.api.api.utils.mask_notification_params_on_task(data)
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,

@@ -19,7 +19,6 @@ import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 

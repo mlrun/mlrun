@@ -997,7 +997,7 @@ class Config:
 
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
                 project=project,
-                kind=kind if application_name is None else f"{kind}_{application_name}",
+                kind=kind if application_name is None else f"{kind}-{application_name}",
             )
 
         # Get the current offline path from the configuration

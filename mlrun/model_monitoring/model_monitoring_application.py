@@ -266,7 +266,10 @@ class BatchApplicationProcessor:
             application = mlrun.get_or_create_project(
                 self.project
             ).list_model_monitoring_applications()
-            applications_names = [app.metadata.name for app in application]
+            if application:
+                applications_names = [app.metadata.name for app in application]
+            else:
+                applications_names = None
 
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
@@ -310,6 +313,7 @@ class BatchApplicationProcessor:
 
     def endpoint_process(self, endpoint: dict, applications_names: List[str]):
         try:
+            logger.info("[DAVID] starting application job for endpoint")
             # Getting batch interval start time and end time
             start_time, end_time = self._get_interval_range()
             m_fs = fstore.get_feature_set(
@@ -454,6 +458,8 @@ class BatchApplicationProcessor:
                 )
                 get_stream_pusher(stream_uri).push([data])
 
+            logger.info("[DAVID] Finish application job for endpoint")
+
         except Exception as e:
             logger.error(
                 f"Exception for endpoint {endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
@@ -551,10 +557,12 @@ class BatchApplicationProcessor:
 
 
 def handler(context: mlrun.run.MLClientCtx):
+    logger.info("[DAVID] starting application job")
     batch_processor = BatchApplicationProcessor(
         context=context,
         project=context.project,
     )
     batch_processor.run()
+    logger.info("[DAVID] Finish application job")
     if batch_processor.exception:
         raise batch_processor.exception

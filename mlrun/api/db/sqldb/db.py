@@ -83,6 +83,7 @@ from mlrun.utils import (
     is_legacy_artifact,
     logger,
     update_in,
+    validate_artifact_key_name,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -501,6 +502,9 @@ class SQLDB(DBInterface):
         else:
             artifact_dict = artifact.to_dict()
 
+        if not artifact_dict.get("metadata", {}).get("key"):
+            artifact_dict.setdefault("metadata", {})["key"] = key
+
         # calculate uid
         uid = fill_artifact_object_hash(artifact_dict, "uid", iter)
 
@@ -906,9 +910,9 @@ class SQLDB(DBInterface):
         if tag:
             artifact_dict["metadata"]["tag"] = tag
 
-        db_key = artifact_dict["spec"].get("db_key")
+        db_key = artifact_dict.get("spec", {}).get("db_key")
         if not db_key:
-            artifact_dict["spec"]["db_key"] = key
+            artifact_dict.setdefault("spec", {})["db_key"] = key
 
         artifact_record.full_object = artifact_dict
 
@@ -936,6 +940,8 @@ class SQLDB(DBInterface):
                 f"Adding an already-existing {ArtifactV2.__name__} - {object_uri}"
             )
 
+        validate_artifact_key_name(key, "artifact.key")
+
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
             db_artifact, artifact, project, key, uid, iteration, best_iteration, tag
@@ -949,36 +955,11 @@ class SQLDB(DBInterface):
 
             # we want to tag the artifact also as "latest" if it's the first time we store it
             if tag != "latest":
-                self._tag_artifact_as_latest(session, db_artifact, project)
+                self.tag_objects_v2(
+                    session, [db_artifact], project, "latest", obj_name_attribute="key"
+                )
 
         return uid
-
-    def _tag_artifact_as_latest(self, session, db_artifact, project):
-
-        # find if there is already a "latest" tag for an artifact with the same key
-        latest_tag_uids = self._resolve_class_tag_uids(
-            session, ArtifactV2, project, "latest", db_artifact.key
-        )
-        if latest_tag_uids:
-            artifacts = (
-                self._query(session, ArtifactV2)
-                .filter(ArtifactV2.uid.in_(latest_tag_uids))
-                .all()
-            )
-
-            # delete the "latest" tag that points to the previous artifact
-            self._delete_artifacts_tags(
-                session,
-                project,
-                artifacts,
-                tags=["latest"],
-                commit=False,
-            )
-
-        # tag the artifact as "latest"
-        self.tag_objects_v2(
-            session, [db_artifact], project, "latest", obj_name_attribute="key"
-        )
 
     def _list_artifacts_for_tagging(
         self,

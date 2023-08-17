@@ -978,12 +978,9 @@ def parse_reference(reference: str):
     return tag, uid
 
 
-# Extract project and resource name from legacy artifact structure as well as from new format
+# Extract project and artifact name from the artifact
 def artifact_project_and_resource_name_extractor(artifact):
-    if is_legacy_artifact(artifact):
-        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
-    else:
-        return (
-            artifact.get("metadata").get("project", mlrun.mlconf.default_project),
-            artifact.get("spec")["db_key"],
-        )
+    return (
+        artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+        artifact.get("spec")["db_key"],
+    )

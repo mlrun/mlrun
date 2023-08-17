@@ -73,18 +73,21 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    # the v1 artifacts `uid` parameter is essentially the `tree` parameter in v2
+    tree = uid
+
     logger.debug(
-        "Storing artifact", project=project, uid=uid, key=key, tag=tag, iter=iter
+        "Storing artifact", project=project, tree=tree, key=key, tag=tag, iter=iter
     )
     await run_in_threadpool(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
-        uid,
-        tag,
-        iter,
-        project,
+        tag=tag,
+        iter=iter,
+        project=project,
+        tree=tree,
     )
     return {}
 

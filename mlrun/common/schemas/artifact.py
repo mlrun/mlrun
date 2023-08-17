@@ -12,11 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 
 import pydantic
 
 import mlrun.common.types
+from .object import (
+    LabelRecord,
+    ObjectKind,
+    ObjectMetadata,
+    ObjectRecord,
+    ObjectSpec,
+    ObjectStatus,
+)
 
 
 class ArtifactCategories(mlrun.common.types.StrEnum):
@@ -58,3 +67,36 @@ class ArtifactIdentifier(pydantic.BaseModel):
 class ArtifactsFormat(mlrun.common.types.StrEnum):
     full = "full"
     legacy = "legacy"
+
+
+class ArtifactMetadata(pydantic.BaseModel):
+    key: str
+    project: str
+    iter: typing.Optional[int]
+    tree: typing.Optional[str]
+    tag: typing.Optional[str]
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class ArtifactSpec(pydantic.BaseModel):
+    src_path: typing.Optional[str]
+    target_path: typing.Optional[str]
+    viewer: typing.Optional[str]
+    inline: typing.Optional[str]
+    format: typing.Optional[ArtifactsFormat]
+    size: typing.Optional[int]
+    db_key: typing.Optional[str]
+    extra_data: typing.Optional[typing.Dict[str, typing.Any]]
+    unpackaging_instructions: typing.Optional[typing.Dict[str, typing.Any]]
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class Artifact(pydantic.BaseModel):
+    kind: ObjectKind = pydantic.Field(ObjectKind.feature_vector, const=True)
+    metadata: ArtifactMetadata
+    spec: ArtifactSpec
+    status: ObjectStatus

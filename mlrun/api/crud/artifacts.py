@@ -34,7 +34,7 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         data: dict,
-        uid: str,
+        uid: str = None,
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
@@ -50,7 +50,7 @@ class Artifacts(
                 f"Artifact with conflicting project name - {data['project']} while request project : {project}."
                 f"key={key}, tree={tree}, data={data}"
             )
-        mlrun.api.utils.singletons.db.get_db().store_artifact(
+        return mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
             data,

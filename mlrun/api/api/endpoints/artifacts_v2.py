@@ -15,7 +15,7 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -67,7 +67,7 @@ async def create_artifact(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    await run_in_threadpool(
+    artifact_uid = await run_in_threadpool(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
@@ -78,7 +78,16 @@ async def create_artifact(
         project,
         tree,
     )
-    return {}
+    return await run_in_threadpool(
+        mlrun.api.crud.Artifacts().get_artifact,
+        db_session,
+        key,
+        tag,
+        iteration,
+        project,
+        tree=tree,
+        uid=artifact_uid,
+    )
 
 
 @router.put("/projects/{project}/artifacts/{key:path}")
@@ -114,7 +123,7 @@ async def store_artifact(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    await run_in_threadpool(
+    artifact_uid = await run_in_threadpool(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
@@ -125,7 +134,16 @@ async def store_artifact(
         project,
         tree,
     )
-    return {}
+    return await run_in_threadpool(
+        mlrun.api.crud.Artifacts().get_artifact,
+        db_session,
+        key,
+        tag,
+        iter,
+        project,
+        tree=tree,
+        uid=artifact_uid,
+    )
 
 
 @router.get("/projects/{project}/artifacts")
@@ -189,7 +207,14 @@ async def get_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = await run_in_threadpool(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
+        project,
+        key,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    artifact = await run_in_threadpool(
         mlrun.api.crud.Artifacts().get_artifact,
         db_session,
         key,
@@ -200,16 +225,7 @@ async def get_artifact(
         tree,
         uid,
     )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.artifact,
-        project,
-        key,
-        mlrun.common.schemas.AuthorizationAction.read,
-        auth_info,
-    )
-    return {
-        "data": data,
-    }
+    return artifact
 
 
 @router.delete("/projects/{project}/artifacts/{key:path}")
@@ -238,7 +254,7 @@ async def delete_artifact(
         uid,
         tree,
     )
-    return {}
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
 
 @router.delete("/projects/{project}/artifacts")
@@ -277,4 +293,4 @@ async def delete_artifacts(
         auth_info,
         tree=tree,
     )
-    return {}
+    return Response(status_code=HTTPStatus.NO_CONTENT.value)

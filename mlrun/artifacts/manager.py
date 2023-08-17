@@ -291,10 +291,10 @@ class ArtifactManager:
             self.artifact_db.store_artifact(
                 key,
                 item.to_dict(),
-                tree=item.tree,
                 iter=item.iter,
                 tag=tag or item.tag,
                 project=project,
+                tree=item.tree,
             )
 
     def link_artifact(

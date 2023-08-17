@@ -150,7 +150,7 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
-        uid,
+        uid=None,
         iter=None,
         tag="",
         project="",

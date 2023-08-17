@@ -309,7 +309,7 @@ class BatchApplicationProcessor:
                 pool.close()
                 pool.join()
 
-                self._delete_old_parquet()
+            self._delete_old_parquet()
 
     def endpoint_process(self, endpoint: dict, applications_names: List[str]):
         try:

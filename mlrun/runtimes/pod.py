@@ -105,6 +105,7 @@ class KubeResourceSpec(FunctionSpec):
         "tolerations",
         "preemption_mode",
         "security_context",
+        "foo",
     ]
 
     def __init__(
@@ -136,6 +137,7 @@ class KubeResourceSpec(FunctionSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -181,6 +183,9 @@ class KubeResourceSpec(FunctionSpec):
         self.preemption_mode = preemption_mode
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
+        )
+        self.foo = (
+            foo or mlrun.mlconf.function.spec.foo.default
         )
 
     @property
@@ -1162,6 +1167,14 @@ class KubeResource(BaseRuntime):
                 "Security context is handled internally when enrichment mode is not disabled"
             )
         self.spec.security_context = security_context
+
+    def with_foo(self, foo: str):
+        """
+        Set foo for the pod.
+
+        :param foo:         The foo attribute for the pod
+        """
+        self.spec.foo = foo
 
     def list_valid_priority_class_names(self):
         return mlconf.get_valid_function_priority_class_names()

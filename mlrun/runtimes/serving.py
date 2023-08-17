@@ -146,6 +146,7 @@ class ServingSpec(NuclioSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -186,6 +187,7 @@ class ServingSpec(NuclioSpec):
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             clone_target_dir=clone_target_dir,
+            foo=foo,
         )
 
         self.models = models or {}

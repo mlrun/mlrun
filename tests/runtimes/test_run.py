@@ -75,6 +75,20 @@ def test_new_function_from_runtime():
         == {}
     )
 
+def test_new_function_default_foo():
+    runtime = _get_runtime()
+    function = mlrun.new_function(runtime=runtime)
+    expected_runtime = runtime
+    expected_runtime["spec"]["foo"] = mlrun.mlconf.function.spec.foo.default
+    assert function.spec.foo == mlrun.mlconf.function.spec.foo.default
+
+
+def test_new_function_new_foo():
+    runtime = _get_runtime()
+    runtime["spec"]["foo"] = "bar"
+    function = mlrun.new_function(runtime=runtime)
+    assert function.spec.foo == runtime["spec"]["foo"]
+
 
 def test_new_function_args_without_command():
     runtime = _get_runtime()

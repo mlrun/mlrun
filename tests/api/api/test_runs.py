@@ -15,7 +15,7 @@
 import time
 import unittest.mock
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -222,6 +222,51 @@ def test_list_runs_times_filters(db: Session, client: TestClient) -> None:
         [run_2_uid],
         last_update_time_from=run_2_start_time,
     )
+
+
+def test_list_completed_runs(db: Session, client: TestClient) -> None:
+    runs_endpoint = f"/api/projects/{config.default_project}/completed_runs"
+    base_time = datetime.now(timezone.utc)
+    total_runs = 10
+
+    runs = []
+    counter = 0
+    while counter < total_runs:
+        name = f"name_{counter}"
+        uid = f"id_{counter}"
+        run = Run(
+            name=name,
+            uid=uid,
+            project=config.default_project,
+            iteration=0,
+            start_time=base_time - timedelta(hours=counter*2),
+        )
+        run.struct = {
+            "metadata": {"name": name, "uid": uid},
+        }
+        runs.append(run)
+        counter += 1
+
+    get_db()._upsert(db, runs, ignore=True)
+
+    # Assert that the run started at base_time is available instantly
+    assert_time_range_request(
+        client,
+        [runs[0].uid],
+        runs_endpoint=runs_endpoint,
+        since_datetime=datetime.isoformat(base_time),
+    )
+
+    # Assert that all other runs can be filtered successfully
+    counter = 1
+    while counter <= total_runs:
+        assert_time_range_request(
+            client,
+            [r.uid for r in runs[:counter]],
+            runs_endpoint=runs_endpoint,
+            since_datetime=datetime.isoformat(base_time - timedelta(hours=counter*2-1)),
+        )
+        counter += 1
 
 
 def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
@@ -468,8 +513,8 @@ def _list_and_assert_objects(
     return runs
 
 
-def assert_time_range_request(client: TestClient, expected_run_uids: list, **filters):
-    resp = client.get("runs", params=filters)
+def assert_time_range_request(client: TestClient, expected_run_uids: list, runs_endpoint: str = None, **filters):
+    resp = client.get(runs_endpoint or "runs", params=filters)
     assert resp.status_code == HTTPStatus.OK.value
 
     runs = resp.json()["runs"]

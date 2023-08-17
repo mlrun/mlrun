@@ -61,6 +61,7 @@ class MPIResourceSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        foo=None,
     ):
         super().__init__(
             command=command,
@@ -90,6 +91,7 @@ class MPIResourceSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            foo=foo,
         )
         self.mpi_args = mpi_args or [
             "-x",

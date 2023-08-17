@@ -101,6 +101,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
         executor_cores=None,
         security_context=None,
         clone_target_dir=None,
+        foo=None,
     ):
 
         super().__init__(
@@ -131,6 +132,7 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            foo=foo,
         )
 
         self.driver_resources = driver_resources or {}

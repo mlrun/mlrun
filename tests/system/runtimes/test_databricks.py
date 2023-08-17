@@ -119,7 +119,7 @@ def import_mlrun():
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
         with pytest.raises(RunError) as error:
-            run = function.run(
+            function.run(
                 handler="import_mlrun",
                 project="databricks-proj",
             )

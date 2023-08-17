@@ -238,9 +238,7 @@ def make_kaniko_pod(
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
     )
-    envs = (
-        builder_env if builder_env else [] + project_secrets if project_secrets else []
-    )
+    envs = (builder_env or []) + (project_secrets or [])
     kpod.env = envs or None
 
     if config.is_pip_ca_configured():

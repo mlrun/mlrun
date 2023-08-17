@@ -86,8 +86,6 @@ def print_kwargs(**kwargs):
 
         function = function_ref.to_function()
 
-        function.spec.image_pull_policy = "Always"
-
         self._add_databricks_env(
             function=function, is_cluster_id_required=use_existing_cluster
         )

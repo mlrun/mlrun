@@ -273,39 +273,41 @@ class BatchApplicationProcessor:
             logger.error("Failed to list endpoints", exc=e)
             return
         if applications_names or True:  # TODO
-            pool = multiprocessing.Pool(processes=len(endpoints))
-            for endpoint in endpoints:
-                if (
-                    endpoint[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
-                    ]
-                    and endpoint[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
-                    ]
-                    == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
-                ):
-                    # Skip router endpoint:
+            with multiprocessing.Pool(processes=len(endpoints)) as pool:
+                for endpoint in endpoints:
                     if (
-                        int(
-                            endpoint[
-                                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE
-                            ]
-                        )
-                        == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+                        endpoint[
+                            mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
+                        ]
+                        and endpoint[
+                            mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
+                        ]
+                        == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
                     ):
-                        # Router endpoint has no feature stats
-                        logger.info(
-                            f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
-                        )
-                        continue
+                        # Skip router endpoint:
+                        if (
+                            int(
+                                endpoint[
+                                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE
+                                ]
+                            )
+                            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+                        ):
+                            # Router endpoint has no feature stats
+                            logger.info(
+                                f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
+                            )
+                            continue
 
-                    pool.apply_async(
-                        self.endpoint_process,
-                        args=(
-                            endpoint,
-                            applications_names,
-                        ),
-                    )
+                        pool.apply_async(
+                            self.endpoint_process,
+                            args=(
+                                endpoint,
+                                applications_names,
+                            ),
+                        )
+                pool.close()
+                pool.join()
 
                 self._delete_old_parquet()
 

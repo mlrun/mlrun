@@ -13,12 +13,12 @@
 # limitations under the License.
 #
 import datetime
-import os
 
 
-def handler(context, env_vars_names=["ENV_VAR1", "ENV_VAR2"]):
+def handler(context, file_path="/tmp/args.txt"):
     print("started", str(datetime.datetime.now()))
-    for env_var_name in env_vars_names:
-        context.log_result(env_var_name, os.environ.get(env_var_name))
-    context.log_result("finished", str(datetime.datetime.now()))
+    with open(file_path, "r") as file:
+        lines = file.read().split("\n")
+    lines = [line for line in lines if line]
+    context.log_result("results", lines)
     print("finished", str(datetime.datetime.now()))

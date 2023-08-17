@@ -242,7 +242,6 @@ class ModelEndpoints:
             entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
             timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
-            passthrough=True,
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 

@@ -77,13 +77,18 @@ def make_dockerfile(
 
     # combine a list of all args (including builder_env, project_secrets and extra_args)
     # to add in each of the Dockerfile stages.
-    all_args = (
-        [env.name for env in builder_env]
-        + [arg for arg in extra_args]
-        + [f"{secret.name}=${secret.name}" for secret in project_secrets]
-    )
-    args = ""
+    all_args = []
+    # Include all builder_env and extra_args as 'ARG arg_name',
+    # where the value will be set by the user using the --build-arg flag.
+    all_args.extend([env.name for env in builder_env])
+    all_args.extend([arg for arg in extra_args])
 
+    # Include project secrets as ARGs, formatted like 'ARG SECRET_NAME=$ARG_NAME',
+    # to prevent direct inclusion of the secret as plain text within the Dockerfile.
+    all_args.extend([f"{secret.name}=${secret.name}" for secret in project_secrets])
+
+    # add all args to the dockerfile
+    args = ""
     for arg in all_args:
         args += f"ARG {arg}\n"
     dock += args
@@ -787,13 +792,15 @@ def _add_kaniko_args_with_all_build_args(
     builder_env = builder_env or []
     project_secrets = project_secrets or []
 
+    # Utilizing plain values as they were explicitly compiled by the user
     for env in builder_env:
         args.extend(["--build-arg", f"{env.name}={env.value}"])
 
+    # Utilizing '$' ensures that the value is not in plain text but rather read from the injected environment variables
     for secret in project_secrets:
         args.extend(["--build-arg", f"{secret.name}=${secret.name}"])
 
-    # add extra_args to args
+    # Combine all the arguments into the Dockerfile
     args = _validate_and_merge_args_with_extra_args(args, extra_args)
 
     return args

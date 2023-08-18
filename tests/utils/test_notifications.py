@@ -426,7 +426,7 @@ def test_notification_params_masking_on_run(monkeypatch):
             ]
         },
     }
-    mlrun.api.api.utils.mask_notification_params_on_task(run)
+    mlrun.api.api.utils.mask_notification_params_on_task(run, "conceal")
     assert "sensitive" not in run["spec"]["notifications"][0]["params"]
     assert "secret" in run["spec"]["notifications"][0]["params"]
     assert (

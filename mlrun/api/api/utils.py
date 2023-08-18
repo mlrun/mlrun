@@ -211,15 +211,19 @@ def notification_params_mask_op(
 
 def apply_enrichment_and_validation_on_task(task):
     # Conceal notification config params from the task object with secrets
-    mask_notification_params_on_task(task, notification_params_mask_op("conceal"))
+    mask_notification_params_on_task(task, "conceal")
 
 
 def mask_notification_params_on_task(
     task: dict,
-    mask_op: typing.Callable[
-        [str, str, mlrun.model.Notification], mlrun.model.Notification
-    ],
-) -> dict:
+    action: str,
+):
+    """
+    Mask notification config params from the task object
+    :param task:    The task object to mask
+    :param action:  The masking operation to perform on the notification config params (conceal/redact)
+    """
+    mask_op = notification_params_mask_op(action)
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])

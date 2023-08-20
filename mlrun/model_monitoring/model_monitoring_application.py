@@ -273,8 +273,10 @@ class BatchApplicationProcessor:
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
-        logger.info(f"[DAVID] starting for loop with applications_names="
-                    f"{applications_names} with len endpoint = {len(endpoints)}")
+        logger.info(
+            f"[DAVID] starting for loop with applications_names="
+            f"{applications_names} with len endpoint = {len(endpoints)}"
+        )
         if True:  # TODO
             pool = concurrent.futures.ProcessPoolExecutor(processes=len(endpoints))
             futures = []
@@ -305,10 +307,8 @@ class BatchApplicationProcessor:
                     logger.info(f"[DAVID] apply process")
                     future = pool.submit(
                         self.endpoint_process,
-                        args=(
-                            endpoint,
-                            applications_names,
-                        ),
+                        endpoint,
+                        applications_names,
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):

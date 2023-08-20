@@ -428,7 +428,7 @@ def build_image(
     )
     username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
-    builder_env, project_secrets = _generate_builder_env(project, builder_env)
+    builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
     source_to_copy = None
@@ -503,7 +503,7 @@ def build_image(
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
         workdir=runtime.spec.clone_target_dir,
-        builder_env=builder_env,
+        builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
@@ -520,7 +520,7 @@ def build_image(
         secret_name=secret_name,
         name=name,
         verbose=verbose,
-        builder_env=builder_env,
+        builder_env=builder_env_list,
         project_secrets=project_secrets,
         runtime_spec=runtime_spec,
         registry=registry,

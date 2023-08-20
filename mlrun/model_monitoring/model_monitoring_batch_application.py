@@ -197,9 +197,7 @@ class BatchApplicationProcessor:
     def endpoint_process(
         endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
     ):
-        endpoint_id = endpoint[
-            mlrun.common.schemas.model_monitoring.EventFieldType.UID
-        ]
+        endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
             logger.info("[DAVID] starting application job for endpoint")
             # Getting batch interval start time and end time
@@ -233,7 +231,9 @@ class BatchApplicationProcessor:
                     with_indexes=True,
                     join_graph=join_graph,
                 )
-                vector.feature_set_objects = {m_fs.metadata.name: m_fs}  # to avoid exception when the taf is not latest
+                vector.feature_set_objects = {
+                    m_fs.metadata.name: m_fs
+                }  # to avoid exception when the taf is not latest
                 entity_rows = pd.DataFrame(
                     {
                         mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
@@ -390,12 +390,16 @@ class BatchApplicationProcessor:
             ("minute", "%M"),
         ]:
             schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
-        endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.UID}={endpoint_id}"
+        endpoint_str = (
+            f"{mlrun.common.schemas.model_monitoring.EventFieldType.UID}={endpoint_id}"
+        )
 
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
     def _delete_old_parquet(self):
-        _, schedule_time = BatchApplicationProcessor._get_interval_range(self.batch_dict)
+        _, schedule_time = BatchApplicationProcessor._get_interval_range(
+            self.batch_dict
+        )
         threshold_date = schedule_time - datetime.timedelta(days=1)
         threshold_year = threshold_date.year
         threshold_month = threshold_date.month

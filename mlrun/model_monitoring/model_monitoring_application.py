@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import concurrent
 import collections
 import dataclasses
 import datetime
@@ -275,45 +276,45 @@ class BatchApplicationProcessor:
         logger.info(f"[DAVID] starting for loop with applications_names="
                     f"{applications_names} with len endpoint = {len(endpoints)}")
         if True:  # TODO
-            with multiprocessing.Pool(processes=len(endpoints) + 1) as pool:
-                for endpoint in endpoints:
+            pool = concurrent.futures.ProcessPoolExecutor(processes=len(endpoints))
+            futures = []
+            for endpoint in endpoints:
+                if (
+                    endpoint[
+                        mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
+                    ]
+                    and endpoint[
+                        mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
+                    ]
+                    == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+                ):
+                    # Skip router endpoint:
                     if (
-                        endpoint[
-                            mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
-                        ]
-                        and endpoint[
-                            mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
-                        ]
-                        == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
-                    ):
-                        # Skip router endpoint:
-                        if (
-                            int(
-                                endpoint[
-                                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE
-                                ]
-                            )
-                            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
-                        ):
-                            # Router endpoint has no feature stats
-                            logger.info(
-                                f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
-                            )
-                            continue
-                        logger.info(f"[DAVID] apply process")
-                        pool.apply_async(
-                            self.endpoint_process,
-                            args=(
-                                endpoint,
-                                applications_names,
-                            ),
+                        int(
+                            endpoint[
+                                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE
+                            ]
                         )
+                        == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+                    ):
+                        # Router endpoint has no feature stats
+                        logger.info(
+                            f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
+                        )
+                        continue
+                    logger.info(f"[DAVID] apply process")
+                    future = pool.submit(
+                        self.endpoint_process,
+                        args=(
+                            endpoint,
+                            applications_names,
+                        ),
+                    )
+                    futures.append(future)
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
 
-                pool.apply_async(
-                    self._delete_old_parquet,
-                )
-                pool.close()
-                pool.join()
+            self._delete_old_parquet()
 
     def endpoint_process(self, endpoint: dict, applications_names: List[str]):
         try:

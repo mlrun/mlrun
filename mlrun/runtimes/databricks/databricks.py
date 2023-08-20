@@ -31,6 +31,7 @@ class DatabricksRuntime(KubejobRuntime):
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:
+            print('not encoded_code')
             return ''
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code + decoded_code
@@ -43,11 +44,11 @@ class DatabricksRuntime(KubejobRuntime):
         print(f'before_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
         internal_code = self.get_internal_code(runspec)
         print(f'before_pre_run: code: {b64decode(internal_code).decode("utf-8")}')
+        print(f"internal_code raw: {internal_code}")
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
-            task_parameters["spark_app_code"] = self.get_internal_code(runspec)
+            task_parameters["spark_app_code"] = internal_code
             runspec.spec.parameters["task_parameters"] = task_parameters
-
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)
             databricks_runtime_wrap_path = os.path.join(
@@ -62,8 +63,9 @@ class DatabricksRuntime(KubejobRuntime):
             runspec.spec.handler = "run_mlrun_databricks_job"
         else:
             raise ValueError("Databricks function must be provided with user code")
-        print(f'after_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
-        print(f'after_pre_run: code: {self.get_internal_code(runspec)}')
+        after_task_params = runspec.spec.parameters.get("task_parameters", {})
+        print(f'after_pre_run: task_parameters:{after_task_params}')
+        print(f'after_pre_run: code: {b64decode(task_parameters["spark_app_code"]).decode("utf-8")}')
 
 
 _databricks_script_code = """

@@ -436,7 +436,6 @@ class MonitoringDeployment:
             else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
-        logger.info(f"function_name={function_name}, filename={filename}, ")
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
             name=function_name,
             project=project,
@@ -625,6 +624,7 @@ class MonitoringDeployment:
 
         function.metadata.credentials.access_key = model_monitoring_access_key
         function.apply(mlrun.mount_v3io())
+        function.apply(mlrun.v3io_cred())
 
         # Ensure that the auth env vars are set
         mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)

@@ -852,28 +852,27 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        try:
-            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
-            function.set_db_connection(run_db)
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                function,
-                auth_info,
-            )
+        run_db = get_run_db_instance(db_session)
+        function.set_db_connection(run_db)
+        mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+            function,
+            auth_info,
+        )
 
-            mlrun.api.crud.Functions().start_function(
-                function, client_version, client_python_version
-            )
-            logger.info("Fn:\n %s", function.to_yaml())
+        mlrun.api.crud.Functions().start_function(
+            function, client_version, client_python_version
+        )
+        logger.info("Fn:\n %s", function.to_yaml())
 
-        except mlrun.errors.MLRunBadRequestError:
-            raise
+    except mlrun.errors.MLRunBadRequestError:
+        raise
 
-        except Exception as err:
-            logger.error(traceback.format_exc())
-            mlrun.api.api.utils.log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason=f"Runtime error: {err_to_str(err)}",
-            )
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime error: {err_to_str(err)}",
+        )
     finally:
         mlrun.api.db.session.close_session(db_session)
 

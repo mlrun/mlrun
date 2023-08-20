@@ -544,42 +544,47 @@ def _perform_version_4_data_migrations(
 def _add_default_hub_source_if_needed(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
-    hub_source = (
-        db_session.query(mlrun.api.db.sqldb.models.HubSource)
-        .filter(
-            mlrun.api.db.sqldb.models.HubSource.index
-            == mlrun.common.schemas.hub.last_source_index
-        )
-        .one_or_none()
+    default_hub_source = mlrun.common.schemas.HubSource.generate_default_source()
+    # hub_source will be None if the configuration has hub.default_source.create=False
+    if not default_hub_source:
+        logger.info("Not adding default hub source, per configuration")
+        return
+
+    hub_source = db.get_hub_source(
+        db_session,
+        index=mlrun.common.schemas.hub.last_source_index,
+        raise_on_not_found=False,
     )
 
-    if not hub_source:
-        _update_default_hub_source(db, db_session)
+    # update the default hub if configured url has changed
+    if not hub_source or hub_source.source.spec.path != default_hub_source.spec.path:
+        _update_default_hub_source(db, db_session, default_hub_source)
 
 
 def _update_default_hub_source(
     db: mlrun.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
+    hub_source: mlrun.common.schemas.hub.HubSource = None,
 ):
     """
     Updates default hub source in db.
     """
-    hub_source = mlrun.common.schemas.HubSource.generate_default_source()
-    # hub_source will be None if the configuration has hub.default_source.create=False
-    if hub_source:
-        _delete_default_hub_source(db_session)
-        logger.info("Adding default hub source")
-        # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
-        hub_record = db._transform_hub_source_schema_to_record(
-            mlrun.common.schemas.IndexedHubSource(
-                index=mlrun.common.schemas.hub.last_source_index,
-                source=hub_source,
-            )
-        )
-        db_session.add(hub_record)
-        db_session.commit()
-    else:
+    hub_source = hub_source or mlrun.common.schemas.HubSource.generate_default_source()
+    if not hub_source:
         logger.info("Not adding default hub source, per configuration")
+        return
+
+    _delete_default_hub_source(db_session)
+    logger.info("Adding default hub source")
+    # Not using db.store_hub_source() since it doesn't allow changing the default hub source.
+    hub_record = db._transform_hub_source_schema_to_record(
+        mlrun.common.schemas.IndexedHubSource(
+            index=mlrun.common.schemas.hub.last_source_index,
+            source=hub_source,
+        )
+    )
+    db_session.add(hub_record)
+    db_session.commit()
 
 
 def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):

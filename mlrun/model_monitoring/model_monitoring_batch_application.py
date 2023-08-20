@@ -45,7 +45,7 @@ def endpoint_process(
     try:
         logger.info("[DAVID] starting application job for endpoint")
         # Getting batch interval start time and end time
-        start_time, end_time = BatchApplicationProcessor._get_interval_range(bath_dict)
+        start_time, end_time = BatchApplicationProcessor.get_interval_range(bath_dict)
         m_fs = fstore.get_feature_set(
             endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
@@ -161,7 +161,7 @@ def endpoint_process(
         data = {
             "current_stats": json.dumps(current_stats),
             "feature_stats": json.dumps(feature_stats),
-            "sample_parquet_path": BatchApplicationProcessor._get_parquet_path(
+            "sample_parquet_path": BatchApplicationProcessor.get_parquet_path(
                 parquet_directory=parquet_directory,
                 schedule_time=end_time,
                 endpoint_id=endpoint_id,
@@ -339,7 +339,7 @@ class BatchApplicationProcessor:
             self._delete_old_parquet()
 
     @staticmethod
-    def _get_interval_range(batch_dict) -> Tuple[datetime.datetime, datetime.datetime]:
+    def get_interval_range(batch_dict) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES],
@@ -365,7 +365,7 @@ class BatchApplicationProcessor:
             self.batch_dict[pair_list[0]] = float(pair_list[1])
 
     @staticmethod
-    def _get_parquet_path(
+    def get_parquet_path(
         parquet_directory: str, schedule_time: datetime.datetime, endpoint_id: str
     ):
         schedule_time_str = ""
@@ -382,7 +382,7 @@ class BatchApplicationProcessor:
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
     def _delete_old_parquet(self):
-        _, schedule_time = BatchApplicationProcessor._get_interval_range()
+        _, schedule_time = BatchApplicationProcessor.get_interval_range()
         threshold_date = schedule_time - datetime.timedelta(days=1)
         threshold_year = threshold_date.year
         threshold_month = threshold_date.month

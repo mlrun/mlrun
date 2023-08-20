@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
 import concurrent
 import datetime
 import json
@@ -113,25 +112,25 @@ class BatchApplicationProcessor:
 
         # Get a runtime database
 
-        # self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
-        #
-        # # If an error occurs, it will be raised using the following argument
-        # self.endpoints_exceptions = None
-        #
-        # # Get the batch interval range
-        # self.batch_dict = context.parameters[
-        #     mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
-        # ]
-        #
-        # # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
-        # # Convert batch dict string into a dictionary
-        # if isinstance(self.batch_dict, str):
-        #     self._parse_batch_dict_str()
-        #
-        # # If provided, only model endpoints in that that list will be analyzed
-        # self.model_endpoints = context.parameters.get(
-        #     mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
-        # )
+        self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
+
+        # If an error occurs, it will be raised using the following argument
+        self.endpoints_exceptions = None
+
+        # Get the batch interval range
+        self.batch_dict = context.parameters[
+            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+        ]
+
+        # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
+        # Convert batch dict string into a dictionary
+        if isinstance(self.batch_dict, str):
+            self._parse_batch_dict_str()
+
+        # If provided, only model endpoints in that that list will be analyzed
+        self.model_endpoints = context.parameters.get(
+            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
+        )
 
     def run(self):
         """
@@ -156,7 +155,7 @@ class BatchApplicationProcessor:
             f"[DAVID] starting for loop with applications_names="
             f"{applications_names} with len endpoint = {len(endpoints)}"
         )
-        if True:  # TODO
+        if len(endpoints):  # TODO add application
             pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(endpoints),
                 initializer=init_pool,

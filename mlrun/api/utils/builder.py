@@ -62,11 +62,12 @@ def make_dockerfile(
                          This is useful for matching the user ID with the host environment
                          to avoid permission issues.
     :param enriched_group_id: The group ID to be used in the Docker image for running processes.
-    :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
+    :param builder_env: A list of Kubernetes V1EnvVar objects representing build-time arguments
                         to be set during the build process.
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
-
+    :param project_secrets: A list of Kubernetes V1EnvVar objects representing the project secrets,
+            which will be used as build-time arguments in the Dockerfile.
     :return: The content of the Dockerfile as a string.
     """
     dock = f"FROM {base_image}\n"
@@ -238,9 +239,7 @@ def make_kaniko_pod(
         default_pod_spec_attributes=extra_runtime_spec,
         resources=resources,
     )
-    envs = (
-        builder_env if builder_env else [] + project_secrets if project_secrets else []
-    )
+    envs = (builder_env or []) + (project_secrets or [])
     kpod.env = envs or None
 
     if config.is_pip_ca_configured():
@@ -430,7 +429,7 @@ def build_image(
     )
     username = builder_env.get("V3IO_USERNAME", auth_info.username)
 
-    builder_env, project_secrets = _generate_builder_env(project, builder_env)
+    builder_env_list, project_secrets = _generate_builder_env(project, builder_env)
 
     parsed_url = urlparse(source)
     source_to_copy = None
@@ -505,7 +504,7 @@ def build_image(
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
         workdir=runtime.spec.clone_target_dir,
-        builder_env=builder_env,
+        builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
@@ -522,7 +521,7 @@ def build_image(
         secret_name=secret_name,
         name=name,
         verbose=verbose,
-        builder_env=builder_env,
+        builder_env=builder_env_list,
         project_secrets=project_secrets,
         runtime_spec=runtime_spec,
         registry=registry,

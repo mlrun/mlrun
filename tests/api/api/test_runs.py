@@ -259,10 +259,11 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
 
     # Assert that all other runs can be filtered successfully
     counter = 1
+    uids = [r.uid for r in runs]
     while counter <= total_runs:
         assert_time_range_request(
             client,
-            [r.uid for r in runs[:counter]],
+            uids[:counter],
             runs_endpoint=runs_endpoint,
             since_datetime=datetime.isoformat(
                 base_time - timedelta(hours=counter * 2 - 1)

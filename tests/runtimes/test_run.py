@@ -75,6 +75,7 @@ def test_new_function_from_runtime():
         == {}
     )
 
+
 def test_new_function_default_foo():
     runtime = _get_runtime()
     function = mlrun.new_function(runtime=runtime)

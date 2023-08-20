@@ -15,7 +15,7 @@
 import time
 import unittest.mock
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -239,7 +239,7 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
             uid=uid,
             project=config.default_project,
             iteration=0,
-            start_time=base_time - timedelta(hours=counter*2),
+            start_time=base_time - timedelta(hours=counter * 2),
         )
         run.struct = {
             "metadata": {"name": name, "uid": uid},
@@ -264,7 +264,9 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
             client,
             [r.uid for r in runs[:counter]],
             runs_endpoint=runs_endpoint,
-            since_datetime=datetime.isoformat(base_time - timedelta(hours=counter*2-1)),
+            since_datetime=datetime.isoformat(
+                base_time - timedelta(hours=counter * 2 - 1)
+            ),
         )
         counter += 1
 
@@ -513,7 +515,9 @@ def _list_and_assert_objects(
     return runs
 
 
-def assert_time_range_request(client: TestClient, expected_run_uids: list, runs_endpoint: str = None, **filters):
+def assert_time_range_request(
+    client: TestClient, expected_run_uids: list, runs_endpoint: str = None, **filters
+):
     resp = client.get(runs_endpoint or "runs", params=filters)
     assert resp.status_code == HTTPStatus.OK.value
 

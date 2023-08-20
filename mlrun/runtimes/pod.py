@@ -184,9 +184,7 @@ class KubeResourceSpec(FunctionSpec):
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
         )
-        self.foo = (
-            foo or mlrun.mlconf.function.spec.foo.default
-        )
+        self.foo = foo or mlrun.mlconf.function.spec.foo.default
 
     @property
     def volumes(self) -> list:

@@ -41,7 +41,7 @@ def init_pool(context_dict, project):
     batch_processor = BatchApplicationProcessor(context, project)
 
 
-def _wrap_method(
+def wrap_method(
     endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
 ):
     return batch_processor.endpoint_process(
@@ -188,7 +188,7 @@ class BatchApplicationProcessor:
                         continue
                     logger.info(f"[DAVID] apply process")
                     future = pool.submit(
-                        _wrap_method,
+                        mlrun.model_monitoring.model_monitoring_batch_application.wrap_method,
                         endpoint,
                         applications_names,
                         self.batch_dict,

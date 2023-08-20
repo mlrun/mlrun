@@ -35,16 +35,10 @@ from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stre
 from mlrun.utils import logger
 
 
-def init_pool(context_dict, project):
-    context = mlrun.execution.MLClientCtx.from_dict(context_dict)
-    global batch_processor
-    batch_processor = BatchApplicationProcessor(context, project)
-
-
 def wrap_method(
     endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
 ):
-    return batch_processor.endpoint_process(
+    return BatchApplicationProcessor.endpoint_process(
         endpoint, applications_names, bath_dict, project
     )
 
@@ -115,7 +109,7 @@ class BatchApplicationProcessor:
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         # If an error occurs, it will be raised using the following argument
-        self.endpoints_exceptions = None
+        self.endpoints_exceptions = {}
 
         # Get the batch interval range
         self.batch_dict = context.parameters[
@@ -126,7 +120,6 @@ class BatchApplicationProcessor:
         # Convert batch dict string into a dictionary
         if isinstance(self.batch_dict, str):
             self._parse_batch_dict_str()
-
         # If provided, only model endpoints in that that list will be analyzed
         self.model_endpoints = context.parameters.get(
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
@@ -146,7 +139,7 @@ class BatchApplicationProcessor:
             if application:
                 applications_names = [app.metadata.name for app in application]
             else:
-                applications_names = None
+                applications_names = []
 
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
@@ -158,8 +151,6 @@ class BatchApplicationProcessor:
         if len(endpoints):  # TODO add application
             pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(endpoints),
-                initializer=init_pool,
-                initargs=(self.context.to_dict(), self.project),
             )
             futures = []
             for endpoint in endpoints:
@@ -188,7 +179,7 @@ class BatchApplicationProcessor:
                         continue
                     logger.info(f"[DAVID] apply process")
                     future = pool.submit(
-                        mlrun.model_monitoring.model_monitoring_batch_application.wrap_method,
+                        wrap_method,
                         endpoint,
                         applications_names,
                         self.batch_dict,
@@ -207,7 +198,7 @@ class BatchApplicationProcessor:
         endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
     ):
         endpoint_id = endpoint[
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
+            mlrun.common.schemas.model_monitoring.EventFieldType.UID
         ]
         try:
             logger.info("[DAVID] starting application job for endpoint")
@@ -242,6 +233,7 @@ class BatchApplicationProcessor:
                     with_indexes=True,
                     join_graph=join_graph,
                 )
+                vector.feature_set_objects = {m_fs.metadata.name: m_fs}  # to avoid exception when the taf is not latest
                 entity_rows = pd.DataFrame(
                     {
                         mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
@@ -341,7 +333,7 @@ class BatchApplicationProcessor:
                 "latest_request": latest_request.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
-                "endpoint_id": mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
+                "endpoint_id": mlrun.common.schemas.model_monitoring.EventFieldType.UID,
                 "output_stream_uri": get_stream_path(
                     project=project,
                     application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
@@ -353,7 +345,7 @@ class BatchApplicationProcessor:
 
             logger.info("[DAVID] Finish application job for endpoint")
 
-        except Exception as e:
+        except FileNotFoundError as e:
             logger.error(
                 f"Exception for endpoint {endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
             )
@@ -398,12 +390,12 @@ class BatchApplicationProcessor:
             ("minute", "%M"),
         ]:
             schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
-        endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID}={endpoint_id}"
+        endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.UID}={endpoint_id}"
 
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
     def _delete_old_parquet(self):
-        _, schedule_time = BatchApplicationProcessor._get_interval_range()
+        _, schedule_time = BatchApplicationProcessor._get_interval_range(self.batch_dict)
         threshold_date = schedule_time - datetime.timedelta(days=1)
         threshold_year = threshold_date.year
         threshold_month = threshold_date.month
@@ -457,4 +449,4 @@ def handler(context: mlrun.run.MLClientCtx):
     batch_processor.run()
     logger.info("[DAVID] Finish application job")
     if batch_processor.endpoints_exceptions:
-        pass
+        print(batch_processor.endpoints_exceptions)

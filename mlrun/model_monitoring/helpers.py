@@ -26,7 +26,7 @@ def get_stream_path(project: str = None, application_name: str = None):
     stream_uri = mlrun.get_secret_or_env(
         mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         if application_name is None
-        else None
+        else ""
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,

@@ -38,6 +38,8 @@ class DatabricksRuntime(KubejobRuntime):
         return code
 
     def _pre_run(self, runspec: RunObject, execution):
+        print(f'before_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
+        print(f'before_pre_run: code: {self.get_internal_code(runspec)}')
         internal_code = self.get_internal_code(runspec)
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
@@ -50,7 +52,7 @@ class DatabricksRuntime(KubejobRuntime):
                 current_dir, "databricks_wrapper.py"
             )
             with open(
-                databricks_runtime_wrap_path, "r"
+                    databricks_runtime_wrap_path, "r"
             ) as databricks_runtime_wrap_file:
                 wrap_code = databricks_runtime_wrap_file.read()
                 wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
@@ -58,6 +60,8 @@ class DatabricksRuntime(KubejobRuntime):
             runspec.spec.handler = "run_mlrun_databricks_job"
         else:
             raise ValueError("Databricks function must be provided with user code")
+        print(f'after_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
+        print(f'after_pre_run: code: {self.get_internal_code(runspec)}')
 
 
 _databricks_script_code = """

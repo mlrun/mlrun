@@ -3600,12 +3600,20 @@ class SQLDB(DBInterface):
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
-        source_record = self._query(session, HubSource, name=name).one_or_none()
+    def get_hub_source(
+        self, session, name=None, index=None, raise_on_not_found=True
+    ) -> typing.Optional[mlrun.common.schemas.IndexedHubSource]:
+        source_record = self._query(
+            session, HubSource, name=name, index=index
+        ).one_or_none()
         if not source_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Hub source not found. name = {name}"
-            )
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = f"Hub source not found. name = {name}"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+
+            return None
 
         return self._transform_hub_source_record_to_schema(source_record)
 

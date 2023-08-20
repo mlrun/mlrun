@@ -26,6 +26,7 @@ import mlrun.api.initial_data
 import mlrun.api.utils.singletons.db
 import mlrun.common.db.sql_session
 import mlrun.common.schemas
+from mlrun.config import config
 
 
 def test_add_data_version_empty_db():
@@ -146,6 +147,42 @@ def test_resolve_current_data_version_before_and_after_projects(table_exists, db
     )
     assert mlrun.api.initial_data._resolve_current_data_version(db, db_session) == 1
     mlrun.api.initial_data.latest_data_version = original_latest_data_version
+
+
+def test_add_default_hub_source_if_needed():
+    db, db_session = _initialize_db_without_migrations()
+
+    # Start with no hub source
+    hub_source = db.get_hub_source(
+        db_session,
+        index=mlrun.common.schemas.hub.last_source_index,
+        raise_on_not_found=False,
+    )
+    assert hub_source is None
+
+    # Create the default hub source
+    mlrun.api.initial_data._add_default_hub_source_if_needed(db, db_session)
+    hub_source = db.get_hub_source(
+        db_session,
+        index=mlrun.common.schemas.hub.last_source_index,
+    )
+    assert hub_source.source.spec.path == config.hub.default_source.url
+
+    # Change the config and make sure the hub source is updated
+    config.hub.default_source.url = "http://some-other-url"
+    mlrun.api.initial_data._add_default_hub_source_if_needed(db, db_session)
+    hub_source = db.get_hub_source(
+        db_session,
+        index=mlrun.common.schemas.hub.last_source_index,
+    )
+    assert hub_source.source.spec.path == config.hub.default_source.url
+
+    # Make sure the hub source is not updated if it already exists
+    with unittest.mock.patch(
+        "mlrun.api.initial_data._update_default_hub_source"
+    ) as update_default_hub_source:
+        mlrun.api.initial_data._add_default_hub_source_if_needed(db, db_session)
+        assert update_default_hub_source.call_count == 0
 
 
 def _initialize_db_without_migrations() -> (

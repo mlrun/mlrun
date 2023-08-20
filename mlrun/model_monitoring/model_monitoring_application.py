@@ -278,7 +278,7 @@ class BatchApplicationProcessor:
             f"{applications_names} with len endpoint = {len(endpoints)}"
         )
         if True:  # TODO
-            pool = concurrent.futures.ProcessPoolExecutor(processes=len(endpoints))
+            pool = concurrent.futures.ProcessPoolExecutor(max_workers=len(endpoints))
             futures = []
             for endpoint in endpoints:
                 if (

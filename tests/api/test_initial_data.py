@@ -165,7 +165,6 @@ def test_add_default_hub_source_if_needed():
     hub_source = db.get_hub_source(
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
-        raise_on_not_found=False,
     )
     assert hub_source.source.spec.path == config.hub.default_source.url
 
@@ -175,7 +174,6 @@ def test_add_default_hub_source_if_needed():
     hub_source = db.get_hub_source(
         db_session,
         index=mlrun.common.schemas.hub.last_source_index,
-        raise_on_not_found=False,
     )
     assert hub_source.source.spec.path == config.hub.default_source.url
 

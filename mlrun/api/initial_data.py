@@ -125,6 +125,16 @@ data_version_prior_to_table_addition = 1
 latest_data_version = 4
 
 
+def update_default_configuration_data():
+    logger.debug("Updating default configuration data")
+    db_session = create_session()
+    try:
+        db = mlrun.api.db.sqldb.db.SQLDB()
+        _add_default_hub_source_if_needed(db, db_session)
+    finally:
+        close_session(db_session)
+
+
 def _resolve_needed_operations(
     alembic_util: mlrun.api.utils.db.alembic.AlembicUtil,
     sqlite_migration_util: typing.Optional[
@@ -235,7 +245,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = mlrun.api.db.sqldb.db.SQLDB()
-    _add_default_hub_source_if_needed(db, db_session)
     _add_data_version(db, db_session)
 
 
@@ -557,7 +566,13 @@ def _add_default_hub_source_if_needed(
     )
 
     # update the default hub if configured url has changed
-    if not hub_source or hub_source.source.spec.path != default_hub_source.spec.path:
+    hub_source_path = hub_source.source.spec.path if hub_source else None
+    if not hub_source_path or hub_source_path != default_hub_source.spec.path:
+        logger.debug(
+            "Updating default hub source",
+            hub_source_path=hub_source_path,
+            default_hub_source_path=default_hub_source.spec.path,
+        )
         _update_default_hub_source(db, db_session, default_hub_source)
 
 

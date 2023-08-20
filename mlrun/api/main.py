@@ -177,6 +177,7 @@ async def move_api_to_online():
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
     ):
+        mlrun.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()

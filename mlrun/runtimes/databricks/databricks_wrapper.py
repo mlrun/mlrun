@@ -93,6 +93,7 @@ def run_mlrun_databricks_job(
             )
         except OperationFailed:
             # TODO handle rerun tasks - so we can not take the first task in tasks list.
+            #  will be fixed at ML-4406.
             task_run_id = workspace.jobs.get_run(run_id=waiter.run_id).tasks[0].run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
             error_trace = error_dict.pop("error_trace", "")

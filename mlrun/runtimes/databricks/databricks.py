@@ -18,15 +18,21 @@ from base64 import b64decode, b64encode
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 
+NOT_EXIST_VALUE = 'handler_not_exist'
+
 
 class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
 
-    def get_internal_code(self, runobj: RunObject):
+    def get_internal_parameters(self, runobj: RunObject):
         """
         Return the internal function code.
         """
+        internal_handler = runobj.spec.parameters.get("task_parameters", {}).get('internal_handler', NOT_EXIST_VALUE)
+        # None and '' can be a symbol for none internal handler and don't need to be replaced.
+        if internal_handler == NOT_EXIST_VALUE:
+            internal_handler = runobj.spec.handler or ''
         encoded_code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
@@ -35,19 +41,20 @@ class DatabricksRuntime(KubejobRuntime):
             return ''
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code + decoded_code
-        if runobj.spec.handler:
-            code += f"\n{runobj.spec.handler}(**handler_arguments)\n"
+        if internal_handler:
+            code += f"\n{internal_handler}(**handler_arguments)\n"
         code = b64encode(code.encode("utf-8")).decode("utf-8")
-        return code
+        return code, internal_handler
 
     def _pre_run(self, runspec: RunObject, execution):
         print(f'before_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
-        internal_code = self.get_internal_code(runspec)
-        print(f'before_pre_run: code: {b64decode(internal_code).decode("utf-8")}')
-        print(f"internal_code raw: {internal_code}")
+        internal_code, internal_handler = self.get_internal_parameters(runspec)
+        print(f"before_pre_run: internal_code raw: {internal_code}")
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
             task_parameters["spark_app_code"] = internal_code
+            if internal_handler:
+                task_parameters["internal_handler"] = internal_handler
             runspec.spec.parameters["task_parameters"] = task_parameters
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)
@@ -78,3 +85,5 @@ handler_arguments = parser.parse_args().handler_arguments
 handler_arguments = json.loads(handler_arguments)
 
 """
+
+

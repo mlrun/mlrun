@@ -30,6 +30,8 @@ class DatabricksRuntime(KubejobRuntime):
         encoded_code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
+        if not encoded_code:
+            return ''
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code + decoded_code
         if runobj.spec.handler:
@@ -39,8 +41,8 @@ class DatabricksRuntime(KubejobRuntime):
 
     def _pre_run(self, runspec: RunObject, execution):
         print(f'before_pre_run: task_parameters:{runspec.spec.parameters.get("task_parameters", {})}')
-        print(f'before_pre_run: code: {self.get_internal_code(runspec)}')
         internal_code = self.get_internal_code(runspec)
+        print(f'before_pre_run: code: {b64decode(internal_code).decode("utf-8")}')
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
             task_parameters["spark_app_code"] = self.get_internal_code(runspec)

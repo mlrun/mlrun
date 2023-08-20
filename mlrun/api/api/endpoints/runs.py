@@ -151,7 +151,6 @@ async def get_run(
 async def get_completed_runs(
     project: str,
     since_datetime: str,
-    iter: int = 0,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -164,7 +163,6 @@ async def get_completed_runs(
     runs = await run_in_threadpool(
         mlrun.api.crud.Runs().list_runs,
         db_session=db_session,
-        iter=iter,
         project=project,
         start_time_from=datetime_from_iso(since_datetime),
     )

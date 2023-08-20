@@ -852,7 +852,7 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        run_db = get_run_db_instance(db_session)
+        run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
         function.set_db_connection(run_db)
         mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
             function,
@@ -869,7 +869,7 @@ def _start_function(
 
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )

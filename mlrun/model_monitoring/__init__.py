@@ -19,9 +19,5 @@ from .helpers import get_stream_path
 from .model_endpoint import ModelEndpoint
 from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
 from .tracking_policy import TrackingPolicy
-from .model_monitoring_batch_application import (
-    handler as model_monitoring_batch_application_handler,
-)
-from .model_monitoring_batch import handler as model_monitoring_batch_handler
 
 MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"

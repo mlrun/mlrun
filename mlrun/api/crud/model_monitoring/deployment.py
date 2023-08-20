@@ -431,9 +431,9 @@ class MonitoringDeployment:
 
         """
         handler = "mlrun.model_monitoring." + (
-            "model_monitoring_batch_handler"
+            "model_monitoring_batch.handler"
             if function_name == "model-monitoring-batch"
-            else "model_monitoring_batch_application_handler"
+            else "model_monitoring_batch_application.handler"
         )
         # Create job function runtime for the model monitoring batch
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(

@@ -369,7 +369,7 @@ async def _start_log_for_run(
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+            runtime_handler: mlrun.api.runtime_handlers.BaseRuntimeHandler = (
                 await fastapi.concurrency.run_in_threadpool(
                     get_runtime_handler, run_kind
                 )

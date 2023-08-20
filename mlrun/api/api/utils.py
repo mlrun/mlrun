@@ -27,6 +27,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.constants
 import mlrun.api.crud
 import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
@@ -201,11 +202,20 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(task):
-    # Masking notification config params from the task object
-    mask_notification_params_on_task(task)
+    # Conceal notification config params from the task object with secrets
+    mask_notification_params_on_task(task, mlrun.api.constants.MaskOperations.CONCEAL)
 
 
-def mask_notification_params_on_task(task):
+def mask_notification_params_on_task(
+    task: dict,
+    action: mlrun.api.constants.MaskOperations,
+):
+    """
+    Mask notification config params from the task object
+    :param task:    The task object to mask
+    :param action:  The masking operation to perform on the notification config params (conceal/redact)
+    """
+    mask_op = _notification_params_mask_op(action)
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
@@ -214,14 +224,21 @@ def mask_notification_params_on_task(task):
         for notification in notifications:
             notification_object = mlrun.model.Notification.from_dict(notification)
             masked_notifications.append(
-                mask_notification_params_with_secret(
-                    project, run_uid, notification_object
-                ).to_dict()
+                mask_op(project, run_uid, notification_object).to_dict()
             )
     task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
-def mask_notification_params_with_secret(
+def _notification_params_mask_op(
+    action,
+) -> typing.Callable[[str, str, mlrun.model.Notification], mlrun.model.Notification]:
+    return {
+        mlrun.api.constants.MaskOperations.CONCEAL: _conceal_notification_params_with_secret,
+        mlrun.api.constants.MaskOperations.REDACT: _redact_notification_params,
+    }[action]
+
+
+def _conceal_notification_params_with_secret(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
     if notification_object.params and "secret" not in notification_object.params:
@@ -239,6 +256,22 @@ def mask_notification_params_with_secret(
             allow_internal_secrets=True,
         )
         notification_object.params = {"secret": secret_key}
+
+    return notification_object
+
+
+def _redact_notification_params(
+    project: str, parent: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    if not notification_object.params:
+        return notification_object
+
+    # If the notification params contain a secret key, we consider them concealed and don't redact them
+    if "secret" in notification_object.params:
+        return notification_object
+
+    for param in notification_object.params:
+        notification_object.params[param] = "REDACTED"
 
     return notification_object
 
@@ -373,7 +406,7 @@ def validate_and_mask_notification_list(
     mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
 
     return [
-        mask_notification_params_with_secret(project, parent, notification_object)
+        _conceal_notification_params_with_secret(project, parent, notification_object)
         for notification_object in notification_objects
     ]
 

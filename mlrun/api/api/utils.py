@@ -27,6 +27,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.constants
 import mlrun.api.crud
 import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
@@ -202,12 +203,12 @@ async def submit_run(
 
 def apply_enrichment_and_validation_on_task(task):
     # Conceal notification config params from the task object with secrets
-    mask_notification_params_on_task(task, "conceal")
+    mask_notification_params_on_task(task, mlrun.api.constants.MaskOperations.CONCEAL)
 
 
 def mask_notification_params_on_task(
     task: dict,
-    action: str,
+    action: mlrun.api.constants.MaskOperations,
 ):
     """
     Mask notification config params from the task object
@@ -232,8 +233,8 @@ def _notification_params_mask_op(
     action,
 ) -> typing.Callable[[str, str, mlrun.model.Notification], mlrun.model.Notification]:
     return {
-        "conceal": _conceal_notification_params_with_secret,
-        "redact": _redact_notification_params,
+        mlrun.api.constants.MaskOperations.CONCEAL: _conceal_notification_params_with_secret,
+        mlrun.api.constants.MaskOperations.REDACT: _redact_notification_params,
     }[action]
 
 

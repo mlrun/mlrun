@@ -14,8 +14,15 @@
 #
 from enum import Enum
 
+from mlrun.common.types import StrEnum
+
 
 class LogSources(Enum):
     AUTO = "auto"
     PERSISTENCY = "persistency"
     K8S = "k8s"
+
+
+class MaskOperations(StrEnum):
+    CONCEAL = "conceal"
+    REDACT = "redact"

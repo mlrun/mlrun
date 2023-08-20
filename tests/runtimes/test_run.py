@@ -84,6 +84,15 @@ def test_new_function_default_foo():
     assert function.spec.foo == mlrun.mlconf.function.spec.foo.default
 
 
+def test_new_function_override_default_foo():
+    mlrun.mlconf.function.spec.foo.default = "new_default"
+    runtime = _get_runtime()
+    function = mlrun.new_function(runtime=runtime)
+    expected_runtime = runtime
+    expected_runtime["spec"]["foo"] = mlrun.mlconf.function.spec.foo.default
+    assert function.spec.foo == mlrun.mlconf.function.spec.foo.default
+
+
 def test_new_function_new_foo():
     runtime = _get_runtime()
     runtime["spec"]["foo"] = "bar"

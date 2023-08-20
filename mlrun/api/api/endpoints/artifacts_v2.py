@@ -15,7 +15,7 @@
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -24,10 +24,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import (
-    artifact_project_and_resource_name_extractor,
-    log_and_raise,
-)
+from mlrun.api.api.utils import artifact_project_and_resource_name_extractor
 from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
 from mlrun.utils import logger
@@ -37,8 +34,8 @@ router = APIRouter()
 
 @router.post("/projects/{project}/artifacts")
 async def create_artifact(
-    request: Request,
     project: str,
+    artifact: mlrun.common.schemas.Artifact,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -49,17 +46,11 @@ async def create_artifact(
         auth_info=auth_info,
     )
 
-    data = None
-    try:
-        data = await request.json()
-    except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
-
-    key = data.get("metadata").get("key", None)
-    tag = data.get("metadata").get("tag", None)
-    iteration = data.get("metadata").get("iter", None)
-    tree = data.get("metadata").get("tree", None)
-    logger.debug("Creating artifact", project=project, key=key, tag=tag, iter=iter)
+    key = artifact.metadata.key or None
+    tag = artifact.metadata.tag or None
+    iteration = artifact.metadata.iter or 0
+    tree = artifact.metadata.tree or None
+    logger.debug("Creating artifact", project=project, key=key, tag=tag, iter=iteration)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -68,15 +59,14 @@ async def create_artifact(
         auth_info,
     )
     artifact_uid = await run_in_threadpool(
-        mlrun.api.crud.Artifacts().store_artifact,
+        mlrun.api.crud.Artifacts().create_artifact,
         db_session,
         key,
-        data,
-        None,  # uid is auto generated
+        artifact.dict(exclude_none=True),
         tag,
         iteration,
-        project,
         tree,
+        project,
     )
     return await run_in_threadpool(
         mlrun.api.crud.Artifacts().get_artifact,
@@ -86,19 +76,19 @@ async def create_artifact(
         iteration,
         project,
         tree=tree,
-        uid=artifact_uid,
+        object_uid=artifact_uid,
     )
 
 
 @router.put("/projects/{project}/artifacts/{key:path}")
 async def store_artifact(
-    request: Request,
     project: str,
+    artifact: mlrun.common.schemas.Artifact,
     key: str,
     tree: str = None,
     tag: str = None,
     iter: int = 0,
-    uid: str = None,
+    object_uid: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -108,12 +98,6 @@ async def store_artifact(
         project,
         auth_info=auth_info,
     )
-
-    data = None
-    try:
-        data = await request.json()
-    except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
     logger.debug("Storing artifact", project=project, key=key, tag=tag, iter=iter)
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -127,8 +111,8 @@ async def store_artifact(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,
         key,
-        data,
-        uid,
+        artifact.dict(exclude_none=True),
+        object_uid,
         tag,
         iter,
         project,
@@ -202,7 +186,7 @@ async def get_artifact(
     tree: str = None,
     tag: str = None,
     iter: int = 0,
-    uid: str = None,
+    object_uid: str = None,
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -223,7 +207,7 @@ async def get_artifact(
         project,
         format_,
         tree,
-        uid,
+        object_uid,
     )
     return artifact
 
@@ -234,7 +218,7 @@ async def delete_artifact(
     key: str,
     tree: str = None,
     tag: str = None,
-    uid: str = None,
+    object_uid: str = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -251,7 +235,7 @@ async def delete_artifact(
         key,
         tag,
         project,
-        uid,
+        object_uid,
         tree,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

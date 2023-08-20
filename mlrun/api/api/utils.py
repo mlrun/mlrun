@@ -46,7 +46,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, is_legacy_artifact, logger
+from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):

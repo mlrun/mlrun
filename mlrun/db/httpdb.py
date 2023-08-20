@@ -36,7 +36,7 @@ import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
-from ..artifacts import Artifact, dict_to_artifact
+from ..artifacts import Artifact
 from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
@@ -755,14 +755,16 @@ class HTTPRunDB(RunDBInterface):
         # we do this because previously the 'uid' name was used for the 'tree' parameter
         tree = tree or uid
 
-        endpoint_path = f"projects/{project}/artifacts"
+        endpoint_path = f"projects/{project}/artifacts/{key}"
 
         error = f"store artifact {project}/{key}"
 
-        artifact = self._set_artifact_metadata(artifact, key, iter, tag, tree)
+        params = self._resolve_store_artifact_params(iter, tag, tree)
 
         body = _as_json(artifact)
-        self.api_call("POST", endpoint_path, error, body=body, version="v2")
+        self.api_call(
+            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+        )
 
     def read_artifact(
         self,
@@ -3389,30 +3391,22 @@ class HTTPRunDB(RunDBInterface):
         self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
 
     @staticmethod
-    def _set_artifact_metadata(artifact, key, iter, tag, tree):
-        """Set metadata on an artifact object.
+    def _resolve_store_artifact_params(iter, tag, tree):
+        """Resolve the store artifact parameters.
 
-        :param artifact:    Artifact object to set metadata on
-        :param key:         Key to set
-        :param iter:        Iteration to set
-        :param tag:         Tag to set
-        :param tree:        Tree (producer id) to set
-        :returns:           The artifact object with the metadata set
+        :param iter:    Iteration to set
+        :param tag:     Tag to set
+        :param tree:    Tree (producer id) to set
+        :returns:       A dictionary of the resolved parameters
         """
-
-        # the artifact passed to the httpdb may be a dict or an object, so we need to convert it to a dict
-        # to be able to set the metadata in both cases
-        artifact_dict = artifact if isinstance(artifact, dict) else artifact.to_dict()
-        artifact_dict.setdefault("metadata", {})
-        if key:
-            artifact_dict["metadata"]["key"] = key
+        params = {}
         if iter:
-            artifact_dict["metadata"]["iter"] = iter
+            params["iter"] = str(iter)
         if tag:
-            artifact_dict["metadata"]["tag"] = tag
+            params["tag"] = tag
         if tree:
-            artifact_dict["metadata"]["tree"] = tree
-        return dict_to_artifact(artifact_dict)
+            params["tree"] = tree
+        return params
 
 
 def _as_json(obj):

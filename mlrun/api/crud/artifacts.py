@@ -33,8 +33,8 @@ class Artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
         key: str,
-        data: dict,
-        uid: str = None,
+        artifact: dict,
+        object_uid: str = None,
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
@@ -42,23 +42,56 @@ class Artifacts(
     ):
         project = project or mlrun.mlconf.default_project
         # In case project is an empty string the setdefault won't catch it
-        if not data.setdefault("project", project):
-            data["project"] = project
+        if not artifact.setdefault("project", project):
+            artifact["project"] = project
 
-        if data["project"] != project:
+        if artifact["project"] != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Artifact with conflicting project name - {data['project']} while request project : {project}."
-                f"key={key}, tree={tree}, data={data}"
+                f"Artifact with conflicting project name - {artifact['project']} while request project : {project}."
+                f"key={key}, tree={tree}, data={artifact}"
             )
         return mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
-            data,
-            uid,
+            artifact,
+            object_uid,
             iter,
             tag,
             project,
             tree,
+        )
+
+    def create_artifact(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        key: str,
+        artifact: dict,
+        tag: str = "latest",
+        iter: int = 0,
+        tree: str = None,
+        project: str = mlrun.mlconf.default_project,
+    ):
+        project = project or mlrun.mlconf.default_project
+        # In case project is an empty string the setdefault won't catch it
+        if not artifact.setdefault("project", project):
+            artifact["project"] = project
+
+        best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
+
+        if artifact["project"] != project:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Artifact with conflicting project name - {artifact['project']} while request project : {project}."
+                f"key={key}, tree={tree}, data={artifact}"
+            )
+
+        return mlrun.api.utils.singletons.db.get_db().create_artifact(
+            db_session,
+            project,
+            artifact,
+            key,
+            tag,
+            iteration=iter,
+            best_iteration=best_iteration,
         )
 
     def get_artifact(
@@ -70,7 +103,7 @@ class Artifacts(
         project: str = mlrun.mlconf.default_project,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         tree: str = None,
-        uid: str = None,
+        object_uid: str = None,
     ) -> dict:
         project = project or mlrun.mlconf.default_project
         artifact = mlrun.api.utils.singletons.db.get_db().read_artifact(
@@ -80,7 +113,7 @@ class Artifacts(
             iter,
             project,
             tree,
-            uid,
+            object_uid,
         )
         if format_ == mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
             return _transform_artifact_struct_to_legacy_format(artifact)
@@ -143,12 +176,12 @@ class Artifacts(
         key: str,
         tag: str = "latest",
         project: str = mlrun.mlconf.default_project,
-        uid: str = None,
+        object_uid: str = None,
         tree: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().del_artifact(
-            db_session, key, tag, project, uid, producer_id=tree
+            db_session, key, tag, project, object_uid, producer_id=tree
         )
 
     def delete_artifacts(

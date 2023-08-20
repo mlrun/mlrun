@@ -551,7 +551,7 @@ class SQLDB(DBInterface):
         ):
             return uid
 
-        return self._create_artifact(
+        return self.create_artifact(
             session, project, artifact, key, tag, uid, iter, best_iteration
         )
 
@@ -899,7 +899,7 @@ class SQLDB(DBInterface):
 
         # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
         artifact_record.iteration = iter or 0
-        if best_iteration:
+        if best_iteration or iter == 0:
             artifact_record.best_iteration = True
 
         artifact_record.uid = uid
@@ -920,7 +920,7 @@ class SQLDB(DBInterface):
         labels = artifact_dict["metadata"].pop("labels", {}) or {}
         update_labels(artifact_record, labels)
 
-    def _create_artifact(
+    def create_artifact(
         self,
         session,
         project,
@@ -931,6 +931,9 @@ class SQLDB(DBInterface):
         iteration=None,
         best_iteration=False,
     ):
+        if not uid:
+            uid = fill_artifact_object_hash(artifact, "uid", iteration)
+
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
         existing_object = query.one_or_none()

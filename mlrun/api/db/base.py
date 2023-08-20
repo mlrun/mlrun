@@ -161,6 +161,20 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def create_artifact(
+        self,
+        session,
+        project,
+        artifact,
+        key,
+        tag="",
+        uid=None,
+        iteration=None,
+        best_iteration=False,
+    ):
+        pass
+
+    @abstractmethod
     def read_artifact(
         self,
         session,

@@ -19,5 +19,5 @@ from pydantic import BaseModel
 class DatastoreProfile(BaseModel):
     name: str
     type: str
-    body: str
+    object: str
     project: str

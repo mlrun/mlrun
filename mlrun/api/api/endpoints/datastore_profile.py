@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
 from fastapi.concurrency import run_in_threadpool
@@ -24,12 +25,13 @@ import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
+from mlrun.api.api.utils import log_and_raise
 
 router = APIRouter()
 
 
 @router.put(
-    path="/projects/{project_name}/datastore_profiles",
+    path="/projects/{project_name}/datastore-profiles",
 )
 async def store_datastore_profile(
     project_name: str,
@@ -45,13 +47,20 @@ async def store_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        mlrun.common.schemas.AuthorizationAction.create,
+        project_name,
+        info.name,
+        mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
     # overwrite the project
-    info.project = project_name
+    if info.project != project_name:
+        log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason="The project name provided in the URI does not match the one specified in the DatastoreProfile",
+        )
+
     await run_in_threadpool(
         mlrun.api.utils.singletons.db.get_db().store_datastore_profile,
         db_session,
@@ -67,7 +76,7 @@ async def store_datastore_profile(
 
 
 @router.get(
-    path="/projects/{project_name}/datastore_profiles",
+    path="/projects/{project_name}/datastore-profiles",
 )
 async def list_datastore_profiles(
     project_name: str,
@@ -82,20 +91,29 @@ async def list_datastore_profiles(
         project_name,
         auth_info.session,
     )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    return await run_in_threadpool(
+    profiles = await run_in_threadpool(
         mlrun.api.utils.singletons.db.get_db().list_datastore_profiles,
         db_session,
         project_name,
     )
+    if len(profiles) == 0:
+        return profiles
+    filtered_data = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+        profiles,
+        lambda profile: (project_name, profile.name),
+        auth_info,
+    )
+    return filtered_data
 
 
 @router.get(
-    path="/projects/{project_name}/datastore_profiles/{profile}",
+    path="/projects/{project_name}/datastore-profiles/{profile}",
 )
 async def get_datastore_profile(
     project_name: str,
@@ -111,8 +129,10 @@ async def get_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
+        project_name,
+        profile,
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
@@ -125,7 +145,7 @@ async def get_datastore_profile(
 
 
 @router.delete(
-    path="/projects/{project_name}/datastore_profiles/{profile}",
+    path="/projects/{project_name}/datastore-profiles/{profile}",
 )
 async def delete_datastore_profile(
     project_name: str,
@@ -141,9 +161,11 @@ async def delete_datastore_profile(
         project_name,
         auth_info.session,
     )
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.datastore_profile,
-        mlrun.common.schemas.AuthorizationAction.read,
+        project_name,
+        profile,
+        mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
     return await run_in_threadpool(

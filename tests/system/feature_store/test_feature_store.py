@@ -592,6 +592,40 @@ class TestFeatureStore(TestMLRunSystem):
             1
         ].get_path().get_absolute_path() == fset.get_target_path("nosql")
 
+    @pytest.mark.parametrize("local", [True, False])
+    def test_ingest_with_format_run_project(self, local):
+        source_path = str(self.assets_path / "testdata.csv")
+        if not local:
+            data = pd.read_csv(source_path)
+            source_path = (
+                f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/"
+                f"{uuid.uuid4()}/source.csv"
+            )
+            data.to_csv(source_path)
+        source = CSVSource("mycsv", path=source_path)
+        feature_set = fstore.FeatureSet(
+            name=f"fs-run_project-format-local-{local}",
+            entities=[Entity("patient_id")],
+            timestamp_key="timestamp",
+        )
+        artifact_path = mlrun.mlconf.artifact_path
+        targets = [
+            CSVTarget(name="labels", path=os.path.join(artifact_path, "file.csv"))
+        ]
+        feature_set.set_targets(targets=targets, with_defaults=False)
+        fstore.ingest(
+            featureset=feature_set,
+            source=source,
+            run_config=fstore.RunConfig(local=local),
+        )
+        target_dir_path = os.path.dirname(
+            os.path.dirname(feature_set.get_target_path())
+        )
+        assert (
+            artifact_path.replace("{{run.project}}", self.project_name)
+            == target_dir_path
+        )
+
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fstore.FeatureSet(name, entities=["ticker"])

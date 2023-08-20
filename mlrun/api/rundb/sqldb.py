@@ -717,6 +717,20 @@ class SQLRunDB(RunDBInterface):
             function,
         )
 
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
+        return self._transform_db_error(
+            mlrun.api.crud.Hub().list_hub_sources,
+            self.session,
+            item_name,
+            tag,
+            version,
+        )
+
     def list_pipelines(
         self,
         project: str,
@@ -842,14 +856,6 @@ class SQLRunDB(RunDBInterface):
     ):
         raise NotImplementedError()
 
-    def list_hub_sources(
-        self,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
-    ):
-        raise NotImplementedError()
-
     def get_hub_source(self, source_name: str):
         raise NotImplementedError()
 
@@ -894,7 +900,7 @@ class SQLRunDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         raise NotImplementedError()
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         raise NotImplementedError()

@@ -24,7 +24,7 @@ def handler(context: mlrun.run.MLClientCtx):
     logger.info("[DAVID] starting application job")
     batch_processor = BatchApplicationProcessor(
         context=context,
-        project="x",
+        project=context.project,
     )
     batch_processor.run()
     logger.info("[DAVID] Finish application job")

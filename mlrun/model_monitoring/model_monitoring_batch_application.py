@@ -35,14 +35,6 @@ from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stre
 from mlrun.utils import logger
 
 
-def wrap_method(
-    endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
-):
-    return BatchApplicationProcessor.endpoint_process(
-        endpoint, applications_names, bath_dict, project
-    )
-
-
 def calculate_inputs_statistics(
     sample_set_statistics: dict, inputs: pd.DataFrame
 ) -> dict:
@@ -179,7 +171,7 @@ class BatchApplicationProcessor:
                         continue
                     logger.info(f"[DAVID] apply process")
                     future = pool.submit(
-                        wrap_method,
+                        BatchApplicationProcessor.endpoint_process,
                         endpoint,
                         applications_names,
                         self.batch_dict,
@@ -442,15 +434,3 @@ class BatchApplicationProcessor:
             logger.warn(
                 f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
             )
-
-
-def handler(context: mlrun.run.MLClientCtx):
-    logger.info("[DAVID] starting application job")
-    batch_processor = BatchApplicationProcessor(
-        context=context,
-        project=context.project,
-    )
-    batch_processor.run()
-    logger.info("[DAVID] Finish application job")
-    if batch_processor.endpoints_exceptions:
-        print(batch_processor.endpoints_exceptions)

@@ -43,7 +43,7 @@ _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = (
 )
 
 _MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch_application.py"
+    _MODEL_MONITORING_COMMON_PATH / "batch_application_handler.py"
 )
 
 _MONITORING_WRITER_FUNCTION_PATH = (
@@ -220,7 +220,7 @@ class MonitoringDeployment:
         fn = None
         if not overwrite:
             logger.info(
-                f"Checking if {function_name.replace('-', ' ')} processing function is already deployed",
+                f"Checking if {function_name.replace('-',' ')} processing function is already deployed",
                 project=project,
             )
 
@@ -233,13 +233,13 @@ class MonitoringDeployment:
                     project=project,
                 )
                 logger.info(
-                    f"Detected {function_name.replace('-', ' ')} processing function already deployed",
+                    f"Detected {function_name.replace('-',' ')} processing function already deployed",
                     project=project,
                 )
 
             except mlrun.errors.MLRunNotFoundError:
                 logger.info(
-                    f"Deploying {function_name.replace('-', ' ')} processing function ",
+                    f"Deploying {function_name.replace('-',' ')} processing function ",
                     project=project,
                 )
 
@@ -266,13 +266,13 @@ class MonitoringDeployment:
                             name=function_name,
                         )
                         logger.info(
-                            f"Already deployed {function_name.replace('-', ' ')} scheduled job function ",
+                            f"Already deployed {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
                         return
                     except mlrun.errors.MLRunNotFoundError:
                         logger.info(
-                            f"Deploying {function_name.replace('-', ' ')} scheduled job function ",
+                            f"Deploying {function_name.replace('-',' ')} scheduled job function ",
                             project=project,
                         )
                 # Submit batch scheduled job
@@ -430,18 +430,20 @@ class MonitoringDeployment:
         :return:                            A function object from a mlrun runtime class
 
         """
-        handler = "mlrun.model_monitoring." + (
-            "model_monitoring_batch.handler"
+        filename = (
+            str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
             if function_name == "model-monitoring-batch"
-            else "model_monitoring_batch_application.handler"
+            else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
+        logger.info(f"function_name={function_name}, filename={filename}, ")
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(
             name=function_name,
             project=project,
+            filename=filename,
             kind="job",
             image=tracking_policy.default_batch_image,
-            handler=handler,
+            handler="handler",
         )
         function.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 
@@ -520,7 +522,7 @@ class MonitoringDeployment:
         }
 
         logger.info(
-            f"Deploying {function_name.replace('-', ' ')} processing function",
+            f"Deploying {function_name.replace('-',' ')} processing function",
             project=project,
         )
 

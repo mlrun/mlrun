@@ -62,11 +62,12 @@ def make_dockerfile(
                          This is useful for matching the user ID with the host environment
                          to avoid permission issues.
     :param enriched_group_id: The group ID to be used in the Docker image for running processes.
-    :param builder_env: A list of Kubernetes V1EnvVar objects representing environment variables
+    :param builder_env: A list of Kubernetes V1EnvVar objects representing build-time arguments
                         to be set during the build process.
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
-
+    :param project_secrets: A list of Kubernetes V1EnvVar objects representing the project secrets,
+            which will be used as build-time arguments in the Dockerfile.
     :return: The content of the Dockerfile as a string.
     """
     dock = f"FROM {base_image}\n"

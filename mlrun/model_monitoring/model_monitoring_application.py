@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import concurrent
 import collections
+import concurrent
 import dataclasses
 import datetime
 import json
-import multiprocessing
 import re
 from typing import Any, Dict, List, Tuple, Union
 
@@ -237,7 +236,7 @@ class BatchApplicationProcessor:
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
         # If an error occurs, it will be raised using the following argument
-        self.exception = None
+        self.exceptions = None
 
         # Get the batch interval range
         self.batch_dict = context.parameters[
@@ -306,21 +305,33 @@ class BatchApplicationProcessor:
                         continue
                     logger.info(f"[DAVID] apply process")
                     future = pool.submit(
-                        self.endpoint_process,
+                        BatchApplicationProcessor.endpoint_process,
                         endpoint,
                         applications_names,
+                        self.batch_dict,
+                        self.project,
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):
-                future.result()
+                res = future.result()
+                if res:
+                    self.exceptions[res[0]] = res[1]
 
             self._delete_old_parquet()
 
-    def endpoint_process(self, endpoint: dict, applications_names: List[str]):
+    @staticmethod
+    def endpoint_process(
+        endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
+    ):
+        endpoint_id = endpoint[
+            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
+        ]
         try:
             logger.info("[DAVID] starting application job for endpoint")
             # Getting batch interval start time and end time
-            start_time, end_time = self._get_interval_range()
+            start_time, end_time = BatchApplicationProcessor._get_interval_range(
+                bath_dict
+            )
             m_fs = fstore.get_feature_set(
                 endpoint[
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
@@ -336,10 +347,6 @@ class BatchApplicationProcessor:
                 for label in labels:
                     if label not in list(m_fs.spec.features.keys()):
                         m_fs.add_feature(fstore.Feature(name=label, value_type="float"))
-
-            endpoint_id = endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-            ]
 
             # TODO : add extra feature_sets
 
@@ -361,7 +368,7 @@ class BatchApplicationProcessor:
                     }
                 )
                 parquet_directory = get_monitoring_parquet_path(
-                    project=self.project,
+                    project=project,
                     kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
                 )
                 offline_response = fstore.get_offline_features(
@@ -442,7 +449,7 @@ class BatchApplicationProcessor:
             data = {
                 "current_stats": json.dumps(current_stats),
                 "feature_stats": json.dumps(feature_stats),
-                "sample_parquet_path": self._get_parquet_path(
+                "sample_parquet_path": BatchApplicationProcessor._get_parquet_path(
                     parquet_directory=parquet_directory,
                     schedule_time=end_time,
                     endpoint_id=endpoint_id,
@@ -453,14 +460,12 @@ class BatchApplicationProcessor:
                 ),
                 "endpoint_id": mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
                 "output_stream_uri": get_stream_path(
-                    project=self.project,
+                    project=project,
                     application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
                 ),
             }
             for app_name in applications_names:
-                stream_uri = get_stream_path(
-                    project=self.project, application_name=app_name
-                )
+                stream_uri = get_stream_path(project=project, application_name=app_name)
                 get_stream_pusher(stream_uri).push([data])
 
             logger.info("[DAVID] Finish application job for endpoint")
@@ -469,16 +474,15 @@ class BatchApplicationProcessor:
             logger.error(
                 f"Exception for endpoint {endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
             )
-            self.exception = e
+            return endpoint_id, e
 
-    def _get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+    @staticmethod
+    def _get_interval_range(batch_dict) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            self.batch_dict[
-                mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES
-            ],
-            self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
-            self.batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
+            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES],
+            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
+            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
         )
         start_time = datetime.datetime.now() - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
@@ -516,7 +520,7 @@ class BatchApplicationProcessor:
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
     def _delete_old_parquet(self):
-        _, schedule_time = self._get_interval_range()
+        _, schedule_time = BatchApplicationProcessor._get_interval_range()
         threshold_date = schedule_time - datetime.timedelta(days=1)
         threshold_year = threshold_date.year
         threshold_month = threshold_date.month

@@ -139,6 +139,7 @@ class PushToMonitoringWriter(StepToDict):
         project: str = None,
         application_name_to_push: str = None,
         stream_uri: str = None,
+        name: str = None,
     ):
         self.project = project
         self.application_name_to_push = application_name_to_push
@@ -146,7 +147,7 @@ class PushToMonitoringWriter(StepToDict):
             project=self.project, application_name=self.application_name_to_push
         )
         self.output_stream = None
-        self.name = "PushToMonitoringWriter"
+        self.name = name or "PushToMonitoringWriter"
 
     def do(
         self,

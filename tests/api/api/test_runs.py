@@ -244,7 +244,6 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
             "metadata": {"name": name, "uid": uid},
         }
         runs.append(run)
-        counter += 1
 
     get_db()._upsert(db, runs, ignore=True)
 

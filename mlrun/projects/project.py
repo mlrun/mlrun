@@ -1815,14 +1815,14 @@ class MlrunProject(ModelObj):
                 requirements_file=requirements_file,
             )
             graph = func.set_topology("flow")
-            graph.to(class_name=application_class_name, name=name, **application_kwargs)
             graph.to(
+                class_name=application_class_name, name=name, **application_kwargs
+            ).to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
                     application_name_to_push=MODEL_MONITORING_WRITER_FUNCTION_NAME,
                     stream_uri=None,
                 ),
-                name="PushToMonitoringWriter",
             ).respond()
             graph.plot(rankdir="LR")
 

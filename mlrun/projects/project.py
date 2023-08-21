@@ -1806,12 +1806,10 @@ class MlrunProject(ModelObj):
         if isinstance(func, str) and isinstance(application_class_name, str):
             kind = "serving"
             func = mlrun.code_to_function(
-                name,
-                self.metadata.name,
-                tag,
-                func,
-                handler,
-                kind,
+                name=name,
+                project=self.metadata.name,
+                tag=tag,
+                kind=kind,
                 image=image,
                 requirements=requirements,
                 requirements_file=requirements_file,
@@ -1866,6 +1864,8 @@ class MlrunProject(ModelObj):
 
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)
+
+        return function_object
 
     def set_function(
         self,

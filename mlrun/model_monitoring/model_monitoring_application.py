@@ -58,6 +58,9 @@ class ModelMonitoringApplicationResult:
 class ModelMonitoringApplication(StepToDict):
     kind = "monitoring_application"
 
+    def __int__(self, name):
+        self.name = name
+
     def do(self, event):
         return self.run_application(*self._resolve_event(event))
 
@@ -143,6 +146,7 @@ class PushToMonitoringWriter(StepToDict):
             project=self.project, application_name=self.application_name_to_push
         )
         self.output_stream = None
+        self.name = "PushToMonitoringWriter"
 
     def do(
         self,

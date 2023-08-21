@@ -151,7 +151,7 @@ def get_stream_path(project: str = None, application_name: str = None):
         allow_secrets_from_k8s=True,
         secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
         if application_name is None
-        else None,
+        else "",
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,

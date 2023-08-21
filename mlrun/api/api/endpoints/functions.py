@@ -732,7 +732,9 @@ def _build_function(
                 == mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_VAL
             )
             logger.info(f"[DAVID] monitoring_application = {monitoring_application}")
-            logger.info(f"[DAVID] labels: type = {fn.metadata.labels.get(mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_KEY)}")
+            logger.info(
+                f"[DAVID] labels: type = {fn.metadata.labels.get(mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_KEY)}"
+            )
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models
             )
@@ -779,6 +781,7 @@ def _build_function(
                             function=fn,
                             model_monitoring_access_key=model_monitoring_access_key,
                             application_name=fn.metadata.name,
+                            auth_info=auth_info,
                         )
                 except Exception as exc:
                     logger.warning(

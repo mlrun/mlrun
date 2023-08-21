@@ -252,6 +252,7 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
     :returns: python module
     """
     command, _ = load_func_code(code, workdir, secrets=secrets)
+    logger.info("!!!!!!!!!", command=command)
     if not command:
         if silent:
             return None

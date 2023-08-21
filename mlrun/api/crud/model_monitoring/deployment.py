@@ -672,6 +672,20 @@ class MonitoringDeployment:
             application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
         )
 
+        function.spec.min_replicas = 0
+        function.spec.max_replicas = 1  # TODO
+
+        function.set_config(
+            key="spec.scaleToZero.scaleResources",
+            value=[
+                {
+                    "metricName": "nuclio_processor_handled_events_total",
+                    "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
+                    "threshold": 0,
+                }
+            ],
+        )
+
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)
         function.spec.parameters = run_config.parameters

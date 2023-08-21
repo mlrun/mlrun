@@ -524,20 +524,20 @@ class BatchWindower:
             return None
         last_analyzed = self._get_last_analyzed_time()
         if last_analyzed:
-            logger.info("Found latest analyzed time {}", start_time)
+            logger.info("Found latest analyzed time", start_time=str(start_time))
             start_time = last_analyzed
         elif self._has_last_analyzed_key():
             logger.info(
                 "No latest analyzed time was found, probably as this is the first run "
-                "of the batch monitoring job. Starting at {}",
-                start_time,
+                "of the batch monitoring job. Starting at `start_time`",
+                start_time=str(start_time),
             )
         else:
             start_time = self._get_window_start_time(query_start)
             logger.info(
                 "No latest analyzed time was found, probably as it's an old system. "
-                "Starting at {}",
-                start_time,
+                "Starting at `start_time`",
+                start_time=str(start_time),
             )
         return start_time
 

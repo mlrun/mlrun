@@ -128,7 +128,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
     are logged. The packager can mark paths of files and directories to delete after logging using the class method
     :py:meth:`add_future_clearing_path`.
 
-    For example, in the following packager's ``pack`` method, you cam write a text file, create an Artifact, and
+    For example, in the following packager's ``pack`` method, you can write a text file, create an Artifact, and
     then mark the text file to be deleted once the artifact is logged::
 
         with open("./some_file.txt", "w") as file:

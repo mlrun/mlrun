@@ -490,6 +490,13 @@ class BatchWindower:
         window_len: datetime.timedelta,
         model_endpoint_data: Dict[str, Any],
     ) -> None:
+        """
+        Initialize a batch windows generator with a given window time length and model endpoint data.
+
+        :param window_len:          the length of the window.
+        :param model_endpoint_data: the data of the model endpoint. Specifically, last analyzed and
+                                    first request fields are used.
+        """
         self._window_len = window_len
         self._model_endpoint_data = model_endpoint_data
 
@@ -550,7 +557,14 @@ class BatchWindower:
     def get_windows(
         self, now_func: Callable[[], datetime.datetime]
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
-        """Get batch window time ranges"""
+        """
+        Get batch window time ranges. This function is used to iterate over relevant time
+        windows given the query start time, the last analyzed time, and the first request
+        time.
+
+        :param now_func: e.g. `lambda: datetime.datetime.now(datetime.timezone.utc)`.
+        :returns:        a generator of the relevant time windows to check.
+        """
         query_start = now_func()
         start_time = self._get_start_time(query_start)
         if not start_time:

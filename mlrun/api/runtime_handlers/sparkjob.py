@@ -71,11 +71,12 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         crd_object,
         run: Dict,
     ):
-        if run is None:
+        if not run:
             logger.warning(
                 "Run object was not provided, cannot update the UI URL",
                 project=project,
                 uid=uid,
+                run=run,
             )
             return
 

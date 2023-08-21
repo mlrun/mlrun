@@ -548,7 +548,7 @@ class BaseStoreTarget(DataTargetBase):
             storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
                 target_df,
-                storage_options,
+                self.storage_options or storage_options,
                 target_path,
                 partition_cols=partition_cols,
                 **kwargs,

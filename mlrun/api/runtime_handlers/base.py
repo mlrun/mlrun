@@ -428,7 +428,7 @@ class BaseRuntimeHandler(ABC):
         project: str,
         uid: str,
         crd_object,
-        run: Dict = None,
+        run: Dict,
     ):
         """
         Update the UI URL for relevant jobs.
@@ -972,7 +972,7 @@ class BaseRuntimeHandler(ABC):
             search_run=False,
         )
 
-        # Update the ui URL after ensured run state because it also ensures that a run exists
+        # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 

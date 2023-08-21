@@ -1803,7 +1803,7 @@ class MlrunProject(ModelObj):
 
         function_object: RemoteRuntime = None
         kind = "nuclio"
-        if isinstance(func, str) and isinstance(application_class_name, str):
+        if (isinstance(func, str) or func is None) and isinstance(application_class_name, str):
             kind = "serving"
             func = mlrun.code_to_function(
                 name=name,
@@ -1860,7 +1860,7 @@ class MlrunProject(ModelObj):
         )
 
         # Deploy & Add stream triggers
-        self.deploy_function(function_object)
+        self.deploy_function(function_object, )
 
         # save to project spec
         self.spec.set_function(resolved_function_name, function_object, func)

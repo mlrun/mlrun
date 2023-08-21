@@ -568,7 +568,7 @@ class BatchWindower:
             end_time = self._get_window_end_time(start_time)
 
     @classmethod
-    def batch_dict2window_len(cls, batch_dict: dict) -> datetime.datetime:
+    def batch_dict2window_len(cls, batch_dict: Union[dict, str]) -> datetime.timedelta:
         # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
         # Convert batch dict string into a dictionary
         if isinstance(batch_dict, str):

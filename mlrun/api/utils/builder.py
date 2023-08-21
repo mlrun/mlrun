@@ -626,6 +626,7 @@ def build_runtime(
     if build.base_image:
         mlrun_images = [
             "mlrun/mlrun",
+            "mlrun/mlrun-gpu",
             "mlrun/ml-base",
             "mlrun/ml-models",
             "mlrun/ml-models-gpu",

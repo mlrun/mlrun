@@ -44,7 +44,7 @@ on:
         required: false
         default: ''
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,api,base,models,models-gpu,jupyter,test'
         required: false
         default: ''
       build_from_cache:

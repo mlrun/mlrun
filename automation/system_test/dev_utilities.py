@@ -237,29 +237,29 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
         "kafka": {
             "chart": "bitnami/kafka",
             "set_values":
-                " --set auth.clientProtocol=sasl" +
-                " --set auth.interBrokerProtocol=sasl" +
-                " --set auth.sasl.mechanisms=plain" +
-                " --set auth.sasl.jaas.clientUsers[0].username=user1" +
-                " --set auth.sasl.jaas.clientUsers[0].password=password21368712g3y" +
-                " --set auth.sasl.jaas.interBrokerUser=admin" +
-                " --set auth.sasl.jaas.interBrokerPassword=adminpassword123" +
-                " --set auth.tls.type=self-signed" +
-                " --set auth.tls.pemChainIncluded=true" +
-                " --set listeners.client.containerPort=9092" +
-                " --set listeners.client.protocol=SASL_PLAINTEXT" +
-                " --set listeners.client.name=CLIENT" +
-                " --set externalAccess.enabled=true" +
-                " --set externalAccess.controller.service.type=NodePort" +
-                " --set externalAccess.controller.service.nodePorts[0]=30230" +
-                " --set externalAccess.controller.service.nodePorts[1]=30231" +
-                " --set externalAccess.controller.service.nodePorts[2]=30232",
+            " --set auth.clientProtocol=sasl" +
+            " --set auth.interBrokerProtocol=sasl" +
+            " --set auth.sasl.mechanisms=plain" +
+            " --set auth.sasl.jaas.clientUsers[0].username=user1" +
+            " --set auth.sasl.jaas.clientUsers[0].password=password21368712g3y" +
+            " --set auth.sasl.jaas.interBrokerUser=admin" +
+            " --set auth.sasl.jaas.interBrokerPassword=adminpassword123" +
+            " --set auth.tls.type=self-signed" +
+            " --set auth.tls.pemChainIncluded=true" +
+            " --set listeners.client.containerPort=9092" +
+            " --set listeners.client.protocol=SASL_PLAINTEXT" +
+            " --set listeners.client.name=CLIENT" +
+            " --set externalAccess.enabled=true" +
+            " --set externalAccess.controller.service.type=NodePort" +
+            " --set externalAccess.controller.service.nodePorts[0]=30230" +
+            " --set externalAccess.controller.service.nodePorts[1]=30231" +
+            " --set externalAccess.controller.service.nodePorts[2]=30232",
         },
         "mysql": {
             "chart": "bitnami/mysql",
-            "set_values": "--set primary.service.nodePorts.mysql=30223"
-                          "--set primary.service.type=NodePort "
-                          "--set networkPolicy.enabled=true"
+            "set_values": "--set primary.service.nodePorts.mysql=30223" +
+            "--set primary.service.type=NodePort" +
+            "--set networkPolicy.enabled=true",
         },
     }
     namespace = "devtools"
@@ -352,7 +352,9 @@ def status(redis, kafka, mysql, redisinsight, output):
     if kafka:
         fqdn = get_ingress_controller_version()
         full_domain = "kafka" + fqdn
-        svc_password = get_svc_password(namespace, "kafka-user-passwords", "client-passwords")
+        svc_password = get_svc_password(
+            namespace, "kafka-user-passwords", "client-passwords"
+        )
         get_all_output["kafka"] = status_h("kafka")
         if output == "human":
             print_svc_info(full_domain, 30230, "user1", svc_password, "-------")
@@ -391,10 +393,12 @@ def status_h(svc):
         }
         return dict
     if svc == "kafka":
-        svc_password = get_svc_password(namespace, "kafka-user-passwords", "client-passwords")
+        svc_password = get_svc_password(
+            namespace, "kafka-user-passwords", "client-passwords"
+        )        
         fqdn = get_ingress_controller_version()
         full_domain = "kafka" + fqdn + ":30230"
-        dict = {"app_url": full_domain, "username": "user1", 'password': svc_password}
+        dict = {"app_url": full_domain, "username": "user1", "password": svc_password}
         return dict
     if svc == "mysql":
         fqdn = get_ingress_controller_version()

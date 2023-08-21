@@ -230,8 +230,7 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
     total_runs = 10
 
     runs = []
-    counter = 0
-    while counter < total_runs:
+    for counter in range(total_runs):
         name = f"name_{counter}"
         uid = f"id_{counter}"
         run = Run(
@@ -258,9 +257,8 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
     )
 
     # Assert that all other runs can be filtered successfully
-    counter = 1
     uids = [r.uid for r in runs]
-    while counter <= total_runs:
+    for counter in range(1, total_runs + 1):
         assert_time_range_request(
             client,
             uids[:counter],
@@ -269,7 +267,6 @@ def test_list_completed_runs(db: Session, client: TestClient) -> None:
                 base_time - timedelta(hours=counter * 2 - 1)
             ),
         )
-        counter += 1
 
 
 def test_list_runs_partition_by(db: Session, client: TestClient) -> None:

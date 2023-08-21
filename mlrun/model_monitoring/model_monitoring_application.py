@@ -96,16 +96,18 @@ class ModelMonitoringApplication(StepToDict):
     ) -> Tuple[
         pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Timestamp, pd.Timestamp, str, str
     ]:
-        data = event["data"]
-
         return (
-            ModelMonitoringApplication._dict_to_histogram(data["current_stats"]),
-            ModelMonitoringApplication._dict_to_histogram(data["feature_stats"]),
-            ParquetTarget(path=data["sample_parquet_path"]).as_df(),
-            pd.Timestamp(data["schedule_time"]),
-            pd.Timestamp(data["latest_request"]),
-            data["endpoint_uid"],
-            data["output_stream_uri"],
+            ModelMonitoringApplication._dict_to_histogram(
+                json.load(event["current_stats"])
+            ),
+            ModelMonitoringApplication._dict_to_histogram(
+                json.load(event["feature_stats"])
+            ),
+            ParquetTarget(path=event["sample_parquet_path"]).as_df(),
+            pd.Timestamp(event["schedule_time"]),
+            pd.Timestamp(event["latest_request"]),
+            event["endpoint_uid"],
+            event["output_stream_uri"],
         )
 
     @staticmethod

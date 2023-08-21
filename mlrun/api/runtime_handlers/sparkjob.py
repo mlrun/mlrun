@@ -71,6 +71,9 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         crd_object,
         run: Dict = None,
     ):
+        if run is None:
+            return
+
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")
         )

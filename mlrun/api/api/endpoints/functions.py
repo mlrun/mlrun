@@ -772,7 +772,7 @@ def _build_function(
                         )
 
                     if monitoring_application:
-                        mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
+                        fn = mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
                             project=fn.metadata.project,
                             function=fn,
                             model_monitoring_access_key=model_monitoring_access_key,

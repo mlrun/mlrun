@@ -1802,7 +1802,7 @@ class MlrunProject(ModelObj):
         """
 
         function_object: RemoteRuntime = None
-        kind = "nuclio"
+        kind = None
         if (isinstance(func, str) or func is None) and isinstance(application_class_name, str):
             kind = "serving"
             func = mlrun.code_to_function(
@@ -1824,7 +1824,8 @@ class MlrunProject(ModelObj):
                     stream_uri=None,
                 ),
             ).respond()
-            graph.plot(rankdir="LR")
+        elif isinstance(func, str) and isinstance(handler, str):
+            kind = "nuclio"
 
         resolved_function_name, function_object, func = self._resolved_function(
             func,

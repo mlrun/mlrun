@@ -519,7 +519,7 @@ class BaseStoreTarget(DataTargetBase):
                 partition_cols = None
             target_df = df
             if timestamp_key and (
-                self.partitioned or self.time_partitioning_granularity
+                self.partitioned and self.time_partitioning_granularity
             ):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity

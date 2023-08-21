@@ -345,14 +345,14 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
-        _db = get_db()
-        _db.del_run(db, self.run_uid, self.project)
+        db_instance = get_db()
+        db_instance.del_run(db, self.run_uid, self.project)
 
         list_namespaced_crds_calls = [
             [self.running_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
-        self.runtime_handler.monitor_runs(_db, db)
+        self.runtime_handler.monitor_runs(db_instance, db)
 
         run = get_db().read_run(db, self.run_uid, self.project)
         assert run["status"]["state"] == RunStates.running

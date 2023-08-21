@@ -252,7 +252,6 @@ def function_to_module(code="", workdir=None, secrets=None, silent=False):
     :returns: python module
     """
     command, _ = load_func_code(code, workdir, secrets=secrets)
-    logger.info("!!!!!!!!!", command=command)
     if not command:
         if silent:
             return None
@@ -277,28 +276,22 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
     suffix = "" if is_obj else Path(command).suffix
     runtime = None
     if is_obj or suffix == ".yaml":
-        logger.info("in if is_obj or suffix == .yaml", is_obj=is_obj, suffix=suffix, command=command)
         is_remote = False
         if is_obj:
-            logger.info("in if is_obj", runtime=runtime)
             runtime = command
         else:
             is_remote = "://" in command
             data = get_object(command, secrets)
             runtime = yaml.load(data, Loader=yaml.FullLoader)
             runtime = new_function(runtime=runtime)
-            logger.info("in elseeee", runtime=runtime)
 
         command = runtime.spec.command or ""
         code = runtime.spec.build.functionSourceCode
         origin_filename = runtime.spec.build.origin_filename
         kind = runtime.kind or ""
-        logger.info("before ifsss", kind=kind, command=command, is_remote=is_remote)
         if kind in RuntimeKinds.nuclio_runtimes():
-            logger.info("in if kind in RuntimeKinds.nuclio_runtimes()", )
             code = get_in(runtime.spec.base_spec, "spec.build.functionSourceCode", code)
         if code:
-            logger.info("in if code", origin_filename=origin_filename, is_file=path.isfile(origin_filename))
             if (
                 origin_filename
                 and origin_filename.endswith(".py")
@@ -317,7 +310,6 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
                     temp_file.write(code)
 
         elif command and "http://" not in command and not is_remote:
-            logger.info("in elif command and not is_remote", command=command, is_remote=is_remote, workdir=workdir)
             file_path = path.join(workdir or "", command)
             if not path.isfile(file_path):
                 raise OSError(f"command file {file_path} not found")

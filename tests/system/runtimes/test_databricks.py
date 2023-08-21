@@ -21,6 +21,7 @@ import yaml
 import mlrun
 import tests.system.base
 from mlrun.runtimes.function_reference import FunctionReference
+from mlrun.runtimes.utils import RunError
 from tests.datastore.databricks_utils import is_databricks_configured
 
 here = Path(__file__).absolute().parent
@@ -75,7 +76,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
 def print_kwargs(**kwargs):
     print(f"kwargs: {kwargs}")
-        """
+"""
 
         function_ref = FunctionReference(
             kind="databricks",
@@ -117,6 +118,32 @@ def print_kwargs(**kwargs):
                 run.status.results["databricks_runtime_task"]["logs"]
                 == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
             )
+
+    def test_failure_in_databricks(self):
+        code = """
+
+def import_mlrun():
+    import mlrun
+"""
+
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=code,
+            image="mlrun/mlrun",
+            name="databricks-fails-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        with pytest.raises(RunError) as error:
+            function.run(
+                handler="import_mlrun",
+                project="databricks-proj",
+            )
+        lines = str(error.value).splitlines()
+        assert "No module named 'mlrun'" in lines[2]
+        assert "No module named 'mlrun'" in lines[-1]
 
     def test_kwargs_from_file(self):
         code_path = str(self.assets_path / "databricks_function_print_kwargs.py")

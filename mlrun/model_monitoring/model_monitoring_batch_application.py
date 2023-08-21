@@ -33,6 +33,7 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
+import os
 
 
 def calculate_inputs_statistics(
@@ -116,6 +117,38 @@ class BatchApplicationProcessor:
         self.model_endpoints = context.parameters.get(
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
         )
+        self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
+        self.model_monitoring_access_key = (
+            os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
+        )
+        self.parquet_directory = get_monitoring_parquet_path(
+            project=project,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+        )
+        self.storage_options = None
+        if not mlrun.mlconf.is_ce_mode():
+            self._initialize_v3io_configurations(
+                model_monitoring_access_key=self.model_monitoring_access_key
+            )
+        elif self.parquet_directory.startswith("s3://"):
+            self.storage_options = mlrun.mlconf.get_s3_storage_options()
+
+    def _initialize_v3io_configurations(
+        self,
+        v3io_access_key: str = None,
+        v3io_framesd: str = None,
+        v3io_api: str = None,
+        model_monitoring_access_key: str = None,
+    ):
+        # Get the V3IO configurations
+        self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
+        self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
+
+        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
+        self.model_monitoring_access_key = model_monitoring_access_key
+        self.storage_options = dict(
+            v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
+        )
 
     def run(self):
         """
@@ -176,6 +209,8 @@ class BatchApplicationProcessor:
                         applications_names,
                         self.batch_dict,
                         self.project,
+                        self.parquet_directory,
+                        self.storage_options
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):
@@ -187,7 +222,12 @@ class BatchApplicationProcessor:
 
     @staticmethod
     def endpoint_process(
-        endpoint: dict, applications_names: List[str], bath_dict: dict, project: str
+        endpoint: dict,
+        applications_names: List[str],
+        bath_dict: dict,
+        project: str,
+        parquet_directory: str,
+        storage_options: dict,
     ):
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
@@ -234,10 +274,6 @@ class BatchApplicationProcessor:
                         "scheduled_time": [end_time],
                     }
                 )
-                parquet_directory = get_monitoring_parquet_path(
-                    project=project,
-                    kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
-                )
                 offline_response = fstore.get_offline_features(
                     feature_vector=vector,
                     entity_rows=entity_rows,
@@ -251,6 +287,7 @@ class BatchApplicationProcessor:
                         partition_cols=[
                             mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
                         ],
+                        storage_options=storage_options
                     ),
                 )
                 df = offline_response.to_dataframe()

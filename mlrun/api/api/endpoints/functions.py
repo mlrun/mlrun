@@ -731,6 +731,8 @@ def _build_function(
                 )
                 == mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_VAL
             )
+            logger.info(f"[DAVID] monitoring_application = {monitoring_application}")
+            logger.info(f"[DAVID] labels: type = {fn.metadata.labels.get(mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_KEY)}")
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models
             )

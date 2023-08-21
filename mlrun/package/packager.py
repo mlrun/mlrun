@@ -74,8 +74,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
 
     1. **Packing** - get an object that was returned from a function and log it to MLRun. The user can specify packing
        configurations to the packager using log hints. The packed object can be an artifact or a result.
-    2. **Unpacking** - get an :py:meth:`mlrun.DataItem<mlrun.datastore.base.DataItem>` (an input to a MLRun function) and
-       parse it to the desired hinted type. The packager uses the instructions it noted itself when originally
+    2. **Unpacking** - get an :py:meth:`mlrun.DataItem<mlrun.datastore.base.DataItem>` (an input to a MLRun function)
+       and parse it to the desired hinted type. The packager uses the instructions it noted itself when originally
        packing the object.
 
     .. rubric:: Custom Implementation (Inherit Packager)
@@ -96,18 +96,18 @@ class Packager(ABC, metaclass=_PackagerMeta):
     * :py:meth:`pack` - A class method to pack a returned object using the provided log hint configurations while noting
       itself instructions for how to unpack it once needed (only relevant for packed artifacts since results do not need
       unpacking).
-    * :py:meth:`unpack` - A class method to unpack an MLRun ``DataItem``, parsing it to its desired hinted type using the
-      instructions noted while originally packing it.
+    * :py:meth:`unpack` - A class method to unpack an MLRun ``DataItem``, parsing it to its desired hinted type using
+      the instructions noted while originally packing it.
 
     The class methods ``is_packable`` and ``is_unpackable`` are implemented with the following basic logic:
 
     * :py:meth:`is_packable` - a class method to know whether to use this packager to pack an object by its
-      type and artifact type. It compares the object's type with the ``PACKABLE_OBJECT_TYPE`` and checks that the artifact type
-      is in the returned supported artifacts list from ``get_supported_artifact_types``.
+      type and artifact type. It compares the object's type with the ``PACKABLE_OBJECT_TYPE`` and checks that the
+      artifact type is in the returned supported artifacts list from ``get_supported_artifact_types``.
     * :py:meth:`is_unpackable` - a class method to know whether to use this packager to unpack a data item by the user-
-      noted type hint and optionally stored artifact type in the data item (in case it was packaged before). It matches the
-      ``PACKABLE_OBJECT_TYPE`` to the type hint given (same logic as IDE matchups, meaning subclasses are considered as
-      unpackable) and checks if the artifact type is in the returned supported artifacts list from
+      noted type hint and optionally stored artifact type in the data item (in case it was packaged before). It matches
+      the ``PACKABLE_OBJECT_TYPE`` to the type hint given (same logic as IDE matchups, meaning subclasses are
+      considered as unpackable) and checks if the artifact type is in the returned supported artifacts list from
       ``get_supported_artifact_types``.
 
     Preferably, each packager should handle a single type of object.
@@ -128,8 +128,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
     are logged. The packager can mark paths of files and directories to delete after logging using the class method
     :py:meth:`add_future_clearing_path`.
 
-    For example, in the following packager's ``pack`` method, you cam write a text file, create an Artifact, and then mark
-    the text file to be deleted once the artifact is logged::
+    For example, in the following packager's ``pack`` method, you cam write a text file, create an Artifact, and
+    then mark the text file to be deleted once the artifact is logged::
 
         with open("./some_file.txt", "w") as file:
             file.write("Pack me")
@@ -165,8 +165,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
     def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking a data item holding an object of this packager. The method
-        is used when a data item is sent for unpacking without it being a package, but is a simple url or an old / manually
-        logged artifact.
+        is used when a data item is sent for unpacking without it being a package, but is a simple url or an old
+        / manually logged artifact.
 
         :param data_item: The about-to-be unpacked data item.
 

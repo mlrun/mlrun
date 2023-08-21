@@ -199,7 +199,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       configurations are sent by the user and are mandatory. If unspecified, they get a default value.
     * **The abstract class method** :py:meth:`unpack`: The method is implemented to get a
       :py:meth:`DataItem<mlrun.datastore.base.DataItem>` and send it to the relevant unpacking method by the artifact
-      type using the following naming: `"unpack_<artifact_type>"`. (If the artifact type was not provided, it uses the default).
+      type using the following naming: `"unpack_<artifact_type>"`. (If the artifact type was not provided, 
+      it uses the default).
       For example: if the artifact type stored within the ``DataItem`` is `x` then the class method
       ``unpack_x`` must be implemented. The signature of each unpack class method must be::
 
@@ -211,8 +212,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       were originally returned from ``pack_x``. (Each instruction must be optional (have a default value) to support
       objects from this type that were not packaged but custom-logged.) The returned value is the unpacked
       object.
-    * **The abstract class method** :py:meth:`is_packable`: The method is implemented to automatically validate the object type and
-      artifact type by the following rules:
+    * **The abstract class method** :py:meth:`is_packable`: The method is implemented to automatically validate 
+        the object type and artifact type by the following rules:
 
       * **Object type validation**: Checks if the given object type matches the variable ``PACKABLE_OBJECT_TYPE``
         with respect to the ``PACK_SUBCLASSES`` class variable.
@@ -244,8 +245,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
           artifact.spec.extra_data = {key: ... for key in extra_data}
 
     * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted after
-      logging the artifact is complete. The packager can mark paths of files and directories to delete after logging using the
-      class method ``add_future_clearing_path``.
+      logging the artifact is complete. The packager can mark paths of files and directories to delete after 
+      logging using the class method ``add_future_clearing_path``.
 
       For example, in the following packager's ``pack`` method, you can write a text file, create an artifact, and then
       mark the text file to be deleted once the artifact is logged::
@@ -285,8 +286,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking a data item holding an object of this packager. The method
-        is used when a data item is sent for unpacking without it being a package, but is a simple url or an old / manually
-        logged artifact.
+        is used when a data item is sent for unpacking without it being a package, but is a simple url or an old / 
+        manually logged artifact.
 
         :param data_item: The about-to-be unpacked data item.
 
@@ -486,13 +487,13 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
         :param data_item:             The data item holding the pkl file.
         :param pickle_module_name:    Module to use for unpickling the object.
-        :param object_module_name:    The original object's module. Used to verify that the current interpreter object module
-                                      version matches the pickled object version before unpickling the object.
-        :param python_version:        The python version in which the original object was pickled. Used to verify that the
-                                      current interpreter python version matches the pickled object version before
+        :param object_module_name:    The original object's module. Used to verify that the current interpreter object
+                                      module version matches the pickled object version before unpickling the object.
+        :param python_version:        The python version in which the original object was pickled. Used to verify that
+                                      the current interpreter python version matches the pickled object version before
                                       unpickling the object.
-        :param pickle_module_version: The pickle module version. Used to verify that the current interpreter module version
-                                      matches the one that pickled the object before unpickling it.
+        :param pickle_module_version: The pickle module version. Used to verify that the current interpreter module
+                                      version matches the one that pickled the object before unpickling it.
         :param object_module_version: The original object's module version to match to the interpreter's module version.
 
         :return: The un-pickled python object.
@@ -567,8 +568,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             raise MLRunPackageUnpackingError(
                 f"The packager '{cls.__name__}' could not unpack the package due to missing instructions: "
                 f"{', '.join(missing_arguments)}. Missing instructions are likely due to an update in the packager's "
-                f"code that does not support the old implementation. This backward compatibility issue should not occur, but "
-                f"if it does, try to edit the instructions in the artifact's spec to enable unpacking it again."
+                f"code that does not support the old implementation. This backward compatibility issue should not occur,"
+                f" but if it does, try to edit the instructions in the artifact's spec to enable unpacking it again."
             )
 
         # Validate all given arguments are correct:
@@ -579,6 +580,6 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             arguments_type = "configurations" if is_packing else "instructions"
             logger.warn(
                 f"Unexpected {arguments_type} given for {cls.__name__}: {', '.join(incorrect_arguments)}. "
-                f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}. The packager will try to "
+                f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}. The packager tries to "
                 f"continue by ignoring the incorrect arguments."
             )

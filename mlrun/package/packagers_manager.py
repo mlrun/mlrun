@@ -87,8 +87,8 @@ class PackagersManager:
     ):
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
-        `Packager`. If it's needed to import all packagers from a module, use the module path with an asterisk "*" at the end.
-        (A packager with a name that starts with a '_' is not collected.)
+        `Packager`. If it's needed to import all packagers from a module, use the module path with an asterisk
+        "*" at the end. (A packager with a name that starts with a '_' is not collected.)
 
         Notice: Only packagers that are declared in the module are collected (packagers imported in the module scope
         aren't collected). For example::
@@ -218,8 +218,8 @@ class PackagersManager:
                 raise MLRunInvalidArgumentError(
                     f"The log hint key '{log_hint_key}' has an iterable unpacking prefix ('*') to log arbitrary number "
                     f"of objects within it (like a `list` or `set`), but an iterable object was not provided; the "
-                    f"given object is of type '{self._get_type_name(type(obj))}'. The object is currently ignored. To log it, "
-                    f"delete the '*' prefix from the key."
+                    f"given object is of type '{self._get_type_name(type(obj))}'. The object is currently ignored. To"
+                    f"log it, delete the '*' prefix from the key."
                 )
             objects_to_pack = {
                 f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)

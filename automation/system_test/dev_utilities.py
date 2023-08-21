@@ -252,13 +252,13 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
             + " --set externalAccess.controller.service.type=NodePort"
             + " --set externalAccess.controller.service.nodePorts[0]=30230"
             + " --set externalAccess.controller.service.nodePorts[1]=30231"
-            + " --set externalAccess.controller.service.nodePorts[2]=30232",            
+            + " --set externalAccess.controller.service.nodePorts[2]=30232",
         },
         "mysql": {
             "chart": "bitnami/mysql",
             "set_values": "--set primary.service.nodePorts.mysql=30223"
             + "--set primary.service.type=NodePort"
-            + "--set networkPolicy.enabled=true",            
+            + "--set networkPolicy.enabled=true",
         },
     }
     namespace = "devtools"

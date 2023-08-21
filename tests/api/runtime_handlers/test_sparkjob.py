@@ -38,17 +38,17 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self.running_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_running_crd_status(self._ui_url),
+            self._get_running_crd_status(driver_ui_url=self._ui_url),
         )
         self.completed_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_completed_crd_status(self._ui_url),
+            self._get_completed_crd_status(driver_ui_url=self._ui_url),
         )
         self.failed_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_failed_crd_status(self._ui_url),
+            self._get_failed_crd_status(driver_ui_url=self._ui_url),
         )
 
         executor_pod_labels = {

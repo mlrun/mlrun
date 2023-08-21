@@ -162,7 +162,9 @@ class BatchApplicationProcessor:
                 self.project
             ).list_model_monitoring_applications()
             if application:
-                applications_names = [app.metadata.name for app in application]
+                applications_names = np.unique(
+                    [app.metadata.name for app in application]
+                ).tolist()
             else:
                 applications_names = []
 
@@ -370,6 +372,7 @@ class BatchApplicationProcessor:
             }
             for app_name in applications_names:
                 stream_uri = get_stream_path(project=project, application_name=app_name)
+                logger.info(f"[DAVID] push to {stream_uri}")
                 get_stream_pusher(stream_uri).push([data])
 
             logger.info("[DAVID] Finish application job for endpoint")

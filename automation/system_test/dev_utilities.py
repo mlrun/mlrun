@@ -395,7 +395,7 @@ def status_h(svc):
     if svc == "kafka":
         svc_password = get_svc_password(
             namespace, "kafka-user-passwords", "client-passwords"
-        )        
+        )
         fqdn = get_ingress_controller_version()
         full_domain = "kafka" + fqdn + ":30230"
         dict = {"app_url": full_domain, "username": "user1", "password": svc_password}

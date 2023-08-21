@@ -19,10 +19,12 @@ import typing
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun.api.runtime_handlers.mpijob
 import mlrun.common.schemas
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
+import mlrun.runtimes
 from mlrun.utils import logger
 
 _k8s = None
@@ -219,14 +221,10 @@ class K8sHelper:
         return resp
 
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
-
-        # As this file is imported in mlrun.runtimes, we sadly cannot have this import in the top level imports
-        # as that will create an import loop.
-        # TODO: Fix the import loops already!
-        import mlrun.runtimes
-
         namespace = self.resolve_namespace(namespace)
-        mpijob_crd_version = mlrun.runtimes.utils.resolve_mpijob_crd_version()
+        mpijob_crd_version = (
+            mlrun.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
+        )
         mpijob_role_label = (
             mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version

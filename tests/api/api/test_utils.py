@@ -242,7 +242,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
         },
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -343,7 +343,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         ),
     )
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     assert (
         parsed_function_object.spec.preemption_mode
@@ -372,7 +372,7 @@ def test_generate_function_and_task_from_submit_run_with_preemptible_nodes_and_t
         "function": {"spec": {"preemption_mode": "constrain"}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     expected_affinity = kubernetes.client.V1Affinity(
         node_affinity=kubernetes.client.V1NodeAffinity(
@@ -407,7 +407,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_resources(
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == PROJECT
@@ -448,7 +448,7 @@ def test_generate_function_and_task_from_submit_run_body_keep_credentials(
         "function": {"metadata": {"credentials": None}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     assert parsed_function_object.metadata.name == function_name
     assert parsed_function_object.metadata.project == project
@@ -1187,7 +1187,7 @@ def test_generate_function_and_task_from_submit_run_body_imported_function_proje
         "function": {"spec": {"resources": {"limits": {}, "requests": {}}}},
     }
     parsed_function_object, task = _generate_function_and_task_from_submit_run_body(
-        db, mlrun.common.schemas.AuthInfo(), submit_job_body
+        db, submit_job_body
     )
     assert parsed_function_object.metadata.project == PROJECT
 
@@ -1307,8 +1307,15 @@ def _mock_import_function(monkeypatch):
         _, _, _, original_function = _generate_original_function()
         return original_function
 
+    def _mock_extend_hub_uri_if_needed(*args, **kwargs):
+        return "some-url", True
+
     monkeypatch.setattr(
         mlrun.run, "import_function_to_dict", _mock_import_function_to_dict
+    )
+
+    monkeypatch.setattr(
+        mlrun.run, "extend_hub_uri_if_needed", _mock_extend_hub_uri_if_needed
     )
 
 

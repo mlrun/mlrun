@@ -51,7 +51,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         runtime.metadata.project = self.project
         return runtime
 
-    def test_run_without_runspec(self, db: Session, client: TestClient):
+    def test_run_without_runspec(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_pod_creation_config()
@@ -62,7 +62,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         self.execute_function(runtime, params=params, inputs=inputs)
         self._assert_pod_creation_config(expected_params=params, expected_inputs=inputs)
 
-    def test_run_with_runspec(self, db: Session, client: TestClient):
+    def test_run_with_runspec(self, db: Session, k8s_secrets_mock):
         task = self._generate_task()
         params = {"p1": "v1", "p2": 20}
         task.with_params(**params)
@@ -89,7 +89,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             expected_secrets=secret_source,
         )
 
-    def test_run_with_watch_on_server_side(self, db: Session, client: TestClient):
+    def test_run_with_watch_on_server_side(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         with unittest.mock.patch.object(
             mlrun.model.RunObject,
@@ -99,9 +99,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             self._execute_run(runtime, watch=True)
             assert logs_mock.call_count == 0
 
-    def test_run_with_resource_limits_and_requests(
-        self, db: Session, client: TestClient
-    ):
+    def test_run_with_resource_limits_and_requests(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         gpu_type = "test/gpu"
@@ -126,7 +124,7 @@ class TestKubejobRuntime(TestRuntimeBase):
     def test_run_without_specifying_resources(self, db: Session, client: TestClient):
         self.assert_run_without_specifying_resources()
 
-    def test_run_with_node_selection(self, db: Session, client: TestClient):
+    def test_run_with_node_selection(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         node_name = "some-node-name"
@@ -173,33 +171,31 @@ class TestKubejobRuntime(TestRuntimeBase):
         )
 
     def test_preemption_mode_without_preemptible_configuration(
-        self, db: Session, client: TestClient
+        self, db: Session, k8s_secrets_mock
     ):
         self.assert_run_with_preemption_mode_without_preemptible_configuration()
 
     def test_preemption_mode_with_preemptible_node_selector_without_tolerations(
-        self, db: Session, client: TestClient
+        self, db: Session, k8s_secrets_mock
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
 
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
-        self, db: Session, client: TestClient
+        self, db: Session, k8s_secrets_mock
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations()
 
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings(
-        self, db: Session, client: TestClient
+        self, db: Session, k8s_secrets_mock
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
 
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
-        self, db: Session, client: TestClient
+        self, db: Session, k8s_secrets_mock
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
 
-    def test_with_preemption_mode_none_transitions(
-        self, db: Session, client: TestClient
-    ):
+    def test_with_preemption_mode_none_transitions(self, db: Session, k8s_secrets_mock):
         self.assert_run_with_preemption_mode_none_transitions()
 
     def assert_node_selection(
@@ -231,7 +227,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         pod = self._get_pod_creation_args()
         assert pod.spec.security_context == (security_context or {})
 
-    def test_run_with_priority_class_name(self, db: Session, client: TestClient):
+    def test_run_with_priority_class_name(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         medium_priority_class_name = "medium-priority"
@@ -260,7 +256,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             runtime.with_priority_class(medium_priority_class_name)
 
-    def test_set_annotation(self, db: Session, client: TestClient):
+    def test_set_annotation(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         runtime.with_annotations({"annotation-key": "annotation-value"})
         self.execute_function(runtime)
@@ -268,7 +264,7 @@ class TestKubejobRuntime(TestRuntimeBase):
         pod = self._get_pod_creation_args()
         assert pod.metadata.annotations.get("annotation-key") == "annotation-value"
 
-    def test_run_with_security_context(self, db: Session, client: TestClient):
+    def test_run_with_security_context(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         self.execute_function(runtime)
@@ -312,7 +308,7 @@ class TestKubejobRuntime(TestRuntimeBase):
             in str(exc.value)
         )
 
-    def test_run_with_mounts(self, db: Session, client: TestClient):
+    def test_run_with_mounts(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         # Mount v3io - Set the env variable, so auto_mount() will pick it up and mount v3io
@@ -447,7 +443,7 @@ class TestKubejobRuntime(TestRuntimeBase):
     #         "vault-secret", self.vault_secret_name, 420, vault_url
     #     )
 
-    def test_run_with_code(self, db: Session, client: TestClient):
+    def test_run_with_code(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         expected_code = """
@@ -467,7 +463,7 @@ def my_func(context):
             ],
         )
 
-    def test_set_env(self, db: Session, client: TestClient):
+    def test_set_env(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         env = {"MLRUN_LOG_LEVEL": "DEBUG", "IMAGE_HEIGHT": "128"}
         for env_variable in env:
@@ -481,7 +477,7 @@ def my_func(context):
         self.execute_function(runtime)
         self._assert_pod_creation_config(expected_env=env2)
 
-    def test_run_with_code_with_file(self, db: Session, client: TestClient):
+    def test_run_with_code_with_file(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
 
         runtime.with_code(from_file=self.code_filename)
@@ -510,7 +506,7 @@ def my_func(context):
             runtime.with_code()
         assert "please specify" in str(excinfo.value)
 
-    def test_run_with_args(self, db: Session, client: TestClient):
+    def test_run_with_args(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         runtime.spec.args = ["--arg1", "value1"]
 
@@ -527,7 +523,7 @@ def my_func(context):
             ],
         )
 
-    def test_set_label(self, db: Session, client: TestClient):
+    def test_set_label(self, db: Session, k8s_secrets_mock):
         task = self._generate_task()
         task.set_label("category", "test")
         labels = {"category": "test"}
@@ -755,6 +751,7 @@ def my_func(context):
         with unittest.mock.patch(
             "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
+
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
@@ -767,7 +764,10 @@ def my_func(context):
                 if commands:
                     expected_str += "\nRUN "
                     expected_str += "\nRUN ".join(commands)
-                expected_str += f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                expected_str += (
+                    f"\nRUN python -m pip install "
+                    f"--upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
+                )
 
                 # assert that mlrun was added to the requirements file
                 if with_mlrun:
@@ -930,7 +930,13 @@ def my_func(context):
         ],
     )
     def test_resolve_workdir(
-        self, workdir, source, pull_at_runtime, target_dir, expected_workdir
+        self,
+        workdir,
+        source,
+        pull_at_runtime,
+        target_dir,
+        expected_workdir,
+        k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
         runtime.with_source_archive(
@@ -954,6 +960,52 @@ def my_func(context):
             "or set 'pull_at_runtime' to True to pull the source at runtime."
             in str(e.value)
         )
+
+    @pytest.mark.parametrize(
+        "mode, command, args, params, expected_command, expected_args",
+        [
+            ("pass", None, None, None, None, []),
+            ("pass", "echo", ["1"], None, ["echo"], ["1"]),
+            (
+                "pass",
+                "echo {param_1}",
+                ["1"],
+                {"param_1": "param"},
+                ["echo param"],
+                ["1"],
+            ),
+            (
+                "",
+                "echo {param_1}",
+                ["1"],
+                {"param_1": "param"},
+                ["mlrun"],
+                ["run", "--name", "test-function", "--from-env", "echo {param_1}", "1"],
+            ),
+        ],
+    )
+    def test_run_mode(
+        self,
+        db: Session,
+        k8s_secrets_mock,
+        mode,
+        command,
+        args,
+        params,
+        expected_command,
+        expected_args,
+    ):
+        runtime = self._generate_runtime()
+        runtime.spec.mode = mode
+        runtime.spec.command = command
+        runtime.spec.args = args
+
+        self.execute_function(runtime, params=params)
+
+        pod = self._get_pod_creation_args()
+        container_spec = pod.spec.containers[0]
+        assert container_spec.command == expected_command
+        assert container_spec.args == expected_args
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

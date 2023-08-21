@@ -48,6 +48,7 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     BackgroundTask,
+    DatastoreProfile,
     DataVersion,
     Entity,
     Feature,
@@ -109,7 +110,6 @@ def retry_on_conflict(function):
             try:
                 return function(*args, **kwargs)
             except Exception as exc:
-
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
@@ -139,11 +139,8 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __init__(self, dsn):
+    def __init__(self, dsn=""):
         self.dsn = dsn
-        self._cache = {
-            "project_resources_counters": {"value": None, "ttl": datetime.min}
-        }
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
@@ -1101,7 +1098,6 @@ class SQLDB(DBInterface):
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
-
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
 
@@ -1174,6 +1170,7 @@ class SQLDB(DBInterface):
 
         return results
 
+    @retry_on_conflict
     def store_schedule(
         self,
         session: Session,
@@ -1186,24 +1183,23 @@ class SQLDB(DBInterface):
         last_run_uri: str = None,
         concurrency_limit: int = None,
         next_run_time: datetime = None,
-    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
-        schedule = self.get_schedule(
+    ) -> typing.Tuple[mlrun.common.schemas.ScheduleRecord, bool]:
+        schedule = self._get_schedule_record(
             session=session, project=project, name=name, raise_on_not_found=False
         )
-        schedule_exist = schedule is not None
+        is_update = schedule is not None
 
-        if not schedule_exist:
-            schedule = Schedule(
+        if not is_update:
+            schedule = self._create_schedule_db_record(
                 project=project,
                 name=name,
-                kind=kind.value,
-                creation_time=datetime.now(timezone.utc),
-                concurrency_limit=concurrency_limit,
-                next_run_time=next_run_time,
+                kind=kind,
                 scheduled_object=scheduled_object,
                 cron_trigger=cron_trigger,
+                concurrency_limit=concurrency_limit,
+                labels=labels,
+                next_run_time=next_run_time,
             )
-            labels = labels or {}
 
         self._update_schedule_body(
             schedule=schedule,
@@ -1217,19 +1213,19 @@ class SQLDB(DBInterface):
 
         logger.debug(
             "Storing schedule to db",
-            project=project,
-            name=name,
-            kind=kind,
-            cron_trigger=cron_trigger,
-            labels=labels,
-            concurrency_limit=concurrency_limit,
-            scheduled_object=scheduled_object,
+            project=schedule.project,
+            name=schedule.name,
+            kind=schedule.kind,
+            cron_trigger=schedule.cron_trigger,
+            labels=schedule.labels,
+            concurrency_limit=schedule.concurrency_limit,
+            scheduled_object=schedule.scheduled_object,
         )
 
         self._upsert(session, [schedule])
 
-        if schedule_exist:
-            return schedule
+        schedule = self._transform_schedule_record_to_scheme(schedule)
+        return schedule, is_update
 
     def create_schedule(
         self,
@@ -1242,7 +1238,45 @@ class SQLDB(DBInterface):
         concurrency_limit: int,
         labels: Dict = None,
         next_run_time: datetime = None,
-    ):
+    ) -> mlrun.common.schemas.ScheduleRecord:
+        schedule_record = self._create_schedule_db_record(
+            project=project,
+            name=name,
+            kind=kind,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            concurrency_limit=concurrency_limit,
+            labels=labels,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Saving schedule to db",
+            project=schedule_record.project,
+            name=schedule_record.name,
+            kind=schedule_record.kind,
+            cron_trigger=schedule_record.cron_trigger,
+            concurrency_limit=schedule_record.concurrency_limit,
+            next_run_time=schedule_record.next_run_time,
+        )
+        self._upsert(session, [schedule_record])
+
+        schedule = self._transform_schedule_record_to_scheme(schedule_record)
+        return schedule
+
+    @staticmethod
+    def _create_schedule_db_record(
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds,
+        scheduled_object: Any,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
+        concurrency_limit: int,
+        labels: Dict = None,
+        next_run_time: datetime = None,
+    ) -> Schedule:
+        if concurrency_limit is None:
+            concurrency_limit = config.httpdb.scheduling.default_concurrency_limit
         if next_run_time is not None:
             # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
             # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
@@ -1261,19 +1295,8 @@ class SQLDB(DBInterface):
             cron_trigger=cron_trigger,
         )
 
-        labels = labels or {}
-        update_labels(schedule, labels)
-
-        logger.debug(
-            "Saving schedule to db",
-            project=project,
-            name=name,
-            kind=kind,
-            cron_trigger=cron_trigger,
-            concurrency_limit=concurrency_limit,
-            next_run_time=next_run_time,
-        )
-        self._upsert(session, [schedule])
+        update_labels(schedule, labels or {})
+        return schedule
 
     def update_schedule(
         self,
@@ -1312,7 +1335,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _update_schedule_body(
-        schedule: mlrun.common.schemas.ScheduleRecord,
+        schedule: Schedule,
         scheduled_object: Any = None,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
         labels: Dict = None,
@@ -1376,7 +1399,7 @@ class SQLDB(DBInterface):
 
     def _get_schedule_record(
         self, session: Session, project: str, name: str, raise_on_not_found: bool = True
-    ) -> mlrun.common.schemas.ScheduleRecord:
+    ) -> Schedule:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
         if not schedule_record and raise_on_not_found:
@@ -1889,6 +1912,7 @@ class SQLDB(DBInterface):
         self._delete_feature_sets(session, name)
         self._delete_feature_vectors(session, name)
         self._delete_background_tasks(session, project=name)
+        self.delete_datastore_profiles(session, project=name)
 
         # resources deletion should remove their tags and labels as well, but doing another try in case there are
         # orphan resources
@@ -2186,7 +2210,6 @@ class SQLDB(DBInterface):
         partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
     ):
-
         partition_field = partition_by.to_partition_by_db_field(cls)
         sort_by_field = partition_sort_by.to_db_field(cls)
 
@@ -2454,7 +2477,6 @@ class SQLDB(DBInterface):
             if uid == existing_feature_set.uid or always_overwrite:
                 db_feature_set = existing_feature_set
             else:
-
                 # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
                 # was found - Check If an object with the same computed uid but different tag already exists
                 # and re-tag it.
@@ -2784,7 +2806,6 @@ class SQLDB(DBInterface):
             if uid == existing_feature_vector.uid or always_overwrite:
                 db_feature_vector = existing_feature_vector
             else:
-
                 # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
                 # was found - Check If an object with the same computed uid but different tag already exists
                 # and re-tag it.
@@ -3579,12 +3600,20 @@ class SQLDB(DBInterface):
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
-        source_record = self._query(session, HubSource, name=name).one_or_none()
+    def get_hub_source(
+        self, session, name=None, index=None, raise_on_not_found=True
+    ) -> typing.Optional[mlrun.common.schemas.IndexedHubSource]:
+        source_record = self._query(
+            session, HubSource, name=name, index=index
+        ).one_or_none()
         if not source_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Hub source not found. name = {name}"
-            )
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = f"Hub source not found. name = {name}"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+
+            return None
 
         return self._transform_hub_source_record_to_schema(source_record)
 
@@ -3832,7 +3861,6 @@ class SQLDB(DBInterface):
         run_uid: str,
         project: str = "",
     ) -> typing.List[mlrun.model.Notification]:
-
         # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
         run = self._get_run(session, run_uid, project, 0)
         if not run:
@@ -3855,7 +3883,6 @@ class SQLDB(DBInterface):
     ):
         run_id = None
         if run_uid:
-
             # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
             run = self._get_run(session, run_uid, project, 0)
             if not run:
@@ -3916,3 +3943,113 @@ class SQLDB(DBInterface):
                 project=project,
             )
         self._commit(session, [run], ignore=True)
+
+    @staticmethod
+    def _transform_datastore_profile_model_to_schema(
+        db_object,
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        return mlrun.common.schemas.DatastoreProfile(
+            name=db_object.name,
+            type=db_object.type,
+            object=db_object.full_object,
+            project=db_object.project,
+        )
+
+    def store_datastore_profile(
+        self, session, info: mlrun.common.schemas.DatastoreProfile
+    ):
+        """
+        Create or replace a datastore profile.
+        :param session: SQLAlchemy session
+        :param info: datastore profile
+        :returns: None
+        """
+        info.project = info.project or config.default_project
+        profile = self._query(
+            session, DatastoreProfile, name=info.name, project=info.project
+        ).one_or_none()
+        if profile:
+            profile.type = info.type
+            profile.full_object = info.object
+            self._commit(session, [profile])
+        else:
+            profile = DatastoreProfile(
+                name=info.name,
+                type=info.type,
+                project=info.project,
+                full_object=info.object,
+            )
+            self._upsert(session, [profile])
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        """
+        get a datastore profile.
+        :param session: SQLAlchemy session
+        :param profile: name of the profile
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            return self._transform_datastore_profile_model_to_schema(res.first())
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        project = project or config.default_project
+        res = self._query(session, DatastoreProfile, name=profile, project=project)
+        if res.first():
+            session.delete(res.first())
+            session.commit()
+        else:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Datastore profile '{profile}' not found in project '{project}'"
+            )
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        list all datastore profiles for a project.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: List of DatatoreProfile objects (only the public portion of it)
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        return [
+            self._transform_datastore_profile_model_to_schema(query)
+            for query in query_results
+        ]
+
+    def delete_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ):
+        """
+        Delete all datastore profiles.
+        :param session: SQLAlchemy session
+        :param project: Name of the project
+        :returns: None
+        """
+        project = project or config.default_project
+        query_results = self._query(session, DatastoreProfile, project=project)
+        for profile in query_results:
+            session.delete(profile)
+        session.commit()

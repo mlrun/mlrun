@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.api.api.utils
 import mlrun.api.main
+import mlrun.api.rundb.sqldb
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.api.utils.clients.iguazio

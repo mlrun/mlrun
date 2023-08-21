@@ -22,6 +22,7 @@ from mlrun.api.api.endpoints import (
     background_tasks,
     client_spec,
     clusterization_spec,
+    datastore_profile,
     feature_store,
     files,
     frontend_spec,
@@ -30,6 +31,7 @@ from mlrun.api.api.endpoints import (
     healthz,
     hub,
     internal,
+    jobs,
     logs,
     model_endpoints,
     operations,
@@ -125,6 +127,9 @@ api_router.include_router(
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
+
+api_router.include_router(jobs.router, tags=["jobs"])
+
 api_router.include_router(
     hub.router,
     tags=["hub"],
@@ -149,5 +154,10 @@ api_router.include_router(
 api_router.include_router(
     workflows.router,
     tags=["workflows"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    datastore_profile.router,
+    tags=["datastores"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

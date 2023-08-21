@@ -14,5 +14,34 @@
 
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+from dependency_injector import containers, providers
+
+from mlrun.config import config
+
+from .. import MPIJobCRDVersions
 from .v1 import MpiRuntimeV1
 from .v1alpha1 import MpiRuntimeV1Alpha1
+
+
+def _resolve_mpijob_crd_version():
+    # config is expected to get enriched from the API through the client-spec
+    return config.mpijob_crd_version or MPIJobCRDVersions.default()
+
+
+class MpiRuntimeContainer(containers.DeclarativeContainer):
+    resolver = providers.Callable(
+        _resolve_mpijob_crd_version,
+    )
+
+    selector = providers.Selector(
+        resolver,
+        v1=providers.Object(MpiRuntimeV1),
+        v1alpha1=providers.Object(MpiRuntimeV1Alpha1),
+    )
+
+    # An empty selector to be overriden by the API
+    handler_selector = providers.Selector(
+        resolver,
+        v1=providers.Object(None),
+        v1alpha1=providers.Object(None),
+    )

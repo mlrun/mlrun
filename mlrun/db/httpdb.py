@@ -36,6 +36,7 @@ from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -337,10 +338,6 @@ class HTTPRunDB(RunDBInterface):
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
             )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
-            )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"
             )
@@ -398,7 +395,6 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = server_cfg.get("hub_url") or config.hub_url
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
@@ -443,6 +439,18 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.model_endpoint_monitoring.endpoint_store_connection = (
+                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
+                or config.model_endpoint_monitoring.endpoint_store_connection
+            )
+            config.packagers = server_cfg.get("packagers") or config.packagers
+            server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
+            for prefix in ["default", "nosql", "redisnosql"]:
+                server_prefix_value = server_data_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.feature_store.data_prefixes, prefix, server_prefix_value
+                    )
 
         except Exception as exc:
             logger.warning(
@@ -1263,10 +1271,13 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
+        :param function: The function object to start, not needed here.
         :returns: A BackgroundTask object, with details on execution process and its status.
         """
 
@@ -1311,13 +1322,13 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, project, name, kind, selector):
+    def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
-        :param project: The project of the function
-        :param name: The name of the function
-        :param kind: The kind of the function, currently ``dask`` is supported.
-        :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
+        :param project:     The project of the function
+        :param name:        The name of the function
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
@@ -1665,7 +1676,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-
         partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
@@ -2178,7 +2188,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-
             # projects is just a list of strings
             return response.json()["projects"]
 
@@ -2813,6 +2822,35 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
+    def deploy_monitoring_batch_job(
+        self,
+        project: str = "",
+        default_batch_image: str = "mlrun/mlrun",
+        with_schedule: bool = False,
+    ):
+        """
+        Submit model monitoring batch job. By default, submit only the batch job as ML function without scheduling.
+        To submit a scheduled job as well, please set with_schedule = True.
+
+        :param project:             Project name.
+        :param default_batch_image: The default image of the model monitoring batch job. By default, the image
+                                    is mlrun/mlrun.
+        :param with_schedule:       If true, submit the model monitoring scheduled job as well.
+
+
+        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_batch_image": default_batch_image,
+            "with_schedule": with_schedule,
+        }
+        path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
@@ -2836,7 +2874,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedHubeSource(
+            private_source = mlrun.common.schemas.IndexedHubSource(
                 order=-1,
                 source=mlrun.common.schemas.HubSource(
                     metadata=mlrun.common.schemas.HubObjectMetadata(
@@ -2896,12 +2934,30 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="PUT", path=path, json=source)
         return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
+
+        :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
+        :param tag:         Item tag to filter by, supported only if item name is provided.
+        :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+
+        :returns: List of indexed hub sources.
         """
         path = "hub/sources"
-        response = self.api_call(method="GET", path=path).json()
+        params = {}
+        if item_name:
+            params["item-name"] = normalize_name(item_name)
+        if tag:
+            params["tag"] = tag
+        if version:
+            params["version"] = version
+        response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:
             results.append(mlrun.common.schemas.IndexedHubSource(**item))
@@ -2950,7 +3006,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
-        path = (f"hub/sources/{source_name}/items",)
+        path = f"hub/sources/{source_name}/items"
         params = {
             "version": version,
             "tag": tag,
@@ -3007,7 +3063,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -3239,6 +3295,41 @@ class HTTPRunDB(RunDBInterface):
                 self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
 
         return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["object"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profiles(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        self.api_call(method="PUT", path=path, json=profile.dict())
 
 
 def _as_json(obj):

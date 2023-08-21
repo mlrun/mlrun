@@ -232,7 +232,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
 
     def test_deploy_default_image_without_limits(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
@@ -241,15 +241,13 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
-    def test_run_without_runspec(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
+    def test_run_without_runspec(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
     def test_run_without_required_resources(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -259,7 +257,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         assert exc.value.args[0] == "Sparkjob must contain executor requests"
 
     def test_run_with_limits_and_requests(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -295,7 +293,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_limits_and_requests_patch_true(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -333,7 +331,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_limits_and_requests_patch_false(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -373,7 +371,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_host_path_volume(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         shared_volume = kubernetes.client.V1Volume(
@@ -439,9 +437,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             ],
         )
 
-    def test_java_options(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
+    def test_java_options(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         driver_java_options = "-Dmyproperty=somevalue"
         runtime.spec.driver_java_options = driver_java_options
@@ -470,7 +466,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         driver_cores,
         expect_failure,
         db: sqlalchemy.orm.Session,
-        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
         if expect_failure:
@@ -497,7 +493,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         mount_v3io_to_executor,
         with_igz_spark_twice,
         db: sqlalchemy.orm.Session,
-        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
 
@@ -564,7 +560,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_deploy_with_image_pull_secret(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
 
         # no image pull secret
@@ -588,7 +584,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_image_pull_secret(new_image_pull_secret)
 
     def test_get_offline_features(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
         #   once moved, the `watch=False` can be removed
@@ -598,6 +597,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         fv.save = unittest.mock.Mock()
 
         runtime = self._generate_runtime()
+        # auto mount requires auth info but this test is supposed to run in the client
+        # re-enable when test is moved
+        runtime.spec.disable_auto_mount = True
         runtime.with_igz_spark = unittest.mock.Mock()
 
         self._reset_mocks()
@@ -704,7 +706,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_load_source_on_run(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         # set default output path
         mlrun.mlconf.artifact_path = "v3io:///tmp"
@@ -716,7 +718,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
-            runtime.run()
+            runtime.run(auth_info=mlrun.common.schemas.AuthInfo())
 
         assert (
             str(exc.value) == "Sparkjob does not support loading source code on run, "

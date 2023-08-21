@@ -55,6 +55,7 @@ from .runtimes import (
     Spark3Runtime,
     get_runtime_class,
 )
+from .runtimes.databricks.databricks import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
@@ -419,7 +420,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
         if upload_artifacts:
-            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path = mlrun.utils.helpers.fill_project_path_template(
                 mlconf.artifact_path, project or mlconf.default_project
             )
             update_in(newspec, ["spec", run_keys.output_path], artifact_path)
@@ -452,8 +453,8 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     special URLs::
 
-        function hub: hub://{name}[:{tag}]
-        local mlrun db:       db://{project-name}/{name}[:{tag}]
+        function hub:       hub://[{source}/]{name}[:{tag}]
+        local mlrun db:     db://{project-name}/{name}[:{tag}]
 
     examples::
 
@@ -577,10 +578,10 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, "args" mode will push params into command template, example:
-                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
-                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
-                      `{}` for parameters like in the "args" mode
+    :param mode:     runtime mode:
+            * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
+                     params substitutions like {xparam} and will be replaced with the value of the xparam param
+                     if a command is not specified, then image entrypoint shall be used.
     :param handler:  The default function handler to call for the job or nuclio function, in batch functions
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
@@ -613,7 +614,7 @@ def new_function(
         else:
             supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
-                f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
+                f"Unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
 
     if not name:
@@ -713,6 +714,7 @@ def code_to_function(
     LocalRuntime,
     Spark3Runtime,
     RemoteSparkRuntime,
+    DatabricksRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 
@@ -847,6 +849,9 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
+    if kind == RuntimeKinds.databricks and not embed_code:
+        raise ValueError("databricks tasks only support embed_code=True")
+
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
@@ -860,7 +865,7 @@ def code_to_function(
     spec["spec"]["env"].append(
         {
             "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
-            "value": mlrun.mlconf.is_explicit_ack(),
+            "value": mlrun.mlconf.httpdb.nuclio.explicit_ack,
         }
     )
     spec_kind = get_in(spec, "kind", "")
@@ -930,6 +935,8 @@ def code_to_function(
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
+    build.extra_args = get_in(spec, "spec.build.extra_args")
+    build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
             r.spec.command = code_output

@@ -700,7 +700,7 @@ def test_feature_vectors(create_server):
     ), "Features didn't get updated properly"
 
 
-def test_project_file_db_roundtrip(create_server):
+def test_project_sql_db_roundtrip(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
@@ -738,7 +738,6 @@ def test_project_file_db_roundtrip(create_server):
     function_name = "trainer-function"
     function = mlrun.new_function(function_name, project_name)
     project.set_function(function, function_name)
-    project.set_function("hub://describe", "describe")
     workflow_name = "workflow-name"
     workflow_file_path = Path(tests_root_directory) / "rundb" / "workflow.py"
     project.set_workflow(workflow_name, str(workflow_file_path))

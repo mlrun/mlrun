@@ -15,8 +15,8 @@
 import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.utils.singleton
+from mlrun.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
 from mlrun.config import Config, config, default_config
-from mlrun.runtimes.utils import resolve_mpijob_crd_version
 
 
 class ClientSpec(
@@ -67,7 +67,6 @@ class ClientSpec(
                 "ui.projects_prefix"
             ),
             scrape_metrics=self._get_config_value_if_not_default("scrape_metrics"),
-            hub_url=self._get_config_value_if_not_default("hub_url"),
             default_function_node_selector=self._get_config_value_if_not_default(
                 "default_function_node_selector"
             ),
@@ -105,6 +104,10 @@ class ClientSpec(
             model_endpoint_monitoring_store_type=self._get_config_value_if_not_default(
                 "model_endpoint_monitoring.store_type"
             ),
+            model_endpoint_monitoring_endpoint_store_connection=self._get_config_value_if_not_default(
+                "model_endpoint_monitoring.endpoint_store_connection"
+            ),
+            packagers=self._get_config_value_if_not_default("packagers"),
         )
 
     @staticmethod

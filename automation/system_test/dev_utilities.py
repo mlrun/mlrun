@@ -171,7 +171,7 @@ def install_redisinsight(ipadd):
             "--namespace",
             "devtools",
         ]
-        subprocess.run(cmd.split(), check=True)
+        subprocess.run(cmd, check=True)
         # run patch cmd
         fqdn = get_ingress_controller_version()
         full_domain = "redisinsight" + fqdn

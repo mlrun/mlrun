@@ -301,6 +301,24 @@ class Member(
         :param full_sync: when set to true, in addition to syncing project creation/updates from the leader, we will
         also sync deletions that may occur without updating us the follower
         """
+        db_session = mlrun.api.db.session.create_session()
+
+        try:
+            leader_projects, latest_updated_at = self._list_projects_from_leader()
+            db_projects = mlrun.api.crud.Projects().list_projects(db_session)
+
+            self._store_projects_from_leader(db_session, db_projects, leader_projects)
+
+            if full_sync:
+                self._archive_projects_missing_from_leader(
+                    db_session, db_projects, leader_projects
+                )
+
+            self._update_latest_synced_datetime(latest_updated_at)
+        finally:
+            mlrun.api.db.session.close_session(db_session)
+
+    def _list_projects_from_leader(self):
         try:
             leader_projects, latest_updated_at = self._leader_client.list_projects(
                 self._sync_session, self._synced_until_datetime
@@ -312,62 +330,72 @@ class Member(
             leader_projects, latest_updated_at = self._leader_client.list_projects(
                 self._sync_session
             )
+        return leader_projects, latest_updated_at
 
-        db_session = mlrun.api.db.session.create_session()
-        try:
-            db_projects = mlrun.api.crud.Projects().list_projects(
-                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+    def _store_projects_from_leader(self, db_session, db_projects, leader_projects):
+
+        db_projects_names = [project.metadata.name for project in db_projects.projects]
+
+        # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
+        filtered_projects = []
+        for leader_project in leader_projects:
+            if (
+                leader_project.status.state
+                not in mlrun.common.schemas.ProjectState.terminal_states()
+                and leader_project.metadata.name not in db_projects_names
+            ):
+                continue
+            filtered_projects.append(leader_project)
+
+        for project in filtered_projects:
+            # if a project was previously archived, it's state will be overriden by the leader
+            # and returned to normal here.
+            mlrun.api.crud.Projects().store_project(
+                db_session, project.metadata.name, project
             )
-            # Don't add projects in non terminal state if they didn't exist before to prevent race conditions
-            filtered_projects = []
-            for leader_project in leader_projects:
-                if (
-                    leader_project.status.state
-                    not in mlrun.common.schemas.ProjectState.terminal_states()
-                    and leader_project.metadata.name not in db_projects.projects
-                ):
-                    continue
-                filtered_projects.append(leader_project)
 
-            for project in filtered_projects:
-                mlrun.api.crud.Projects().store_project(
-                    db_session, project.metadata.name, project
-                )
-            if full_sync:
-                logger.info("Performing full sync")
-                leader_project_names = [
-                    project.metadata.name for project in leader_projects
-                ]
-                projects_to_remove = list(
-                    set(db_projects.projects).difference(leader_project_names)
-                )
-                for project_to_remove in projects_to_remove:
-                    logger.info(
-                        "Found project in the DB that is not in leader. Removing",
-                        name=project_to_remove,
-                    )
-                    try:
-                        mlrun.api.crud.Projects().delete_project(
-                            db_session,
-                            project_to_remove,
-                            mlrun.common.schemas.DeletionStrategy.cascading,
-                        )
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to delete project from DB, continuing...",
-                            name=project_to_remove,
-                            exc=err_to_str(exc),
-                        )
-            if latest_updated_at:
+    def _archive_projects_missing_from_leader(
+        self, db_session, db_projects, leader_projects
+    ):
+        logger.info("Performing full sync")
+        leader_project_names = [project.metadata.name for project in leader_projects]
+        projects_to_archive = {
+            project.metadata.name: project for project in db_projects.projects
+        }
+        for project_name in leader_project_names:
+            if project_name in projects_to_archive:
+                del projects_to_archive[project_name]
 
-                # sanity and defensive programming - if the leader returned a latest_updated_at that is older
-                # than the epoch, we'll set it to the epoch
-                epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
-                if latest_updated_at < epoch:
-                    latest_updated_at = epoch
-                self._synced_until_datetime = latest_updated_at
-        finally:
-            mlrun.api.db.session.close_session(db_session)
+        for project_to_archive in projects_to_archive:
+            logger.info(
+                "Found project in the DB that is not in leader. Archiving...",
+                name=project_to_archive,
+            )
+            try:
+                projects_to_archive[
+                    project_to_archive
+                ].status.state = mlrun.common.schemas.ProjectState.archived
+                mlrun.api.crud.Projects().patch_project(
+                    db_session,
+                    project_to_archive,
+                    projects_to_archive[project_to_archive].dict(),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to archive project from DB, continuing...",
+                    name=project_to_archive,
+                    exc=err_to_str(exc),
+                )
+
+    def _update_latest_synced_datetime(self, latest_updated_at):
+        if latest_updated_at:
+
+            # sanity and defensive programming - if the leader returned a latest_updated_at that is older
+            # than the epoch, we'll set it to the epoch
+            epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))
+            if latest_updated_at < epoch:
+                latest_updated_at = epoch
+            self._synced_until_datetime = latest_updated_at
 
     def _is_request_from_leader(
         self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]

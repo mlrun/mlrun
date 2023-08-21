@@ -36,6 +36,7 @@ class SecretsClientType(str, enum.Enum):
     service_accounts = "service-accounts"
     hub = "hub"
     notifications = "notifications"
+    datastore_profiles = "datastore-profiles"
 
 
 class Secrets(

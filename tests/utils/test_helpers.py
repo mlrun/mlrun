@@ -29,7 +29,7 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
-    fill_artifact_path_template,
+    fill_project_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
@@ -159,35 +159,30 @@ def test_spark_job_name_regex(value, expected):
         },
         {
             "input_uri": "hub://function_name",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
+            "expected_output": "function_name/latest/src/function.yaml",
         },
         {
-            "input_uri": "hub://function_name:development",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
-            "ml",
+            "input_uri": "hub://function_name:1.2.3",
+            "expected_output": "function_name/1.2.3/src/function.yaml",
         },
         {
-            "input_uri": "hub://function-name",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/master/function_name/function.yaml",
+            "input_uri": "hub://default/function-name",
+            "expected_output": "function_name/latest/src/function.yaml",
         },
         {
-            "input_uri": "hub://function-name:development",
-            "expected_output": "https://raw.githubusercontent.com/mlrun/functions/development/function_name/function.ya"
-            "ml",
+            "input_uri": "hub://default/function-name:3.4.5",
+            "expected_output": "function_name/3.4.5/src/function.yaml",
         },
     ],
 )
-def test_extend_hub_uri(case):
-    hub_urls = [
-        "https://raw.githubusercontent.com/mlrun/functions/{tag}/{name}/function.yaml",
-        "https://raw.githubusercontent.com/mlrun/functions",
-    ]
-    for hub_url in hub_urls:
-        mlrun.mlconf.hub_url = hub_url
-        input_uri = case["input_uri"]
-        expected_output = case["expected_output"]
-        output, _ = extend_hub_uri_if_needed(input_uri)
-        assert expected_output == output
+def test_extend_hub_uri(rundb_mock, case):
+    hub_url = mlrun.mlconf.get_default_hub_source()
+    input_uri = case["input_uri"]
+    expected_output = case["expected_output"]
+    output, is_hub_url = extend_hub_uri_if_needed(input_uri)
+    if is_hub_url:
+        expected_output = hub_url + expected_output
+    assert expected_output == output
 
 
 @pytest.mark.parametrize(
@@ -709,12 +704,12 @@ def test_parse_store_uri(uri, expected_output):
         },
     ],
 )
-def test_fill_artifact_path_template(case):
+def test_fill_project_path_template(case):
     if case.get("raise"):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fill_artifact_path_template(case["artifact_path"], case.get("project"))
+            fill_project_path_template(case["artifact_path"], case.get("project"))
     else:
-        filled_artifact_path = fill_artifact_path_template(
+        filled_artifact_path = fill_project_path_template(
             case["artifact_path"], case.get("project")
         )
         assert case["expected_artifact_path"] == filled_artifact_path

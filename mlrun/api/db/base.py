@@ -582,7 +582,9 @@ class DBInterface(ABC):
     def delete_hub_source(self, session, name):
         pass
 
-    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
+    def get_hub_source(
+        self, session, name=None, index=None
+    ) -> mlrun.common.schemas.IndexedHubSource:
         pass
 
     def store_background_task(
@@ -637,4 +639,34 @@ class DBInterface(ABC):
         identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
         **kwargs,
     ):
+        pass
+
+    def store_datastore_profile(
+        self,
+        session,
+        profile: mlrun.common.schemas.DatastoreProfile,
+    ) -> str:
+        pass
+
+    def get_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(
+        self,
+        session,
+        profile: str,
+        project: str,
+    ):
+        pass
+
+    def list_datastore_profiles(
+        self,
+        session,
+        project: str,
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

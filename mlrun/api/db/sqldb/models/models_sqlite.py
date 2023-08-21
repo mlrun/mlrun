@@ -478,6 +478,28 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.version}"
 
+    class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "datastore_profiles"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
+        )
+
+        id = Column(Integer, primary_key=True, autoincrement=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        type = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        _full_object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]

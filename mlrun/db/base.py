@@ -565,7 +565,12 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     @abstractmethod
@@ -632,4 +637,32 @@ class RunDBInterface(ABC):
         pass
 
     def watch_log(self, uid, project="", watch=True, offset=0):
+        pass
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(
+        self, name: str, project: str
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        pass
+
+    def list_datastore_profiles(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        pass
+
+    def function_status(self, project, name, kind, selector):
+        pass
+
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ):
         pass

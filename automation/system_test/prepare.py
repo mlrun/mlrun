@@ -118,7 +118,7 @@ class SystemTestPreparer:
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
         self._purge_db = purge_db
-        self._ssh_client = None
+        self._ssh_client: typing.Optional[paramiko.SSHClient] = None
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -206,6 +206,10 @@ class SystemTestPreparer:
         suppress_error_strings = suppress_error_strings or []
 
         log_command_location = "locally" if local else "on data cluster"
+
+        # ssh session might not be active if the command reran due retry mechanism on a connection failure
+        if not local:
+            self._ensure_ssh_session_active()
 
         if verbose:
             self._logger.log(
@@ -475,20 +479,26 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
+        suppress_error_strings: list = None,
     ):
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
         while not finished and retries < max_retries:
             try:
-                self._run_command(command, verbose=False)
+                self._run_command(
+                    command,
+                    verbose=False,
+                    suppress_error_strings=suppress_error_strings,
+                )
                 finished = True
 
-            except Exception:
+            except Exception as exc:
                 self._logger.log(
                     "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
                     retry_number=retries,
+                    exc=exc,
                 )
                 retries += 1
                 time.sleep(interval)
@@ -624,17 +634,22 @@ class SystemTestPreparer:
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
 
-        self._run_kubectl_command(
-            args=[
-                "exec",
-                "-n",
-                self.Constants.namespace,
-                "-it",
-                mlrun_db_pod_name_cmd,
-                "--",
-                drop_db_cmd,
-            ],
-            verbose=False,
+        args = [
+            "kubectl",
+            "exec",
+            "-n",
+            self.Constants.namespace,
+            "-it",
+            mlrun_db_pod_name_cmd,
+            "--",
+            drop_db_cmd,
+        ]
+        command = " ".join(args)
+        self._run_and_wait_until_successful(
+            command,
+            command_name="delete mlrun db",
+            max_retries=5,
+            interval=10,
             suppress_error_strings=["database doesn\\'t exist"],
         )
 
@@ -753,6 +768,30 @@ class SystemTestPreparer:
             )
 
         return json.loads(out or "{}")
+
+    def _ensure_ssh_session_active(self):
+        self._logger.log("info", "Ensuring ssh session is active")
+        try:
+            self._ssh_client.exec_command("ls > /dev/null")
+        except Exception as exc:
+            exc_msg = str(exc)
+            self._logger.log("warning", "Failed to execute command", exc=exc_msg)
+            if any(
+                map(
+                    lambda err_msg: err_msg.lower() in exc_msg.lower(),
+                    [
+                        "No existing session",
+                        "session not active",
+                        "Unable to connect to",
+                    ],
+                )
+            ):
+                self._logger.log("info", "Reconnecting to remote")
+                self.connect_to_remote()
+                self._logger.log("info", "Reconnected to remote")
+                return
+            raise
+        self._logger.log("info", "SSH session is active")
 
 
 @click.group()

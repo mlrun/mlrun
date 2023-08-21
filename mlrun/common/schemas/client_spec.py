@@ -40,7 +40,6 @@ class ClientSpec(pydantic.BaseModel):
     nuclio_version: typing.Optional[str]
     ui_projects_prefix: typing.Optional[str]
     scrape_metrics: typing.Optional[str]
-    hub_url: typing.Optional[str]
     default_function_node_selector: typing.Optional[str]
     igz_version: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
@@ -58,6 +57,7 @@ class ClientSpec(pydantic.BaseModel):
     redis_type: typing.Optional[str]
     sql_url: typing.Optional[str]
     model_endpoint_monitoring_store_type: typing.Optional[str]
+    model_endpoint_monitoring_endpoint_store_connection: typing.Optional[str]
     # ce_mode is deprecated, we will use the full ce config instead and ce_mode will be removed in 1.6.0
     ce_mode: typing.Optional[str]
     ce: typing.Optional[dict]
@@ -65,3 +65,4 @@ class ClientSpec(pydantic.BaseModel):
     calculate_artifact_hash: typing.Optional[str]
     generate_artifact_target_path_from_artifact_hash: typing.Optional[str]
     logs: typing.Optional[dict]
+    packagers: typing.Optional[dict]

@@ -112,6 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
+        builder_env=None,
+        extra_args=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -128,30 +130,34 @@ class KubejobRuntime(KubeResource):
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: a list of packages to install
         :param requirements_file: requirements file to install
-        :param overwrite:  overwrite existing build configuration
-
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
+        :param overwrite:  overwrite existing build configuration (currently applies to requirements and commands)
+           * False: the new params are merged with the existing
            * True: the existing params are replaced by the new ones
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
+            e.g. builder_env={"GIT_TOKEN": token}
         """
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
-            image,
-            base_image,
-            commands,
-            secret,
-            source,
-            extra,
-            load_source_on_run,
-            with_mlrun,
-            auto_build,
-            requirements,
-            requirements_file,
-            overwrite,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret,
+            source=source,
+            extra=extra,
+            load_source_on_run=load_source_on_run,
+            with_mlrun=with_mlrun,
+            auto_build=auto_build,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=overwrite,
+            builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         if verify_base_image or prepare_image_for_deploy:
@@ -371,7 +377,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
-        command=[command],
+        command=[command] if command else None,
         args=args,
         working_dir=workdir,
         image_pull_policy=runtime.spec.image_pull_policy,

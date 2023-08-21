@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import random
+
 import deepdiff
+import pytest
 
 import mlrun
+import mlrun.common.schemas
 import tests.integration.sdk_api.base
 
 
@@ -84,3 +88,27 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
         db.delete_hub_source("source-1")
         new_source_2.index = 1
         self._assert_source_lists_match([new_source_2, default_source])
+
+    def test_import_function_from_hub(self):
+        hub_prefix = "hub://"
+        source_name = mlrun.mlconf.hub.default_source.name
+        db = mlrun.get_run_db()
+        catalog = db.get_hub_catalog(source_name)
+        item = random.choice(catalog.catalog)
+        tag = item.metadata.tag
+        name = item.metadata.name
+        # plain option
+        fn = mlrun.import_function(hub_prefix + name)
+        assert fn.metadata.name == name
+        # source option
+        fn = mlrun.import_function(hub_prefix + source_name + "/" + name)
+        assert fn.metadata.name == name
+        # source and tag option
+        fn = mlrun.import_function(hub_prefix + source_name + "/" + name + ":" + tag)
+        assert fn.metadata.name == name
+        # tag option
+        fn = mlrun.import_function(hub_prefix + name + ":" + tag)
+        assert fn.metadata.name == name
+        # not existed option
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            mlrun.import_function(hub_prefix + source_name + "-not" + "/" + name)

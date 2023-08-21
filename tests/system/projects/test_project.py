@@ -300,7 +300,6 @@ class TestProject(TestMLRunSystem):
             "-w",
             "-p",
             f"v3io:///projects/{name}",
-            "--ensure-project",
             project_dir,
         ]
         out = exec_project(args)
@@ -1174,6 +1173,7 @@ class TestProject(TestMLRunSystem):
 
     def test_load_project_remotely_with_secrets_failed(self):
         name = "failed-to-load"
+        self.custom_project_names_to_delete.append(name)
         db = self._run_db
         state = db.load_project(
             name=name,

@@ -508,15 +508,19 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     PACKABLE_OBJECT_TYPE = Dict[str, np.ndarray]
 
     @classmethod
-    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
+    def is_packable(
+        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+    ) -> bool:
         """
         Check if the object provided is a dictionary of numpy arrays.
 
-        :param obj:           The object to pack.
-        :param artifact_type: The artifact type to log the object as.
+        :param obj:            The object to pack.
+        :param artifact_type:  The artifact type to log the object as.
+        :param configurations: The log hint configurations passed by the user.
 
         :return: True if packable and False otherwise.
         """
+        # Check the obj is a dictionary with string keys and arrays as values:
         if not (
             isinstance(obj, dict)
             and all(
@@ -525,16 +529,27 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
             )
         ):
             return False
+
+        # Check the artifact type is supported:
         if artifact_type and artifact_type not in cls.get_supported_artifact_types():
             return False
+
+        # Check an edge case where the dictionary is empty (this packager will pack empty dictionaries only if given
+        # specific file format, otherwise it will be packed by the `DictPackager`):
+        if not obj:
+            return (
+                configurations.get("file_format", None)
+                in NumPySupportedFormat.get_multi_array_formats()
+            )
+
         return True
 
     @classmethod
     def pack_result(cls, obj: Dict[str, np.ndarray], key: str) -> dict:
         """
-        Pack an array dictionary as a result.
+        Pack a dictionary of numpy arrays as a result.
 
-        :param obj: The array to pack and log.
+        :param obj: The arrays dictionary to pack and log.
         :param key: The result's key.
 
         :return: The result dictionary.
@@ -550,6 +565,15 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
     def unpack_file(
         cls, data_item: DataItem, file_format: str = None
     ) -> Dict[str, np.ndarray]:
+        """
+        Unpack a numppy array dictionary from file.
+
+        :param data_item:   The data item to unpack.
+        :param file_format: The file format to use for reading the arrays dictionary. Default is None - will be read by
+                            the file extension.
+
+        :return: The unpacked array.
+        """
         # Load the object:
         obj = super().unpack_file(data_item=data_item, file_format=file_format)
 
@@ -565,32 +589,64 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
     PACKABLE_OBJECT_TYPE = List[np.ndarray]
 
     @classmethod
-    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
+    def is_packable(
+        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+    ) -> bool:
         """
         Check if the object provided is a list of numpy arrays.
 
-        :param obj:           The object to pack.
-        :param artifact_type: The artifact type to log the object as.
+        :param obj:            The object to pack.
+        :param artifact_type:  The artifact type to log the object as.
+        :param configurations: The log hint configurations passed by the user.
 
         :return: True if packable and False otherwise.
         """
+        # Check the obj is a list with arrays as values:
         if not (
             isinstance(obj, list)
             and all(isinstance(value, np.ndarray) for value in obj)
         ):
             return False
+
+        # Check the artifact type is supported:
         if artifact_type and artifact_type not in cls.get_supported_artifact_types():
             return False
+
+        # Check an edge case where the list is empty (this packager will pack empty lists only if given specific file
+        # format, otherwise it will be packed by the `ListPackager`):
+        if not obj:
+            return (
+                configurations.get("file_format", None)
+                in NumPySupportedFormat.get_multi_array_formats()
+            )
+
         return True
 
     @classmethod
     def pack_result(cls, obj: List[np.ndarray], key: str) -> dict:
+        """
+        Pack a list of numpy arrays as a result.
+
+        :param obj: The arrays list to pack and log.
+        :param key: The result's key.
+
+        :return: The result dictionary.
+        """
         return {key: [array.tolist() for array in obj]}
 
     @classmethod
     def unpack_file(
         cls, data_item: DataItem, file_format: str = None
     ) -> List[np.ndarray]:
+        """
+        Unpack a numppy array list from file.
+
+        :param data_item:   The data item to unpack.
+        :param file_format: The file format to use for reading the arrays list. Default is None - will be read by the
+                            file extension.
+
+        :return: The unpacked array.
+        """
         # Load the object:
         obj = super().unpack_file(data_item=data_item, file_format=file_format)
 
@@ -609,4 +665,12 @@ class NumPyNumberPackager(DefaultPackager):
 
     @classmethod
     def pack_result(cls, obj: np.number, key: str) -> dict:
+        """
+        Pack a numpy number as a result.
+
+        :param obj: The number to pack and log.
+        :param key: The result's key.
+
+        :return: The result dictionary.
+        """
         return super().pack_result(obj=obj.item(), key=key)

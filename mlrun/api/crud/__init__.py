@@ -17,6 +17,7 @@
 from .artifacts import Artifacts
 from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec
+from .datastore_profiles import DatastoreProfiles
 from .feature_store import FeatureStore
 from .functions import Functions
 from .hub import Hub

@@ -68,15 +68,17 @@ class TestDB(TestMLRunSystem):
 
         artifacts = self._run_db.list_artifacts(project=self.project_name, tag="*")
         assert len(artifacts) == artifacts_count_before_run + 4
-        for artifact_key in ["chart", "html_result", "model", "mydf"]:
-            artifact_exists = False
-            for artifact in artifacts:
-                if artifact["metadata"]["key"] == artifact_key:
-                    artifact_exists = True
-                    break
-            assert artifact_exists
+        db_artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
+        expected_artifact_keys = sorted(
+            [
+                "plotly",
+                "html_result",
+                "model",
+                "mydf",
+            ]
+        )
+        assert sorted(db_artifact_keys) == expected_artifact_keys
 
         # Verify that ArtifactList methods process result properly
         result_keys = artifacts.to_df().to_dict(orient="list")["key"]
-        for artifact_key in ["chart", "html_result", "model", "mydf"]:
-            assert artifact_key in result_keys
+        assert sorted(result_keys) == expected_artifact_keys

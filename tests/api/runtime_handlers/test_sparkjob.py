@@ -343,8 +343,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             self.driver_pod.metadata.name,
         )
 
-    @pytest.mark.asyncio
-    async def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
+    def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
         db_instance = get_db()
         db_instance.del_run(db, self.run_uid, self.project)
 

@@ -21,11 +21,11 @@ from http import HTTPStatus
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.utils.clients.log_collector as log_collector
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.utils.singleton
-from mlrun.api.api.utils import log_and_raise, log_path, project_logs_path
 from mlrun.api.constants import LogSources
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.runtimes.constants import PodPhases
@@ -43,7 +43,7 @@ class Logs(
         append: bool = True,
     ):
         project = project or mlrun.mlconf.default_project
-        log_file = log_path(project, uid)
+        log_file = mlrun.api.api.utils.log_path(project, uid)
         log_file.parent.mkdir(parents=True, exist_ok=True)
         mode = "ab" if append else "wb"
         with log_file.open(mode) as fp:
@@ -54,7 +54,7 @@ class Logs(
         project: str,
     ):
         project = project or mlrun.mlconf.default_project
-        logs_path = project_logs_path(project)
+        logs_path = mlrun.api.api.utils.project_logs_path(project)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
@@ -172,7 +172,9 @@ class Logs(
         if not run:
             run = get_db().read_run(db_session, uid, project)
         if not run:
-            log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+            mlrun.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value, project=project, uid=uid
+            )
         if log_file_exists and source in [LogSources.AUTO, LogSources.PERSISTENCY]:
             with log_file.open("rb") as fp:
                 fp.seek(offset)
@@ -231,11 +233,13 @@ class Logs(
     async def _get_run_for_log(db_session: Session, project: str, uid: str) -> dict:
         run = await run_in_threadpool(get_db().read_run, db_session, uid, project)
         if not run:
-            log_and_raise(HTTPStatus.NOT_FOUND.value, project=project, uid=uid)
+            mlrun.api.api.utils.log_and_raise(
+                HTTPStatus.NOT_FOUND.value, project=project, uid=uid
+            )
         return run
 
     def get_log_mtime(self, project: str, uid: str) -> int:
-        log_file = log_path(project, uid)
+        log_file = mlrun.api.api.utils.log_path(project, uid)
         if not log_file.exists():
             raise FileNotFoundError(f"Log file does not exist: {log_file}")
         return log_file.stat().st_mtime
@@ -249,18 +253,18 @@ class Logs(
         :param uid: run uid
         :return: True if the log file exists, False otherwise, and the log file path
         """
-        project_logs_dir = project_logs_path(project)
+        project_logs_dir = mlrun.api.api.utils.project_logs_path(project)
         if not project_logs_dir.exists():
             return False, None
 
-        log_file = log_path(project, uid)
+        log_file = mlrun.api.api.utils.log_path(project, uid)
         if log_file.exists():
             return True, log_file
 
         return False, None
 
     def _list_project_logs_uids(self, project: str) -> typing.List[str]:
-        logs_path = project_logs_path(project)
+        logs_path = mlrun.api.api.utils.project_logs_path(project)
         return [
             file
             for file in os.listdir(str(logs_path))

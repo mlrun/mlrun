@@ -178,22 +178,6 @@ class RuntimeKinds(object):
         return False
 
     @staticmethod
-    def is_watchable(kind):
-        """
-        Returns True if the runtime kind is watchable, False otherwise.
-        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
-        is completed.
-        """
-        # "" or None counted as local
-        if not kind:
-            return False
-        return kind not in [
-            RuntimeKinds.local,
-            RuntimeKinds.handler,
-            RuntimeKinds.dask,
-        ]
-
-    @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
         Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.

@@ -232,7 +232,7 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
     services = {
         "redis": {
             "chart": "bitnami/redis",
-            "set_values": "--set master.service.nodePorts.redis=30222 --set master.service.type=NodePort",
+            "set_values": "--set master.service.nodePorts.redis=31001",
         },
         "kafka": {
             "chart": "bitnami/kafka",
@@ -240,7 +240,7 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
         },
         "mysql": {
             "chart": "bitnami/mysql",
-            "set_values": "--set primary.service.nodePorts.mysql=30223 --set primary.service.type=NodePort --set networkPolicy.enabled=true",
+            "set_values": "--set primary.service.nodePorts.mysql=31003",
         },
     }
     namespace = "devtools"
@@ -321,11 +321,9 @@ def status(redis, kafka, mysql, redisinsight, output):
         svc_password = get_svc_password(namespace, "redis", "redis-password")
         get_all_output["redis"] = status_h("redis")
         if output == "human":
-            fqdn = get_ingress_controller_version()
-            full_domain = "redis-master" + fqdn
             print_svc_info(
-                full_domain,
-                30222,
+                "redis-master-0.redis-headless.devtools.svc.cluster.local",
+                6379,
                 "default",
                 svc_password,
                 "-------",
@@ -335,12 +333,10 @@ def status(redis, kafka, mysql, redisinsight, output):
         if output == "human":
             print_svc_info("kafka", 9092, "-------", "-------", "-------")
     if mysql:
-        fqdn = get_ingress_controller_version()
-        full_domain = "mysql" + fqdn
         svc_password = get_svc_password(namespace, "mysql", "mysql-root-password")
         get_all_output["mysql"] = status_h("mysql")
         if output == "human":
-            print_svc_info(full_domain, 30223, "root", svc_password, "-------")
+            print_svc_info("mysql", 3306, "root", svc_password, "-------")
     if redisinsight:
         get_all_output["redisinsight"] = status_h("redisinsight")
         if output == "human":
@@ -359,11 +355,9 @@ def status(redis, kafka, mysql, redisinsight, output):
 def status_h(svc):
     namespace = "devtools"
     if svc == "redis":
-        fqdn = get_ingress_controller_version()
-        full_domain = "redis-master" + fqdn + ":30222"
         svc_password = get_svc_password(namespace, "redis", "redis-password")
         dict = {
-            "app_url": full_domain,
+            "app_url": "redis-master-0.redis-headless.devtools.svc.cluster.local:6379",
             "username": "default",
             "password": svc_password,
         }
@@ -372,11 +366,9 @@ def status_h(svc):
         dict = {"app_url": "kafka-0.kafka-headless.devtools.svc.cluster.local:9092"}
         return dict
     if svc == "mysql":
-        fqdn = get_ingress_controller_version()
-        full_domain = "mysql" + fqdn + ":30223"
         svc_password = get_svc_password(namespace, "mysql", "mysql-root-password")
         dict = {
-            "app_url": full_domain,
+            "app_url": "mysql-0.mysql.devtools.svc.cluster.local:3306",
             "username": "root",
             "password": svc_password,
         }

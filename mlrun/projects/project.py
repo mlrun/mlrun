@@ -3027,7 +3027,7 @@ class MlrunProject(ModelObj):
         public_body = DatastoreProfile2Json.get_json_public(profile)
         # set project public data to DB
         public_profile = mlrun.common.schemas.DatastoreProfile(
-            name=profile.name, type=profile.type, body=public_body, project=self.name
+            name=profile.name, type=profile.type, object=public_body, project=self.name
         )
         mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
             public_profile, self.name

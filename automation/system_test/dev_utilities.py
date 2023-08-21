@@ -232,15 +232,34 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
     services = {
         "redis": {
             "chart": "bitnami/redis",
-            "set_values": "--set master.service.nodePorts.redis=31001",
+            "set_values": "--set master.service.nodePorts.redis=30222 --set master.service.type=NodePort",
         },
         "kafka": {
             "chart": "bitnami/kafka",
-            "set_values": "--set service.nodePorts.client=31002",
+            "set_values":
+                " --set auth.clientProtocol=sasl" +
+                " --set auth.interBrokerProtocol=sasl" +
+                " --set auth.sasl.mechanisms=plain" +
+                " --set auth.sasl.jaas.clientUsers[0].username=user1" +
+                " --set auth.sasl.jaas.clientUsers[0].password=password21368712g3y" +
+                " --set auth.sasl.jaas.interBrokerUser=admin" +
+                " --set auth.sasl.jaas.interBrokerPassword=adminpassword123" +
+                " --set auth.tls.type=self-signed" +
+                " --set auth.tls.pemChainIncluded=true" +
+                " --set listeners.client.containerPort=9092" +
+                " --set listeners.client.protocol=SASL_PLAINTEXT" +
+                " --set listeners.client.name=CLIENT" +
+                " --set externalAccess.enabled=true" +
+                " --set externalAccess.controller.service.type=NodePort" +
+                " --set externalAccess.controller.service.nodePorts[0]=30230" +
+                " --set externalAccess.controller.service.nodePorts[1]=30231" +
+                " --set externalAccess.controller.service.nodePorts[2]=30232",
         },
         "mysql": {
             "chart": "bitnami/mysql",
-            "set_values": "--set primary.service.nodePorts.mysql=31003",
+            "set_values": "--set primary.service.nodePorts.mysql=30223"
+                          "--set primary.service.type=NodePort "
+                          "--set networkPolicy.enabled=true"
         },
     }
     namespace = "devtools"
@@ -321,22 +340,29 @@ def status(redis, kafka, mysql, redisinsight, output):
         svc_password = get_svc_password(namespace, "redis", "redis-password")
         get_all_output["redis"] = status_h("redis")
         if output == "human":
+            fqdn = get_ingress_controller_version()
+            full_domain = "redis-master" + fqdn
             print_svc_info(
-                "redis-master-0.redis-headless.devtools.svc.cluster.local",
-                6379,
+                full_domain,
+                30222,
                 "default",
                 svc_password,
                 "-------",
             )
     if kafka:
+        fqdn = get_ingress_controller_version()
+        full_domain = "kafka" + fqdn
+        svc_password = get_svc_password(namespace, "kafka-user-passwords", "client-passwords")
         get_all_output["kafka"] = status_h("kafka")
         if output == "human":
-            print_svc_info("kafka", 9092, "-------", "-------", "-------")
+            print_svc_info(full_domain, 30230, "user1", svc_password, "-------")
     if mysql:
+        fqdn = get_ingress_controller_version()
+        full_domain = "mysql" + fqdn
         svc_password = get_svc_password(namespace, "mysql", "mysql-root-password")
         get_all_output["mysql"] = status_h("mysql")
         if output == "human":
-            print_svc_info("mysql", 3306, "root", svc_password, "-------")
+            print_svc_info(full_domain, 30223, "root", svc_password, "-------")
     if redisinsight:
         get_all_output["redisinsight"] = status_h("redisinsight")
         if output == "human":
@@ -355,20 +381,27 @@ def status(redis, kafka, mysql, redisinsight, output):
 def status_h(svc):
     namespace = "devtools"
     if svc == "redis":
+        fqdn = get_ingress_controller_version()
+        full_domain = "redis-master" + fqdn + ":30222"
         svc_password = get_svc_password(namespace, "redis", "redis-password")
         dict = {
-            "app_url": "redis-master-0.redis-headless.devtools.svc.cluster.local:6379",
+            "app_url": full_domain,
             "username": "default",
             "password": svc_password,
         }
         return dict
     if svc == "kafka":
-        dict = {"app_url": "kafka-0.kafka-headless.devtools.svc.cluster.local:9092"}
+        svc_password = get_svc_password(namespace, "kafka-user-passwords", "client-passwords")
+        fqdn = get_ingress_controller_version()
+        full_domain = "kafka" + fqdn + ":30230"
+        dict = {"app_url": full_domain, "username": "user1", 'password': svc_password}
         return dict
     if svc == "mysql":
+        fqdn = get_ingress_controller_version()
+        full_domain = "mysql" + fqdn + ":30223"
         svc_password = get_svc_password(namespace, "mysql", "mysql-root-password")
         dict = {
-            "app_url": "mysql-0.mysql.devtools.svc.cluster.local:3306",
+            "app_url": full_domain,
             "username": "root",
             "password": svc_password,
         }

@@ -316,7 +316,7 @@ def load_func_code(command="", workdir=None, secrets=None, name="name"):
                     command = temp_file.name
                     temp_file.write(code)
 
-        elif command and not is_remote:
+        elif command and "http://" not in command and not is_remote:
             logger.info("in elif command and not is_remote", command=command, is_remote=is_remote, workdir=workdir)
             file_path = path.join(workdir or "", command)
             if not path.isfile(file_path):

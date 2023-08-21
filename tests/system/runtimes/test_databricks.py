@@ -29,6 +29,28 @@ config_file_path = here / "assets" / "test_databricks.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
+RAISE_EXCEPTION_WITH_HANDLER = """
+
+def raise_error(**kwargs):
+    from datetime import datetime
+    current_datetime = datetime.now()
+    raise Exception(f'Exception time:{current_datetime}')
+"""
+
+RAISE_EXCEPTION_WITHOUT_HANDLER = """
+
+from datetime import datetime
+current_datetime = datetime.now()
+raise Exception(f'Exception time:{current_datetime}')
+
+"""
+
+PRINT_KWARGS = """
+
+def print_kwargs(**kwargs):
+    print(f"kwargs: {kwargs}")
+"""
+
 
 @pytest.mark.skipif(
     not is_databricks_configured(config_file_path),
@@ -42,6 +64,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         for key, value in config["env"].items():
             if value is not None:
                 os.environ[key] = value
+
+    @staticmethod
+    def assert_print_kwargs(run):
+        assert run.status.state == "completed"
+        assert (
+                run.status.results["databricks_runtime_task"]["logs"]
+                == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+        )
 
     @staticmethod
     def _add_databricks_env(function, is_cluster_id_required):
@@ -72,15 +102,9 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
 
-        code = """
-
-def print_kwargs(**kwargs):
-    print(f"kwargs: {kwargs}")
-"""
-
         function_ref = FunctionReference(
             kind="databricks",
-            code=code,
+            code=PRINT_KWARGS,
             image="mlrun/mlrun",
             name="databricks-test",
         )
@@ -113,11 +137,7 @@ def print_kwargs(**kwargs):
                 project="databricks-proj",
                 params=params,
             )
-            assert run.status.state == "completed"
-            assert (
-                run.status.results["databricks_runtime_task"]["logs"]
-                == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
-            )
+            self.assert_print_kwargs(run=run)
 
     def test_failure_in_databricks(self):
         code = """
@@ -169,6 +189,47 @@ def import_mlrun():
         )
         assert run.status.state == "completed"
         assert (
-            run.status.results["databricks_runtime_task"]["logs"]
-            == "{'param1': 'value1', 'param2': 'value2'}\n"
+                run.status.results["databricks_runtime_task"]["logs"]
+                == "{'param1': 'value1', 'param2': 'value2'}\n"
         )
+
+    @pytest.mark.parametrize(
+        "handler, databricks_code, fail", [
+            #("print_kwargs", PRINT_KWARGS, False),
+            ("", "print(f'kwargs: {handler_arguments}')", False),
+            # (True, RAISE_EXCEPTION_WITH_HANDLER, True),
+            # ("", RAISE_EXCEPTION_WITHOUT_HANDLER, True)
+        ]
+    )
+    def test_rerun(self, handler, databricks_code, fail):
+        params = {
+            "task_parameters": {"timeout_minutes": 15},
+            "param1": "value1",
+            "param2": "value2",
+        }
+        function_kwargs = {'handler': handler} if handler else {}
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=databricks_code,
+            image="mlrun/mlrun",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(
+            function=function, is_cluster_id_required=True
+        )
+
+        if fail:
+            with pytest.raises(mlrun.runtimes.utils.RunError):
+                # TODO how to get runspec if fail.
+                run = function.run(project="databricks-proj", **function_kwargs)
+                assert run.status.state == "error"
+        else:
+            run = function.run(project="databricks-proj", params=params, **function_kwargs)
+            self.assert_print_kwargs(run=run)
+            run = function.run(runspec=run, project="databricks-proj")
+            self.assert_print_kwargs(run=run)
+        print()
+

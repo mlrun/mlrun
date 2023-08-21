@@ -1771,9 +1771,9 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_application(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        application_class_name: str,
-        name: str,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        application_class_name: str = None,
+        name: str = None,
         image: str = None,
         handler=None,
         with_repo: bool = None,
@@ -1804,6 +1804,7 @@ class MlrunProject(ModelObj):
         function_object: RemoteRuntime = None
         kind = "nuclio"
         if isinstance(func, str) and isinstance(application_class_name, str):
+            kind = "serving"
             func = mlrun.code_to_function(
                 name,
                 self.metadata.name,
@@ -1825,7 +1826,7 @@ class MlrunProject(ModelObj):
                 ),
                 name="PushToMonitoringWriter",
             ).respond()
-            # graph.plot(rankdir="LR")
+            graph.plot(rankdir="LR")
 
         resolved_function_name, function_object, func = self._resolved_function(
             func,

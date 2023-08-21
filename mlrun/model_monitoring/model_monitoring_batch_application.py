@@ -15,6 +15,7 @@
 import concurrent
 import datetime
 import json
+import os
 import re
 from typing import List, Tuple
 
@@ -33,7 +34,6 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
-import os
 
 
 def calculate_inputs_statistics(
@@ -210,7 +210,7 @@ class BatchApplicationProcessor:
                         self.batch_dict,
                         self.project,
                         self.parquet_directory,
-                        self.storage_options
+                        self.storage_options,
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):
@@ -287,7 +287,7 @@ class BatchApplicationProcessor:
                         partition_cols=[
                             mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
                         ],
-                        storage_options=storage_options
+                        storage_options=storage_options,
                     ),
                 )
                 df = offline_response.to_dataframe()

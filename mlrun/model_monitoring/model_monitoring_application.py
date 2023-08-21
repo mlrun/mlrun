@@ -37,7 +37,7 @@ class ModelMonitoringApplicationResult:
     result_name: str
     result_value: float
     result_kind: mlrun.common.schemas.model_monitoring.constants.ResultKindApp
-    result_status: mlrun.common.schemas.model_monitoring.constants.ResultKindApp
+    result_status: mlrun.common.schemas.model_monitoring.constants.ResultStatusApp
     result_extra_data: dict
 
     def to_dict(self):
@@ -66,8 +66,8 @@ class ModelMonitoringApplication(StepToDict):
         current_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
-        start_time: pd.Timestamp,
-        end_time: pd.Timestamp,
+        schedule_time: pd.Timestamp,
+        latest_request: pd.Timestamp,
         endpoint_uid: str,
         output_stream_uri: str,
     ) -> Union[
@@ -78,8 +78,8 @@ class ModelMonitoringApplication(StepToDict):
         :param current_stats:
         :param feature_stats:
         :param sample_df:
-        :param start_time:
-        :param end_time:
+        :param schedule_time:
+        :param latest_request:
         :param endpoint_uid:
         :param output_stream_uri:
 

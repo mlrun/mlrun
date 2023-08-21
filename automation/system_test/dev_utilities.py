@@ -236,30 +236,29 @@ def install(redis, kafka, mysql, redisinsight, ipadd):
         },
         "kafka": {
             "chart": "bitnami/kafka",
-            "set_values":
-            " --set auth.clientProtocol=sasl" +
-            " --set auth.interBrokerProtocol=sasl" +
-            " --set auth.sasl.mechanisms=plain" +
-            " --set auth.sasl.jaas.clientUsers[0].username=user1" +
-            " --set auth.sasl.jaas.clientUsers[0].password=password21368712g3y" +
-            " --set auth.sasl.jaas.interBrokerUser=admin" +
-            " --set auth.sasl.jaas.interBrokerPassword=adminpassword123" +
-            " --set auth.tls.type=self-signed" +
-            " --set auth.tls.pemChainIncluded=true" +
-            " --set listeners.client.containerPort=9092" +
-            " --set listeners.client.protocol=SASL_PLAINTEXT" +
-            " --set listeners.client.name=CLIENT" +
-            " --set externalAccess.enabled=true" +
-            " --set externalAccess.controller.service.type=NodePort" +
-            " --set externalAccess.controller.service.nodePorts[0]=30230" +
-            " --set externalAccess.controller.service.nodePorts[1]=30231" +
-            " --set externalAccess.controller.service.nodePorts[2]=30232",
+            "set_values": " --set auth.clientProtocol=sasl"
+            + " --set auth.interBrokerProtocol=sasl"
+            + " --set auth.sasl.mechanisms=plain"
+            + " --set auth.sasl.jaas.clientUsers[0].username=user1"
+            + " --set auth.sasl.jaas.clientUsers[0].***"
+            + " --set auth.sasl.jaas.interBrokerUser=admin"
+            + " --set auth.sasl.jaas.interBrokerPassword=adminpassword123"
+            + " --set auth.tls.type=self-signed"
+            + " --set auth.tls.pemChainIncluded=true"
+            + " --set listeners.client.containerPort=9092"
+            + " --set listeners.client.protocol=SASL_PLAINTEXT"
+            + " --set listeners.client.name=CLIENT"
+            + " --set externalAccess.enabled=true"
+            + " --set externalAccess.controller.service.type=NodePort"
+            + " --set externalAccess.controller.service.nodePorts[0]=30230"
+            + " --set externalAccess.controller.service.nodePorts[1]=30231"
+            + " --set externalAccess.controller.service.nodePorts[2]=30232",            
         },
         "mysql": {
             "chart": "bitnami/mysql",
-            "set_values": "--set primary.service.nodePorts.mysql=30223" +
-            "--set primary.service.type=NodePort" +
-            "--set networkPolicy.enabled=true",
+            "set_values": "--set primary.service.nodePorts.mysql=30223"
+            + "--set primary.service.type=NodePort"
+            + "--set networkPolicy.enabled=true",            
         },
     }
     namespace = "devtools"

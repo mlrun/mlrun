@@ -30,21 +30,6 @@ config_file_path = here / "assets" / "test_databricks.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
-RAISE_EXCEPTION_WITH_HANDLER = """
-
-def raise_error(**kwargs):
-    from datetime import datetime
-    current_datetime = datetime.now()
-    raise Exception(f'Exception time:{current_datetime}')
-"""
-
-RAISE_EXCEPTION_WITHOUT_HANDLER = """
-
-from datetime import datetime
-current_datetime = datetime.now()
-raise Exception(f'Exception time:{current_datetime}')
-
-"""
 
 PRINT_KWARGS = """
 
@@ -112,7 +97,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         function_ref = FunctionReference(
             kind="databricks",
             code=PRINT_KWARGS,
-            image="mlrun/mlrun",
+            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
             name="databricks-test",
         )
 
@@ -151,7 +136,7 @@ def import_mlrun():
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="mlrun/mlrun",
+            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
             name="databricks-fails-test",
         )
 
@@ -174,7 +159,7 @@ def import_mlrun():
             kind="databricks",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
         )
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
@@ -206,7 +191,7 @@ def import_mlrun():
         function_ref = FunctionReference(
             kind="databricks",
             code=databricks_code,
-            image="mlrun/mlrun",
+            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
             name="databricks-test",
         )
 

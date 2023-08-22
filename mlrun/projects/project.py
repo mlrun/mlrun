@@ -1781,7 +1781,6 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
         models_names: List[str] = None,
-        max_replicas: int = 3,
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
@@ -1796,7 +1795,6 @@ class MlrunProject(ModelObj):
         :param requirements:
         :param requirements_file:
         :param models_names:
-        :param max_replicas:
         :param application_kwargs:
         :return:
         """
@@ -1846,21 +1844,6 @@ class MlrunProject(ModelObj):
             MODEL_MONITORING_APPLICATION_LABEL_VAL,
         )
         function_object.set_label("models", models_names)
-
-        # function_object.spec.min_replicas = 0
-        function_object.spec.replicas = max_replicas
-
-        # # Scaling to zero in case of 30 minutes (idle-time duration)
-        # function_object.set_config(
-        #     key="spec.scaleToZero.scaleResources",
-        #     value=[
-        #         {
-        #             "metricName": "nuclio_processor_handled_events_total",
-        #             "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
-        #             "threshold": 0,
-        #         }
-        #     ],
-        # )
 
         # Deploy & Add stream triggers
         self.deploy_function(

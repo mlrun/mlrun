@@ -27,6 +27,7 @@ from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.helpers import get_stream_path
 from mlrun.serving.utils import StepToDict
+from mlrun.utils import logger
 
 
 @dataclasses.dataclass
@@ -42,16 +43,18 @@ class ModelMonitoringApplicationResult:
 
     def to_dict(self):
         return {
-            "application_name": self.application_name,
-            "endpoint_id": self.endpoint_id,
-            "schedule_time": self.schedule_time.isoformat(
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.APPLICATION_NAME: self.application_name,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.ENDPOINT_ID: self.endpoint_id,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.SCHEDULE_TIME: self.schedule_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            "result_name": self.result_name,
-            "result_value": self.result_value,
-            "result_kind": self.result_kind.value,
-            "result_status": self.result_status.value,
-            "result_extra_data": json.dumps(self.result_extra_data),
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_NAME: self.result_name,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_VALUE: self.result_value,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_KIND: self.result_kind.value,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_STATUS: self.result_status.value,
+            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_EXTRA_DATA: json.dumps(
+                self.result_extra_data
+            ),
         }
 
 
@@ -71,7 +74,7 @@ class ModelMonitoringApplication(StepToDict):
         sample_df: pd.DataFrame,
         schedule_time: pd.Timestamp,
         latest_request: pd.Timestamp,
-        endpoint_uid: str,
+        endpoint_id: str,
         output_stream_uri: str,
     ) -> Union[
         ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
@@ -83,7 +86,7 @@ class ModelMonitoringApplication(StepToDict):
         :param sample_df:
         :param schedule_time:
         :param latest_request:
-        :param endpoint_uid:
+        :param endpoint_id:
         :param output_stream_uri:
 
         :returns: List[ModelMonitoringApplicationResult]
@@ -98,16 +101,40 @@ class ModelMonitoringApplication(StepToDict):
     ]:
         return (
             ModelMonitoringApplication._dict_to_histogram(
-                json.load(event["current_stats"])
+                json.loads(
+                    event[
+                        mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.CURRENT_STATS
+                    ]
+                )
             ),
             ModelMonitoringApplication._dict_to_histogram(
-                json.load(event["feature_stats"])
+                json.loads(
+                    event[
+                        mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS
+                    ]
+                )
             ),
-            ParquetTarget(path=event["sample_parquet_path"]).as_df(),
-            pd.Timestamp(event["schedule_time"]),
-            pd.Timestamp(event["latest_request"]),
-            event["endpoint_uid"],
-            event["output_stream_uri"],
+            ParquetTarget(
+                path=event[
+                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH
+                ]
+            ).as_df(),
+            pd.Timestamp(
+                event[
+                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SCHEDULE_TIME
+                ]
+            ),
+            pd.Timestamp(
+                event[
+                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.LAST_REQUEST
+                ]
+            ),
+            event[
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID
+            ],
+            event[
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI
+            ],
         )
 
     @staticmethod
@@ -160,7 +187,11 @@ class PushToMonitoringWriter(StepToDict):
         self._lazy_init()
         event = event if isinstance(event, List) else [event]
         for result in event:
-            self.output_stream.push(result.to_dict())
+            data = result.to_dict()
+            logger.info(
+                f"[DAVID] push to data = {data} \n to stream = {self.stream_uri}"
+            )
+            self.output_stream.push([data])
 
     def _lazy_init(self):
         if self.output_stream is None:

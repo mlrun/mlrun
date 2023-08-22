@@ -14,9 +14,7 @@
 #
 
 import mlrun
-from mlrun.model_monitoring.model_monitoring_batch_application import (
-    BatchApplicationProcessor,
-)
+from mlrun.model_monitoring.batch_application import BatchApplicationProcessor
 from mlrun.utils import logger
 
 

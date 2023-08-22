@@ -31,24 +31,20 @@ from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
-from mlrun.model_monitoring.model_monitoring_writer import ModelMonitoringWriter
+from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 
 _MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
 _STREAM_PROCESSING_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )
-_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch.py"
-)
+_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "batch.py"
 
 _MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_batch_application_handler.py"
+    _MODEL_MONITORING_COMMON_PATH / "batch_application_handler.py"
 )
 
-_MONITORING_WRITER_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "model_monitoring_writer.py"
-)
+_MONITORING_WRITER_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "writer.py"
 
 
 class MonitoringDeployment:
@@ -672,19 +668,19 @@ class MonitoringDeployment:
             application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
         )
 
-        # function.spec.min_replicas = 0
-        # function.spec.max_replicas = 1  # TODO
-        #
-        # function.set_config(
-        #     key="spec.scaleToZero.scaleResources",
-        #     value=[
-        #         {
-        #             "metricName": "nuclio_processor_handled_events_total",
-        #             "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
-        #             "threshold": 0,
-        #         }
-        #     ],
-        # )
+        function.spec.min_replicas = 0
+        function.spec.max_replicas = 3  # TODO
+
+        function.set_config(
+            key="spec.scaleToZero.scaleResources",
+            value=[
+                {
+                    "metricName": "nuclio_processor_handled_events_total",
+                    "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
+                    "threshold": 0,
+                }
+            ],
+        )
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)

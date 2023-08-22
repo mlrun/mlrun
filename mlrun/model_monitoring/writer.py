@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import mlrun.common.schemas
 from mlrun.serving.utils import StepToDict
 
 
@@ -25,11 +25,11 @@ class ModelMonitoringWriter(StepToDict):
     def do(self, event):
 
         print(
-            f"endpoint_uid ={event['endpoint_uid']}, "
-            f"app_name = {event['application_name']}, "
-            f"schedule_time = {event['schedule_time']}, "
-            f"result_name ={event['result_name']}, "
-            f"result_value ={event['result_value']}, "
+            f"endpoint_uid ={event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.ENDPOINT_ID]}, \n"
+            f"app_name = {event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.APPLICATION_NAME]}, \n"
+            f"schedule_time = {event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.SCHEDULE_TIME]}, \n"
+            f"result_name ={event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_NAME]}, \n"
+            f"result_value ={event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_VALUE]}, \n"
             f"my_name = {self.name}."
         )
         return event

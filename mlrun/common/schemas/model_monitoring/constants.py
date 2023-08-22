@@ -74,6 +74,28 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+
+
+class ApplicationEvent:
+    CURRENT_STATS = "current_stats"
+    FEATURE_STATS = "feature_stats"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    SCHEDULE_TIME = "schedule_time"
+    LAST_REQUEST = "last_request"
+    ENDPOINT_ID = "endpoint_id"
+    OUTPUT_STREAM_URI = "output_stream_uri"
+
+
+class WriterEvent:
+    APPLICATION_NAME = "application_name"
+    ENDPOINT_ID = "endpoint_id"
+    SCHEDULE_TIME = "schedule_time"
+    RESULT_NAME = "result_name"
+    RESULT_VALUE = "result_value"
+    RESULT_KIND = "result_kind"
+    RESULT_STATUS = "result_status"
+    RESULT_EXTRA_DATA = "result_extra_data"
 
 
 class EventLiveStats:

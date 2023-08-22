@@ -171,10 +171,6 @@ class BatchApplicationProcessor:
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
-        logger.info(
-            f"[DAVID] starting for loop with applications_names="
-            f"{applications_names} with len endpoint = {len(endpoints)}"
-        )
         if len(endpoints):  # TODO add application
             pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(endpoints),
@@ -204,7 +200,6 @@ class BatchApplicationProcessor:
                             f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
                         )
                         continue
-                    logger.info(f"[DAVID] apply process")
                     future = pool.submit(
                         BatchApplicationProcessor.endpoint_process,
                         endpoint,
@@ -233,7 +228,6 @@ class BatchApplicationProcessor:
     ):
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
-            logger.info("[DAVID] starting application job for endpoint")
             # Getting batch interval start time and end time
             start_time, end_time = BatchApplicationProcessor._get_interval_range(
                 bath_dict
@@ -353,29 +347,35 @@ class BatchApplicationProcessor:
             )
 
             data = {
-                "current_stats": json.dumps(current_stats),
-                "feature_stats": json.dumps(feature_stats),
-                "sample_parquet_path": BatchApplicationProcessor._get_parquet_path(
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.CURRENT_STATS: json.dumps(
+                    current_stats
+                ),
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS: json.dumps(
+                    feature_stats
+                ),
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
                     parquet_directory=parquet_directory,
                     schedule_time=end_time,
                     endpoint_id=endpoint_id,
                 ),
-                "schedule_time": end_time.isoformat(sep=" ", timespec="microseconds"),
-                "latest_request": latest_request.isoformat(
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
-                "endpoint_id": mlrun.common.schemas.model_monitoring.EventFieldType.UID,
-                "output_stream_uri": get_stream_path(
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
+                    sep=" ", timespec="microseconds"
+                ),
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID: mlrun.common.schemas.model_monitoring.EventFieldType.UID,
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                     project=project,
                     application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
                 ),
             }
             for app_name in applications_names:
                 stream_uri = get_stream_path(project=project, application_name=app_name)
-                logger.info(f"[DAVID] push to {stream_uri}")
+                logger.info(
+                    f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
+                )
                 get_stream_pusher(stream_uri).push([data])
-
-            logger.info("[DAVID] Finish application job for endpoint")
 
         except FileNotFoundError as e:
             logger.error(
@@ -422,9 +422,7 @@ class BatchApplicationProcessor:
             ("minute", "%M"),
         ]:
             schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
-        endpoint_str = (
-            f"{mlrun.common.schemas.model_monitoring.EventFieldType.UID}={endpoint_id}"
-        )
+        endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID}={endpoint_id}"
 
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 

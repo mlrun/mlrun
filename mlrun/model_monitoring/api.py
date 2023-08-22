@@ -27,9 +27,9 @@ import mlrun.common.schemas
 import mlrun.feature_store
 from mlrun.data_types.infer import InferOptions, get_df_stats
 
+from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
 from .model_endpoint import ModelEndpoint
-from .model_monitoring_batch import VirtualDrift
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[

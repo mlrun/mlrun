@@ -16,6 +16,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
+* **dbfs** &mdash; Databricks storage, formst: `dbfs://path/to/file`
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
@@ -116,3 +117,7 @@ be used if this file is located in a location on shared storage, accessible to p
 may contain the contents of this file. If configured in the function pod, MLRun dumps its contents to a temporary file 
 and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
 contents directly to the query engine.
+
+### Databricks file system
+* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
+* `DATABRICKS_TOKEN` &mdash; Databricks connection token

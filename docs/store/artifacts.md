@@ -47,6 +47,7 @@ system-configured as "allowed" in the MLRun service are visible in the UI. These
 - MLRun < 1.2: The allowed paths include only v3io paths
 - MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs:// `. `http://` paths are not visible
  due to security reasons.
+- MLRun 1.4 adds support for Databricks: `dbfs://` 
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 

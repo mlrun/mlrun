@@ -1457,10 +1457,11 @@ def _init_async_objects(context, steps):
 
     wait_for_result = False
 
-    # respond is only supported for HTTP trigger
-    trigger = getattr(context, "trigger")
+    trigger = getattr(context, "trigger", "unknown")
     context.logger.debug(f"trigger is {trigger}")
-    respond_supported = trigger and trigger.kind == "http"
+
+    # respond is only supported for HTTP trigger
+    respond_supported = trigger == "http"
 
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
@@ -1526,7 +1527,7 @@ def _init_async_objects(context, steps):
     source_args = context.get_param("source_args", {})
 
     # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
-    explicit_ack_supported = trigger and trigger.kind in [
+    explicit_ack_supported = trigger.kind in [
         "v3io-stream",
         "v3ioStream",
         "kafka-cluster",

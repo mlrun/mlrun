@@ -2,7 +2,7 @@
 # Change log
 
 - [v1.4.1](#v1-4-1) | [v1.4.0](#v1-4-0)
-- [v1.3.3](#v1-3-3) | [v1.3.2](#v1-3-2) | [v1.3.1](#v1-3-1) | [v1.3.0](#v1-3-0) 
+- [v1.3.4](#v1-3-4) | [v1.3.3](#v1-3-3) | [v1.3.2](#v1-3-2) | [v1.3.1](#v1-3-1) | [v1.3.0](#v1-3-0) 
 - [v1.2.3](#v1-2-3) | [v1.2.2](#v1-2-2) | [v1.2.1](#v1-2-1) | [v1.2.0](#v1-2-0)
 - [v1.1.3](#1-1-3)
 - [v1.0.6](#v1-0-6) | [v1.0.5](#v1-0-5) | [v1.0.4](#v1-0-4) | [v1.0.3](#v1-0-3) | [v1.0.2](#v1-0-2) | [v1.0.0](#v1-0-0)
@@ -120,6 +120,13 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 | ML-3900 | Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687). 
 | ML-4129 | Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).
 
+## v1.3.4 (23 August 2023)
+
+### Closed issues
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-4409 |  Importing a project.yaml now does not overwrite the artifacts with older tags.   |
 
 ## v1.3.3 (7 Jun 2023)
 

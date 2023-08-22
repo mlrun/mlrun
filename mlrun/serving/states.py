@@ -1457,6 +1457,9 @@ def _init_async_objects(context, steps):
 
     wait_for_result = False
 
+    # respond is only supported for HTTP trigger
+    respond_supported = hasattr(context, "trigger") and context.trigger.kind == "http"
+
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
             if step.kind == StepKinds.queue:
@@ -1508,15 +1511,31 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                 )
-            if not step.next and hasattr(step, "responder") and step.responder:
+            if (
+                respond_supported
+                and not step.next
+                and hasattr(step, "responder")
+                and step.responder
+            ):
                 # if responder step (return result), add Complete()
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
+
+    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
+    explicit_ack_supported = hasattr(context, "trigger") and context.trigger.kind in [
+        "v3io-stream",
+        "v3ioStream",
+        "kafka-cluster",
+        "kafka",
+    ]
+    # only turn explicit ack on if trigger supports explicit ack
+    explicit_ack = explicit_ack_supported and mlrun.mlconf.is_explicit_ack()
+
     default_source = storey.SyncEmitSource(
         context=context,
-        explicit_ack=mlrun.mlconf.is_explicit_ack(),
+        explicit_ack=explicit_ack,
         **source_args,
     )
     return default_source, wait_for_result

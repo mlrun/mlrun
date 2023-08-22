@@ -364,7 +364,7 @@ class BatchApplicationProcessor:
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID: mlrun.common.schemas.model_monitoring.EventFieldType.UID,
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                     project=project,
                     application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,

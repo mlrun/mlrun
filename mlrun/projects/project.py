@@ -2058,7 +2058,8 @@ class MlrunProject(ModelObj):
             == MODEL_MONITORING_APPLICATION_LABEL_VAL
         ):
             self.remove_function(name=name)
-            mlrun.db.get_run_db().delete_function(name=name)
+            mlrun.db.get_run_db().delete_function(name=name.lower())
+            mlrun.db.get_run_db().delete_function(name=name.lower())
             logger.info(f"{name} application has been removed from {self.name} project")
         else:
             raise logger.error(

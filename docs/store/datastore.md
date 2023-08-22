@@ -125,7 +125,7 @@ contents directly to the query engine.
 ## Using data store profiles
 
 ```{Admonition} Note
-This feature currently supports Redis data sources only.
+This feature currently supports Kafka, Redis, and S3 data sources.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 

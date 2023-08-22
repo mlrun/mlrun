@@ -29,7 +29,7 @@ from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
-from ..utils import get_class, get_function
+from ..utils import get_class, get_function, is_explicit_ack_supported
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
@@ -1526,15 +1526,7 @@ def _init_async_objects(context, steps):
 
     source_args = context.get_param("source_args", {})
 
-    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
-    explicit_ack_supported = trigger in [
-        "v3io-stream",
-        "v3ioStream",
-        "kafka-cluster",
-        "kafka",
-    ]
-    # only turn explicit ack on if trigger supports explicit ack
-    explicit_ack = explicit_ack_supported and mlrun.mlconf.is_explicit_ack()
+    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
     default_source = storey.SyncEmitSource(
         context=context,

@@ -456,7 +456,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
             "message": "completed",
             "name": "notification-1",
             "params": {
-                "webhook": "https://hooks.slack.com/services/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",
+                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
                 "other_param": "other_value",
             },
             "severity": "info",

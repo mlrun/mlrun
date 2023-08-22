@@ -2296,7 +2296,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2320,7 +2322,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,

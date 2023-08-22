@@ -465,7 +465,9 @@ class GraphContext:
         if nuclio_context:
             self.logger = nuclio_context.logger
             self.Response = nuclio_context.Response
-            if hasattr(nuclio_context, "trigger"):
+            if hasattr(nuclio_context, "trigger") and hasattr(
+                nuclio_context.trigger, "kind"
+            ):
                 self.trigger = nuclio_context.trigger.kind
             self.worker_id = nuclio_context.worker_id
             if hasattr(nuclio_context, "platform"):

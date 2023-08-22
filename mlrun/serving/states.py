@@ -1457,11 +1457,10 @@ def _init_async_objects(context, steps):
 
     wait_for_result = False
 
-    trigger = getattr(context, "trigger", "unknown")
-    context.logger.debug(f"trigger is {trigger}")
-
+    trigger = getattr(context, "trigger", None)
+    context.logger.debug(f"trigger is {trigger or 'unknown'}")
     # respond is only supported for HTTP trigger
-    respond_supported = trigger == "http"
+    respond_supported = trigger is None or trigger == "http"
 
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):

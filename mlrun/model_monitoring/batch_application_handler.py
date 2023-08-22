@@ -19,6 +19,11 @@ from mlrun.utils import logger
 
 
 def handler(context: mlrun.run.MLClientCtx):
+    """
+    RunS model monitoring batch application
+
+    :param context: the MLRun context
+    """
     logger.info("[DAVID] starting application job")
     batch_processor = BatchApplicationProcessor(
         context=context,

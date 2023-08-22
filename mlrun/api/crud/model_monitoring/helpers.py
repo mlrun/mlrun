@@ -123,6 +123,7 @@ def get_monitoring_parquet_path(
     :param db_session: A session that manages the current dialog with the database. Will be used in this function
                        to get the project record from DB.
     :param project:    Project name.
+    :param kind:       indicate the kind of the parquet path, can be either stream_parquet or stream_controller_parquet
 
     :return:           Monitoring parquet target path.
     """
@@ -143,7 +144,14 @@ def get_monitoring_parquet_path(
 
 
 def get_stream_path(project: str = None, application_name: str = None):
-    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
+    """
+    Get stream path from the project secret. If wasn't set, take it from the system configurations
+
+    :param project:             Project name.
+    :param application_name:    Application name, None for model_monitoring_stream.
+
+    :return:                    Monitoring stream path to the relevant application.
+    """
 
     stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project=project,

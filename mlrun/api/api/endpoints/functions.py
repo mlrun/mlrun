@@ -741,16 +741,14 @@ def _build_function(
                 )
                 == mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_VAL
             )
-            logger.info(f"[DAVID] monitoring_application = {monitoring_application}")
-            logger.info(
-                f"[DAVID] labels: type = {fn.metadata.labels.get(mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_KEY)}"
-            )
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models
             )
             if serving_to_monitor or monitoring_application:
                 try:
                     if not mlrun.mlconf.is_ce_mode():
+                        # create v3io stream for
+                        # model_monitoring_stream & model_monitoring_writer | model monitoring application
                         model_monitoring_access_key = process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
@@ -786,6 +784,7 @@ def _build_function(
                         )
 
                     if monitoring_application:
+                        # apply stream trigger to monitoring application
                         fn = mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
                             project=fn.metadata.project,
                             function=fn,
@@ -951,8 +950,8 @@ def _create_model_monitoring_stream(
                 project=function.metadata.project, application_name=application_name
             )
             for application_name in [
-                None,
-                mlrun.model_monitoring.MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                None,  # mm_stream
+                mlrun.model_monitoring.MODEL_MONITORING_WRITER_FUNCTION_NAME,  # mm_writer
             ]
         ]
 

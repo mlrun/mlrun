@@ -31,8 +31,7 @@ import pyarrow.parquet as pq
 import pytest
 import pytz
 import requests
-
-# from databricks.sdk import WorkspaceClient
+from databricks.sdk import WorkspaceClient
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
 
@@ -66,12 +65,12 @@ from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
-# from ...datastore.databricks_utils import (
-#     MLRUN_ROOT_DIR,
-#     is_databricks_configured,
-#     setup_dbfs_dirs,
-#     teardown_dbfs_dirs,
-# )
+from ...datastore.databricks_utils import (
+    MLRUN_ROOT_DIR,
+    is_databricks_configured,
+    setup_dbfs_dirs,
+    teardown_dbfs_dirs,
+)
 from .data_sample import quotes, stocks, trades
 
 
@@ -2164,41 +2163,22 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [
             CSVTarget(),
             CSVTarget(name="specified-path", path="v3io:///bigdata/csv-purge-test.csv"),
-            ParquetTarget(partitioned=True, partition_cols=["timestamp", "department"]),
+            ParquetTarget(partitioned=True, partition_cols=["timestamp"]),
             NoSqlTarget(),
         ]
         fset.set_targets(
-            # targets=targets,
-            with_defaults=True,
+            targets=targets,
+            with_defaults=False,
         )
         fstore.ingest(fset, source)
 
-        # verify_purge(fset, targets)
-        #
-        # fstore.ingest(fset, source)
-        #
-        # targets_to_purge = targets[:-1]
-        #
-        # verify_purge(fset, targets_to_purge)
+        verify_purge(fset, targets)
 
-        from mlrun.model_monitoring.helpers import get_monitoring_parquet_path
+        fstore.ingest(fset, source)
 
-        t = ParquetTarget(
-            path=get_monitoring_parquet_path(
-                project=self.project_name,
-                kind="stream_controller_parquet-3",
-            ),
-            partitioned=True,
-            partition_cols=["department"],
-            time_partitioning_granularity="minute",
-        )
-        vector = fstore.FeatureVector(
-            name="aaa", features=["purge.*"], with_indexes=True
-        )
-        r = fstore.get_offline_features(feature_vector=vector, target=t)
+        targets_to_purge = targets[:-1]
 
-        df = r.to_dataframe()
-        df.to_parquet()
+        verify_purge(fset, targets_to_purge)
 
     @pytest.mark.skipif(
         not mlrun.mlconf.redis.url,
@@ -4221,10 +4201,10 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
-    # @pytest.mark.skipif(
-    #     not is_databricks_configured(),
-    #     reason="databricks storage parameters not configured",
-    # )
+    @pytest.mark.skipif(
+        not is_databricks_configured(),
+        reason="databricks storage parameters not configured",
+    )
     @pytest.mark.parametrize(
         "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
         [

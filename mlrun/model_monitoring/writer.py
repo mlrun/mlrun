@@ -17,6 +17,8 @@ from mlrun.serving.utils import StepToDict
 
 
 class ModelMonitoringWriter(StepToDict):
+    """DEMO WRITER TODO"""
+
     kind = "monitoring_application_stream_pusher"
 
     def __init__(self, name: str = None):

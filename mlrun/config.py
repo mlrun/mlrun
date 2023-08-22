@@ -971,18 +971,18 @@ class Config:
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
-        :param application_name:
-        :param project:        Project name.
-        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
-        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
-                               path for the provided kind. If it doesn't exist, use the default path.
-                               If the target path is offline and the offline path is already a full path in the
-                               configuration, then the result will be that path as-is. If the offline path is a
-                               relative path, then the result will be based on the project artifact path and the offline
-                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
-                               path instead.
-        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
-                               relative artifact path will be taken from the global MLRun artifact path.
+        :param project:         Project name.
+        :param kind:            Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:          Can be either online or offline. If the target is online, then we try to get a specific
+                                path for the provided kind. If it doesn't exist, use the default path.
+                                If the target path is offline and the offline path is already a full path in the
+                                configuration, then the result will be that path as-is. If the offline path is a
+                                relative path, then the result will be based on the project artifact path and the offline
+                                relative path. If project artifact path wasn't provided, then we use MLRun artifact
+                                path instead.
+        :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
+                                relative artifact path will be taken from the global MLRun artifact path.
+        :param application_name:Application name, None for model_monitoring_stream.
 
         :return: Full configured path for the provided kind.
         """

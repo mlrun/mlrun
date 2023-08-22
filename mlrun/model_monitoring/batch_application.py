@@ -34,41 +34,7 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
-
-
-def calculate_inputs_statistics(
-    sample_set_statistics: dict, inputs: pd.DataFrame
-) -> dict:
-    """
-    Calculate the inputs data statistics for drift monitoring purpose.
-
-    :param sample_set_statistics: The sample set (stored end point's dataset to reference) statistics. The bins of the
-                                  histograms of each feature will be used to recalculate the histograms of the inputs.
-    :param inputs:                The inputs to calculate their statistics and later on - the drift with respect to the
-                                  sample set.
-
-    :returns: The calculated statistics of the inputs data.
-    """
-
-    # Use `DFDataInfer` to calculate the statistics over the inputs:
-    inputs_statistics = mlrun.data_types.infer.DFDataInfer.get_stats(
-        df=inputs,
-        options=mlrun.data_types.infer.InferOptions.Histogram,
-    )
-
-    # Recalculate the histograms over the bins that are set in the sample-set of the end point:
-    for feature in inputs_statistics.keys():
-        if feature in sample_set_statistics:
-            counts, bins = np.histogram(
-                inputs[feature].to_numpy(),
-                bins=sample_set_statistics[feature]["hist"][1],
-            )
-            inputs_statistics[feature]["hist"] = [
-                counts.tolist(),
-                bins.tolist(),
-            ]
-
-    return inputs_statistics
+from mlrun.model_monitoring.batch import calculate_inputs_statistics
 
 
 class BatchApplicationProcessor:
@@ -152,10 +118,8 @@ class BatchApplicationProcessor:
 
     def run(self):
         """
-        Main method for manage the drift analysis and write the results into tsdb and KV table.
+        Main method for run all the relevant monitoring application on each endpoint
         """
-        # Get model endpoints (each deployed project has at least 1 serving model):
-
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             application = mlrun.get_or_create_project(
@@ -226,6 +190,18 @@ class BatchApplicationProcessor:
         parquet_directory: str,
         storage_options: dict,
     ):
+        """
+        Process a model endpoint and trigger the monitoring applications,
+        this function running on different process for each endpoint.
+
+        :param endpoint:            (dict) Dictionary representing the model endpoint.
+        :param applications_names:  (Lst[str]) List of application names to push results to.
+        :param bath_dict:           (dict) Dictionary containing batch interval start and end times.
+        :param project:             (str) Project name.
+        :param parquet_directory:   (str) Directory to store Parquet files
+        :param storage_options:     (dict) Storage options for writing ParquetTarget.
+
+        """
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
             # Getting batch interval start time and end time
@@ -427,6 +403,8 @@ class BatchApplicationProcessor:
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
     def _delete_old_parquet(self):
+        """Delete all the sample parquets that were saved yesterday - (
+        change it to be configurable & and more simple)"""
         _, schedule_time = BatchApplicationProcessor._get_interval_range(
             self.batch_dict
         )

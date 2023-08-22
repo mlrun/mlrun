@@ -1784,19 +1784,59 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
+        update or add a monitoring application to the project & deploy it.
 
-        :param func:
-        :param application_class_name:
-        :param name:
-        :param image:
-        :param handler:
-        :param with_repo:
-        :param tag:
-        :param requirements:
-        :param requirements_file:
-        :param models_names:
-        :param application_kwargs:
-        :return:
+
+        examples::
+            # mlrun: start-code
+            class MyApp(ModelMonitoringApplication):
+                def __init__(self, name=None):
+                    self.name = name
+
+                def run_application(
+                    self,
+                    current_stats: pd.DataFrame,
+                    feature_stats: pd.DataFrame,
+                    sample_df: pd.DataFrame,
+                    schedule_time: pd.Timestamp,
+                    latest_request: pd.Timestamp,
+                    endpoint_id: str,
+                    output_stream_uri: str,
+                ) -> typing.Union[ModelMonitoringApplicationResult, typing.List[ModelMonitoringApplicationResult]
+                ]:
+
+                    return ModelMonitoringApplicationResult(
+                        self.name,
+                        endpoint_id,
+                        schedule_time,
+                        result_name="data_drift_test",
+                        result_value=0.5,
+                        result_kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.data_drift,
+                        result_status = mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected,
+                        result_extra_data={})
+
+            # mlrun: end-code
+
+        project.set_model_monitoring_application(application_class_name="MyApp",
+                                                 image="davesh0812/mlrun-api:1.5.0", name="myApp")
+
+
+        :param func:                    function object or spec/code url, None refers to current Notebook
+        :param name:                    name of the function (under the project), can be specified with a tag to support
+                                        versions (e.g. myfunc:v1)
+                                        default: job
+        :param image:                   docker image to be used, can also be specified in
+                                        the function object/yaml
+        :param handler:                 default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:               add (clone) the current repo to the build source
+        :param tag:                     function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                        if tag is specified and name is empty, the function key (under the project)
+                                        will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param requirements:            a list of python packages
+        :param requirements_file:       path to a python requirements file
+        :param application_class_name:  Name of the class implementing the monitoring application.
+        :param application_kwargs:      Additional keyword arguments to be passed to the
+                                        monitoring application's constructor.
         """
 
         function_object: RemoteRuntime = None
@@ -1820,7 +1860,7 @@ class MlrunProject(ModelObj):
             ).to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
-                    application_name_to_push=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                    writer_application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
                     stream_uri=None,
                 ),
             ).respond()
@@ -2008,12 +2048,17 @@ class MlrunProject(ModelObj):
         self.spec.remove_function(name)
 
     def remove_model_monitoring_application(self, name):
+        """remove a function from a project and from the db.
+
+        :param name: name of the function (under the project)
+        """
         application = self.get_function(key=name)
         if (
             application.metadata.labels.get(MODEL_MONITORING_APPLICATION_LABEL_KEY)
             == MODEL_MONITORING_APPLICATION_LABEL_VAL
         ):
             self.remove_function(name=name)
+            mlrun.db.get_run_db().delete_function(name=name)
             logger.info(f"{name} application has been removed from {self.name} project")
         else:
             raise logger.error(

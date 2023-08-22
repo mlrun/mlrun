@@ -56,8 +56,11 @@ class MonitoringDeployment:
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
         """
-        Initialize a MonitoringDeployment object, which handles the deployment of both model monitoring stream nuclio
-        function and the scheduled batch drift job.
+        Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
+         1. model monitoring stream
+         2. model monitoring batch
+         3. model monitoring batch application
+         4. model monitoring writer
 
         :param parquet_batching_max_events: Maximum number of events that will be used for writing the monitoring
                                             parquet by the monitoring stream function.
@@ -195,10 +198,11 @@ class MonitoringDeployment:
         function_name: str = "model-monitoring-batch",
     ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
         """
-        Deploying model monitoring batch job. The goal of this job is to identify drift in the data
-        based on the latest batch of events. By default, this job is executed on the hour every hour.
-        Note that if the monitoring batch job was already deployed then you will either have to pass overwrite=True or
-        to delete the old monitoring batch job before deploying a new one.
+        Deploying model monitoring batch job or model monitoring batch application job.
+        The goal of this job is to identify drift in the data based on the latest batch of events. By default,
+        this job is executed on the hour every hour.
+        Note that if this job was already deployed then you will either have to pass overwrite=True or
+        to delete the old job before deploying a new one.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
@@ -208,11 +212,19 @@ class MonitoringDeployment:
         :param with_schedule:               If true, submit a scheduled batch drift job.
         :param overwrite:                   If true, overwrite the existing model monitoring batch job.
         :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
-        :param function_name:
+        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+                                            indicates witch one to deploy.
 
         :return: Model monitoring batch job as a runtime function.
         """
-
+        job_valid_names = ["model-monitoring-batch", "model-monitoring-batch"]
+        if function_name not in [
+            "model-monitoring-batch",
+            "model-monitoring-application-batch",
+        ]:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Model Monitoring batch job can be only within {job_valid_names}"
+            )
         fn = None
         if not overwrite:
             logger.info(
@@ -292,9 +304,9 @@ class MonitoringDeployment:
         tracking_policy,
     ):
         """
-        Deploying model monitoring stream real time nuclio function. The goal of this real time function is
-        to monitor the log of the data stream. It is triggered when a new log entry is detected.
-        It processes the new events into statistics that are then written to statistics databases.
+        Deploying model monitoring writer real time nuclio function. The goal of this real time function is
+        to write all the monitoring application result to the databases. It is triggered by those applications.
+        It processes and writes the result to the databases.
 
         :param project:                     The name of the project.
         :param model_monitoring_access_key: Access key to apply the model monitoring process.
@@ -422,7 +434,8 @@ class MonitoringDeployment:
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
-
+        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+                                            indicates witch one to create.
         :return:                            A function object from a mlrun runtime class
 
         """
@@ -544,6 +557,8 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring stream function when the stream is
                                             schema is V3IO.
         :param auth_info:                   The auth info of the request.
+        :param application_name:             the name of the function that be applied with the stream trigger,
+                                            None for model_monitoring_stream
 
         :return: ServingRuntime object with stream trigger.
         """
@@ -620,7 +635,7 @@ class MonitoringDeployment:
 
         function.metadata.credentials.access_key = model_monitoring_access_key
         function.apply(mlrun.mount_v3io())
-        # function.apply(mlrun.v3io_cred())
+        # function.apply(mlrun.v3io_cred()) TODO : test without mounting
 
         # Ensure that the auth env vars are set
         mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
@@ -631,7 +646,7 @@ class MonitoringDeployment:
         self, project, model_monitoring_access_key, tracking_policy, auth_info
     ):
         """
-        Initialize model monitoring stream processing function.
+        Initialize model monitoring writer function.
 
         :param project:                     Project name.
         :param model_monitoring_access_key: Access key to apply the model monitoring process. Please note that in CE

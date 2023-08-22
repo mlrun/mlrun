@@ -32,6 +32,20 @@ from mlrun.utils import logger
 
 @dataclasses.dataclass
 class ModelMonitoringApplicationResult:
+    """
+    Class representing the result of a custom model monitoring application.
+
+    :param application_name:     (str) Name of the model monitoring application.
+    :param endpoint_id:          (str) ID of the monitored model endpoint.
+    :param schedule_time:        (pd.Timestamp)Timestamp of the monitoring schedule.
+    :param result_name:          (str) Name of the application result.
+    :param result_value:         (float) Value of the application result.
+    :param result_kind:          (ResultKindApp) Kind of application result.
+    :param result_status:        (ResultStatusApp) Status of the application result.
+    :param result_extra_data:    (dict) Extra data associated with the application result.
+
+    """
+
     application_name: str
     endpoint_id: str
     schedule_time: pd.Timestamp
@@ -42,6 +56,11 @@ class ModelMonitoringApplicationResult:
     result_extra_data: dict
 
     def to_dict(self):
+        """
+        Convert the object to a dictionary format suitable for writing.
+
+        :returns:    (dict) Dictionary representation of the result.
+        """
         return {
             mlrun.common.schemas.model_monitoring.constants.WriterEvent.APPLICATION_NAME: self.application_name,
             mlrun.common.schemas.model_monitoring.constants.WriterEvent.ENDPOINT_ID: self.endpoint_id,
@@ -62,9 +81,20 @@ class ModelMonitoringApplication(StepToDict):
     kind = "monitoring_application"
 
     def __int__(self, name):
+        """
+        Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+
+        :param name:    (str) name of the application
+        """
         self.name = name
 
     def do(self, event):
+        """
+        Process the monitoring event and return application results.
+
+        :param event:   (dict) The monitoring event to process.
+        :returns:       (List[ModelMonitoringApplicationResult]) The application results.
+        """
         return self.run_application(*self._resolve_event(event))
 
     def run_application(
@@ -80,16 +110,17 @@ class ModelMonitoringApplication(StepToDict):
         ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
     ]:
         """
+        Implement this method with your custom monitoring logic.
 
-        :param current_stats:
-        :param feature_stats:
-        :param sample_df:
-        :param schedule_time:
-        :param latest_request:
-        :param endpoint_id:
-        :param output_stream_uri:
+        :param current_stats:       (pd.DataFrame) The new sample distribution DataFrame.
+        :param feature_stats:       (pd.DataFrame) The train sample distribution DataFrame.
+        :param sample_df:           (pd.DataFrame) The new sample DataFrame.
+        :param schedule_time:       (pd.Timestamp) Timestamp of the monitoring schedule.
+        :param latest_request:      (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+        :param endpoint_id:         (str) ID of the monitored model endpoint
+        :param output_stream_uri:   (str) URI of the output stream for results
 
-        :returns: List[ModelMonitoringApplicationResult]
+        :returns:                   (List[ModelMonitoringApplicationResult]) The application results.
         """
         raise NotImplementedError
 
@@ -166,12 +197,21 @@ class PushToMonitoringWriter(StepToDict):
     def __init__(
         self,
         project: str = None,
-        application_name_to_push: str = None,
+        writer_application_name: str = None,
         stream_uri: str = None,
         name: str = None,
     ):
+        """
+        Class for pushing application results to the monitoring writer stream.
+
+        :param project:                     Project name.
+        :param writer_application_name:     Writer application name.
+        :param stream_uri:                  Stream URI for pushing results.
+        :param name:                        Name of the PushToMonitoringWriter
+                                            instance default to PushToMonitoringWriter.
+        """
         self.project = project
-        self.application_name_to_push = application_name_to_push
+        self.application_name_to_push = writer_application_name
         self.stream_uri = stream_uri or get_stream_path(
             project=self.project, application_name=self.application_name_to_push
         )
@@ -184,13 +224,16 @@ class PushToMonitoringWriter(StepToDict):
             ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
         ],
     ):
+        """
+        Push application results to the monitoring writer stream.
+
+        :param event: Monitoring result(s) to push.
+        """
         self._lazy_init()
         event = event if isinstance(event, List) else [event]
         for result in event:
             data = result.to_dict()
-            logger.info(
-                f"[DAVID] push to data = {data} \n to stream = {self.stream_uri}"
-            )
+            logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
             self.output_stream.push([data])
 
     def _lazy_init(self):

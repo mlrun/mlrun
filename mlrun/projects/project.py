@@ -1847,8 +1847,8 @@ class MlrunProject(ModelObj):
         )
         function_object.set_label("models", models_names)
 
-        function_object.spec.min_replicas = 0
-        function_object.spec.max_replicas = max_replicas
+        # function_object.spec.min_replicas = 0
+        function_object.spec.replicas = max_replicas
 
         # # Scaling to zero in case of 30 minutes (idle-time duration)
         # function_object.set_config(

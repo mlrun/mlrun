@@ -668,8 +668,8 @@ class MonitoringDeployment:
             application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
         )
 
-        function.spec.min_replicas = 0
-        function.spec.max_replicas = 3  # TODO
+        # function.spec.min_replicas = 0
+        function.spec.replicas = 3  # TODO
 
         # function.set_config(
         #     key="spec.scaleToZero.scaleResources",

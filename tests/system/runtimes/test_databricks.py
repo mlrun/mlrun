@@ -183,7 +183,7 @@ def import_mlrun():
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params={PARAMS},
+            params=PARAMS,
         )
         assert run.status.state == "completed"
         assert (

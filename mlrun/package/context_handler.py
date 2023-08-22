@@ -314,13 +314,13 @@ class ContextHandler:
 
         :return: True if the context belongs to the logging worker and False otherwise.
         """
-        # If it's a OpenMPI job:
+        # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
+        # configuration:
         if self._context.labels.get("kind", "job") == "mpijob":
-            from mpi4py import MPI
-
-            # Get the global and compare to the logging rank (worker) set in MLRun's configuration:
-            comm = MPI.COMM_WORLD
-            return comm.Get_rank() == mlconf.packagers.logging_worker
+            # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
+            # the following template: ...-worker-<rank>
+            rank = int(self._context.labels["host"].rsplit("-", 1)[1])
+            return rank == mlconf.packagers.logging_worker
 
         # Single worker is always the logging worker:
         return True

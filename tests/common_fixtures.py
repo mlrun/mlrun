@@ -15,7 +15,6 @@
 import inspect
 import os
 import shutil
-import sys
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -179,22 +178,6 @@ def mock_failed_get_func(status_code: int):
         return mock_response
 
     return mock_get
-
-
-@pytest.fixture
-def patch_mpi4py():
-    old_module = sys.modules.get("mpi4py")
-
-    module = unittest.mock.Mock()
-    module.MPI.COMM_WORLD.Get_rank.return_value = 0
-    sys.modules["mpi4py"] = module
-
-    yield
-
-    if old_module:
-        sys.modules["mpi4py"] = old_module
-    else:
-        del sys.modules["mpi4py"]
 
 
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes

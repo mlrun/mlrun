@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import abc
 import collections
 import dataclasses
 import datetime
 import json
 import os
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -39,11 +40,9 @@ DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float
 
 
 @dataclasses.dataclass
-class TotalVarianceDistance:
+class HistogramDistanceMetric(abc.ABC):
     """
-    Provides a symmetric drift distance between two periods t and u
-    Z - vector of random variables
-    Pt - Probability distribution over time span t
+    An abstract base class for distance metrics between histograms.
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
@@ -52,7 +51,24 @@ class TotalVarianceDistance:
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
-    NAME: ClassVar[str] = "tvd"
+    NAME: ClassVar[str]
+
+    # noinspection PyMethodOverriding
+    def __init_subclass__(cls, *, metric_name: str, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.NAME = metric_name
+
+    @abc.abstractmethod
+    def compute(self) -> float:
+        raise NotImplementedError
+
+
+class TotalVarianceDistance(HistogramDistanceMetric, metric_name="tvd"):
+    """
+    Provides a symmetric drift distance between two periods t and u
+    Z - vector of random variables
+    Pt - Probability distribution over time span t
+    """
 
     def compute(self) -> float:
         """
@@ -63,22 +79,13 @@ class TotalVarianceDistance:
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
-@dataclasses.dataclass
-class HellingerDistance:
+class HellingerDistance(HistogramDistanceMetric, metric_name="hellinger"):
     """
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
-
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "hellinger"
 
     def compute(self) -> float:
         """
@@ -89,21 +96,29 @@ class HellingerDistance:
         return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
-@dataclasses.dataclass
-class KullbackLeiblerDivergence:
+class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     """
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
 
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "kld"
+    @staticmethod
+    def _calc_kl_div(
+        actual_dist: np.array, expected_dist: np.array, kld_scaling: float
+    ) -> float:
+        """Return the assymetric KL divergence"""
+        return np.sum(
+            np.where(
+                actual_dist != 0,
+                (actual_dist)
+                * np.log(
+                    actual_dist
+                    / np.where(expected_dist != 0, expected_dist, kld_scaling)
+                ),
+                0,
+            )
+        )
 
     def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
@@ -111,30 +126,10 @@ class KullbackLeiblerDivergence:
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
 
-        :returns: KL Divergence
+        :returns: symmetric KL Divergence
         """
-        t_u = np.sum(
-            np.where(
-                self.distrib_t != 0,
-                (self.distrib_t)
-                * np.log(
-                    self.distrib_t
-                    / np.where(self.distrib_u != 0, self.distrib_u, kld_scaling)
-                ),
-                0,
-            )
-        )
-        u_t = np.sum(
-            np.where(
-                self.distrib_u != 0,
-                (self.distrib_u)
-                * np.log(
-                    self.distrib_u
-                    / np.where(self.distrib_t != 0, self.distrib_t, kld_scaling)
-                ),
-                0,
-            )
-        )
+        t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
+        u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
         result = t_u + u_t
         if capping:
             return capping if result == float("inf") else result
@@ -173,10 +168,13 @@ class VirtualDrift:
         self.capping = inf_capping
 
         # Initialize objects of the current metrics
-        self.metrics = {
-            TotalVarianceDistance.NAME: TotalVarianceDistance,
-            HellingerDistance.NAME: HellingerDistance,
-            KullbackLeiblerDivergence.NAME: KullbackLeiblerDivergence,
+        self.metrics: Dict[str, Type[HistogramDistanceMetric]] = {
+            metric_class.NAME: metric_class
+            for metric_class in (
+                TotalVarianceDistance,
+                HellingerDistance,
+                KullbackLeiblerDivergence,
+            )
         }
 
     @staticmethod

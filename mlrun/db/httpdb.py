@@ -3306,7 +3306,7 @@ class HTTPRunDB(RunDBInterface):
         if res:
             public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
-                public_json=public_wrapper["body"]
+                public_json=public_wrapper["object"]
             )
             return datastore
         return None

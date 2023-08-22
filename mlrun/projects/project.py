@@ -1850,17 +1850,17 @@ class MlrunProject(ModelObj):
         function_object.spec.min_replicas = 0
         function_object.spec.max_replicas = max_replicas
 
-        # Scaling to zero in case of 30 minutes (idle-time duration)
-        function_object.set_config(
-            key="spec.scaleToZero.scaleResources",
-            value=[
-                {
-                    "metricName": "nuclio_processor_handled_events_total",
-                    "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
-                    "threshold": 0,
-                }
-            ],
-        )
+        # # Scaling to zero in case of 30 minutes (idle-time duration)
+        # function_object.set_config(
+        #     key="spec.scaleToZero.scaleResources",
+        #     value=[
+        #         {
+        #             "metricName": "nuclio_processor_handled_events_total",
+        #             "windowSize": "2m",  # default values are 1m, 2m, 5m, 10m, 30m
+        #             "threshold": 0,
+        #         }
+        #     ],
+        # )
 
         # Deploy & Add stream triggers
         self.deploy_function(

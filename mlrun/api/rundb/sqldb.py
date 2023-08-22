@@ -193,7 +193,7 @@ class SQLRunDB(RunDBInterface):
             iter=iter,
             project=project,
             tree=tree,
-            uid=uid,
+            object_uid=uid,
         )
 
     def list_artifacts(

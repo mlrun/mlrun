@@ -170,6 +170,7 @@ class DBInterface(ABC):
         tag="",
         uid=None,
         iteration=None,
+        tree="",
         best_iteration=False,
     ):
         pass

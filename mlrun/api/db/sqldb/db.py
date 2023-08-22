@@ -84,6 +84,7 @@ from mlrun.utils import (
     logger,
     update_in,
     validate_artifact_key_name,
+    validate_tag_name,
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
@@ -474,6 +475,7 @@ class SQLDB(DBInterface):
         iter=None,
         tag="",
         project="",
+        tree="",
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
@@ -493,8 +495,8 @@ class SQLDB(DBInterface):
         original_uid = uid
 
         # record with the given tag/uid
-        _, _, existing_artifact = self._get_existing_artifact(
-            session, project, key, tag, uid
+        existing_artifact = self._get_existing_artifact(
+            session, project, key, uid, tree=tree, iteration=iter
         )
 
         if isinstance(artifact, dict):
@@ -504,9 +506,14 @@ class SQLDB(DBInterface):
 
         if not artifact_dict.get("metadata", {}).get("key"):
             artifact_dict.setdefault("metadata", {})["key"] = key
+        if not artifact_dict.get("metadata", {}).get("project"):
+            artifact_dict.setdefault("metadata", {})["project"] = project
 
         # calculate uid
         uid = fill_artifact_object_hash(artifact_dict, "uid", iter)
+        print(
+            f"Calculated UID! key={key}, uid={uid}, project={project}, tree={tree} iter={iter}"
+        )
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -531,10 +538,22 @@ class SQLDB(DBInterface):
                 db_artifact = ArtifactV2(project=project, key=key)
 
             self._update_artifact_record_from_dict(
-                db_artifact, artifact_dict, project, key, uid, iter, best_iteration, tag
+                db_artifact,
+                artifact_dict,
+                project,
+                key,
+                uid,
+                iter,
+                best_iteration,
+                tag,
+                tree,
             )
             self._upsert(session, [db_artifact])
             if tag:
+                # we want to ensure that the tag is valid before storing,
+                # if it isn't, MLRunInvalidArgumentError will be raised
+                validate_tag_name(tag, "artifact.metadata.tag")
+
                 self.tag_objects_v2(
                     session,
                     [db_artifact],
@@ -552,7 +571,7 @@ class SQLDB(DBInterface):
             return uid
 
         return self.create_artifact(
-            session, project, artifact, key, tag, uid, iter, best_iteration
+            session, project, artifact, key, tag, uid, iter, tree, best_iteration
         )
 
     def list_artifacts(
@@ -781,7 +800,9 @@ class SQLDB(DBInterface):
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
 
         # tag artifacts with tag
-        self.tag_objects_v2(session, artifacts, project, name=tag)
+        self.tag_objects_v2(
+            session, artifacts, project, name=tag, obj_name_attribute="key"
+        )
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -882,11 +903,12 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         tag: str = None,
+        tree: str = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
         artifact_record.kind = kind
-        artifact_record.producer_id = artifact_dict["metadata"].get("tree")
+        artifact_record.producer_id = tree or artifact_dict["metadata"].get("tree")
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         if not artifact_record.created:
@@ -929,6 +951,7 @@ class SQLDB(DBInterface):
         tag="",
         uid=None,
         iteration=None,
+        tree="",
         best_iteration=False,
     ):
         if not uid:
@@ -947,11 +970,23 @@ class SQLDB(DBInterface):
 
         db_artifact = ArtifactV2(project=project, key=key)
         self._update_artifact_record_from_dict(
-            db_artifact, artifact, project, key, uid, iteration, best_iteration, tag
+            db_artifact,
+            artifact,
+            project,
+            key,
+            uid,
+            iteration,
+            best_iteration,
+            tag,
+            tree,
         )
 
         self._upsert(session, [db_artifact])
         if tag:
+            # we want to ensure that the tag is valid before storing,
+            # if it isn't, MLRunInvalidArgumentError will be raised
+            validate_tag_name(tag, "artifact.metadata.tag")
+
             self.tag_objects_v2(
                 session, [db_artifact], project, tag, obj_name_attribute="key"
             )
@@ -977,6 +1012,7 @@ class SQLDB(DBInterface):
             kind=identifier.kind,
             iter=identifier.iter,
             uid=identifier.uid,
+            producer_id=identifier.tree,
             as_records=True,
         )
 
@@ -1079,7 +1115,7 @@ class SQLDB(DBInterface):
 
         query = self._query(session, ArtifactV2, project=project)
 
-        if ids:
+        if ids and ids != "*":
             query = query.filter(ArtifactV2.id.in_(ids))
         if tag and tag != "*":
             obj_name = name or None
@@ -1123,26 +1159,19 @@ class SQLDB(DBInterface):
         self,
         session,
         project: str,
-        name: str,
-        tag: str = None,
+        key: str,
         uid: str = None,
         tree: str = None,
+        iteration: int = None,
     ):
-        query = self._query(session, ArtifactV2, key=name, project=project)
-        computed_tag = tag or "latest"
-        object_tag_uid = None
-        if tag and not uid:
-            object_tag_uid = self._resolve_class_tag_uid(
-                session, ArtifactV2, project, name, computed_tag
-            )
-            if object_tag_uid is None:
-                return None, None, None
-            uid = object_tag_uid
+        query = self._query(session, ArtifactV2, key=key, project=project)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
         if tree:
             query = query.filter(ArtifactV2.producer_id == tree)
-        return computed_tag, object_tag_uid, query.one_or_none()
+        if iteration is not None:
+            query = query.filter(ArtifactV2.iteration == iteration)
+        return query.one_or_none()
 
     def _should_update_artifact(
         self,
@@ -1159,16 +1188,16 @@ class SQLDB(DBInterface):
             return False
         if iteration is not None and existing_artifact.iteration != iteration:
             return False
-        if tag:
-            tag = self._query(
-                session,
-                ArtifactV2.Tag,
-                project=project,
-                obj_name=existing_artifact.key,
-                name=tag,
-            )
-            if tag.one_or_none() is None:
-                return False
+        # if tag:
+        #     tag = self._query(
+        #         session,
+        #         ArtifactV2.Tag,
+        #         project=project,
+        #         obj_name=existing_artifact.key,
+        #         name=tag,
+        #     )
+        #     if tag.one_or_none() is None:
+        #         return False
         return True
 
     # ---- Functions ----
@@ -1907,7 +1936,7 @@ class SQLDB(DBInterface):
         # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         model_artifacts = self._find_artifacts(
-            session, None, "latest", kind=mlrun.artifacts.model.ModelArtifact.kind
+            session, None, tag="latest", kind=mlrun.artifacts.model.ModelArtifact.kind
         )
         project_to_models_count = collections.defaultdict(int)
         for model_artifact in model_artifacts:
@@ -1924,7 +1953,7 @@ class SQLDB(DBInterface):
         file_artifacts = self._find_artifacts(
             session,
             None,
-            "latest",
+            tag="latest",
             category=mlrun.common.schemas.ArtifactCategories.other,
         )
         project_to_files_count = collections.defaultdict(int)
@@ -2137,8 +2166,10 @@ class SQLDB(DBInterface):
         name: str,
         tag: str = None,
         uid: str = None,
+        obj_name_attribute="name",
     ):
-        query = self._query(session, cls, name=name, project=project)
+        kwargs = {obj_name_attribute: name, "project": project}
+        query = self._query(session, cls, **kwargs)
         computed_tag = tag or "latest"
         object_tag_uid = None
         if tag or not uid:
@@ -2834,14 +2865,15 @@ class SQLDB(DBInterface):
         uid,
         obj_name_attribute: str = "name",
     ):
-        if cls == ArtifactV2:
-            _, _, existing_object = self._get_existing_artifact(
-                session, project, name, None, uid
-            )
-        else:
-            _, _, existing_object = self._get_record_by_name_tag_and_uid(
-                session, cls, project, name, None, uid
-            )
+        _, _, existing_object = self._get_record_by_name_tag_and_uid(
+            session,
+            cls,
+            project,
+            name,
+            None,
+            uid,
+            obj_name_attribute=obj_name_attribute,
+        )
         if existing_object:
             self.tag_objects_v2(
                 session,

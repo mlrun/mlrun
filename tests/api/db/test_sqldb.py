@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """SQLDB specific tests, common tests should be in test_dbs.py"""
+import copy
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from unittest import mock
@@ -23,7 +24,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import Artifact
+from mlrun.api.db.sqldb.models import ArtifactV2
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 
@@ -42,12 +43,14 @@ def patch(obj, **kw):
 
 
 def test_list_artifact_tags(db: SQLDB, db_session: Session):
-    db.store_artifact(db_session, "k1", {}, "1", tag="t1", project="p1")
-    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p1")
-    db.store_artifact(db_session, "k1", {}, "2", tag="t2", project="p2")
-    db.store_artifact(db_session, "k2", {"kind": "model"}, "3", tag="t3", project="p1")
+    db.store_artifact(db_session, "k1", {}, tree="1", tag="t1", project="p1")
+    db.store_artifact(db_session, "k1", {}, tree="2", tag="t2", project="p1")
+    db.store_artifact(db_session, "k1", {}, tree="2", tag="t2", project="p2")
     db.store_artifact(
-        db_session, "k3", {"kind": "dataset"}, "4", tag="t4", project="p2"
+        db_session, "k2", {"kind": "model"}, tree="3", tag="t3", project="p1"
+    )
+    db.store_artifact(
+        db_session, "k3", {"kind": "dataset"}, tree="4", tag="t4", project="p2"
     )
 
     tags = db.list_artifact_tags(db_session, "p1")
@@ -77,9 +80,15 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     t3 = t2 - timedelta(days=7)
     prj = "p7"
 
-    db.store_artifact(db_session, "k1", {"updated": t1}, "u1", project=prj)
-    db.store_artifact(db_session, "k2", {"updated": t2}, "u2", project=prj)
-    db.store_artifact(db_session, "k3", {"updated": t3}, "u3", project=prj)
+    db.store_artifact(
+        db_session, "k1", {"metadata": {"updated": t1}}, tree="u1", project=prj
+    )
+    db.store_artifact(
+        db_session, "k2", {"metadata": {"updated": t2}}, tree="u2", project=prj
+    )
+    db.store_artifact(
+        db_session, "k3", {"metadata": {"updated": t3}}, tree="u3", project=prj
+    )
 
     arts = db.list_artifacts(db_session, project=prj, since=t3, tag="*")
     assert 3 == len(arts), "since t3"
@@ -108,83 +117,90 @@ def test_run_iter0(db: SQLDB, db_session: Session):
 
 
 def test_artifacts_latest(db: SQLDB, db_session: Session):
-    k1, u1, art1 = "k1", "u1", {"a": 1}
+    k1, t1, art1 = "k1", "t1", {"a": 1}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, u1, project=prj)
+    db.store_artifact(db_session, k1, art1, tree=t1, project=prj)
 
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert art1["a"] == arts[0]["a"], "bad artifact"
 
-    u2, art2 = "u2", {"a": 17}
-    db.store_artifact(db_session, k1, art2, u2, project=prj)
+    t2, art2 = "t2", {"a": 17}
+    db.store_artifact(db_session, k1, art2, tree=t2, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 1 == len(arts), "count"
     assert art2["a"] == arts[0]["a"], "bad artifact"
 
-    k2, u3, art3 = "k2", "u3", {"a": 99}
-    db.store_artifact(db_session, k2, art3, u3, project=prj)
+    k2, t3, art3 = "k2", "t3", {"a": 99}
+    db.store_artifact(db_session, k2, art3, tree=t3, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 2 == len(arts), "number"
     assert {17, 99} == set(art["a"] for art in arts), "latest"
 
 
 def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
-    k1, u1, art1 = "k1", "u1", {"a": 1, "b": "blubla"}
-    u2, art2 = "u2", {"a": 2, "b": "blublu"}
+    k1, t1, art1 = "k1", "t1", {"a": 1, "b": "blubla"}
+    t2, art2 = "t2", {"a": 2, "b": "blublu"}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag1")
-    db.store_artifact(db_session, k1, art2, u2, iter=2, project=prj, tag="tag2")
+    db.store_artifact(db_session, k1, art1, tree=t1, iter=1, project=prj, tag="tag1")
+    db.store_artifact(db_session, k1, art2, tree=t2, iter=2, project=prj, tag="tag2")
 
     result = db.read_artifact(db_session, k1, "tag1", iter=1, project=prj)
-    assert result["tag"] == "tag1"
+    assert result["metadata"]["tag"] == "tag1"
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
-    assert result["tag"] == "tag2"
+    assert result["metadata"]["tag"] == "tag2"
     result = db.read_artifact(db_session, k1, iter=1, project=prj)
     # When doing get without a tag, the returned object must not contain a tag.
     assert "tag" not in result
-    # read_artifact supports a case where the tag is actually the uid.
-    result = db.read_artifact(db_session, k1, tag="u2", iter=2, project=prj)
-    assert "tag" not in result
 
     result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
-    assert result["tag"] == "tag2"
+    assert result["metadata"]["tag"] == "tag2"
 
     result = db.list_artifacts(db_session, k1, project=prj, tag="*")
-    # TODO: this actually expected to be 3, but this will be fixed in another PR once we restructure the Artifacts table
-    #   and change the way tag_artifacts works ( currently it is unable to untag tag from artifacts which were generated
-    #   in hyper params runs)
-    assert len(result) == 4
+    assert len(result) == 3
     for artifact in result:
         assert (
-            (artifact["a"] == 1 and artifact["tag"] == "tag1")
-            or (artifact["a"] == 2 and artifact["tag"] == "tag2")
-            or (artifact["a"] in (1, 2) and artifact["tag"] == "latest")
+            (artifact["a"] == 1 and artifact["metadata"]["tag"] == "tag1")
+            or (artifact["a"] == 2 and artifact["metadata"]["tag"] == "tag2")
+            or (artifact["a"] in (1, 2) and artifact["metadata"]["tag"] == "latest")
         )
 
     # To be used later, after adding tags
     full_results = result
 
     result = db.list_artifacts(db_session, k1, tag="tag1", project=prj)
-    assert len(result) == 1 and result[0]["tag"] == "tag1" and result[0]["a"] == 1
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag1"
+        and result[0]["a"] == 1
+    )
     result = db.list_artifacts(db_session, k1, tag="tag2", project=prj)
-    assert len(result) == 1 and result[0]["tag"] == "tag2" and result[0]["a"] == 2
+    assert (
+        len(result) == 1
+        and result[0]["metadata"]["tag"] == "tag2"
+        and result[0]["a"] == 2
+    )
 
     # Add another tag to all objects (there are 2 at this point)
     expected_results = ArtifactList()
     for artifact in full_results:
         expected_results.append(artifact)
-        artifact_with_new_tag = artifact.copy()
-        artifact_with_new_tag["tag"] = "new-tag"
+        if artifact["metadata"]["tag"] == "latest":
+            # We don't want to add a new tag to the "latest" object (it's the same object as the one with tag "tag2")
+            continue
+        artifact_with_new_tag = copy.deepcopy(artifact)
+        artifact_with_new_tag["metadata"]["tag"] = "new-tag"
         expected_results.append(artifact_with_new_tag)
 
-    artifacts = db_session.query(Artifact).all()
-    db.tag_artifacts(db_session, artifacts, prj, "new-tag")
+    artifacts = db_session.query(ArtifactV2).all()
+    db.tag_objects_v2(
+        db_session, artifacts, prj, name="new-tag", obj_name_attribute="key"
+    )
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
-    db.store_artifact(db_session, k1, art1, u1, iter=1, project=prj, tag="tag3")
+    db.store_artifact(db_session, k1, art1, tree=t1, iter=1, project=prj, tag="tag3")
     result = db.read_artifact(db_session, k1, "tag3", iter=1, project=prj)
-    assert result["tag"] == "tag3"
+    assert result["metadata"]["tag"] == "tag3"
     expected_results.append(result)
 
     result = db.list_artifacts(db_session, k1, prj, tag="*")

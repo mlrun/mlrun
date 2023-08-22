@@ -91,6 +91,7 @@ class Artifacts(
             key,
             tag,
             iteration=iter,
+            tree=tree,
             best_iteration=best_iteration,
         )
 

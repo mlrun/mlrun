@@ -23,8 +23,8 @@ import pandas as pd
 
 import mlrun.artifacts
 import mlrun.common.helpers
-import mlrun.common.schemas
 import mlrun.feature_store
+from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
 
 from .features_drift_table import FeaturesDriftTablePlot
@@ -41,15 +41,13 @@ def get_or_create_model_endpoint(
     project: str,
     endpoint_id: str,
     model_path: str,
-    model_name: str,
+    model_endpoint_name: str,
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
     sample_set_statistics: typing.Dict[str, typing.Any] = None,
     drift_threshold: float = 0.7,
     possible_drift_threshold: float = 0.5,
-    monitoring_mode: typing.Optional[
-        mlrun.common.schemas.model_monitoring.ModelMonitoringMode
-    ] = mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
     db_session=None,
     patch_if_exist: bool = False,
 ) -> ModelEndpoint:
@@ -62,8 +60,8 @@ def get_or_create_model_endpoint(
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
     :param model_path:               The model store path.
-    :param model_name:               If a new model endpoint is created, the model name will be presented under this
-                                     endpoint.
+    :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
+                                     under this endpoint.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
@@ -84,7 +82,7 @@ def get_or_create_model_endpoint(
     if not endpoint_id:
         # Generate a new model endpoint id based on the project name and model name
         endpoint_id = hashlib.sha1(
-            f"{project}_{model_name}".encode("utf-8")
+            f"{project}_{model_endpoint_name}".encode("utf-8")
         ).hexdigest()
     if not db_session:
         # Generate a runtime database
@@ -96,15 +94,15 @@ def get_or_create_model_endpoint(
         if patch_if_exist:
             # Update provided values
             attributes_to_update = {
-                mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST: datetime.datetime.now(),
-                mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_DETECTED: drift_threshold,
-                mlrun.common.schemas.model_monitoring.EventFieldType.POSSIBLE_DRIFT: possible_drift_threshold,
-                mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE: monitoring_mode,
+                EventFieldType.LAST_REQUEST: datetime.datetime.now(),
+                EventFieldType.DRIFT_DETECTED: drift_threshold,
+                EventFieldType.POSSIBLE_DRIFT: possible_drift_threshold,
+                EventFieldType.MONITORING_MODE: monitoring_mode,
             }
             if sample_set_statistics:
-                attributes_to_update[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
-                ] = json.dumps(sample_set_statistics)
+                attributes_to_update[EventFieldType.FEATURE_STATS] = json.dumps(
+                    sample_set_statistics
+                )
 
             db_session.patch_model_endpoint(
                 project=project,
@@ -123,7 +121,7 @@ def get_or_create_model_endpoint(
             db_session=db_session,
             endpoint_id=endpoint_id,
             model_path=model_path,
-            model_name=model_name,
+            model_endpoint_name=model_endpoint_name,
             function_name=function_name,
             context=context,
             sample_set_statistics=sample_set_statistics,
@@ -138,14 +136,12 @@ def record_results(
     project: str,
     endpoint_id: str,
     model_path: str,
-    model_name: str,
+    model_endpoint_name: str,
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
     df_to_target: pd.DataFrame = None,
     sample_set_statistics: typing.Dict[str, typing.Any] = None,
-    monitoring_mode: typing.Optional[
-        mlrun.common.schemas.model_monitoring.ModelMonitoringMode
-    ] = mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled,
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
     drift_threshold: float = 0.7,
     possible_drift_threshold: float = 0.5,
     inf_capping: float = 10.0,
@@ -165,8 +161,8 @@ def record_results(
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
     :param model_path:               The model Store path.
-    :param model_name:               If a new model endpoint is generated, the model name will be presented under this
-                                     endpoint.
+    :param model_endpoint_name:      If a new model endpoint is generated, the model endpoint name will be presented
+                                     under this endpoint.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. Note that the context is required for logging the artifacts
@@ -193,7 +189,7 @@ def record_results(
         project=project,
         endpoint_id=endpoint_id,
         model_path=model_path,
-        model_name=model_name,
+        model_endpoint_name=model_endpoint_name,
         function_name=function_name,
         context=context,
         sample_set_statistics=sample_set_statistics,
@@ -264,22 +260,15 @@ def write_monitoring_df(
         )
 
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
-    if (
-        mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP
-        not in df_to_target.columns
-    ):
+    if EventFieldType.TIMESTAMP not in df_to_target.columns:
         # Initialize timestamp column with the current time
-        df_to_target[
-            mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP
-        ] = datetime.datetime.now()
+        df_to_target[EventFieldType.TIMESTAMP] = datetime.datetime.now()
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
-    df_to_target[
-        mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-    ] = endpoint_id
+    df_to_target[EventFieldType.ENDPOINT_ID] = endpoint_id
     df_to_target.set_index(
-        mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
+        EventFieldType.ENDPOINT_ID,
         inplace=True,
     )
 
@@ -293,15 +282,13 @@ def _generate_model_endpoint(
     db_session,
     endpoint_id: str,
     model_path: str,
-    model_name: str,
+    model_endpoint_name: str,
     function_name: str,
     context: mlrun.MLClientCtx,
     sample_set_statistics: typing.Dict[str, typing.Any],
     drift_threshold: float,
     possible_drift_threshold: float,
-    monitoring_mode: typing.Optional[
-        mlrun.common.schemas.model_monitoring.ModelMonitoringMode
-    ] = mlrun.common.schemas.model_monitoring.ModelMonitoringMode.disabled,
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
 ) -> ModelEndpoint:
     """
     Write a new model endpoint record.
@@ -311,7 +298,7 @@ def _generate_model_endpoint(
     :param db_session:               A session that manages the current dialog with the database.
     :param endpoint_id:              Model endpoint unique ID.
     :param model_path:               The model Store path.
-    :param model_name:               Model name will be presented under the new model endpoint.
+    :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. If function_name not provided, use the context to generate the
@@ -341,7 +328,7 @@ def _generate_model_endpoint(
 
     model_endpoint.spec.function_uri = project + "/" + function_name
     model_endpoint.spec.model_uri = model_path
-    model_endpoint.spec.model = model_name
+    model_endpoint.spec.model = model_endpoint_name
     model_endpoint.spec.model_class = "drift-analysis"
     model_endpoint.spec.monitor_configuration["drift_detected"] = drift_threshold
     model_endpoint.spec.monitor_configuration[

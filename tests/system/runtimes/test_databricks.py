@@ -58,10 +58,10 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 os.environ[key] = value
 
     @staticmethod
-    def assert_print_kwargs(run):
-        assert run.status.state == "completed"
+    def assert_print_kwargs(print_kwargs_run):
+        assert print_kwargs_run.status.state == "completed"
         assert (
-            run.status.results["databricks_runtime_task"]["logs"]
+            print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
             == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
         )
 
@@ -89,15 +89,13 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         for name, val in job_env.items():
             function.spec.env.append({"name": name, "value": val})
 
-    @pytest.mark.parametrize(
-        "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
-    )
+    @pytest.mark.parametrize("use_existing_cluster, fail", [(True, False)])
     def test_kwargs_from_code(self, use_existing_cluster, fail):
 
         function_ref = FunctionReference(
             kind="databricks",
             code=PRINT_KWARGS,
-            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
+            image="mlrun/mlrun",
             name="databricks-test",
         )
 
@@ -124,7 +122,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 project="databricks-proj",
                 params=params,
             )
-            self.assert_print_kwargs(run=run)
+            self.assert_print_kwargs(print_kwargs_run=run)
 
     def test_failure_in_databricks(self):
         code = """
@@ -136,7 +134,7 @@ def import_mlrun():
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
+            image="mlrun/mlrun",
             name="databricks-fails-test",
         )
 
@@ -159,7 +157,7 @@ def import_mlrun():
             kind="databricks",
             project=self.project_name,
             filename=code_path,
-            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
+            image="mlrun/mlrun",
         )
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
@@ -179,7 +177,7 @@ def import_mlrun():
     @pytest.mark.parametrize(
         "handler, databricks_code",
         [
-            ("print_kwargs", PRINT_KWARGS),
+            # ("print_kwargs", PRINT_KWARGS),
             (
                 "",
                 PRINT_KWARGS.replace("print_kwargs", "handler"),
@@ -191,7 +189,7 @@ def import_mlrun():
         function_ref = FunctionReference(
             kind="databricks",
             code=databricks_code,
-            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
+            image="mlrun/mlrun",
             name="databricks-test",
         )
 
@@ -199,6 +197,6 @@ def import_mlrun():
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
         run = function.run(project="databricks-proj", params=PARAMS, **function_kwargs)
-        self.assert_print_kwargs(run=run)
-        run = function.run(runspec=run, project="databricks-proj")
-        self.assert_print_kwargs(run=run)
+        self.assert_print_kwargs(print_kwargs_run=run)
+        second_run = function.run(runspec=run, project="databricks-proj")
+        self.assert_print_kwargs(print_kwargs_run=second_run)

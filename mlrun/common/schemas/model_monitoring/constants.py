@@ -74,6 +74,8 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    DRIFT_DETECTED = "drift_detected"
+    POSSIBLE_DRIFT = "possible_drift"
 
 
 class EventLiveStats:

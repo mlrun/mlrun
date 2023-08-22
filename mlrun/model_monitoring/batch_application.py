@@ -329,7 +329,8 @@ class BatchApplicationProcessor:
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS: json.dumps(
                     feature_stats
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH:
+                    BatchApplicationProcessor._get_parquet_path(
                     parquet_directory=parquet_directory,
                     schedule_time=end_time,
                     endpoint_id=endpoint_id,

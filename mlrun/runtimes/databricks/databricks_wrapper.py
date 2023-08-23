@@ -17,6 +17,7 @@ import datetime
 import json
 import uuid
 from base64 import b64decode
+
 import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import OperationFailed
@@ -25,6 +26,8 @@ from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTas
 
 import mlrun
 from mlrun.errors import MLRunRuntimeError
+
+credentials_path = "/mlrun/databricks_credentials.yml"
 
 
 def get_task(databricks_run: Run) -> RunTask:
@@ -40,23 +43,27 @@ def get_task(databricks_run: Run) -> RunTask:
     return databricks_run.tasks[0]
 
 
-def save_credentials(workspace: WorkspaceClient, waiter, host: str, token: str, cluster_id=None):
+def save_credentials(
+    workspace: WorkspaceClient, waiter, host: str, token: str, cluster_id=None
+):
     databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
     task_run_id = get_task(databricks_run=databricks_run).run_id
-    credentials = {"DATABRICKS_HOST": host, "DATABRICKS_TOKEN": token, "TASK_RUN_ID": task_run_id}
+    credentials = {
+        "DATABRICKS_HOST": host,
+        "DATABRICKS_TOKEN": token,
+        "TASK_RUN_ID": task_run_id,
+    }
     if cluster_id:
         credentials["DATABRICKS_CLUSTER_ID"] = token
 
-    yaml_file_path = "/mlrun/databricks_credentials.yml"
-
-    with open(yaml_file_path, 'w') as yaml_file:
+    with open(credentials_path, "w") as yaml_file:
         yaml.dump(credentials, yaml_file, default_flow_style=False)
 
 
 def run_mlrun_databricks_job(
-        context,
-        task_parameters: dict,
-        **kwargs,
+    context,
+    task_parameters: dict,
+    **kwargs,
 ):
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")

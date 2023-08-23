@@ -35,5 +35,4 @@ def main():
     print(f"Cancelling task {task_id} has succeeded.")
 
 
-if "__name__" == "__main__":
-    main()
+main()

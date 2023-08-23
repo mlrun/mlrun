@@ -78,17 +78,6 @@ class InMemorySecretProvider(SecretProviderInterface):
         )
         return secret_ref, mlrun.common.schemas.SecretEventActions.created
 
-    @staticmethod
-    def _generate_auth_secret_data(username: str, access_key: str):
-        return {
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                "username"
-            ): username,
-            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
-                "access_key"
-            ): access_key,
-        }
-
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         del self.auth_secrets_map[secret_ref]
 
@@ -145,3 +134,14 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def get_secret_data(self, secret_name, namespace=""):
         return self.secrets_map[secret_name]
+
+    @staticmethod
+    def _generate_auth_secret_data(username: str, access_key: str):
+        return {
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "username"
+            ): username,
+            mlrun.common.schemas.AuthSecretData.get_field_secret_key(
+                "access_key"
+            ): access_key,
+        }

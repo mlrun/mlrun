@@ -28,11 +28,10 @@ class DatabricksRuntime(KubejobRuntime):
         """
         Return the internal function code.
         """
-        internal_handler = runobj.spec.parameters.get("task_parameters", {}).get(
-            "internal_handler", NOT_EXIST_VALUE
-        )
-        # None and '' can be a symbol for none internal handler and don't need to be replaced.
-        if internal_handler == NOT_EXIST_VALUE:
+        task_parameters = runobj.spec.parameters.get("task_parameters", {})
+        if "internal_handler" in task_parameters:
+            internal_handler = task_parameters["internal_handler"]
+        else:
             internal_handler = runobj.spec.handler or ""
         encoded_code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None

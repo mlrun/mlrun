@@ -89,7 +89,9 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         for name, val in job_env.items():
             function.spec.env.append({"name": name, "value": val})
 
-    @pytest.mark.parametrize("use_existing_cluster, fail", [(True, False)])
+    @pytest.mark.parametrize(
+        "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
+    )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
 
         function_ref = FunctionReference(

@@ -242,6 +242,7 @@ def import_mlrun():
         )
 
         function = function_ref.to_function()
+        self._add_databricks_env(function=function)
         run = function.run(
             project="databricks-proj",
         )

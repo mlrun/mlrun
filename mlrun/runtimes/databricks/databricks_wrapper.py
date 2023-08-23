@@ -74,7 +74,6 @@ def run_mlrun_databricks_job(
     new_cluster_spec = task_parameters.get("new_cluster_spec")
 
     logger = context.logger
-    print(f'token: {databricks_token}')
     workspace = WorkspaceClient(token=databricks_token)
     mlrun_databricks_job_id = uuid.uuid4()
     script_path_on_dbfs = (
@@ -122,7 +121,7 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
-        save_credentials(waiter=waiter, host=host, token=databricks_token, cluster_id=cluster_id)
+        save_credentials(workspace=workspace, waiter=waiter, host=host, token=databricks_token, cluster_id=cluster_id)
         try:
             run = waiter.result(
                 timeout=datetime.timedelta(minutes=timeout_minutes),

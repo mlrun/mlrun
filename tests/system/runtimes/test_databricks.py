@@ -30,14 +30,13 @@ config_file_path = here / "assets" / "test_databricks.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
+print_kwargs_function = """
 
-PRINT_KWARGS = """
-
-def print_kwargs(**kwargs):
+def %s(**kwargs):
     print(f"kwargs: {kwargs}")
 """
 
-PARAMS = {
+default_test_params = {
     "task_parameters": {"timeout_minutes": 15},
     "param1": "value1",
     "param2": "value2",
@@ -66,7 +65,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         )
 
     @staticmethod
-    def _add_databricks_env(function, is_cluster_id_required):
+    def _add_databricks_env(function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:
             raise KeyError(
@@ -93,10 +92,10 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
     )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
-
+        code = print_kwargs_function % "print_kwargs"
         function_ref = FunctionReference(
             kind="databricks",
-            code=PRINT_KWARGS,
+            code=code,
             image="mlrun/mlrun",
             name="databricks-test",
         )
@@ -106,7 +105,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         self._add_databricks_env(
             function=function, is_cluster_id_required=use_existing_cluster
         )
-        params = copy.deepcopy(PARAMS)
+        params = copy.deepcopy(default_test_params)
         if fail:
             params["task_parameters"]["new_cluster_spec"] = {
                 "node_type_id": "this is not a real node type so it should fail"
@@ -142,7 +141,7 @@ def import_mlrun():
 
         function = function_ref.to_function()
 
-        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        self._add_databricks_env(function=function)
         with pytest.raises(RunError) as error:
             function.run(
                 handler="import_mlrun",
@@ -162,13 +161,13 @@ def import_mlrun():
             image="mlrun/mlrun",
         )
 
-        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        self._add_databricks_env(function=function)
 
         run = function.run(
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params=PARAMS,
+            params=default_test_params,
         )
         assert run.status.state == "completed"
         assert (
@@ -177,16 +176,17 @@ def import_mlrun():
         )
 
     @pytest.mark.parametrize(
-        "handler, databricks_code",
+        "handler, function_name",
         [
-            ("print_kwargs", PRINT_KWARGS),
+            ("print_kwargs", "print_kwargs"),
             (
                 "",
-                PRINT_KWARGS.replace("print_kwargs", "handler"),
+                "handler",
             ),  # test default handler.
         ],
     )
-    def test_rerun(self, handler, databricks_code):
+    def test_rerun(self, handler, function_name):
+        databricks_code = print_kwargs_function % function_name
         function_kwargs = {"handler": handler} if handler else {}
         function_ref = FunctionReference(
             kind="databricks",
@@ -197,8 +197,10 @@ def import_mlrun():
 
         function = function_ref.to_function()
 
-        self._add_databricks_env(function=function, is_cluster_id_required=True)
-        run = function.run(project="databricks-proj", params=PARAMS, **function_kwargs)
+        self._add_databricks_env(function=function)
+        run = function.run(
+            project="databricks-proj", params=default_test_params, **function_kwargs
+        )
         self.assert_print_kwargs(print_kwargs_run=run)
         second_run = function.run(runspec=run, project="databricks-proj")
         self.assert_print_kwargs(print_kwargs_run=second_run)

@@ -21,6 +21,7 @@ from kubernetes.client.rest import ApiException
 
 import mlrun.api.runtime_handlers.mpijob
 import mlrun.common.schemas
+import mlrun.common.secrets
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
@@ -49,7 +50,7 @@ class SecretTypes:
     v3io_fuse = "v3io/fuse"
 
 
-class K8sHelper:
+class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.config.namespace
         self.config_file = mlconfig.config.kubernetes.kubeconfig_path or None

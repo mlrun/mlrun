@@ -67,14 +67,15 @@ def run_mlrun_databricks_job(
 ):
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
-    token = mlrun.get_secret_or_env(key=token_key)
+    databricks_token = mlrun.get_secret_or_env(key=token_key)
     host = mlrun.get_secret_or_env(key="DATABRICKS_HOST")
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
 
     logger = context.logger
-    workspace = WorkspaceClient(token=token)
+    print(f'token: {databricks_token}')
+    workspace = WorkspaceClient(token=databricks_token)
     mlrun_databricks_job_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
@@ -121,7 +122,7 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
-        save_credentials(waiter=waiter, host=host, token=token, cluster_id=cluster_id)
+        save_credentials(waiter=waiter, host=host, token=databricks_token, cluster_id=cluster_id)
         try:
             run = waiter.result(
                 timeout=datetime.timedelta(minutes=timeout_minutes),

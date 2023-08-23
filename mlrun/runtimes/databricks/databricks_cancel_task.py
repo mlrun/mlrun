@@ -30,8 +30,9 @@ def main():
     run = workspace.jobs.cancel_run(run_id=task_id).result()
     result_state = run.as_dict().get('state').get('result_state')
     if result_state != "CANCELED":
-        raise MLRunRuntimeError(f"canceling task {task_id} has failed."
+        raise MLRunRuntimeError(f"cancelling task {task_id} has failed."
                                 f" Please check the status of this task in the Databricks environment.")
+    print(f"Cancelling task {task_id} has succeeded.")
 
 
 if "__name__" == "__main__":

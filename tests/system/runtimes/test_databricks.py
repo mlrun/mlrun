@@ -227,3 +227,21 @@ def import_mlrun():
                 "Databricks function must be provided with user code"
                 in bad_request_error.value
             )
+
+    def test_cancel_task(self):
+        sleep_code = """
+        def handler(**kwargs):
+            import time
+            time.sleep(1000)
+"""
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=sleep_code,
+            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+        run = function.run(
+            project="databricks-proj",
+        )

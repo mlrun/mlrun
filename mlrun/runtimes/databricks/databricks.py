@@ -19,7 +19,6 @@ from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 
 
-
 class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
@@ -29,31 +28,31 @@ class DatabricksRuntime(KubejobRuntime):
         Return the internal function code.
         """
         task_parameters = runobj.spec.parameters.get("task_parameters", {})
-        if "internal_handler" in task_parameters:
-            internal_handler = task_parameters["internal_handler"]
+        if "original_handler" in task_parameters:
+            original_handler = task_parameters["original_handler"]
         else:
-            internal_handler = runobj.spec.handler or ""
+            original_handler = runobj.spec.handler or ""
         encoded_code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:
-            return ""
+            return "", original_handler
         decoded_code = b64decode(encoded_code).decode("utf-8")
         code = _databricks_script_code + decoded_code
-        if internal_handler:
-            code += f"\n{internal_handler}(**handler_arguments)\n"
+        if original_handler:
+            code += f"\n{original_handler}(**handler_arguments)\n"
         code = b64encode(code.encode("utf-8")).decode("utf-8")
-        return code, internal_handler
+        return code, original_handler
 
     def _pre_run(self, runspec: RunObject, execution):
-        internal_code, internal_handler = self.get_internal_parameters(runspec)
+        internal_code, original_handler = self.get_internal_parameters(runspec)
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
             task_parameters["spark_app_code"] = internal_code
-            if internal_handler:
+            if original_handler:
                 task_parameters[
-                    "internal_handler"
-                ] = internal_handler  # in order to handle reruns.
+                    "original_handler"
+                ] = original_handler  # in order to handle reruns.
             runspec.spec.parameters["task_parameters"] = task_parameters
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)

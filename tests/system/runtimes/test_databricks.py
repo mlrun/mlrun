@@ -216,10 +216,14 @@ def import_mlrun():
         function = function_ref.to_function()
 
         self._add_databricks_env(function=function)
-        with pytest.raises(mlrun.runtimes.utils.RunError):
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as bad_request_error:
             run = function.run(
                 project="databricks-proj",
                 params=default_test_params,
                 handler="not_exist_handler",
             )
             assert run.status.state == "error"
+            assert (
+                "Databricks function must be provided with user code"
+                in bad_request_error.value
+            )

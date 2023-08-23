@@ -22,9 +22,16 @@ if [ ! -v  MLRUN_MIGRATION_MESSAGE ]; then
 fi
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-ROOT_DIR="${SCRIPT_DIR}/../.."
+export ROOT_DIR="${SCRIPT_DIR}/../.."
+
+function cleanup {
+	rm -f "${ROOT_DIR}/mlrun/api/migrations_sqlite/mlrun.db"
+}
+trap cleanup SIGHUP SIGINT SIGTERM EXIT
 
 export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 
+cleanup
+
 alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" upgrade head
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

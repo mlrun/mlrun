@@ -39,9 +39,9 @@ DatasetType = typing.Union[
 
 def get_or_create_model_endpoint(
     project: str,
-    endpoint_id: str,
     model_path: str,
     model_endpoint_name: str,
+    endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
     sample_set_statistics: typing.Dict[str, typing.Any] = None,
@@ -57,11 +57,11 @@ def get_or_create_model_endpoint(
     features, set `monitoring_mode=enabled`.
 
     :param project:                  Project name.
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
     :param model_path:               The model store path.
     :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
                                      under this endpoint.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
+                                     on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
@@ -84,6 +84,7 @@ def get_or_create_model_endpoint(
         endpoint_id = hashlib.sha1(
             f"{project}_{model_endpoint_name}".encode("utf-8")
         ).hexdigest()
+
     if not db_session:
         # Generate a runtime database
         db_session = mlrun.get_run_db()
@@ -134,9 +135,9 @@ def get_or_create_model_endpoint(
 
 def record_results(
     project: str,
-    endpoint_id: str,
     model_path: str,
     model_endpoint_name: str,
+    endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
     df_to_target: pd.DataFrame = None,
@@ -144,9 +145,9 @@ def record_results(
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
     drift_threshold: float = 0.7,
     possible_drift_threshold: float = 0.5,
+    trigger_monitoring_job: bool = False,
     inf_capping: float = 10.0,
     artifacts_tag: str = "",
-    trigger_monitoring_job: bool = False,
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
     """
@@ -158,11 +159,12 @@ def record_results(
     according to the provided thresholds.
 
     :param project:                  Project name.
-    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
-                                     on the provided `endpoint_id`.
+
     :param model_path:               The model Store path.
     :param model_endpoint_name:      If a new model endpoint is generated, the model endpoint name will be presented
                                      under this endpoint.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
+                                     on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. Note that the context is required for logging the artifacts
@@ -175,10 +177,13 @@ def record_results(
                                      by default.
     :param drift_threshold:          The threshold of which to mark drifts. Defaulted to 0.7.
     :param possible_drift_threshold: The threshold of which to mark possible drifts. Defaulted to 0.5.
-    :param inf_capping:              The value to set for when it reached infinity. Defaulted to 10.0.
-    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
+    :param inf_capping:              The value to set for when it reached infinity. Defaulted to 10.0. Will be relevant
+                                     only if the monitoring batch job has been triggered.
+    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
+                                     only if the monitoring batch job has been triggered.
+
     :param default_batch_image:      The image that will be used when registering the model monitoring batch job.
 
     :return: A ModelEndpoint object

@@ -204,3 +204,22 @@ def import_mlrun():
         self.assert_print_kwargs(print_kwargs_run=run)
         second_run = function.run(runspec=run, project="databricks-proj")
         self.assert_print_kwargs(print_kwargs_run=second_run)
+
+    def test_missing_code_run(self):
+        function_ref = FunctionReference(
+            kind="databricks",
+            code="",
+            image="mlrun/mlrun",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function)
+        with pytest.raises(mlrun.runtimes.utils.RunError):
+            run = function.run(
+                project="databricks-proj",
+                params=default_test_params,
+                handler="not_exist_handler",
+            )
+            assert run.status.state == "error"

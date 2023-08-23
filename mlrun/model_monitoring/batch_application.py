@@ -32,9 +32,9 @@ import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
+from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
-from mlrun.model_monitoring.batch import calculate_inputs_statistics
 
 
 class BatchApplicationProcessor:
@@ -329,8 +329,7 @@ class BatchApplicationProcessor:
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS: json.dumps(
                     feature_stats
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH:
-                    BatchApplicationProcessor._get_parquet_path(
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
                     parquet_directory=parquet_directory,
                     schedule_time=end_time,
                     endpoint_id=endpoint_id,

@@ -15,6 +15,7 @@
 
 import dataclasses
 import json
+import os
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
@@ -80,13 +81,15 @@ class ModelMonitoringApplicationResult:
 class ModelMonitoringApplication(StepToDict):
     kind = "monitoring_application"
 
-    def __int__(self, name):
+    def __init__(self, name):
         """
         Class representing a model monitoring application. Subclass this to create custom monitoring logic.
 
         :param name:    (str) name of the application
         """
         self.name = name
+        self.context: mlrun.MLClientCtx = None
+        self.initialize = False
 
     def do(self, event):
         """
@@ -95,7 +98,13 @@ class ModelMonitoringApplication(StepToDict):
         :param event:   (dict) The monitoring event to process.
         :returns:       (List[ModelMonitoringApplicationResult]) The application results.
         """
+        if not self.initialize:
+            self._lazy_init()
+            self.initialize = True
         return self.run_application(*self._resolve_event(event))
+
+    def _lazy_init(self):
+        self.context = self._create_context_for_logging()
 
     def run_application(
         self,
@@ -167,6 +176,20 @@ class ModelMonitoringApplication(StepToDict):
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI
             ],
         )
+
+    def _create_context_for_logging(self):
+        context = mlrun.get_or_create_ctx(
+            f"{self.name}-logger",
+            upload_artifacts=True,
+            labels={"type": "model-monitoring-app-logger"},
+        )
+        context._secrets_manager.add_source(
+            kind="inline",
+            source={"V3IO_ACCESS_KEY": os.environ.get("MODEL_MONITORING_ACCESS_KEY")},
+        )
+        context._init_dbs(mlrun.get_run_db(secrets=context._secrets_manager))
+        context.set_label("type", "model-monitoring-app-logger")
+        return context
 
     @staticmethod
     def _dict_to_histogram(histogram_dict: Dict[str, Dict[str, Any]]) -> pd.DataFrame:

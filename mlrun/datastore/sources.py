@@ -31,7 +31,7 @@ from mlrun.secrets import SecretsStore
 from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
-from ..utils import get_class
+from ..utils import get_class, is_explicit_ack_supported
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -72,7 +72,13 @@ class BaseSourceDriver(DataSource):
                 f"{type(self).__name__} does not support storey engine"
             )
 
-        return storey.SyncEmitSource(context=context)
+        explicit_ack = (
+            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+        )
+        return storey.SyncEmitSource(
+            context=context,
+            explicit_ack=explicit_ack,
+        )
 
     def get_table_object(self):
         """get storey Table object"""
@@ -788,12 +794,14 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         source_args = self.attributes.get("source_args", {})
-
+        explicit_ack = (
+            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+        )
         src_class = source_class(
             context=context,
             key_field=self.key_field,
             full_event=True,
-            explicit_ack=mlrun.mlconf.is_explicit_ack(),
+            explicit_ack=explicit_ack,
             **source_args,
         )
 

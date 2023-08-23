@@ -16,7 +16,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
-* **dbfs** &mdash; Databricks storage, formst: `dbfs://path/to/file`
+* **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file`
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
@@ -120,4 +120,5 @@ contents directly to the query engine.
 
 ### Databricks file system
 * `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
-* `DATABRICKS_TOKEN` &mdash; Databricks connection token
+* `DATABRICKS_TOKEN` &mdash; Databricks access token.<br>
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication)

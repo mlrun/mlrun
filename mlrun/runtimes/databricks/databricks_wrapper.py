@@ -17,7 +17,7 @@ import datetime
 import json
 import uuid
 from base64 import b64decode
-
+import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
@@ -40,19 +40,34 @@ def get_task(databricks_run: Run) -> RunTask:
     return databricks_run.tasks[0]
 
 
+def save_credentials(workspace: WorkspaceClient, waiter, host: str, token: str, cluster_id=None):
+    databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
+    task_run_id = get_task(databricks_run=databricks_run).run_id
+    credentials = {"DATABRICKS_HOST": host, "DATABRICKS_TOKEN": token, "TASK_RUN_ID": task_run_id}
+    if cluster_id:
+        credentials["DATABRICKS_CLUSTER_ID"] = token
+
+    yaml_file_path = "/mlrun/databricks_credentials.yml"
+
+    with open(yaml_file_path, 'w') as yaml_file:
+        yaml.dump(credentials, yaml_file, default_flow_style=False)
+
+
 def run_mlrun_databricks_job(
-    context,
-    task_parameters: dict,
-    **kwargs,
+        context,
+        task_parameters: dict,
+        **kwargs,
 ):
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
+    token = mlrun.get_secret_or_env(key=token_key)
+    host = mlrun.get_secret_or_env(key="DATABRICKS_HOST")
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
 
     logger = context.logger
-    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
+    workspace = WorkspaceClient(token=token)
     mlrun_databricks_job_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
@@ -99,6 +114,7 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
+        save_credentials(waiter=waiter, host=host, token=token, cluster_id=cluster_id)
         try:
             run = waiter.result(
                 timeout=datetime.timedelta(minutes=timeout_minutes),

@@ -18,7 +18,6 @@ from base64 import b64decode, b64encode
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 
-NOT_EXIST_VALUE = "handler_not_exist"
 
 
 class DatabricksRuntime(KubejobRuntime):

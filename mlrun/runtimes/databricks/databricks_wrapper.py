@@ -21,10 +21,23 @@ from base64 import b64decode
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
-from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
+from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTask
 
 import mlrun
 from mlrun.errors import MLRunRuntimeError
+
+
+def get_task(databricks_run: Run) -> RunTask:
+    if len(databricks_run.tasks) == 0:
+        raise MLRunRuntimeError(
+            "Cannot find tasks related to the Databricks job run ID in Databricks environment."
+        )
+    elif len(databricks_run.tasks) > 1:
+        raise MLRunRuntimeError(
+            "More than one task related to the Databricks job run ID has been found."
+            " Did you manually run any tasks from this job?"
+        )
+    return databricks_run.tasks[0]
 
 
 def run_mlrun_databricks_job(
@@ -92,9 +105,8 @@ def run_mlrun_databricks_job(
                 callback=print_status,
             )
         except OperationFailed:
-            # TODO handle rerun tasks - so we can not take the first task in tasks list.
-            #  will be fixed at ML-4406.
-            task_run_id = workspace.jobs.get_run(run_id=waiter.run_id).tasks[0].run_id
+            databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
+            task_run_id = get_task(databricks_run=databricks_run).run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
             error_trace = error_dict.pop("error_trace", "")
             custom_error = "error information and metadata:\n"
@@ -102,8 +114,7 @@ def run_mlrun_databricks_job(
             custom_error += "\nerror trace from databricks:\n" if error_trace else ""
             custom_error += error_trace
             raise MLRunRuntimeError(custom_error)
-
-        run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
+        run_output = workspace.jobs.get_run_output(get_task(run).run_id)
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)

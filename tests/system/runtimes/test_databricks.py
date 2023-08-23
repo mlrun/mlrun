@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import os
 from pathlib import Path
 
@@ -29,6 +30,18 @@ config_file_path = here / "assets" / "test_databricks.yml"
 with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
+print_kwargs_function = """
+
+def %s(**kwargs):
+    print(f"kwargs: {kwargs}")
+"""
+
+default_test_params = {
+    "task_parameters": {"timeout_minutes": 15},
+    "param1": "value1",
+    "param2": "value2",
+}
+
 
 @pytest.mark.skipif(
     not is_databricks_configured(config_file_path),
@@ -44,7 +57,15 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 os.environ[key] = value
 
     @staticmethod
-    def _add_databricks_env(function, is_cluster_id_required):
+    def assert_print_kwargs(print_kwargs_run):
+        assert print_kwargs_run.status.state == "completed"
+        assert (
+            print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
+            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+        )
+
+    @staticmethod
+    def _add_databricks_env(function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:
             raise KeyError(
@@ -71,13 +92,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
     )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
-
-        code = """
-
-def print_kwargs(**kwargs):
-    print(f"kwargs: {kwargs}")
-"""
-
+        code = print_kwargs_function % "print_kwargs"
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
@@ -90,12 +105,7 @@ def print_kwargs(**kwargs):
         self._add_databricks_env(
             function=function, is_cluster_id_required=use_existing_cluster
         )
-
-        params = {
-            "task_parameters": {"timeout_minutes": 15},
-            "param1": "value1",
-            "param2": "value2",
-        }
+        params = copy.deepcopy(default_test_params)
         if fail:
             params["task_parameters"]["new_cluster_spec"] = {
                 "node_type_id": "this is not a real node type so it should fail"
@@ -113,11 +123,7 @@ def print_kwargs(**kwargs):
                 project="databricks-proj",
                 params=params,
             )
-            assert run.status.state == "completed"
-            assert (
-                run.status.results["databricks_runtime_task"]["logs"]
-                == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
-            )
+            self.assert_print_kwargs(print_kwargs_run=run)
 
     def test_failure_in_databricks(self):
         code = """
@@ -135,7 +141,7 @@ def import_mlrun():
 
         function = function_ref.to_function()
 
-        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        self._add_databricks_env(function=function)
         with pytest.raises(RunError) as error:
             function.run(
                 handler="import_mlrun",
@@ -155,20 +161,69 @@ def import_mlrun():
             image="mlrun/mlrun",
         )
 
-        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        self._add_databricks_env(function=function)
 
         run = function.run(
             handler="func",
             auto_build=True,
             project="databricks-proj",
-            params={
-                "task_parameters": {"timeout_minutes": 15},
-                "param1": "value1",
-                "param2": "value2",
-            },
+            params=default_test_params,
         )
         assert run.status.state == "completed"
         assert (
             run.status.results["databricks_runtime_task"]["logs"]
             == "{'param1': 'value1', 'param2': 'value2'}\n"
         )
+
+    @pytest.mark.parametrize(
+        "handler, function_name",
+        [
+            ("print_kwargs", "print_kwargs"),
+            (
+                "",
+                "handler",
+            ),  # test default handler.
+        ],
+    )
+    def test_rerun(self, handler, function_name):
+        databricks_code = print_kwargs_function % function_name
+        function_kwargs = {"handler": handler} if handler else {}
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=databricks_code,
+            image="mlrun/mlrun",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function)
+        run = function.run(
+            project="databricks-proj", params=default_test_params, **function_kwargs
+        )
+        self.assert_print_kwargs(print_kwargs_run=run)
+        second_run = function.run(runspec=run, project="databricks-proj")
+        self.assert_print_kwargs(print_kwargs_run=second_run)
+
+    def test_missing_code_run(self):
+        function_ref = FunctionReference(
+            kind="databricks",
+            code="",
+            image="mlrun/mlrun",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function)
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as bad_request_error:
+            run = function.run(
+                project="databricks-proj",
+                params=default_test_params,
+                handler="not_exist_handler",
+            )
+            assert run.status.state == "error"
+            assert (
+                "Databricks function must be provided with user code"
+                in bad_request_error.value
+            )

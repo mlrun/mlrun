@@ -229,11 +229,11 @@ def import_mlrun():
             )
 
     def test_cancel_task(self):
-        sleep_code = """
-        def handler(**kwargs):
-            import time
-            time.sleep(1000)
-"""
+        sleep_code = """\n
+def handler(**kwargs):
+    import time
+    time.sleep(1000)
+        """
         function_ref = FunctionReference(
             kind="databricks",
             code=sleep_code,

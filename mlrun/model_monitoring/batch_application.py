@@ -26,6 +26,7 @@ import mlrun
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
@@ -323,25 +324,21 @@ class BatchApplicationProcessor:
             )
 
             data = {
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.CURRENT_STATS: json.dumps(
-                    current_stats
-                ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS: json.dumps(
-                    feature_stats
-                ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
+                mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
+                mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
+                mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
                     parquet_directory=parquet_directory,
                     schedule_time=end_time,
                     endpoint_id=endpoint_id,
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
+                mm_constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
+                mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
                     sep=" ", timespec="microseconds"
                 ),
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
+                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+                mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                     project=project,
                     application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
                 ),

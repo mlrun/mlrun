@@ -81,14 +81,17 @@ class ModelMonitoringApplicationResult:
 class ModelMonitoringApplication(StepToDict):
     kind = "monitoring_application"
 
-    def __init__(self, name):
+    def __init__(self, name, **kwargs):
         """
         Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+        If you implement a custom constractor you have to call the super constractor : super().__init__(**kwargs)
 
         :param name:    (str) name of the application
         """
         self.name = name
-        self.context: mlrun.MLClientCtx = None
+        self.context: mlrun.MLClientCtx = (
+            None  # user can use for logging any artifacts he wants
+        )
         self.initialize = False
 
     def do(self, event):

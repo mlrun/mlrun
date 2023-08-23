@@ -27,4 +27,4 @@ ROOT_DIR="${SCRIPT_DIR}/../.."
 export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 
 alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" upgrade head
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

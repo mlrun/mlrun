@@ -53,7 +53,10 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
-from ..model_monitoring.application import PushToMonitoringWriter
+from ..model_monitoring.application import (
+    ModelMonitoringApplication,
+    PushToMonitoringWriter,
+)
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.function import RemoteRuntime
 from ..secrets import SecretsStore
@@ -1772,7 +1775,7 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_application(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class_name: str = None,
+        application_class: typing.Union[str, ModelMonitoringApplication] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1780,7 +1783,6 @@ class MlrunProject(ModelObj):
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
-        models_names: List[str] = None,
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
@@ -1834,7 +1836,7 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            a list of python packages
         :param requirements_file:       path to a python requirements file
-        :param application_class_name:  Name of the class implementing the monitoring application.
+        :param application_class:  Name of the class implementing the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
@@ -1842,7 +1844,7 @@ class MlrunProject(ModelObj):
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and isinstance(
-            application_class_name, str
+            application_class, str
         ):
             kind = "serving"
             func = mlrun.code_to_function(
@@ -1855,8 +1857,26 @@ class MlrunProject(ModelObj):
                 requirements_file=requirements_file,
             )
             graph = func.set_topology("flow")
-            graph.to(
-                class_name=application_class_name, name=name, **application_kwargs
+            if not isinstance(application_class, str):
+                if not hasattr(application_class, "name"):
+                    application_class.__setattr__("name", name)
+                elif application_class.name != name:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The name attr of the {application_class} have to be the same as the application name - {name}"
+                    )
+                first_step = graph.to(class_name=application_class)
+
+            else:
+                name_attr = application_kwargs.pop('name', None)
+                if name_attr != name:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"The name attr of the {application_class} have to be the same as the application name - {name}"
+                    )
+                first_step = graph.to(
+                    class_name=application_class, name=name, **application_kwargs
+                )
+            first_step.to(
+                class_name=application_class, name=name, **application_kwargs
             ).to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,

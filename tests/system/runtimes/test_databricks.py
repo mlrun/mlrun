@@ -177,7 +177,7 @@ def import_mlrun():
     @pytest.mark.parametrize(
         "handler, databricks_code",
         [
-            # ("print_kwargs", PRINT_KWARGS),
+            ("print_kwargs", PRINT_KWARGS),
             (
                 "",
                 PRINT_KWARGS.replace("print_kwargs", "handler"),

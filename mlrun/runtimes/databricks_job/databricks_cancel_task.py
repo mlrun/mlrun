@@ -15,31 +15,34 @@
 
 import os
 import yaml
+from time import sleep
 from mlrun.errors import MLRunRuntimeError
 from databricks.sdk import WorkspaceClient
 from databricks_wrapper import credentials_path
 
 
 def main():
-    try:
+    if not os.path.exists(credentials_path):
+        print('credentials_path not found. Retrying in 10 seconds.')
+        sleep(10)
         if not os.path.exists(credentials_path):
             raise MLRunRuntimeError('The Databricks credentials path does not exist.'
                                     ' Please manually cancel the job from the Databricks environment.')
-        with open(credentials_path, "r") as yaml_file:
-            loaded_data = yaml.safe_load(yaml_file)
-        for key, value in loaded_data.items():
-            os.environ[key] = str(value)
-        workspace = WorkspaceClient()
-        task_id = os.environ.get("TASK_RUN_ID")
+    with open(credentials_path, "r") as yaml_file:
+        loaded_data = yaml.safe_load(yaml_file)
+    for key, value in loaded_data.items():
+        os.environ[key] = str(value)
+    workspace = WorkspaceClient()
+    task_id = os.environ.get("TASK_RUN_ID")
+    is_finished = os.environ.get("IS_FINISHED", False)
+    if not is_finished:
         run = workspace.jobs.cancel_run(run_id=task_id).result()
-        result_state = run.as_dict().get('state').get('result_state')
-        if result_state != "CANCELED":
+        life_cycle_state = run.as_dict().get('state').get('life_cycle_state')
+        if life_cycle_state != "TERMINATED":  # Terminated is also the life_cycle_state of tasks that have already
+            # either failed or succeeded.
             raise MLRunRuntimeError(f"cancelling task {task_id} has failed."
                                     f" Please check the status of this task in the Databricks environment.")
         print(f"Cancelling task {task_id} has succeeded.")
-    finally:
-        import time
-        time.sleep(1000)
 
 
 main()

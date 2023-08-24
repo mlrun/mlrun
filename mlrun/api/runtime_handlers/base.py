@@ -726,7 +726,9 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                get_k8s().delete_pod(pod.metadata.name, namespace, self.pod_grace_period)
+                get_k8s().delete_pod(
+                    pod.metadata.name, namespace, self.pod_grace_period
+                )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
                 logger.warning(

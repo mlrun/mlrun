@@ -15,9 +15,10 @@
 import os
 from base64 import b64decode, b64encode
 
+from kubernetes.client import V1ExecAction, V1Handler, V1Lifecycle
+
 from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
-from kubernetes.client import V1Handler, V1ExecAction, V1Lifecycle
 
 
 class DatabricksRuntime(KubejobRuntime):
@@ -28,9 +29,7 @@ class DatabricksRuntime(KubejobRuntime):
     def _get_lifecycle():
         script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
         pre_stop_handler = V1Handler(
-            _exec=V1ExecAction(
-                command=["python", script_path]
-            )
+            _exec=V1ExecAction(command=["python", script_path])
         )
         return V1Lifecycle(pre_stop=pre_stop_handler)
 
@@ -71,7 +70,7 @@ class DatabricksRuntime(KubejobRuntime):
                 current_dir, "databricks_wrapper.py"
             )
             with open(
-                    databricks_runtime_wrap_path, "r"
+                databricks_runtime_wrap_path, "r"
             ) as databricks_runtime_wrap_file:
                 wrap_code = databricks_runtime_wrap_file.read()
                 wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")

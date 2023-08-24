@@ -44,7 +44,12 @@ def get_task(databricks_run: Run) -> RunTask:
 
 
 def save_credentials(
-    workspace: WorkspaceClient, waiter, host: str, token: str, cluster_id=None, is_finished=False
+    workspace: WorkspaceClient,
+    waiter,
+    host: str,
+    token: str,
+    cluster_id=None,
+    is_finished=False,
 ):
     databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
     task_run_id = get_task(databricks_run=databricks_run).run_id
@@ -52,7 +57,7 @@ def save_credentials(
         "DATABRICKS_HOST": host,
         "DATABRICKS_TOKEN": token,
         "TASK_RUN_ID": task_run_id,
-        "IS_FINISHED": is_finished
+        "IS_FINISHED": is_finished,
     }
     if cluster_id:
         credentials["DATABRICKS_CLUSTER_ID"] = token
@@ -122,17 +127,35 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
-        save_credentials(workspace=workspace, waiter=waiter, host=host, token=databricks_token, cluster_id=cluster_id)
+        save_credentials(
+            workspace=workspace,
+            waiter=waiter,
+            host=host,
+            token=databricks_token,
+            cluster_id=cluster_id,
+        )
         try:
             run = waiter.result(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
                 callback=print_status,
             )
-            save_credentials(workspace=workspace, waiter=waiter, host=host, token=databricks_token,
-                             cluster_id=cluster_id, is_finished=True)
+            save_credentials(
+                workspace=workspace,
+                waiter=waiter,
+                host=host,
+                token=databricks_token,
+                cluster_id=cluster_id,
+                is_finished=True,
+            )
         except OperationFailed:
-            save_credentials(workspace=workspace, waiter=waiter, host=host, token=databricks_token,
-                             cluster_id=cluster_id, is_finished=True)
+            save_credentials(
+                workspace=workspace,
+                waiter=waiter,
+                host=host,
+                token=databricks_token,
+                cluster_id=cluster_id,
+                is_finished=True,
+            )
             databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
             task_run_id = get_task(databricks_run=databricks_run).run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()

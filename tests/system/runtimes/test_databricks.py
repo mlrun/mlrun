@@ -60,8 +60,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     def assert_print_kwargs(print_kwargs_run):
         assert print_kwargs_run.status.state == "completed"
         assert (
-                print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
-                == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
+            print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
+            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
         )
 
     @classmethod
@@ -171,8 +171,8 @@ def import_mlrun():
         )
         assert run.status.state == "completed"
         assert (
-                run.status.results["databricks_runtime_task"]["logs"]
-                == "{'param1': 'value1', 'param2': 'value2'}\n"
+            run.status.results["databricks_runtime_task"]["logs"]
+            == "{'param1': 'value1', 'param2': 'value2'}\n"
         )
 
     @pytest.mark.parametrize(
@@ -180,8 +180,8 @@ def import_mlrun():
         [
             ("print_kwargs", "print_kwargs"),
             (
-                    "",
-                    "handler",
+                "",
+                "handler",
             ),  # test default handler.
         ],
     )
@@ -224,8 +224,8 @@ def import_mlrun():
             )
             assert run.status.state == "error"
             assert (
-                    "Databricks function must be provided with user code"
-                    in bad_request_error.value
+                "Databricks function must be provided with user code"
+                in bad_request_error.value
             )
 
     def test_cancel_task(self):

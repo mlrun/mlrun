@@ -29,7 +29,7 @@ class DatabricksRuntime(KubejobRuntime):
         script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
         pre_stop_handler = V1Handler(
             _exec=V1ExecAction(
-                command=["/bin/bash", "python", script_path]
+                command=["python", script_path]
             )
         )
         return V1Lifecycle(pre_stop=pre_stop_handler)

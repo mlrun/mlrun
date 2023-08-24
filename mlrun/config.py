@@ -915,7 +915,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():

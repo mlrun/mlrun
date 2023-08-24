@@ -1873,8 +1873,6 @@ class MlrunProject(ModelObj):
                     class_name=application_class, name=name, **application_kwargs
                 )
             first_step.to(
-                class_name=application_class, name=name, **application_kwargs
-            ).to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
                     writer_application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,

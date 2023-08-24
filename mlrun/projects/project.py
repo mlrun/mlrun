@@ -1836,16 +1836,14 @@ class MlrunProject(ModelObj):
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
         :param requirements:            a list of python packages
         :param requirements_file:       path to a python requirements file
-        :param application_class:  Name of the class implementing the monitoring application.
+        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
 
         function_object: RemoteRuntime = None
         kind = None
-        if (isinstance(func, str) or func is None) and isinstance(
-            application_class, str
-        ):
+        if (isinstance(func, str) or func is None) and application_class is not None:
             kind = "serving"
             func = mlrun.code_to_function(
                 name=name,
@@ -1865,10 +1863,9 @@ class MlrunProject(ModelObj):
                         f"The name attr of the {application_class} have to be the same as the application name - {name}"
                     )
                 first_step = graph.to(class_name=application_class)
-
             else:
                 name_attr = application_kwargs.pop("name", None)
-                if name_attr != name:
+                if name_attr is not None and name_attr != name:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"The name attr of the {application_class} have to be the same as the application name - {name}"
                     )

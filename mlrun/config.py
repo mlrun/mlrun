@@ -496,8 +496,14 @@ default_config = {
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
     "default_spark_resources": {
-        "driver": {"requests": {"cpu": "1", "memory": "2g"}, "limits": {"cpu": "2"}},
-        "executor": {"requests": {"cpu": "1", "memory": "5g"}, "limits": {"cpu": "2"}},
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {

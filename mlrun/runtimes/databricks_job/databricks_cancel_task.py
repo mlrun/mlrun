@@ -36,6 +36,8 @@ def main():
         raise MLRunRuntimeError(f"cancelling task {task_id} has failed."
                                 f" Please check the status of this task in the Databricks environment.")
     print(f"Cancelling task {task_id} has succeeded.")
+    import time
+    time.sleep(1000)
 
 
 main()

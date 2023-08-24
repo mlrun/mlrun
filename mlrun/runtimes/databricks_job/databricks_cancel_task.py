@@ -21,23 +21,25 @@ from databricks_wrapper import credentials_path
 
 
 def main():
-    if not os.path.exists(credentials_path):
-        raise MLRunRuntimeError('The Databricks credentials path does not exist.'
-                                ' Please manually cancel the job from the Databricks environment.')
-    with open(credentials_path, "r") as yaml_file:
-        loaded_data = yaml.safe_load(yaml_file)
-    for key, value in loaded_data.items():
-        os.environ[key] = str(value)
-    workspace = WorkspaceClient()
-    task_id = os.environ.get("TASK_RUN_ID")
-    run = workspace.jobs.cancel_run(run_id=task_id).result()
-    result_state = run.as_dict().get('state').get('result_state')
-    if result_state != "CANCELED":
-        raise MLRunRuntimeError(f"cancelling task {task_id} has failed."
-                                f" Please check the status of this task in the Databricks environment.")
-    print(f"Cancelling task {task_id} has succeeded.")
-    import time
-    time.sleep(1000)
+    try:
+        if not os.path.exists(credentials_path):
+            raise MLRunRuntimeError('The Databricks credentials path does not exist.'
+                                    ' Please manually cancel the job from the Databricks environment.')
+        with open(credentials_path, "r") as yaml_file:
+            loaded_data = yaml.safe_load(yaml_file)
+        for key, value in loaded_data.items():
+            os.environ[key] = str(value)
+        workspace = WorkspaceClient()
+        task_id = os.environ.get("TASK_RUN_ID")
+        run = workspace.jobs.cancel_run(run_id=task_id).result()
+        result_state = run.as_dict().get('state').get('result_state')
+        if result_state != "CANCELED":
+            raise MLRunRuntimeError(f"cancelling task {task_id} has failed."
+                                    f" Please check the status of this task in the Databricks environment.")
+        print(f"Cancelling task {task_id} has succeeded.")
+    finally:
+        import time
+        time.sleep(1000)
 
 
 main()

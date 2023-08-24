@@ -39,8 +39,8 @@ DatasetType = typing.Union[
 
 def get_or_create_model_endpoint(
     project: str,
-    model_path: str,
-    model_endpoint_name: str,
+    model_path: str = "",
+    model_endpoint_name: str = "",
     endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
@@ -222,6 +222,10 @@ def record_results(
             db_session=db,
         )
 
+        if not sample_set_statistics:
+            # Take reference data from the model endpoint stored stats
+            sample_set_statistics = model_endpoint.status.feature_stats
+
         perform_drift_analysis(
             project=project,
             context=context,
@@ -343,7 +347,8 @@ def _generate_model_endpoint(
     model_endpoint.spec.monitoring_mode = monitoring_mode
     model_endpoint.status.first_request = datetime.datetime.now()
     model_endpoint.status.last_request = datetime.datetime.now()
-    model_endpoint.status.feature_stats = sample_set_statistics
+    if sample_set_statistics:
+        model_endpoint.status.feature_stats = sample_set_statistics
 
     db_session.create_model_endpoint(
         project=project, endpoint_id=endpoint_id, model_endpoint=model_endpoint

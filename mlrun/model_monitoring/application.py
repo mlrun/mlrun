@@ -184,14 +184,13 @@ class ModelMonitoringApplication(StepToDict):
         context = mlrun.get_or_create_ctx(
             f"{self.name}-logger",
             upload_artifacts=True,
-            labels={"type": "model-monitoring-app-logger"},
+            labels={"workflow": "model-monitoring-app-logger"}
         )
         context._secrets_manager.add_source(
             kind="inline",
             source={"V3IO_ACCESS_KEY": os.environ.get("MODEL_MONITORING_ACCESS_KEY")},
         )
         context._init_dbs(mlrun.get_run_db(secrets=context._secrets_manager))
-        context.set_label("type", "model-monitoring-app-logger")
         return context
 
     @staticmethod

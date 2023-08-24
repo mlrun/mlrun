@@ -335,6 +335,9 @@ def configure_kaniko_ecr_init_container(
     )
     init_container_env = {}
 
+    if kpod.env is None:
+        kpod.env = []
+
     if assume_instance_role:
 
         # assume instance role has permissions to register and store a container image

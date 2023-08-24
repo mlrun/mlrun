@@ -35,18 +35,15 @@ def main():
     with open(credentials_path, "r") as yaml_file:
         loaded_data = yaml.safe_load(yaml_file)
     for key, value in loaded_data.items():
-        if key != "IS_FINISHED":
-            os.environ[key] = str(value)
-        else:
-            os.environ[key] = value
+        os.environ[key] = str(value)
     workspace = WorkspaceClient()
     task_id = os.environ.get("TASK_RUN_ID")
-    is_finished = os.environ.get("IS_FINISHED", False)
-    if not is_finished:
+    is_finished = os.environ.get("IS_FINISHED", "false")  # as a string
+    if is_finished == "false":
         run = workspace.jobs.cancel_run(run_id=task_id).result()
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (
-            life_cycle_state != "TERMINATED"
+                life_cycle_state != "TERMINATED"
         ):  # Terminated is also the life_cycle_state of tasks that have already
             # either failed or succeeded.
             raise MLRunRuntimeError(

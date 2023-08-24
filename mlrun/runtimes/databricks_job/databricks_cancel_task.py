@@ -21,6 +21,9 @@ from databricks_wrapper import credentials_path
 
 
 def main():
+    if not os.path.exists(credentials_path):
+        raise MLRunRuntimeError('The Databricks credentials path does not exist.'
+                                ' Please manually cancel the job from the Databricks environment.')
     with open(credentials_path, "r") as yaml_file:
         loaded_data = yaml.safe_load(yaml_file)
     for key, value in loaded_data.items():

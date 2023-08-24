@@ -90,7 +90,7 @@ jobs:
             echo "Using version from input: $version"; \
           fi
 
-          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version) " >> $GITHUB_OUTPUT
+          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version)" >> $GITHUB_OUTPUT
           echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT

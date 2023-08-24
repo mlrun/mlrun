@@ -335,8 +335,7 @@ def configure_kaniko_ecr_init_container(
     )
     init_container_env = {}
 
-    if kpod.env is None:
-        kpod.env = []
+    kpod.env = kpod.env or []
 
     if assume_instance_role:
 

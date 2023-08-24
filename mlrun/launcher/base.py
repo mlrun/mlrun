@@ -330,7 +330,7 @@ class BaseLauncher(abc.ABC):
 
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace("{{run.uid}}", meta.uid)
-            run.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+            run.spec.output_path = mlrun.utils.helpers.fill_project_path_template(
                 run.spec.output_path, run.metadata.project
             )
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import time
 import unittest.mock
 import uuid
@@ -445,6 +446,65 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
+
+
+def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
+    notifications = [
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            "params": {
+                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+                "other_param": "other_value",
+            },
+            "severity": "info",
+            "when": ["error"],
+        },
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            # should not redact secrets
+            "params": {
+                "secret": "my-secret",
+            },
+            "severity": "info",
+            "when": ["completed"],
+        },
+    ]
+
+    masked_notifications = copy.deepcopy(notifications)
+    masked_notifications[0]["params"]["webhook"] = "REDACTED"
+    masked_notifications[0]["params"]["other_param"] = "REDACTED"
+
+    expected_response_params = {
+        "spec.notifications": masked_notifications,
+    }
+
+    uid = "1234567890"
+    project = "test-store-run-masking"
+    run = {
+        "metadata": {
+            "name": "unmasked-run",
+            "project": project,
+            "uid": uid,
+        },
+        "spec": {
+            "notifications": notifications,
+        },
+    }
+
+    mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+    resp = client.get(f"run/{project}/{uid}")
+    assert resp.status_code == HTTPStatus.OK.value
+
+    response_body = resp.json()["data"]
+    for param, expected_value in expected_response_params.items():
+        value = mlrun.utils.get_in(response_body, param)
+        assert value == expected_value
 
 
 def _store_run(db, uid, project="some-project"):

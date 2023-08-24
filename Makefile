@@ -117,36 +117,16 @@ install-all-requirements: ## Install all requirements needed for development and
 	python -m pip install .[all]
 
 .PHONY: create-migration-sqlite
-create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-ifndef MLRUN_MIGRATION_MESSAGE
-	$(error MLRUN_MIGRATION_MESSAGE is undefined)
-endif
-	alembic -c ./mlrun/api/alembic.ini upgrade head
-	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	./automation/scripts/create_migration_sqlite.sh
 
 .PHONY: create-migration-mysql
-create-migration-mysql: export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-ifndef MLRUN_MIGRATION_MESSAGE
-	$(error MLRUN_MIGRATION_MESSAGE is undefined)
-endif
-	docker run \
-		--name=migration-db \
-		--rm \
-		-v $(shell pwd):/mlrun \
-		-p 3306:3306 \
-		-e MYSQL_ROOT_PASSWORD="pass" \
-		-e MYSQL_ROOT_HOST=% \
-		-e MYSQL_DATABASE="mlrun" \
-		-d \
-		mysql/mysql-server:8.0 \
-		--character-set-server=utf8 \
-		--collation-server=utf8_bin
-	alembic -c ./mlrun/api/alembic_mysql.ini upgrade head
-	alembic -c ./mlrun/api/alembic_mysql.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
-	docker kill migration-db
-	docker rm migration-db
+	./automation/scripts/create_migration_mysql.sh
+
+.PHONY: create-migration
+create-migration: create-migration-sqlite create-migration-mysql
+	@echo "Migrations created successfully"
 
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code

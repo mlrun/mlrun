@@ -391,15 +391,16 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_with_builder_env(self):
         name = "test-build-env-vars"
-        builder_env_key = "ENV_VAR1"
+        builder_env_key = "ARG1"
         builder_env_val = "value1"
 
-        extra_args_env_key = "ENV_VAR2"
-        extra_args_env_value = "value2"
+        extra_args_env_key = "ARG2"
+        extra_args_env_val = "value2"
         extra_args_flag = "--skip-tls-verify"
+        expected_results = [builder_env_val, extra_args_env_val]
 
         extra_args = (
-            f"--build-arg {extra_args_env_key}={extra_args_env_value} {extra_args_flag}"
+            f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
         )
         code_path = str(self.assets_path / "function_with_env_vars.py")
         project = mlrun.get_or_create_project(self.project_name, self.results_path)
@@ -411,7 +412,10 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             with_mlrun=False,
             base_image="mlrun/mlrun",
             requirements=["vaderSentiment"],
-            commands=["echo ${ENV_VAR1}", "echo ${ENV_VAR2}"],
+            commands=[
+                f"echo ${builder_env_key} > /tmp/args.txt",
+                f"echo ${extra_args_env_key} >> /tmp/args.txt",
+            ],
             builder_env={builder_env_key: builder_env_val},
             extra_args=extra_args,
         )
@@ -424,5 +428,5 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         )
 
         run = project.run_function(name)
-        assert run.status.results[builder_env_key] == builder_env_val
-        assert run.status.results[extra_args_env_key] == extra_args_env_value
+        results = run.status.results["results"]
+        assert results == expected_results

@@ -65,5 +65,7 @@ def parse_monitoring_stream_path(stream_uri: str, project: str):
 
     elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
         # V3IO is not supported in CE mode, generating a default http stream path
-        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink.format(
+            project=project
+        )
     return stream_uri

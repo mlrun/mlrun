@@ -970,7 +970,10 @@ def _ingest_with_spark(
                 max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(
-                    target.get_path().get_absolute_path(), max_time
+                    target.get_path().get_absolute_path(
+                        project_name=featureset.metadata.project
+                    ),
+                    max_time,
                 )
 
         _post_ingestion(mlrun_context, featureset, spark)

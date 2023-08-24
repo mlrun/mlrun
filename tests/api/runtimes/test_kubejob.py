@@ -961,6 +961,52 @@ def my_func(context):
             in str(e.value)
         )
 
+    @pytest.mark.parametrize(
+        "mode, command, args, params, expected_command, expected_args",
+        [
+            ("pass", None, None, None, None, []),
+            ("pass", "echo", ["1"], None, ["echo"], ["1"]),
+            (
+                "pass",
+                "echo {param_1}",
+                ["1"],
+                {"param_1": "param"},
+                ["echo param"],
+                ["1"],
+            ),
+            (
+                "",
+                "echo {param_1}",
+                ["1"],
+                {"param_1": "param"},
+                ["mlrun"],
+                ["run", "--name", "test-function", "--from-env", "echo {param_1}", "1"],
+            ),
+        ],
+    )
+    def test_run_mode(
+        self,
+        db: Session,
+        k8s_secrets_mock,
+        mode,
+        command,
+        args,
+        params,
+        expected_command,
+        expected_args,
+    ):
+        runtime = self._generate_runtime()
+        runtime.spec.mode = mode
+        runtime.spec.command = command
+        runtime.spec.args = args
+
+        self.execute_function(runtime, params=params)
+
+        pod = self._get_pod_creation_args()
+        container_spec = pod.spec.containers[0]
+        assert container_spec.command == expected_command
+        assert container_spec.args == expected_args
+
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):
         assert (

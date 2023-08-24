@@ -1095,7 +1095,7 @@ def _create_resources_of_all_kinds(
     ds_profile = mlrun.common.schemas.DatastoreProfile(
         name="datastore_test_profile_name",
         type="datastore_test_profile_type",
-        body="datastore_test_profile_body",
+        object="datastore_test_profile_body",
         project=project,
     )
     # create a datasource profile

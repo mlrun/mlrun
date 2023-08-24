@@ -649,7 +649,7 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.DatastoreProfile:
         pass
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

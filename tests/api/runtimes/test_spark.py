@@ -246,15 +246,34 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
-    def test_run_without_required_resources(
+    def test_run_with_default_resources(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
         )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            self.execute_function(runtime)
-        assert exc.value.args[0] == "Sparkjob must contain executor requests"
+
+        expected_executor_resources = {
+            "requests": {"cpu": "1", "mem": "5g"},
+            "limits": {"cpu": "2"},
+        }
+        expected_driver_resources = {
+            "requests": {"cpu": "1", "mem": "2g"},
+            "limits": {"cpu": "2"},
+        }
+
+        expected_cores = {
+            "executor": 1,
+            "driver": 1,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
 
     def test_run_with_limits_and_requests(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock

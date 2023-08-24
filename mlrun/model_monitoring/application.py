@@ -184,7 +184,7 @@ class ModelMonitoringApplication(StepToDict):
         context = mlrun.get_or_create_ctx(
             f"{self.name}-logger",
             upload_artifacts=True,
-            labels={"workflow": "model-monitoring-app-logger"}
+            labels={"workflow": "model-monitoring-app-logger"},
         )
         context._secrets_manager.add_source(
             kind="inline",

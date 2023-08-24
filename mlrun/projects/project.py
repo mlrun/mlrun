@@ -1867,7 +1867,7 @@ class MlrunProject(ModelObj):
                 first_step = graph.to(class_name=application_class)
 
             else:
-                name_attr = application_kwargs.pop('name', None)
+                name_attr = application_kwargs.pop("name", None)
                 if name_attr != name:
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"The name attr of the {application_class} have to be the same as the application name - {name}"
@@ -1898,7 +1898,7 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        models_names = models_names or "all"
+        models_names = "all"
         function_object.set_label(
             MODEL_MONITORING_APPLICATION_LABEL_KEY,
             MODEL_MONITORING_APPLICATION_LABEL_VAL,

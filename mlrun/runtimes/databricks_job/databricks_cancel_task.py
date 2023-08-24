@@ -35,7 +35,10 @@ def main():
     with open(credentials_path, "r") as yaml_file:
         loaded_data = yaml.safe_load(yaml_file)
     for key, value in loaded_data.items():
-        os.environ[key] = str(value)
+        if key != "IS_FINISHED":
+            os.environ[key] = str(value)
+        else:
+            os.environ[key] = value
     workspace = WorkspaceClient()
     task_id = os.environ.get("TASK_RUN_ID")
     is_finished = os.environ.get("IS_FINISHED", False)

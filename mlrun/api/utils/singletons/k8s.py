@@ -148,7 +148,7 @@ class K8sHelper:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
                 self.resolve_namespace(namespace),
-                grace_period_seconds=0,
+                grace_period_seconds=60,
                 propagation_policy="Background",
             )
             return api_response

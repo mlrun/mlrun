@@ -55,7 +55,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         for key, value in config["env"].items():
             if value is not None:
                 os.environ[key] = value
-        mlrun.get_or_create_project(self.project_name)
 
     @staticmethod
     def assert_print_kwargs(print_kwargs_run):
@@ -65,15 +64,15 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
         )
 
-    @staticmethod
-    def _add_databricks_env(function, is_cluster_id_required=True):
+    @classmethod
+    def _add_databricks_env(cls, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:
             raise KeyError(
                 "The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
             )
         project = mlrun.get_or_create_project(
-            "databricks-proj", context="./", user_project=False
+            cls.project_name, context="./", user_project=False
         )
 
         job_env = {
@@ -114,14 +113,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             with pytest.raises(mlrun.runtimes.utils.RunError):
                 run = function.run(
                     handler="print_kwargs",
-                    project="databricks-proj",
+                    project=self.project_name,
                     params=params,
                 )
                 assert run.status.state == "error"
         else:
             run = function.run(
                 handler="print_kwargs",
-                project="databricks-proj",
+                project=self.project_name,
                 params=params,
             )
             self.assert_print_kwargs(print_kwargs_run=run)
@@ -146,7 +145,7 @@ def import_mlrun():
         with pytest.raises(RunError) as error:
             function.run(
                 handler="import_mlrun",
-                project="databricks-proj",
+                project=self.project_name,
             )
         lines = str(error.value).splitlines()
         assert "No module named 'mlrun'" in lines[2]
@@ -167,7 +166,7 @@ def import_mlrun():
         run = function.run(
             handler="func",
             auto_build=True,
-            project="databricks-proj",
+            project=self.project_name,
             params=default_test_params,
         )
         assert run.status.state == "completed"
@@ -200,10 +199,10 @@ def import_mlrun():
 
         self._add_databricks_env(function=function)
         run = function.run(
-            project="databricks-proj", params=default_test_params, **function_kwargs
+            project=self.project_name, params=default_test_params, **function_kwargs
         )
         self.assert_print_kwargs(print_kwargs_run=run)
-        second_run = function.run(runspec=run, project="databricks-proj")
+        second_run = function.run(runspec=run, project=self.project_name)
         self.assert_print_kwargs(print_kwargs_run=second_run)
 
     def test_missing_code_run(self):
@@ -219,7 +218,7 @@ def import_mlrun():
         self._add_databricks_env(function=function)
         with pytest.raises(mlrun.errors.MLRunBadRequestError) as bad_request_error:
             run = function.run(
-                project="databricks-proj",
+                project=self.project_name,
                 params=default_test_params,
                 handler="not_exist_handler",
             )
@@ -245,5 +244,5 @@ def handler(**kwargs):
         function = function_ref.to_function()
         self._add_databricks_env(function=function)
         run = function.run(
-            project="databricks-proj",
+            project=self.project_name,
         )

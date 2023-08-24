@@ -289,7 +289,6 @@ class KubejobRuntime(KubeResource):
                 print_log(text)
                 offset += len(text)
 
-        print()
         return self.status.state
 
     def deploy_step(
@@ -341,14 +340,6 @@ class KubejobRuntime(KubeResource):
             workdir,
             self._get_lifecycle()
         )
-        lifecycle = self._get_lifecycle()
-        print(f"lifecycle: {self._get_lifecycle()}")
-
-        if hasattr(self._get_lifecycle(), "pre_stop"):
-            print(f"pre_stop: {self._get_lifecycle().pre_stop}")
-            if self._get_lifecycle().pre_stop:
-                print(f"pre_stop_dict: {self._get_lifecycle().pre_stop.__dict__}")
-
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
             pod_name, namespace = get_k8s().create_pod(pod)

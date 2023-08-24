@@ -381,7 +381,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_requests(mem="1G")
         runtime.with_driver_limits(cpu="10")
         expected_driver_resources = {
-            "requests": {"mem": "1G"},
+            "requests": {"mem": "1G", "cpu": "1"},
             "limits": {"cpu": "10"},
         }
 
@@ -392,7 +392,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_requests(mem="2G")
         runtime.with_executor_limits(cpu="5")
         expected_executor_resources = {
-            "requests": {"mem": "2G"},
+            "requests": {"mem": "2G", "cpu": "1"},
             "limits": {"cpu": "5"},
         }
         expected_cores = {

@@ -143,12 +143,12 @@ class K8sHelper:
                 logger.info(f"Pod {resp.metadata.name} created")
                 return resp.metadata.name, resp.metadata.namespace
 
-    def delete_pod(self, name, namespace=None):
+    def delete_pod(self, name, namespace=None, grace_period_seconds=0):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
                 self.resolve_namespace(namespace),
-                grace_period_seconds=60,
+                grace_period_seconds=grace_period_seconds,
                 propagation_policy="Background",
             )
             return api_response

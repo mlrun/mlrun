@@ -587,6 +587,7 @@ class Notification(ModelObj):
 
         # validate that size of notification params doesn't exceed 1 MB, due to k8s default secret size limitation.
         # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        # TODO: split params to params and secret_params, and store secret_params in a secret
         if len(json.dumps(self.params)) > 900 * 1024:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Notification params size exceeds max size of 1 MB"

@@ -1505,3 +1505,13 @@ async def run_in_threadpool(func, *args, **kwargs):
         # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
     return await anyio.to_thread.run_sync(func, *args)
+
+
+def is_explicit_ack_supported(context):
+    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
+    return hasattr(context, "trigger") and context.trigger in [
+        "v3io-stream",
+        "v3ioStream",
+        "kafka-cluster",
+        "kafka",
+    ]

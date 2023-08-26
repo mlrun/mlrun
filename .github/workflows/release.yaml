@@ -248,6 +248,7 @@ jobs:
           body: ${{ steps.resolve-release-notes.outputs.body }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
 
   update-tutorials:
     name: Bundle tutorials
@@ -265,3 +266,4 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

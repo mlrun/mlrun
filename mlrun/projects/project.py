@@ -3040,6 +3040,24 @@ class MlrunProject(ModelObj):
             provider=mlrun.common.schemas.SecretProviderName.kubernetes,
         )
 
+    def delete_datastore_profile(self, profile: str):
+        project_ds_name_private = DatastoreProfile.generate_secret_key(
+            profile, self.name
+        )
+        if project_ds_name_private in os.environ:
+            del os.environ[project_ds_name_private]
+        mlrun.db.get_run_db(secrets=self._secrets).delete_datastore_profile(
+            profile, self.name
+        )
+        mlrun.db.get_run_db(secrets=self._secrets).delete_project_secrets(
+            self.name, secrets=[project_ds_name_private]
+        )
+
+    def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
+            self.name
+        )
+
     def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:
         """
         Get the custom packagers registered in the project.

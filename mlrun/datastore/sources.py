@@ -885,7 +885,7 @@ class SQLSource(BaseSourceDriver):
         Reads SqlDB as input source for a flow.
         example::
             db_path = "mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>"
-            source = SqlDBSource(
+            source = SQLSource(
                 collection_name='source_name', db_path=self.db, key_field='key'
             )
         :param name:            source name
@@ -929,15 +929,21 @@ class SQLSource(BaseSourceDriver):
         )
 
     def to_dataframe(self):
-        import sqlalchemy as db
+        import sqlalchemy
 
         query = self.attributes.get("query", None)
         db_path = self.attributes.get("db_path")
         table_name = self.attributes.get("table_name")
-        if not query:
-            query = f"SELECT * FROM {table_name}"
         if table_name and db_path:
-            engine = db.create_engine(db_path)
+            engine = sqlalchemy.create_engine(db_path)
+            if not query:
+                table = sqlalchemy.Table(
+                    table_name,
+                    sqlalchemy.MetaData(),
+                    autoload=True,
+                    autoload_with=engine,
+                )
+                query = sqlalchemy.select(table)
             with engine.connect() as con:
                 return pd.read_sql(
                     query,

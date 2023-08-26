@@ -35,7 +35,7 @@ RUN GOOS=linux \
 
 FROM alpine:latest as install-health-probe
 
-ARG GRPC_HEALTH_PROBE_VERSION=v0.4.14
+ARG GRPC_HEALTH_PROBE_VERSION=v0.4.19
 
 RUN mkdir /app
 WORKDIR /app

@@ -140,7 +140,7 @@ def record_results(
     endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
-    df_to_target: pd.DataFrame = None,
+    infer_results_df: pd.DataFrame = None,
     sample_set_statistics: typing.Dict[str, typing.Any] = None,
     monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
     drift_threshold: float = 0.7,
@@ -169,8 +169,9 @@ def record_results(
                                      function URI.
     :param context:                  MLRun context. Note that the context is required for logging the artifacts
                                      following the batch drift job.
-    :param df_to_target:             DataFrame that will be stored under the model endpoint parquet target. This
-                                     DataFrame will be used by the scheduled monitoring batch drift job.
+    :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
+                                     used for doing the drift analysis. Please make sure that the dataframe includes
+                                     both feature names and label columns.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
                                      the current model endpoint.
     :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
@@ -205,12 +206,12 @@ def record_results(
         patch_if_exist=True,
     )
 
-    if df_to_target is not None:
+    if infer_results_df is not None:
         # Write the monitoring parquet to the relevant model endpoint context
         write_monitoring_df(
             feature_set_uri=model_endpoint.status.monitoring_feature_set_uri,
             endpoint_id=model_endpoint.metadata.uid,
-            df_to_target=df_to_target,
+            df_to_target=infer_results_df,
         )
 
     if trigger_monitoring_job:

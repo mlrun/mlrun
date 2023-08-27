@@ -247,11 +247,13 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
             svc_temp["spec"]["ports"][1]["nodePort"] = spec.node_port
         mlrun.utils.update_in(svc_temp, "spec.type", spec.service_type)
 
-    norm_name = mlrun.utils.normalize_name(meta.name)
     dask.config.set(
         {
             "kubernetes.scheduler-service-template": svc_temp,
-            "kubernetes.name": "mlrun-" + norm_name + "-{uuid}",
+            "kubernetes.name": f"mlrun-{mlrun.utils.normalize_name(meta.name)}-{{uuid}}",
+            # 5 minutes, to resiliently handle delicate/slow k8s clusters
+            "kubernetes.scheduler-service-wait-timeout": 60 * 5,
+            "distributed.comm.timeouts.connect": "300s",
         }
     )
 

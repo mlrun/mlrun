@@ -119,6 +119,9 @@ and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySour
 contents directly to the query engine.
 
 ### Databricks file system
+```{Admonition} Note
+DBFS does not support Spark, http, or memory.
+```
 * `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
-* `DATABRICKS_TOKEN` &mdash; Databricks access token.<br>
-   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication)
+* `DATABRICKS_TOKEN` &mdash; Databricks access token. 
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).

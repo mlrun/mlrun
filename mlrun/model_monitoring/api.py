@@ -253,7 +253,7 @@ def write_monitoring_df(
     set (with parquet target) or a valid monitoring feature set uri.
 
     :param endpoint_id:             Model endpoint unique ID.
-    :param infer_results_df:            DataFrame that will be stored under the model endpoint parquet target.
+    :param infer_results_df:        DataFrame that will be stored under the model endpoint parquet target.
     :param monitoring_feature_set:  A `mlrun.feature_store.FeatureSet` object corresponding to the provided endpoint_id.
     :param feature_set_uri:         if monitoring_feature_set not provided, use the feature_set_uri value to get the
                                     relevant `mlrun.feature_store.FeatureSet`.

@@ -171,8 +171,11 @@ class TestMLRunIntegration:
         if self.api_container_id:
             logs = self._run_command("docker", args=["logs", self.api_container_id])
             self._logger.debug(
-                "Removing API container", container_id=self.api_container_id, logs=logs
+                "Removing API container", container_id=self.api_container_id
             )
+            for line in logs.splitlines():
+                self._logger.debug(line)
+
             self._run_command("docker", args=["rm", "--force", self.api_container_id])
 
     def _remove_db(self):

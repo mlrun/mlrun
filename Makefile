@@ -599,6 +599,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
+		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db

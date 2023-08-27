@@ -422,6 +422,9 @@ default_config = {
         "endpoint_store_connection": "",
     },
     "secret_stores": {
+        # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
+        # "secrets")
+        "test_mode_mock_secrets": False,
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
             # http://docker.for.mac.localhost:8200

@@ -629,7 +629,6 @@ def build_runtime(
             "mlrun/mlrun-gpu",
             "mlrun/ml-base",
             "mlrun/ml-models",
-            "mlrun/ml-models-gpu",
         ]
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):

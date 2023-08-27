@@ -287,7 +287,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             project=project
         )
 
-    def get_auth_secret_name(self, access_key: str) -> str:
+    def resolve_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
         return mlconfig.config.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
@@ -347,7 +347,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         Store the given access key as a secret in the cluster. The secret name is generated from the access key
         :return: returns the secret name and the action taken against the secret
         """
-        secret_name = self.get_auth_secret_name(access_key)
+        secret_name = self.resolve_auth_secret_name(access_key)
         secret_data = {
             mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "username"

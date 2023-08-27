@@ -65,14 +65,10 @@ class InMemorySecretProvider(SecretProviderInterface):
         # secret-name -> secret_key -> secret_value
         self.secrets_map = {}
 
-    @staticmethod
-    def get_auth_secret_name(username: str, access_key: str) -> str:
-        return f"secret-ref-{username}-{access_key}"
-
     def store_auth_secret(
         self, username: str, access_key: str, namespace=""
     ) -> (str, mlrun.common.schemas.SecretEventActions):
-        secret_ref = self.get_auth_secret_name(username, access_key)
+        secret_ref = self.resolve_auth_secret_name(username, access_key)
         self.auth_secrets_map.setdefault(secret_ref, {}).update(
             self._generate_auth_secret_data(username, access_key)
         )
@@ -145,3 +141,7 @@ class InMemorySecretProvider(SecretProviderInterface):
                 "access_key"
             ): access_key,
         }
+
+    @staticmethod
+    def resolve_auth_secret_name(username: str, access_key: str) -> str:
+        return f"secret-ref-{username}-{access_key}"

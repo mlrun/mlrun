@@ -54,6 +54,7 @@ class HTTPSessionWithRetry(requests.Session):
         ConnectionAbortedError,
         ConnectionError,
         # often happens when the server is overloaded and can't handle the load.
+        requests.exceptions.ConnectionError,
         requests.exceptions.ConnectTimeout,
         requests.exceptions.ReadTimeout,
         urllib3.exceptions.ReadTimeoutError,

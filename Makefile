@@ -239,7 +239,7 @@ pull-mlrun-gpu: ## Pull mlrun gpu docker image
 prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 	docker build \
 		--file dockerfiles/gpu/prebaked.Dockerfile \
-		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
+		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
 		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_CONDA_PYTHON_VERSION) \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.

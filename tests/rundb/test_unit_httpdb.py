@@ -56,7 +56,7 @@ def test_api_call_enum_conversion():
     [
         # feature enabled
         ("enabled", Exception, ("some-error",), 1),
-        ("enabled", ConnectionError, ("some-error",), 1),
+        ("enabled", ConnectionError, ("some-error",), 4),
         (
             "enabled",
             ConnectionError,

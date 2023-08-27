@@ -96,8 +96,8 @@ def get_or_create_model_endpoint(
             # Update provided values
             attributes_to_update = {
                 EventFieldType.LAST_REQUEST: datetime.datetime.now(),
-                EventFieldType.DRIFT_DETECTED: drift_threshold,
-                EventFieldType.POSSIBLE_DRIFT: possible_drift_threshold,
+                EventFieldType.DRIFT_DETECTED_THRESHOLD: drift_threshold,
+                EventFieldType.POSSIBLE_DRIFT_THRESHOLD: possible_drift_threshold,
                 EventFieldType.MONITORING_MODE: monitoring_mode,
             }
             if sample_set_statistics:
@@ -339,9 +339,11 @@ def _generate_model_endpoint(
     model_endpoint.spec.model_uri = model_path
     model_endpoint.spec.model = model_endpoint_name
     model_endpoint.spec.model_class = "drift-analysis"
-    model_endpoint.spec.monitor_configuration["drift_detected"] = drift_threshold
     model_endpoint.spec.monitor_configuration[
-        "possible_drift"
+        EventFieldType.DRIFT_DETECTED_THRESHOLD
+    ] = drift_threshold
+    model_endpoint.spec.monitor_configuration[
+        EventFieldType.POSSIBLE_DRIFT_THRESHOLD
     ] = possible_drift_threshold
 
     model_endpoint.spec.monitoring_mode = monitoring_mode

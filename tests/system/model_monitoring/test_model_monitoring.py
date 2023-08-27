@@ -790,7 +790,7 @@ class TestBatchDrift(TestMLRunSystem):
 
         # Generate a dataframe that will be writen as a monitoring parquet
         # This dataframe is basically replacing the result set that is being generated through the batch infer function
-        df_to_target = pd.DataFrame(
+        infer_results_df = pd.DataFrame(
             {
                 "sepal_length_cm": [-500, -500],
                 "sepal_width_cm": [-500, -500],
@@ -799,7 +799,9 @@ class TestBatchDrift(TestMLRunSystem):
                 "p0": [0, 0],
             }
         )
-        df_to_target[mlrun.common.schemas.EventFieldType.TIMESTAMP] = datetime.utcnow()
+        infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
 
         # Record results and trigger the monitoring batch job
         endpoint_id = "123123123123"
@@ -812,7 +814,7 @@ class TestBatchDrift(TestMLRunSystem):
             model_endpoint_name="batch-drift-test",
             function_name="batch-drift-function",
             context=context,
-            df_to_target=df_to_target,
+            infer_results_df=infer_results_df,
             trigger_monitoring_job=True,
         )
 

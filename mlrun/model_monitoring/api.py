@@ -211,7 +211,7 @@ def record_results(
         write_monitoring_df(
             feature_set_uri=model_endpoint.status.monitoring_feature_set_uri,
             endpoint_id=model_endpoint.metadata.uid,
-            df_to_target=infer_results_df,
+            infer_results_df=infer_results_df,
         )
 
     if trigger_monitoring_job:
@@ -244,16 +244,16 @@ def record_results(
 
 def write_monitoring_df(
     endpoint_id: str,
-    df_to_target: pd.DataFrame,
+    infer_results_df: pd.DataFrame,
     monitoring_feature_set: mlrun.feature_store.FeatureSet = None,
     feature_set_uri: str = "",
 ):
-    """Write monitoring dataframe to the parquet target of the current model endpoint. The dataframe will be written
-    using feature set ingest process. Please make sure that you provide either a valid monitoring feature set (with
-    parquet target) or a valid monitoring feature set uri.
+    """Write infer results dataframe to the monitoring parquet target of the current model endpoint. The dataframe will
+    be written using feature set ingest process. Please make sure that you provide either a valid monitoring feature
+    set (with parquet target) or a valid monitoring feature set uri.
 
     :param endpoint_id:             Model endpoint unique ID.
-    :param df_to_target:            DataFrame that will be stored under the model endpoint parquet target.
+    :param infer_results_df:            DataFrame that will be stored under the model endpoint parquet target.
     :param monitoring_feature_set:  A `mlrun.feature_store.FeatureSet` object corresponding to the provided endpoint_id.
     :param feature_set_uri:         if monitoring_feature_set not provided, use the feature_set_uri value to get the
                                     relevant `mlrun.feature_store.FeatureSet`.
@@ -270,20 +270,20 @@ def write_monitoring_df(
         )
 
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
-    if EventFieldType.TIMESTAMP not in df_to_target.columns:
+    if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        df_to_target[EventFieldType.TIMESTAMP] = datetime.datetime.now()
+        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now()
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
-    df_to_target[EventFieldType.ENDPOINT_ID] = endpoint_id
-    df_to_target.set_index(
+    infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
+    infer_results_df.set_index(
         EventFieldType.ENDPOINT_ID,
         inplace=True,
     )
 
     mlrun.feature_store.ingest(
-        featureset=monitoring_feature_set, source=df_to_target, overwrite=False
+        featureset=monitoring_feature_set, source=infer_results_df, overwrite=False
     )
 
 

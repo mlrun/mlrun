@@ -20,11 +20,19 @@ import mlrun.common.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
 
-from ...utils import update_in, verify_and_update_in
+from ...utils import update_in, verify_and_update_in, verify_field_regex
+from ..utils import (
+    generate_resources,
+    get_gpu_from_resource_requirement,
+    verify_limits,
+    verify_requests,
+)
 from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
 class Spark3JobSpec(AbstractSparkJobSpec):
+    _jvm_memory_resource_notation = r"^[0-9]+[KkMmGg]$"
+
     # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/55732a6a392cbe1d6546c7ec6823193ab055d2fa/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L181
     _dict_fields = AbstractSparkJobSpec._dict_fields + [
         "monitoring",
@@ -285,6 +293,97 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(
                     volume_mount, volume_mounts_field_name="_executor_volume_mounts"
+                )
+
+    def _verify_jvm_memory_string(
+        self, resources_field_name: str, memory: typing.Optional[str]
+    ):
+        if memory:
+            verify_field_regex(
+                f"function.spec.{resources_field_name}.requests.memory",
+                memory,
+                [self._jvm_memory_resource_notation],
+            )
+
+    def enrich_resources_with_default_pod_resources(
+        self, resources_field_name: str, resources: dict
+    ):
+        if resources_field_name == "driver_resources":
+            role = "driver"
+        elif resources_field_name == "executor_resources":
+            role = "executor"
+        else:
+            return {}
+        resources_types = ["cpu", "memory"]
+        resource_requirements = ["requests", "limits"]
+        default_resources = mlrun.mlconf.default_spark_resources.to_dict()[role]
+
+        if resources:
+            for resource_requirement in resource_requirements:
+                for resource_type in resources_types:
+                    if (
+                        resources.setdefault(resource_requirement, {}).setdefault(
+                            resource_type
+                        )
+                        is None
+                    ):
+                        resources[resource_requirement][
+                            resource_type
+                        ] = default_resources[resource_requirement][resource_type]
+        else:
+            resources = default_resources
+
+        # Spark operator uses JVM notation for memory, so we must verify it separately
+        verify_requests(
+            resources_field_name,
+            cpu=resources["requests"]["cpu"],
+        )
+        self._verify_jvm_memory_string(
+            resources_field_name, resources["requests"]["memory"]
+        )
+        resources["requests"] = generate_resources(
+            mem=resources["requests"]["memory"], cpu=resources["requests"]["cpu"]
+        )
+        gpu_type, gpu_value = get_gpu_from_resource_requirement(resources["limits"])
+        verify_limits(
+            resources_field_name,
+            cpu=resources["limits"]["cpu"],
+            gpus=gpu_value,
+            gpu_type=gpu_type,
+        )
+        resources["limits"] = generate_resources(
+            cpu=resources["limits"]["cpu"],
+            gpus=gpu_value,
+            gpu_type=gpu_type,
+        )
+        if not resources["requests"] and not resources["limits"]:
+            return {}
+        return resources
+
+    def _verify_and_set_requests(
+        self,
+        resources_field_name,
+        mem: str = None,
+        cpu: str = None,
+        patch: bool = False,
+    ):
+        # Spark operator uses JVM notation for memory, so we must verify it separately
+        verify_requests(resources_field_name, cpu=cpu)
+        self._verify_jvm_memory_string(resources_field_name, mem)
+        resources = generate_resources(mem=mem, cpu=cpu)
+
+        if not patch:
+            update_in(
+                getattr(self, resources_field_name),
+                "requests",
+                resources,
+            )
+        else:
+            for resource, resource_value in resources.items():
+                update_in(
+                    getattr(self, resources_field_name),
+                    f"requests.{resource}",
+                    resource_value,
                 )
 
 

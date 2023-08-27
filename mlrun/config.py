@@ -498,6 +498,16 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
+    "default_spark_resources": {
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
+    },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
         # encoded empty dict
@@ -908,7 +918,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():

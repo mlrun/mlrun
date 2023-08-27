@@ -21,6 +21,7 @@ from time import monotonic, sleep
 from typing import Optional
 
 import fsspec
+import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
@@ -29,6 +30,7 @@ from sklearn.datasets import load_diabetes, load_iris
 import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
+import mlrun.model_monitoring.api
 import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
@@ -740,6 +742,94 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         assert fields_dict["function_uri"] == "string"
         assert fields_dict["endpoint_type"] == "string"
         assert fields_dict["active"] == "boolean"
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestBatchDrift(TestMLRunSystem):
+    """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
+    the monitoring process of the batch infer job function that can be imported from the functions hub."""
+
+    project_name = "pr-batch-drift"
+
+    def test_batch_drift(self):
+        # Main validations:
+        # 1 - Generate new model endpoint record through get_or_create_model_endpoint() within MLRun SDK
+        # 2 - Write monitoring parquet result to the relevant context
+        # 3 - Register and trigger monitoring batch drift job
+        # 4 - Log monitoring artifacts
+
+        # Generate project and context (context will be used for logging the artifacts)
+        project = mlrun.get_run_db().get_project(self.project_name)
+        context = mlrun.get_or_create_ctx(name="batch-drift-context")
+
+        # Log a model artifact
+        iris = load_iris()
+        train_set = pd.DataFrame(
+            data=np.c_[iris["data"], iris["target"]],
+            columns=(
+                [
+                    "sepal_length_cm",
+                    "sepal_width_cm",
+                    "petal_length_cm",
+                    "petal_width_cm",
+                    "p0",
+                ]
+            ),
+        )
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
+            label_column="p0",
+        )
+
+        # Generate a dataframe that will be writen as a monitoring parquet
+        # This dataframe is basically replacing the result set that is being generated through the batch infer function
+        infer_results_df = pd.DataFrame(
+            {
+                "sepal_length_cm": [-500, -500],
+                "sepal_width_cm": [-500, -500],
+                "petal_length_cm": [-500, -500],
+                "petal_width_cm": [-500, -500],
+                "p0": [0, 0],
+            }
+        )
+        infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+
+        # Record results and trigger the monitoring batch job
+        endpoint_id = "123123123123"
+        mlrun.model_monitoring.api.record_results(
+            project=project.metadata.name,
+            endpoint_id=endpoint_id,
+            model_path=project.get_artifact_uri(
+                key=model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name="batch-drift-test",
+            function_name="batch-drift-function",
+            context=context,
+            infer_results_df=infer_results_df,
+            trigger_monitoring_job=True,
+        )
+
+        # Test the drift results
+        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+            project=project.metadata.name, endpoint_id=endpoint_id
+        )
+        assert model_endpoint.status.feature_stats
+        assert model_endpoint.status.current_stats
+        assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
+
+        # Validate that the artifacts were logged under the generated context
+        artifacts = context.artifacts
+        assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
+        assert artifacts[1]["metadata"]["key"] == "features_drift_results"
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

@@ -761,11 +761,24 @@ class BatchProcessor:
                 )
                 or {}
             )
+
+            # For backwards compatibility first check if the old drift thresholds
+            # (both `possible drift and `drift_detected`) keys exist in the monitor configuration dict
+            # TODO: Remove the first get in 1.7.0
             possible_drift = monitor_configuration.get(
-                "possible_drift", self.default_possible_drift_threshold
+                "possible_drift",
+                monitor_configuration.get(
+                    mlrun.common.schemas.model_monitoring.EventFieldType.POSSIBLE_DRIFT_THRESHOLD,
+                    self.default_possible_drift_threshold,
+                ),
             )
+
             drift_detected = monitor_configuration.get(
-                "drift_detected", self.default_drift_detected_threshold
+                "drift_detected",
+                monitor_configuration.get(
+                    mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_DETECTED_THRESHOLD,
+                    self.default_drift_detected_threshold,
+                ),
             )
 
             # Check for possible drift based on the results of the statistical metrics defined above:

@@ -6,20 +6,27 @@ All images are published to [dockerhub](https://hub.docker.com/u/mlrun) and [qua
 The images are:
 * `mlrun/mlrun` - The most basic (and smallest) image, can be used for simple jobs. Basically just MLRun installed on 
   top of a python image
+* `mlrun/mlrun-gpu` - Same as `mlrun/mlrun` but for GPUs (Available for MLRun >= 1.5.0)
 * `mlrun/ml-base` - Image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like 
   `mlrun/mlrun` with the addition of [Miniconda](https://docs.conda.io/en/latest/miniconda.html) and other [python 
-  packages](./base/requirements.txt) 
-* `mlrun/ml-models` - Image for analyzing data, model training and deep learning on CPUs. Built on top of 
-  `mlrun/ml-base` with the addition of [Open MPI](https://www.open-mpi.org/), [PyTorch](https://pytorch.org/), 
-  [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](
-  ./models/requirements.txt)
-* `mlrun/ml-models-gpu` - Same as `mlrun/ml-models` but for GPUs
+  packages](./base/requirements.txt)
 * `mlrun/jupyter` - An image with [Jupyter](https://jupyter.org/) giving a playground to use MLRun in the open source.
   Built on top of [`jupyter/scipy-notebook`](
   https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html#jupyter-scipy-notebook), with the addition
   of MLRun and several demos and examples
 * `mlrun/mlrun-api` - The image used for running the MLRun API
 * `mlrun/mlrun-ui` - The image used for running the MLRun UI
+
+**Deprecated images:** 
+
+> NOTE - Images were removed in MLRun 1.5.0
+
+* `mlrun/ml-models` - Image for analyzing data, model training and deep learning on CPUs. Built on top of 
+  `mlrun/ml-base` with the addition of [Open MPI](https://www.open-mpi.org/), [PyTorch](https://pytorch.org/), 
+  [TensorFlow](https://www.tensorflow.org/), [Horovod](https://horovod.ai/) and other [python packages](
+  ./models/requirements.txt)
+* `mlrun/ml-models-gpu` - Same as `mlrun/ml-models` but for GPUs
+
 
 ## Build
 To build all images run this command from the root directory of the mlrun repository:<br>
@@ -32,21 +39,27 @@ Where:<br>
 * `MLRUN_DOCKER_REGISTRY` is the docker registry (e.g. `quay.io/`, `gcr.io/`, defaults to empty (docker hub))
 
 
-For example, running `MLRUN_VERSION=1.4.0 make docker-images` will generate the following images:
-  * `mlrun/mlrun-api:1.4.0`
-  * `mlrun/mlrun:1.4.0`
-  * `mlrun/jupyter:1.4.0`
-  * `mlrun/ml-base:1.4.0`
-  * `mlrun/ml-models:1.4.0`
-  * `mlrun/ml-models-gpu:1.4.0` 
+For example, running `MLRUN_VERSION=x.y.z make docker-images` will generate the following images:
+  * `mlrun/mlrun-api:x.y.z`
+  * `mlrun/mlrun:x.y.z`
+  * `mlrun/mlrun-gpu:x.y.z`
+  * `mlrun/jupyter:x.y.z`
+  * `mlrun/ml-base:x.y.z`
+
+[comment]: <> (TODO: remove once make targets are deleted) 
+  * `mlrun/ml-models:x.y.z`
+  * `mlrun/ml-models-gpu:x.y.z` 
 
 It's also possible to build only a specific image - `make api` (will build only the api image)<br>
 Or a set of images - `make mlrun jupyter base`
 The possible commands are:
 * `mlrun`
+* `mlrun-gpu`
 * `api`
 * `jupyter`
 * `base`
+
+[comment]: <> (TODO: remove once make targets are deleted) 
 * `models`
 * `models-gpu`
 

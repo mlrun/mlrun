@@ -304,9 +304,7 @@ def handler(**kwargs):
             RunLifeCycleState.PENDING,
             RunLifeCycleState.RUNNING,
         )
-        abort_thread = threading.Thread(target=self._abort_run)
-        abort_thread.start()
-        abort_thread.join()
+        self._abort_run()
         run = workspace.jobs.get_run(run_id=run.run_id)
         # wait for databricks to update the status.
         time.sleep(5)

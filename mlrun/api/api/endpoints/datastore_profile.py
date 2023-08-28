@@ -26,6 +26,7 @@ import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 from mlrun.api.api.utils import log_and_raise
+from mlrun.datastore.datastore_profile import DatastoreProfile as ds
 
 router = APIRouter()
 
@@ -60,6 +61,24 @@ async def store_datastore_profile(
             HTTPStatus.BAD_REQUEST.value,
             reason="The project name provided in the URI does not match the one specified in the DatastoreProfile",
         )
+    project_ds_name_private = ds.generate_secret_key(info.name, project_name)
+
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
+        project_name,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        mlrun.common.schemas.AuthorizationAction.store,
+        auth_info,
+    )
+    await run_in_threadpool(
+        mlrun.api.crud.Secrets().store_project_secrets,
+        project_name,
+        mlrun.common.schemas.SecretsData(
+            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+            secrets={project_ds_name_private: info.private},
+        ),
+        True,
+    )
 
     await run_in_threadpool(
         mlrun.api.utils.singletons.db.get_db().store_datastore_profile,
@@ -168,6 +187,24 @@ async def delete_datastore_profile(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
+    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.secret,
+        project_name,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info,
+    )
+    project_ds_name_private = ds.generate_secret_key(profile, project_name)
+
+    await run_in_threadpool(
+        mlrun.api.crud.Secrets().delete_project_secret,
+        project_name,
+        mlrun.common.schemas.SecretProviderName.kubernetes,
+        project_ds_name_private,
+        allow_secrets_from_k8s=True,
+        allow_internal_secrets=True,
+    )
+
     return await run_in_threadpool(
         mlrun.api.utils.singletons.db.get_db().delete_datastore_profile,
         db_session,

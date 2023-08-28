@@ -71,6 +71,7 @@ def run_mlrun_databricks_job(
     task_parameters: dict,
     **kwargs,
 ):
+    mlrun_databricks_job_id = uuid.uuid4()
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
     databricks_token = mlrun.get_secret_or_env(key=token_key)
@@ -78,13 +79,14 @@ def run_mlrun_databricks_job(
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
+    databricks_run_name = task_parameters.get("databricks_run_name", None) or f"mlrun_task_{mlrun_databricks_job_id}"
 
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)
-    mlrun_databricks_job_id = uuid.uuid4()
+
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
-        f"mlrun_task_{mlrun_databricks_job_id}.py"
+        f"{databricks_run_name}.py"
     )
 
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
@@ -114,10 +116,10 @@ def run_mlrun_databricks_job(
                 cluster_spec_kwargs.update(new_cluster_spec)
             submit_task_kwargs["new_cluster"] = ClusterSpec(**cluster_spec_kwargs)
         waiter = workspace.jobs.submit(
-            run_name=f"py-sdk-run-{mlrun_databricks_job_id}",
+            run_name=databricks_run_name,
             tasks=[
                 SubmitTask(
-                    task_key=f"hello_world-{mlrun_databricks_job_id}",
+                    task_key=f"mlrun_task_{mlrun_databricks_job_id}",
                     spark_python_task=SparkPythonTask(
                         python_file=f"dbfs:{script_path_on_dbfs}",
                         parameters=[json.dumps(kwargs)],

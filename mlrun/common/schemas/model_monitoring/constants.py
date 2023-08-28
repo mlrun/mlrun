@@ -78,6 +78,7 @@ class EventFieldType:
 
 
 class ApplicationEvent:
+    APPLICATION_NAME = "application_name"
     CURRENT_STATS = "current_stats"
     FEATURE_STATS = "feature_stats"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"

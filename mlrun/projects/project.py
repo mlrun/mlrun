@@ -1790,36 +1790,7 @@ class MlrunProject(ModelObj):
 
 
         examples::
-            # mlrun: start-code
-            class MyApp(ModelMonitoringApplication):
-                def __init__(self, name=None):
-                    self.name = name
-
-                def run_application(
-                    self,
-                    current_stats: pd.DataFrame,
-                    feature_stats: pd.DataFrame,
-                    sample_df: pd.DataFrame,
-                    schedule_time: pd.Timestamp,
-                    latest_request: pd.Timestamp,
-                    endpoint_id: str,
-                    output_stream_uri: str,
-                ) -> typing.Union[ModelMonitoringApplicationResult, typing.List[ModelMonitoringApplicationResult]
-                ]:
-
-                    return ModelMonitoringApplicationResult(
-                        self.name,
-                        endpoint_id,
-                        schedule_time,
-                        result_name="data_drift_test",
-                        result_value=0.5,
-                        result_kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.data_drift,
-                        result_status = mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected,
-                        result_extra_data={})
-
-            # mlrun: end-code
-
-        project.set_model_monitoring_application(application_class_name="MyApp",
+            project.set_model_monitoring_application(application_class_name="MyApp",
                                                  image="davesh0812/mlrun-api:1.5.0", name="myApp")
 
 

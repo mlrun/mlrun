@@ -136,7 +136,7 @@ class BatchApplicationProcessor:
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
-        if len(endpoints):  # TODO add application
+        if endpoints and applications_names:
             pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(endpoints),
             )
@@ -344,6 +344,7 @@ class BatchApplicationProcessor:
                 ),
             }
             for app_name in applications_names:
+                data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
                 stream_uri = get_stream_path(project=project, application_name=app_name)
                 logger.info(
                     f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"

@@ -79,20 +79,39 @@ class ModelMonitoringApplicationResult:
 
 
 class ModelMonitoringApplication(StepToDict):
+    """
+    Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+
+    example for very simple costume application::
+        # mlrun: start-code
+        class MyApp(ModelMonitoringApplication):
+
+            def run_application(
+                self,
+                sample_df_stats: pd.DataFrame,
+                feature_stats: pd.DataFrame,
+                sample_df: pd.DataFrame,
+                schedule_time: pd.Timestamp,
+                latest_request: pd.Timestamp,
+                endpoint_id: str,
+                output_stream_uri: str,
+            ) -> typing.Union[ModelMonitoringApplicationResult, typing.List[ModelMonitoringApplicationResult]
+            ]:
+                self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
+                return ModelMonitoringApplicationResult(
+                    self.name,
+                    endpoint_id,
+                    schedule_time,
+                    result_name="data_drift_test",
+                    result_value=0.5,
+                    result_kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.data_drift,
+                    result_status = mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected,
+                    result_extra_data={})
+
+        # mlrun: end-code
+    """
+
     kind = "monitoring_application"
-
-    def __init__(self, name, **kwargs):
-        """
-        Class representing a model monitoring application. Subclass this to create custom monitoring logic.
-        If you implement a custom constractor you have to call the super constractor : super().__init__(**kwargs)
-
-        :param name:    (str) name of the application
-        """
-        self.name = name
-        self.context: mlrun.MLClientCtx = (
-            None  # user can use for logging any artifacts he wants
-        )
-        self.initialize = False
 
     def do(self, event):
         """
@@ -101,17 +120,20 @@ class ModelMonitoringApplication(StepToDict):
         :param event:   (dict) The monitoring event to process.
         :returns:       (List[ModelMonitoringApplicationResult]) The application results.
         """
-        if not self.initialize:
-            self._lazy_init()
-            self.initialize = True
-        return self.run_application(*self._resolve_event(event))
+        resolved_event = self._resolve_event(event)
+        if not (
+            hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
+        ):
+            self._lazy_init(app_name=resolved_event[0])
+        return self.run_application(*resolved_event)
 
-    def _lazy_init(self):
-        self.context = self._create_context_for_logging()
+    def _lazy_init(self, app_name):
+        self.context = self._create_context_for_logging(app_name=app_name)
 
     def run_application(
         self,
-        current_stats: pd.DataFrame,
+        application_name: str,
+        sample_df_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
         schedule_time: pd.Timestamp,
@@ -124,7 +146,8 @@ class ModelMonitoringApplication(StepToDict):
         """
         Implement this method with your custom monitoring logic.
 
-        :param current_stats:       (pd.DataFrame) The new sample distribution DataFrame.
+        :param application_name     (str) the app name
+        :param sample_df_stats:     (pd.DataFrame) The new sample distribution DataFrame.
         :param feature_stats:       (pd.DataFrame) The train sample distribution DataFrame.
         :param sample_df:           (pd.DataFrame) The new sample DataFrame.
         :param schedule_time:       (pd.Timestamp) Timestamp of the monitoring schedule.
@@ -140,9 +163,19 @@ class ModelMonitoringApplication(StepToDict):
     def _resolve_event(
         event,
     ) -> Tuple[
-        pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Timestamp, pd.Timestamp, str, str
+        str,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.DataFrame,
+        pd.Timestamp,
+        pd.Timestamp,
+        str,
+        str,
     ]:
         return (
+            event[
+                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.APPLICATION_NAME
+            ],
             ModelMonitoringApplication._dict_to_histogram(
                 json.loads(
                     event[
@@ -180,9 +213,10 @@ class ModelMonitoringApplication(StepToDict):
             ],
         )
 
-    def _create_context_for_logging(self):
+    @staticmethod
+    def _create_context_for_logging(app_name):
         context = mlrun.get_or_create_ctx(
-            f"{self.name}-logger",
+            f"{app_name}-logger",
             upload_artifacts=True,
             labels={"workflow": "model-monitoring-app-logger"},
         )

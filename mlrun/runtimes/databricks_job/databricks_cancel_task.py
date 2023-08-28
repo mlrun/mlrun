@@ -18,6 +18,7 @@ from time import sleep
 
 import yaml
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.jobs import RunLifeCycleState
 from databricks_wrapper import credentials_path
 
 from mlrun.errors import MLRunRuntimeError
@@ -41,9 +42,12 @@ def main():
     is_finished = os.environ.get("IS_FINISHED", "False")  # as a string
     if is_finished == "False":
         run = workspace.jobs.cancel_run(run_id=task_id).result()
+        sleep(3)
+        run = workspace.jobs.get_run(run.run_id)
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (
-                life_cycle_state != "TERMINATED"
+            life_cycle_state != RunLifeCycleState.TERMINATING
+            or RunLifeCycleState.TERMINATED
         ):  # Terminated is also the life_cycle_state of tasks that have already
             # either failed or succeeded.
             raise MLRunRuntimeError(

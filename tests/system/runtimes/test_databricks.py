@@ -26,6 +26,7 @@ from databricks.sdk.service.jobs import RunLifeCycleState, RunResultState
 
 import mlrun
 import tests.system.base
+from mlrun.errors import MLRunRuntimeError
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import RunError
 from tests.datastore.databricks_utils import is_databricks_configured
@@ -75,18 +76,26 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             if databricks_run.run_name == run_name
         ]
         if len(runs_by_run_name) == 0:
-            raise Exception("run not found")
+            raise MLRunRuntimeError(
+                f"No active runs were found in Databricks with the specified run_name= {run_name}"
+            )
         elif len(runs_by_run_name) > 1:
-            raise Exception("too many")
+            raise MLRunRuntimeError(
+                f"Too many active runs were found in Databricks with the specified run_name= {run_name}"
+            )
         return runs[0]
 
     def _abort_run(self):
         print("start aborting")
         mlrun_runs = self.project.list_runs(state="running")
         if len(mlrun_runs) < 1:
-            raise Exception("could not find any run that related to the project.")
+            raise MLRunRuntimeError(
+                f"No active runs related to the project {self.project_name} could be found."
+            )
         if len(mlrun_runs) > 1:
-            raise Exception("to many runs related to the project.")
+            raise MLRunRuntimeError(
+                f"Too many active runs related to the project {self.project_name} were found"
+            )
         mlrun_run = mlrun_runs.to_objects()[0]
         db = mlrun.get_run_db()
         db.abort_run(uid=mlrun_run.uid(), project=self.project_name)

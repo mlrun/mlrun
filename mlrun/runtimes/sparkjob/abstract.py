@@ -369,10 +369,10 @@ class AbstractSparkRuntime(KubejobRuntime):
 
     @staticmethod
     def _parse_cpu_resource_string(cpu):
-        if cpu.endswith("m"):
-            return int(cpu[-1]) / 1000
+        if isinstance(cpu, str) and cpu.endswith("m"):
+            return float(cpu[:-1]) / 1000
         else:
-            return int(cpu)
+            return float(cpu)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
@@ -567,7 +567,7 @@ with ctx:
                             "cpu"
                         ]
                         if self._parse_cpu_resource_string(
-                                driver_cpu_request
+                            driver_cpu_request
                         ) > self._parse_cpu_resource_string(driver_cpu_limit):
                             raise mlrun.errors.MLRunInvalidArgumentError(
                                 f"Driver CPU request ('{driver_cpu_request}') is higher than limit "

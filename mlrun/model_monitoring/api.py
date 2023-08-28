@@ -26,6 +26,7 @@ import mlrun.common.helpers
 import mlrun.feature_store
 from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
+from mlrun.utils import logger
 
 from .features_drift_table import FeaturesDriftTablePlot
 from .model_endpoint import ModelEndpoint
@@ -100,9 +101,14 @@ def get_or_create_model_endpoint(
                 EventFieldType.POSSIBLE_DRIFT_THRESHOLD: possible_drift_threshold,
                 EventFieldType.MONITORING_MODE: monitoring_mode,
             }
-            if sample_set_statistics:
-                attributes_to_update[EventFieldType.FEATURE_STATS] = json.dumps(
-                    sample_set_statistics
+            if (
+                sample_set_statistics
+                and sample_set_statistics != model_endpoint.status.feature_stats
+            ):
+                logger.warning(
+                    "Provided sample set statistics is different from the registered statistics. "
+                    "If you wish to use a new statistics as a reference expected data, it is "
+                    "recommended to generate a new model endpoint record."
                 )
 
             db_session.patch_model_endpoint(

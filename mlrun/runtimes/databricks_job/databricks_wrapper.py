@@ -79,7 +79,10 @@ def run_mlrun_databricks_job(
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
-    databricks_run_name = task_parameters.get("databricks_run_name", None) or f"mlrun_task_{mlrun_databricks_job_id}"
+    databricks_run_name = (
+        task_parameters.get("databricks_run_name", None)
+        or f"mlrun_task_{mlrun_databricks_job_id}"
+    )
 
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)

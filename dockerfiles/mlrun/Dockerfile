@@ -24,6 +24,7 @@ ENV PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install --no-install-recommends -y \
   gcc \
+  wget \
   git-core \
  && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +33,7 @@ WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-# Install MiniConda (Python 3.9):
+# Install MiniConda:
 ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
@@ -51,9 +52,13 @@ RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
+# Install Python:
 ARG MLRUN_PIP_VERSION=23.2.1
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
+RUN conda config --add channels conda-forge && \
+    conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
+    conda clean -aqy
 
+# Install MLRun:
 COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./

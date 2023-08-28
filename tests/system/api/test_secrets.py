@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 import datetime
+import os
 import pathlib
+import re
 import time
 import typing
 import uuid
@@ -26,6 +28,7 @@ import pytest
 import mlrun.api.utils.events.iguazio
 import mlrun.common.schemas
 import mlrun.errors
+from mlrun.config import config
 from tests.system.base import TestMLRunSystem
 
 
@@ -340,6 +343,66 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # Cleanup secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+
+    @pytest.mark.enterprise
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            "deploy",
+            "run",
+            "save",
+        ],
+    )
+    def test_masked_access_key(self, operation):
+        filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
+        function = mlrun.code_to_function(
+            name="test-masked-access-key",
+            project=self.project_name,
+            filename=filename,
+            handler="access_key_verifier",
+            kind="job",
+            image="mlrun/mlrun",
+        )
+
+        # generate mlrun auth session
+        function.metadata.credentials.access_key = (
+            mlrun.model.Credentials.generate_access_key
+        )
+
+        # set v3io credentials
+        v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
+        function.set_env(name="V3IO_ACCESS_KEY", value=v3io_access_key)
+        function.set_env(name="V3IO_USERNAME", value=os.environ.get("V3IO_USERNAME"))
+
+        if operation == "deploy":
+            function.deploy()
+        elif operation == "run":
+            function.run(params={"v3io_access_key": v3io_access_key})
+        elif operation == "save":
+            function.save(versioned=False)
+        else:
+            assert False, f"Bad operation {operation}"
+
+        run_db = mlrun.get_run_db()
+        runtime = run_db.get_function(function.metadata.name, self.project_name)
+        function = mlrun.new_function(runtime=runtime)
+
+        # verify v3io access key was masked
+        masked_v3io_access_key = function.get_env("V3IO_ACCESS_KEY")
+        secret_name_regex = config.secret_stores.kubernetes.auth_secret_name.format(
+            hashed_access_key=".+"
+        )
+        assert re.match(
+            secret_name_regex,
+            masked_v3io_access_key["secretKeyRef"]["name"],
+        )
+
+        # auth session should be generated and masked
+        masked_mlrun_session = function.get_env("MLRUN_AUTH_SESSION")
+        assert re.match(secret_name_regex, masked_mlrun_session["secretKeyRef"]["name"])
+
+        if operation != "run":
+            function.run(params={"v3io_access_key": v3io_access_key})
 
     def _ensure_audit_events(
         self,

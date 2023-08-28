@@ -285,7 +285,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "enabled",
+            "explicit_ack": "disabled",
         },
         "logs": {
             "decode": {
@@ -422,6 +422,9 @@ default_config = {
         "endpoint_store_connection": "",
     },
     "secret_stores": {
+        # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
+        # "secrets")
+        "test_mode_mock_secrets": False,
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
             # http://docker.for.mac.localhost:8200
@@ -453,7 +456,8 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
+            # "authority" is optional and generalizes [userinfo "@"] host [":" port]
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -493,6 +497,16 @@ default_config = {
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
+    },
+    "default_spark_resources": {
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
@@ -904,7 +918,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():
@@ -1010,7 +1024,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_artifact_path_template(
+            return mlrun.utils.helpers.fill_project_path_template(
                 artifact_path=artifact_path + file_path, project=project
             )
 

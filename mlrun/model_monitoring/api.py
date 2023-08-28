@@ -23,8 +23,8 @@ import pandas as pd
 
 import mlrun.artifacts
 import mlrun.common.helpers
-import mlrun.common.schemas
 import mlrun.feature_store
+from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitoringMode
 from mlrun.data_types.infer import InferOptions, get_df_stats
 
 from .features_drift_table import FeaturesDriftTablePlot
@@ -39,49 +39,42 @@ DatasetType = typing.Union[
 
 def get_or_create_model_endpoint(
     project: str,
-    endpoint_id: str,
-    model_path: str,
-    model_name: str,
+    model_path: str = "",
+    model_endpoint_name: str = "",
+    endpoint_id: str = "",
     function_name: str = "",
     context: mlrun.MLClientCtx = None,
-    df_to_target: pd.DataFrame = None,
     sample_set_statistics: typing.Dict[str, typing.Any] = None,
     drift_threshold: float = 0.7,
     possible_drift_threshold: float = 0.5,
-    inf_capping: float = 10.0,
-    artifacts_tag: str = "",
-    trigger_monitoring_job: bool = False,
-    default_batch_image="mlrun/mlrun",
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
+    db_session=None,
+    patch_if_exist: bool = False,
 ) -> ModelEndpoint:
     """
-    Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint
-    record and use the provided sample set statistics as feature stats that will be later for the drift analysis.
-    To manually trigger the monitoring batch job, you have to set `trigger_monitoring_job=True` and then the batch
-    job will immediately perform drift analysis between the sample set statistics stored in the model to the current
-    input data. The drift rule is the value per-feature mean of the TVD and Hellinger scores according to the
-    thresholds configures here.
+    Get a single model endpoint object. If not exist, generate a new model endpoint with the provided parameters. Note
+    that in case of generating a new model endpoint, by default the monitoring features are disabled. To enable these
+    features, set `monitoring_mode=enabled`.
 
     :param project:                  Project name.
+    :param model_path:               The model store path.
+    :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
+                                     under this endpoint.
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
-    :param model_path:               The model Store path.
-    :param model_name:               If a new model endpoint is generated, the model name will be presented under this
-                                     endpoint.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
-    :param context:                  MLRun context. Note that the context is required for logging the artifacts
-                                     following the batch drift job.
-    :param df_to_target:             DataFrame that will be stored under the model endpoint parquet target. This
-                                     DataFrame will be used by the scheduled monitoring batch drift job.
+    :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
+                                     full function hash.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
-                                     the current model endpoint.
+                                     the new model endpoint.
     :param drift_threshold:          The threshold of which to mark drifts. Defaulted to 0.7.
     :param possible_drift_threshold: The threshold of which to mark possible drifts. Defaulted to 0.5.
-    :param inf_capping:              The value to set for when it reached infinity. Defaulted to 10.0.
-    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function.
-    :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
-                                     will be registered through MLRun API with the provided image.
-    :param default_batch_image:      The image that will be used when registering the model monitoring batch job.
+    :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id.
+    :param db_session:               A runtime session that manages the current dialog with the database.
+    :param patch_if_exist:           If true and the model endpoint record is already exist, update it with the
+                                     provided values.
+
 
     :return: A ModelEndpoint object
     """
@@ -89,57 +82,136 @@ def get_or_create_model_endpoint(
     if not endpoint_id:
         # Generate a new model endpoint id based on the project name and model name
         endpoint_id = hashlib.sha1(
-            f"{project}_{model_name}".encode("utf-8")
+            f"{project}_{model_endpoint_name}".encode("utf-8")
         ).hexdigest()
 
-    db = mlrun.get_run_db()
+    if not db_session:
+        # Generate a runtime database
+        db_session = mlrun.get_run_db()
     try:
-        model_endpoint = db.get_model_endpoint(project=project, endpoint_id=endpoint_id)
-
-        # Update last request
-        attributes_to_update = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.LAST_REQUEST: datetime.datetime.now(),
-        }
-
-        db.patch_model_endpoint(
-            project=project, endpoint_id=endpoint_id, attributes=attributes_to_update
+        model_endpoint = db_session.get_model_endpoint(
+            project=project, endpoint_id=endpoint_id
         )
+        if patch_if_exist:
+            # Update provided values
+            attributes_to_update = {
+                EventFieldType.LAST_REQUEST: datetime.datetime.now(),
+                EventFieldType.DRIFT_DETECTED_THRESHOLD: drift_threshold,
+                EventFieldType.POSSIBLE_DRIFT_THRESHOLD: possible_drift_threshold,
+                EventFieldType.MONITORING_MODE: monitoring_mode,
+            }
+            if sample_set_statistics:
+                attributes_to_update[EventFieldType.FEATURE_STATS] = json.dumps(
+                    sample_set_statistics
+                )
+
+            db_session.patch_model_endpoint(
+                project=project,
+                endpoint_id=endpoint_id,
+                attributes=attributes_to_update,
+            )
+            # Get the updated model endpoint object
+            model_endpoint = db_session.get_model_endpoint(
+                project=project, endpoint_id=endpoint_id
+            )
 
     except mlrun.errors.MLRunNotFoundError:
         # Create a new model endpoint with the provided details
         model_endpoint = _generate_model_endpoint(
             project=project,
-            db_session=db,
+            db_session=db_session,
             endpoint_id=endpoint_id,
             model_path=model_path,
-            model_name=model_name,
+            model_endpoint_name=model_endpoint_name,
             function_name=function_name,
             context=context,
             sample_set_statistics=sample_set_statistics,
             drift_threshold=drift_threshold,
             possible_drift_threshold=possible_drift_threshold,
+            monitoring_mode=monitoring_mode,
         )
+    return model_endpoint
 
-    if df_to_target is not None:
-        # Write the parquet file through feature set ingestion process
-        monitoring_feature_set = mlrun.feature_store.get_feature_set(
-            uri=model_endpoint.status.monitoring_feature_set_uri
-        )
 
-        # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
-        df_to_target[
-            mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP
-        ] = datetime.datetime.now()
-        df_to_target[
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
-        ] = endpoint_id
-        df_to_target.set_index(
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
-            inplace=True,
-        )
+def record_results(
+    project: str,
+    model_path: str,
+    model_endpoint_name: str,
+    endpoint_id: str = "",
+    function_name: str = "",
+    context: mlrun.MLClientCtx = None,
+    infer_results_df: pd.DataFrame = None,
+    sample_set_statistics: typing.Dict[str, typing.Any] = None,
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled,
+    drift_threshold: float = 0.7,
+    possible_drift_threshold: float = 0.5,
+    trigger_monitoring_job: bool = False,
+    inf_capping: float = 10.0,
+    artifacts_tag: str = "",
+    default_batch_image="mlrun/mlrun",
+) -> ModelEndpoint:
+    """
+    Write a provided inference dataset to model endpoint parquet target. If not exist, generate a new model endpoint
+    record and use the provided sample set statistics as feature stats that will be used later for the drift analysis.
+    To manually trigger the monitoring batch job, set `trigger_monitoring_job=True` and then the batch
+    job will immediately perform drift analysis between the sample set statistics stored in the model and the new
+    input data (along with the outputs). The drift rule is the value per-feature mean of the TVD and Hellinger scores
+    according to the provided thresholds.
 
-        mlrun.feature_store.ingest(
-            featureset=monitoring_feature_set, source=df_to_target, overwrite=False
+    :param project:                  Project name.
+
+    :param model_path:               The model Store path.
+    :param model_endpoint_name:      If a new model endpoint is generated, the model endpoint name will be presented
+                                     under this endpoint.
+    :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
+                                     on the provided `endpoint_id`.
+    :param function_name:            If a new model endpoint is created, use this function name for generating the
+                                     function URI.
+    :param context:                  MLRun context. Note that the context is required for logging the artifacts
+                                     following the batch drift job.
+    :param infer_results_df:         DataFrame that will be stored under the model endpoint parquet target. Will be
+                                     used for doing the drift analysis. Please make sure that the dataframe includes
+                                     both feature names and label columns.
+    :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
+                                     the current model endpoint.
+    :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id. Enabled
+                                     by default.
+    :param drift_threshold:          The threshold of which to mark drifts. Defaulted to 0.7.
+    :param possible_drift_threshold: The threshold of which to mark possible drifts. Defaulted to 0.5.
+    :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
+                                     will be registered through MLRun API with the provided image.
+    :param inf_capping:              The value to set for when it reached infinity. Defaulted to 10.0. Will be relevant
+                                     only if the monitoring batch job has been triggered.
+    :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
+                                     only if the monitoring batch job has been triggered.
+
+    :param default_batch_image:      The image that will be used when registering the model monitoring batch job.
+
+    :return: A ModelEndpoint object
+    """
+    db = mlrun.get_run_db()
+
+    model_endpoint = get_or_create_model_endpoint(
+        project=project,
+        endpoint_id=endpoint_id,
+        model_path=model_path,
+        model_endpoint_name=model_endpoint_name,
+        function_name=function_name,
+        context=context,
+        sample_set_statistics=sample_set_statistics,
+        drift_threshold=drift_threshold,
+        possible_drift_threshold=possible_drift_threshold,
+        monitoring_mode=monitoring_mode,
+        db_session=db,
+        patch_if_exist=True,
+    )
+
+    if infer_results_df is not None:
+        # Write the monitoring parquet to the relevant model endpoint context
+        write_monitoring_df(
+            feature_set_uri=model_endpoint.status.monitoring_feature_set_uri,
+            endpoint_id=model_endpoint.metadata.uid,
+            infer_results_df=infer_results_df,
         )
 
     if trigger_monitoring_job:
@@ -147,8 +219,13 @@ def get_or_create_model_endpoint(
         trigger_drift_batch_job(
             project=project,
             default_batch_image=default_batch_image,
-            model_endpoints_ids=[endpoint_id],
+            model_endpoints_ids=[model_endpoint.metadata.uid],
+            db_session=db,
         )
+
+        if not sample_set_statistics:
+            # Take reference data from the model endpoint stored stats
+            sample_set_statistics = model_endpoint.status.feature_stats
 
         perform_drift_analysis(
             project=project,
@@ -158,11 +235,56 @@ def get_or_create_model_endpoint(
             possible_drift_threshold=possible_drift_threshold,
             inf_capping=inf_capping,
             artifacts_tag=artifacts_tag,
-            endpoint_id=endpoint_id,
+            endpoint_id=model_endpoint.metadata.uid,
             db_session=db,
         )
 
     return model_endpoint
+
+
+def write_monitoring_df(
+    endpoint_id: str,
+    infer_results_df: pd.DataFrame,
+    monitoring_feature_set: mlrun.feature_store.FeatureSet = None,
+    feature_set_uri: str = "",
+):
+    """Write infer results dataframe to the monitoring parquet target of the current model endpoint. The dataframe will
+    be written using feature set ingest process. Please make sure that you provide either a valid monitoring feature
+    set (with parquet target) or a valid monitoring feature set uri.
+
+    :param endpoint_id:             Model endpoint unique ID.
+    :param infer_results_df:        DataFrame that will be stored under the model endpoint parquet target.
+    :param monitoring_feature_set:  A `mlrun.feature_store.FeatureSet` object corresponding to the provided endpoint_id.
+    :param feature_set_uri:         if monitoring_feature_set not provided, use the feature_set_uri value to get the
+                                    relevant `mlrun.feature_store.FeatureSet`.
+    """
+
+    if not monitoring_feature_set:
+        if not feature_set_uri:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Please provide either a valid monitoring feature set object or a monitoring feature set uri"
+            )
+
+        monitoring_feature_set = mlrun.feature_store.get_feature_set(
+            uri=feature_set_uri
+        )
+
+    # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
+    if EventFieldType.TIMESTAMP not in infer_results_df.columns:
+        # Initialize timestamp column with the current time
+        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now()
+
+    # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
+    # the ingest process
+    infer_results_df[EventFieldType.ENDPOINT_ID] = endpoint_id
+    infer_results_df.set_index(
+        EventFieldType.ENDPOINT_ID,
+        inplace=True,
+    )
+
+    mlrun.feature_store.ingest(
+        featureset=monitoring_feature_set, source=infer_results_df, overwrite=False
+    )
 
 
 def _generate_model_endpoint(
@@ -170,12 +292,13 @@ def _generate_model_endpoint(
     db_session,
     endpoint_id: str,
     model_path: str,
-    model_name: str,
+    model_endpoint_name: str,
     function_name: str,
     context: mlrun.MLClientCtx,
     sample_set_statistics: typing.Dict[str, typing.Any],
     drift_threshold: float,
     possible_drift_threshold: float,
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled,
 ) -> ModelEndpoint:
     """
     Write a new model endpoint record.
@@ -185,7 +308,7 @@ def _generate_model_endpoint(
     :param db_session:               A session that manages the current dialog with the database.
     :param endpoint_id:              Model endpoint unique ID.
     :param model_path:               The model Store path.
-    :param model_name:               Model name will be presented under the new model endpoint.
+    :param model_endpoint_name:      Model endpoint name will be presented under the new model endpoint.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
                                      function URI.
     :param context:                  MLRun context. If function_name not provided, use the context to generate the
@@ -215,21 +338,20 @@ def _generate_model_endpoint(
 
     model_endpoint.spec.function_uri = project + "/" + function_name
     model_endpoint.spec.model_uri = model_path
-    model_endpoint.spec.model = model_name
+    model_endpoint.spec.model = model_endpoint_name
     model_endpoint.spec.model_class = "drift-analysis"
-    model_endpoint.spec.monitor_configuration["drift_detected"] = drift_threshold
     model_endpoint.spec.monitor_configuration[
-        "possible_drift"
+        EventFieldType.DRIFT_DETECTED_THRESHOLD
+    ] = drift_threshold
+    model_endpoint.spec.monitor_configuration[
+        EventFieldType.POSSIBLE_DRIFT_THRESHOLD
     ] = possible_drift_threshold
 
-    model_endpoint.spec.monitoring_mode = (
-        mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
-        if sample_set_statistics
-        else mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.disabled
-    )
+    model_endpoint.spec.monitoring_mode = monitoring_mode
     model_endpoint.status.first_request = datetime.datetime.now()
     model_endpoint.status.last_request = datetime.datetime.now()
-    model_endpoint.status.feature_stats = sample_set_statistics
+    if sample_set_statistics:
+        model_endpoint.status.feature_stats = sample_set_statistics
 
     db_session.create_model_endpoint(
         project=project, endpoint_id=endpoint_id, model_endpoint=model_endpoint
@@ -243,6 +365,7 @@ def trigger_drift_batch_job(
     default_batch_image="mlrun/mlrun",
     model_endpoints_ids: typing.List[str] = None,
     batch_intervals_dict: typing.Dict[str, float] = None,
+    db_session=None,
 ):
     """
     Run model monitoring drift analysis job. If not exists, the monitoring batch function will be registered through
@@ -253,17 +376,20 @@ def trigger_drift_batch_job(
     :param model_endpoints_ids:  List of model endpoints to include in the current run.
     :param batch_intervals_dict: Batch interval range (days, hours, minutes). By default, the batch interval is
                                  configured to run through the last hour.
+    :param db_session:           A runtime session that manages the current dialog with the database.
 
     """
     if not model_endpoints_ids:
         raise mlrun.errors.MLRunNotFoundError(
             "No model endpoints provided",
         )
-
-    db = mlrun.get_run_db()
+    if not db_session:
+        db_session = mlrun.get_run_db()
 
     # Register the monitoring batch job (do nothing if already exist) and get the job function as a dictionary
-    batch_function_dict: typing.Dict[str, typing.Any] = db.deploy_monitoring_batch_job(
+    batch_function_dict: typing.Dict[
+        str, typing.Any
+    ] = db_session.deploy_monitoring_batch_job(
         project=project,
         default_batch_image=default_batch_image,
     )
@@ -411,30 +537,32 @@ def read_dataset_as_dataframe(
 
 def perform_drift_analysis(
     project: str,
+    endpoint_id: str,
     context: mlrun.MLClientCtx,
     sample_set_statistics: dict,
     drift_threshold: float,
     possible_drift_threshold: float,
     inf_capping: float,
-    db_session,
     artifacts_tag: str = "",
-    endpoint_id: str = "",
+    db_session=None,
 ):
     """
     Calculate drift per feature and produce the drift table artifact for logging post prediction. Note that most of
     the calculations were already made through the monitoring batch job.
 
     :param project:                  Project name.
-    :param context:                  MLRun context. Will be used for getting the project name and to log the artifacts.
+    :param endpoint_id:              Model endpoint unique ID.
+    :param context:                  MLRun context. Will log the artifacts.
     :param sample_set_statistics:    The statistics of the sample set logged along a model.
     :param drift_threshold:          The threshold of which to mark drifts.
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param inf_capping:              The value to set for when it reached infinity.
-    :param db_session:               A session that manages the current dialog with the database.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function.
-    :param endpoint_id:              Model endpoint unique ID.
+    :param db_session:               A runtime session that manages the current dialog with the database.
 
     """
+    if not db_session:
+        db_session = mlrun.get_run_db()
 
     model_endpoint = db_session.get_model_endpoint(
         project=project, endpoint_id=endpoint_id
@@ -505,7 +633,7 @@ def _log_drift_artifacts(
     2 - Drift result per feature in a JSON format
     3 - Results of the total drift analysis
 
-    :param context:             MLRun context. Will be used for getting the project name and to log the artifacts.
+    :param context:             MLRun context. Will log the artifacts.
     :param html_plot:           Path to the html file of the plot.
     :param metrics_per_feature: Dictionary in which the key is a feature name and the value is the drift numerical
                                 result.

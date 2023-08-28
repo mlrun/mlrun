@@ -63,6 +63,8 @@ Currently, the supported notification kinds and their params are as follows:
   - `headers`: (dict) The http headers to send with the notification.
   - `override_body`: (dict) The body to send with the notification. If not specified, the body will be a dict with the 
                      `name`, `message`, `severity`, and the `runs` list of the completed runs.
+  - `verify_ssl`: (bool) Whether SSL certificates are validated during HTTP requests or not,
+                  The default is set to `True`.
 - `console` (no params, local only)
 - `ipython` (no params, local only)
 

@@ -82,9 +82,10 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 # dbfs objects will be represented with the following URL: dbfs://<path>
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
-        if not endpoint:
-            endpoint = mlrun.get_secret_or_env("DATABRICKS_HOST")
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
+        if not endpoint:
+            endpoint = self._get_secret_or_env("DATABRICKS_HOST")
+        self.endpoint = endpoint
         self.get_filesystem(silent=False)
 
     def get_filesystem(self, silent=True):
@@ -96,7 +97,7 @@ class DBFSStore(DataStore):
     def get_storage_options(self):
         return dict(
             token=self._get_secret_or_env("DATABRICKS_TOKEN"),
-            instance=mlrun.get_secret_or_env("DATABRICKS_HOST"),
+            instance=self._get_secret_or_env("DATABRICKS_HOST"),
         )
 
     def _verify_filesystem_and_key(self, key: str):

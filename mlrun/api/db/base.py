@@ -582,7 +582,9 @@ class DBInterface(ABC):
     def delete_hub_source(self, session, name):
         pass
 
-    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
+    def get_hub_source(
+        self, session, name=None, index=None
+    ) -> mlrun.common.schemas.IndexedHubSource:
         pass
 
     def store_background_task(

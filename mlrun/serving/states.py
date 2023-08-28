@@ -29,7 +29,7 @@ from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
-from ..utils import get_class, get_function
+from ..utils import get_class, get_function, is_explicit_ack_supported
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
@@ -1457,6 +1457,11 @@ def _init_async_objects(context, steps):
 
     wait_for_result = False
 
+    trigger = getattr(context, "trigger", None)
+    context.logger.debug(f"trigger is {trigger or 'unknown'}")
+    # respond is only supported for HTTP trigger
+    respond_supported = trigger is None or trigger == "http"
+
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
             if step.kind == StepKinds.queue:
@@ -1508,15 +1513,23 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                 )
-            if not step.next and hasattr(step, "responder") and step.responder:
+            if (
+                respond_supported
+                and not step.next
+                and hasattr(step, "responder")
+                and step.responder
+            ):
                 # if responder step (return result), add Complete()
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
+
+    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+
     default_source = storey.SyncEmitSource(
         context=context,
-        explicit_ack=mlrun.mlconf.is_explicit_ack(),
+        explicit_ack=explicit_ack,
         **source_args,
     )
     return default_source, wait_for_result

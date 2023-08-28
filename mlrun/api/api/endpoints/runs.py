@@ -221,6 +221,23 @@ async def list_runs(
             mlrun.common.schemas.AuthorizationAction.read,
             auth_info,
         )
+
+    if (
+        not name
+        and not uid
+        and not project
+        and not labels
+        and not state
+        and not last
+        and not start_time_from
+        and not start_time_to
+        and not last_update_time_from
+        and not last_update_time_to
+    ):
+        # default to last week on no filter
+        start_time_from = datetime.datetime.now() - datetime.timedelta(days=7)
+        sort = True
+
     runs = await run_in_threadpool(
         mlrun.api.crud.Runs().list_runs,
         db_session,

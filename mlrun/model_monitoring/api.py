@@ -152,7 +152,6 @@ def record_results(
     drift_threshold: float = 0.7,
     possible_drift_threshold: float = 0.5,
     trigger_monitoring_job: bool = False,
-    inf_capping: float = 10.0,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -186,8 +185,6 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts. Defaulted to 0.5.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
-    :param inf_capping:              The value to set for when it reached infinity. Defaulted to 10.0. Will be relevant
-                                     only if the monitoring batch job has been triggered.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 
@@ -239,7 +236,6 @@ def record_results(
             sample_set_statistics=sample_set_statistics,
             drift_threshold=drift_threshold,
             possible_drift_threshold=possible_drift_threshold,
-            inf_capping=inf_capping,
             artifacts_tag=artifacts_tag,
             endpoint_id=model_endpoint.metadata.uid,
             db_session=db,
@@ -548,7 +544,6 @@ def perform_drift_analysis(
     sample_set_statistics: dict,
     drift_threshold: float,
     possible_drift_threshold: float,
-    inf_capping: float,
     artifacts_tag: str = "",
     db_session=None,
 ):
@@ -562,7 +557,6 @@ def perform_drift_analysis(
     :param sample_set_statistics:    The statistics of the sample set logged along a model.
     :param drift_threshold:          The threshold of which to mark drifts.
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
-    :param inf_capping:              The value to set for when it reached infinity.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function.
     :param db_session:               A runtime session that manages the current dialog with the database.
 
@@ -581,7 +575,7 @@ def perform_drift_analysis(
     inputs_statistics.pop("timestamp", None)
 
     # Calculate drift for each feature
-    virtual_drift = VirtualDrift(inf_capping=inf_capping)
+    virtual_drift = VirtualDrift()
     drift_results = virtual_drift.check_for_drift_per_feature(
         metrics_results_dictionary=metrics,
         possible_drift_threshold=possible_drift_threshold,

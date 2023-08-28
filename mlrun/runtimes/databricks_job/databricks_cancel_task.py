@@ -42,8 +42,6 @@ def main():
     is_finished = os.environ.get("IS_FINISHED", "False")  # as a string
     if is_finished == "False":
         run = workspace.jobs.cancel_run(run_id=task_id).result()
-        sleep(3)
-        run = workspace.jobs.get_run(run.run_id)
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (
             life_cycle_state != RunLifeCycleState.TERMINATING

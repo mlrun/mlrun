@@ -377,7 +377,6 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
 
-
         if runobj.metadata.iteration:
             self.store_run(runobj)
         job = deepcopy(_sparkjob_template)

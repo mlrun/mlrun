@@ -377,6 +377,7 @@ class AbstractSparkRuntime(KubejobRuntime):
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
 
+
         if runobj.metadata.iteration:
             self.store_run(runobj)
         job = deepcopy(_sparkjob_template)
@@ -519,8 +520,8 @@ with ctx:
                         executor_cpu_request
                     ) > self._parse_cpu_resource_string(executor_cpu_limit):
                         raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Executor CPU request ('{executor_cpu_request}') is higher than limit "
-                            f"('{executor_cpu_limit}')"
+                            f"Executor CPU request ({executor_cpu_request}) is higher than limit "
+                            f"({executor_cpu_limit})"
                         )
                 verify_and_update_in(
                     job,
@@ -570,8 +571,8 @@ with ctx:
                             driver_cpu_request
                         ) > self._parse_cpu_resource_string(driver_cpu_limit):
                             raise mlrun.errors.MLRunInvalidArgumentError(
-                                f"Driver CPU request ('{driver_cpu_request}') is higher than limit "
-                                f"('{driver_cpu_limit}')"
+                                f"Driver CPU request ({driver_cpu_request}) is higher than limit "
+                                f"({driver_cpu_limit})"
                             )
                     verify_and_update_in(
                         job,

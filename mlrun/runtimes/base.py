@@ -73,8 +73,8 @@ class RuntimeClassMode(enum.Enum):
     """
     Runtime class mode
     Currently there are two modes:
-    1. run - the runtime class is used to run a function
-    2. build - the runtime class is used to build a function
+    * run - the runtime class is used to run a function
+    * build - the runtime class is used to build a function
 
     The runtime class mode is used to determine what should be the name of the runtime class, each runtime might have a
     different name for each mode and some might not have both modes.
@@ -308,8 +308,12 @@ class BaseRuntime(ModelObj):
                                (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param hyperparams:    Dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
-                               the default strategy is grid search, can specify strategy (grid, list, random)
+        :param hyperparams:    Dict of param name and list of values to be enumerated.
+                               The default strategy is grid search and uses e.g. {"p1": [1,2,3]}. 
+                               (Can be specified as a JSON file)
+                               For list, lists must be of equal length, e.g. {"p1": [1], "p2": [2]}. 
+                               (Can be specified as a CSV file)
+                               Can specify strategy of type (grid, list, random)
                                and other options in the hyper_param_options parameter.
         :param hyper_param_options: Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyperparameter options.
         :param verbose:             Add verbose prints/logs.

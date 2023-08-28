@@ -237,7 +237,7 @@ async def list_runs(
         # default to last week on no filter
         start_time_from = datetime.datetime.now() - datetime.timedelta(days=7)
         partition_by = mlrun.common.schemas.RunPartitionByField.name
-        sort = True
+        partition_sort_by = mlrun.common.schemas.SortField.updated
 
     runs = await run_in_threadpool(
         mlrun.api.crud.Runs().list_runs,

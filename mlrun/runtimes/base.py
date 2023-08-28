@@ -312,7 +312,8 @@ class BaseRuntime(ModelObj):
                                The default strategy is grid search and uses e.g. {"p1": [1,2,3]}.
                                (Can be specified as a JSON file)
                                For list, lists must be of equal length, e.g. {"p1": [1], "p2": [2]}.
-                               (Can be specified as JSON file or as a CSV file listing the parameter values per iteration.)
+                               (Can be specified as JSON file or as a CSV file listing the parameter values per
+                               iteration.)
                                You can specify strategy of type grid, list, random,
                                and other options in the hyper_param_options parameter.
         :param hyper_param_options: Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyperparameter options.

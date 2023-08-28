@@ -14,6 +14,7 @@
 #
 
 import pathlib
+
 import pytest
 
 import mlrun.runtimes.generators

@@ -18,7 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -666,6 +666,24 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not project
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,

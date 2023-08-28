@@ -31,7 +31,6 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
 # mainly used for mlrun, base and models images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
-MLRUN_CONDA_PYTHON_VERSION ?= 39
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 23.2.1
@@ -240,7 +239,7 @@ prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
 	docker build \
 		--file dockerfiles/gpu/prebaked.Dockerfile \
 		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
-		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_CONDA_PYTHON_VERSION) \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
 		.
 

@@ -14,10 +14,15 @@
 #
 import copy
 import os
+import threading
+import time
+import uuid
 from pathlib import Path
 
 import pytest
 import yaml
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.jobs import RunLifeCycleState, RunResultState
 
 import mlrun
 import tests.system.base
@@ -50,6 +55,41 @@ default_test_params = {
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     project_name = "databricks-system-test"
+
+    @staticmethod
+    def _get_active_run_by_name(workspace: WorkspaceClient, run_name: str):
+        from datetime import datetime, timedelta
+
+        current_utc_time = datetime.utcnow()
+        previous_day_utc_time = current_utc_time - timedelta(days=1)
+        previous_day_utc_time_in_ms = int(previous_day_utc_time.timestamp()) * 1000
+        # in order to optimize the query, list_runs is filtered by time and active_only.
+        runs = list(
+            workspace.jobs.list_runs(
+                active_only=True, start_time_from=previous_day_utc_time_in_ms
+            )
+        )
+        runs_by_run_name = [
+            databricks_run
+            for databricks_run in runs
+            if databricks_run.run_name == run_name
+        ]
+        if len(runs_by_run_name) == 0:
+            raise Exception("run not found")
+        elif len(runs_by_run_name) > 1:
+            raise Exception("too many")
+        return runs[0]
+
+    def _abort_run(self):
+        print("start aborting")
+        mlrun_runs = self.project.list_runs(state="running")
+        if len(mlrun_runs) < 1:
+            raise Exception("could not find any run that related to the project.")
+        if len(mlrun_runs) > 1:
+            raise Exception("to many runs related to the project.")
+        mlrun_run = mlrun_runs.to_objects()[0]
+        db = mlrun.get_run_db()
+        db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
 
     def setup_class(self):
         for key, value in config["env"].items():
@@ -228,21 +268,50 @@ def import_mlrun():
                 in bad_request_error.value
             )
 
-    def test_cancel_task(self):
-        sleep_code = """\n
+    def test_abort_task(self):
+        #  in order to clean up any active runs:
+        if self.project.list_runs(state="running"):
+            self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
+        sleep_code = """
+\n
 def handler(**kwargs):
     import time
     time.sleep(1000)
-        """
+\n
+"""
         function_ref = FunctionReference(
             kind="databricks",
             code=sleep_code,
-            image="tomermamia855/mlrun-api:fix_dbfs_pod_tab",
-            name="databricks-test3",
+            image="mlrun/mlrun",
+            name="databricks_abort_test",
         )
-
         function = function_ref.to_function()
         self._add_databricks_env(function=function)
-        run = function.run(
-            project=self.project_name,
+        test_run_uid = uuid.uuid4()
+        databricks_run_name = f"databricks_abort_test_{test_run_uid}"
+        params = {"task_parameters": {"databricks_run_name": databricks_run_name}}
+        run_thread = threading.Thread(
+            target=lambda: function.run(project=self.project_name, params=params)
         )
+        run_thread.start()
+        # wait for databricks to run the function.
+        time.sleep(10)
+        workspace = WorkspaceClient()
+        run = self._get_active_run_by_name(
+            workspace=workspace, run_name=databricks_run_name
+        )
+        assert run.state.life_cycle_state in (
+            RunLifeCycleState.PENDING,
+            RunLifeCycleState.RUNNING,
+        )
+        abort_thread = threading.Thread(target=self._abort_run)
+        abort_thread.start()
+        abort_thread.join()
+        run = workspace.jobs.get_run(run_id=run.run_id)
+        # wait for databricks to update the status.
+        time.sleep(5)
+        assert run.state.life_cycle_state in (
+            RunLifeCycleState.TERMINATING,
+            RunLifeCycleState.TERMINATED,
+        )
+        assert run.state.result_state == RunResultState.CANCELED

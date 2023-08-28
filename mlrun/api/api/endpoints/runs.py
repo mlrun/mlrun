@@ -235,7 +235,9 @@ async def list_runs(
         and not last_update_time_to
     ):
         # default to last week on no filter
-        start_time_from = datetime.datetime.now() - datetime.timedelta(days=7)
+        start_time_from = (
+            datetime.datetime.now() - datetime.timedelta(days=7)
+        ).isoformat()
         partition_by = mlrun.common.schemas.RunPartitionByField.name
         partition_sort_by = mlrun.common.schemas.SortField.updated
 

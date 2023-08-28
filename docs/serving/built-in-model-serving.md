@@ -14,7 +14,7 @@ The following table specifies, for each framework, the relevant pre-integrated i
 |LightGBM        |mlrun/ml-models|mlrun.frameworks.lgbm.LGBMModelServer       |
 |PyTorch         |mlrun/ml-models|mlrun.frameworks.pytorch.PyTorchModelServer |
 
-For GPU support, use the `mlrun/ml-models-gpu` image (adding GPU drivers and support).
+For GPU support, use the `mlrun/mlrun-gpu` image (adding GPU drivers and support).
 
 ## Example
 

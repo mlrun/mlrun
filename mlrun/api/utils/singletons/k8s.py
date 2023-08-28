@@ -21,6 +21,7 @@ from kubernetes.client.rest import ApiException
 
 import mlrun.api.runtime_handlers.mpijob
 import mlrun.common.schemas
+import mlrun.common.secrets
 import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
@@ -49,7 +50,7 @@ class SecretTypes:
     v3io_fuse = "v3io/fuse"
 
 
-class K8sHelper:
+class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
         self.namespace = namespace or mlconfig.config.namespace
         self.config_file = mlconfig.config.kubernetes.kubeconfig_path or None
@@ -286,7 +287,7 @@ class K8sHelper:
             project=project
         )
 
-    def get_auth_secret_name(self, access_key: str) -> str:
+    def resolve_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
         return mlconfig.config.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
@@ -346,7 +347,7 @@ class K8sHelper:
         Store the given access key as a secret in the cluster. The secret name is generated from the access key
         :return: returns the secret name and the action taken against the secret
         """
-        secret_name = self.get_auth_secret_name(access_key)
+        secret_name = self.resolve_auth_secret_name(access_key)
         secret_data = {
             mlrun.common.schemas.AuthSecretData.get_field_secret_key(
                 "username"

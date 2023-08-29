@@ -65,8 +65,9 @@ class ModelEndpoints:
             db_session=db_session, model_endpoint=model_endpoint
         )
 
+    @classmethod
     def create_model_endpoint(
-        self,
+        cls,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -129,7 +130,7 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
             ):
-                monitoring_feature_set = self.create_monitoring_feature_set(
+                monitoring_feature_set = cls.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
@@ -144,13 +145,13 @@ class ModelEndpoints:
             logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
                 # Validate that the length of feature_stats is equal to the length of feature_names and label_names
-                self._validate_length_features_and_labels(model_endpoint=model_endpoint)
+                cls._validate_length_features_and_labels(model_endpoint=model_endpoint)
 
                 # Clean feature names in both feature_stats and feature_names
             (
                 model_endpoint.status.feature_stats,
                 model_endpoint.spec.feature_names,
-            ) = self._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
+            ) = cls._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
 
             logger.info(
                 "Done preparing feature names and stats",

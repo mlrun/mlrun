@@ -60,7 +60,7 @@ def save_credentials(
         "IS_FINISHED": is_finished,
     }
     if cluster_id:
-        credentials["DATABRICKS_CLUSTER_ID"] = token
+        credentials["DATABRICKS_CLUSTER_ID"] = cluster_id
 
     with open(credentials_path, "w") as yaml_file:
         yaml.dump(credentials, yaml_file, default_flow_style=False)

@@ -32,7 +32,6 @@ import mlrun.feature_store as fstore
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
-from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
@@ -340,7 +339,7 @@ class BatchApplicationProcessor:
                 mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
                 mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                     project=project,
-                    application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                    application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
                 ),
             }
             for app_name in applications_names:

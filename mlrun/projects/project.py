@@ -52,7 +52,6 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
-from ..model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from ..model_monitoring.application import (
     ModelMonitoringApplication,
     PushToMonitoringWriter,
@@ -1846,7 +1845,7 @@ class MlrunProject(ModelObj):
             first_step.to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
-                    writer_application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                    writer_application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
                     stream_uri=None,
                 ),
             ).respond()
@@ -1871,6 +1870,7 @@ class MlrunProject(ModelObj):
         )
         function_object.set_label("models", models_names)
 
+        function_object.apply(mlrun.v3io_cred())
         # Deploy & Add stream triggers
         self.deploy_function(
             function_object,
@@ -2633,7 +2633,7 @@ class MlrunProject(ModelObj):
         secrets_dict = {}
         if access_key:
             secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY
             ] = access_key
 
         if endpoint_store_connection:

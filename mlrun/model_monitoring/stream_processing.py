@@ -98,7 +98,7 @@ class EventStreamProcessor:
         self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
         self.model_monitoring_access_key = (
             model_monitoring_access_key
-            or os.environ.get(ProjectSecretKeys.ACCESS_KEY)
+            or os.environ.get(ProjectSecretKeys.PROJECT_ACCESS_KEY)
             or self.v3io_access_key
         )
         self.storage_options = dict(

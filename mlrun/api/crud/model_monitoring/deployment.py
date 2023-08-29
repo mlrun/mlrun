@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import pathlib
 import typing
 
@@ -30,7 +31,6 @@ import mlrun.model_monitoring.tracking_policy
 from mlrun import feature_store as fstore
 from mlrun.api.api import deps
 from mlrun.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
-from mlrun.model_monitoring import MODEL_MONITORING_WRITER_FUNCTION_NAME
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 
@@ -100,7 +100,7 @@ class MonitoringDeployment:
             auth_info=auth_info,
             tracking_policy=tracking_policy,
             tracking_offset=Seconds(self._max_parquet_save_interval),
-            function_name="model-monitoring-batch",
+            function_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.BATCH,
         )
         self.deploy_model_monitoring_batch_processing(
             project=project,
@@ -109,7 +109,7 @@ class MonitoringDeployment:
             auth_info=auth_info,
             tracking_policy=tracking_policy,
             tracking_offset=Seconds(self._max_parquet_save_interval),
-            function_name="model-monitoring-application-batch",
+            function_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.BATCH_APPLICATION,
         )
         self.deploy_model_monitoring_writer_application(
             project=project,
@@ -195,7 +195,7 @@ class MonitoringDeployment:
         with_schedule: bool = True,
         overwrite: bool = False,
         tracking_offset: Seconds = Seconds(0),
-        function_name: str = "model-monitoring-batch",
+        function_name: str = mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.BATCH,
     ) -> typing.Union[mlrun.runtimes.kubejob.KubejobRuntime, None]:
         """
         Deploying model monitoring batch job or model monitoring batch application job.
@@ -322,7 +322,7 @@ class MonitoringDeployment:
         try:
             # validate that the model monitoring stream has not yet been deployed
             mlrun.runtimes.function.get_nuclio_deploy_status(
-                name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+                name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
                 project=project,
                 tag="",
                 auth_info=auth_info,
@@ -464,6 +464,7 @@ class MonitoringDeployment:
                 function=function,
                 model_monitoring_access_key=model_monitoring_access_key,
                 auth_info=auth_info,
+                function_name=function_name,
             )
 
         # Enrich runtime with the required configurations
@@ -545,7 +546,7 @@ class MonitoringDeployment:
         function: mlrun.runtimes.ServingRuntime,
         model_monitoring_access_key: str = None,
         auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-        application_name: str = None,
+        function_name: str = None,
     ) -> mlrun.runtimes.ServingRuntime:
         """Adding stream source for the nuclio serving function. By default, the function has HTTP stream trigger along
         with another supported stream source that can be either Kafka or V3IO, depends on the stream path schema that is
@@ -557,7 +558,7 @@ class MonitoringDeployment:
         :param model_monitoring_access_key: Access key to apply the model monitoring stream function when the stream is
                                             schema is V3IO.
         :param auth_info:                   The auth info of the request.
-        :param application_name:             the name of the function that be applied with the stream trigger,
+        :param function_name:             the name of the function that be applied with the stream trigger,
                                             None for model_monitoring_stream
 
         :return: ServingRuntime object with stream trigger.
@@ -566,7 +567,7 @@ class MonitoringDeployment:
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
         stream_path = mlrun.api.crud.model_monitoring.get_stream_path(
-            project=project, application_name=application_name
+            project=project, application_name=function_name
         )
 
         if stream_path.startswith("kafka://"):
@@ -584,14 +585,15 @@ class MonitoringDeployment:
                 function=function,
                 model_monitoring_access_key=model_monitoring_access_key,
                 auth_info=auth_info,
+                function_name=function_name,
             )
             if stream_path.startswith("v3io://"):
                 # Generate V3IO stream trigger
                 function.add_v3io_stream_trigger(
                     stream_path=stream_path,
                     name="monitoring_stream_trigger"
-                    if application_name is None
-                    else f"monitoring_{application_name}_trigger",
+                    if function_name is None
+                    else f"monitoring_{function_name}_trigger",
                 )
         # Add the default HTTP source
         http_source = mlrun.datastore.sources.HttpSource()
@@ -607,6 +609,7 @@ class MonitoringDeployment:
         ],
         model_monitoring_access_key: str,
         auth_info: mlrun.common.schemas.AuthInfo,
+        function_name: str = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
         mount the V3IO path for the provided function to configure the access to the system files.
@@ -621,24 +624,40 @@ class MonitoringDeployment:
         :return: function runtime object with access key and access to system files.
         """
 
-        # Set model monitoring access key for managing permissions
-        function.set_env_from_secret(
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-            mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
-                project
-            ),
-            mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
-                mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-            ),
-        )
+        if (
+            function_name
+            in mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.all()
+        ):
+            # Set model monitoring access key for managing permissions
+            function.set_env_from_secret(
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                    project
+                ),
+                mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
+                    mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
+                ),
+            )
 
-        function.metadata.credentials.access_key = model_monitoring_access_key
-        function.apply(mlrun.mount_v3io())
-        # function.apply(mlrun.v3io_cred()) TODO : test without mounting
+            function.metadata.credentials.access_key = model_monitoring_access_key
+            # function.apply(mlrun.mount_v3io())
+            function.apply(mlrun.v3io_cred())
 
-        # Ensure that the auth env vars are set
-        mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+            # Ensure that the auth env vars are set
+            mlrun.api.api.utils.ensure_function_has_auth_set(function, auth_info)
+        else:  # user application
+            mlrun.api.crud.secrets.Secrets().store_project_secrets(
+                project=project,
+                secrets=mlrun.common.schemas.SecretsData(
+                    secrets={
+                        mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PIPELINES_ACCESS_KEY: os.environ.get(
+                            "V3IO_ACCESS_KEY"
+                        )
+                    },
+                    provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+                ),
+            )
 
         return function
 
@@ -660,7 +679,7 @@ class MonitoringDeployment:
 
         # Create a new serving function for the streaming process
         function = mlrun.code_to_function(
-            name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+            name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
             project=project,
             filename=str(_MONITORING_WRITER_FUNCTION_PATH),
             kind="serving",
@@ -680,7 +699,7 @@ class MonitoringDeployment:
             function=function,
             model_monitoring_access_key=model_monitoring_access_key,
             auth_info=auth_info,
-            application_name=MODEL_MONITORING_WRITER_FUNCTION_NAME,
+            function_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
         )
 
         # Apply feature store run configurations on the serving function

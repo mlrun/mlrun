@@ -752,7 +752,7 @@ def _build_function(
                         model_monitoring_access_key = process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
                         )
 
                         _create_model_monitoring_stream(
@@ -789,7 +789,7 @@ def _build_function(
                             project=fn.metadata.project,
                             function=fn,
                             model_monitoring_access_key=model_monitoring_access_key,
-                            application_name=fn.metadata.name,
+                            function_name=fn.metadata.name,
                             auth_info=auth_info,
                         )
                 except Exception as exc:
@@ -949,10 +949,7 @@ def _create_model_monitoring_stream(
             mlrun.api.crud.model_monitoring.get_stream_path(
                 project=function.metadata.project, application_name=application_name
             )
-            for application_name in [
-                None,  # mm_stream
-                mlrun.model_monitoring.MODEL_MONITORING_WRITER_FUNCTION_NAME,  # mm_writer
-            ]
+            for application_name in mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.all()
         ]
 
     for stream_path in stream_paths:

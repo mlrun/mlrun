@@ -19,5 +19,3 @@ from .helpers import get_stream_path
 from .model_endpoint import ModelEndpoint
 from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
 from .tracking_policy import TrackingPolicy
-
-MODEL_MONITORING_WRITER_FUNCTION_NAME = "model-monitoring-writer"

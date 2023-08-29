@@ -126,7 +126,8 @@ class ModelEndpointTarget:
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
-    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    PROJECT_ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
     KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
     STREAM_PATH = "STREAM_PATH"
 
@@ -167,7 +168,16 @@ class PrometheusMetric:
 
 class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
-    STREAM = "model-monitoring-stream"
+    BATCH = "model-monitoring-batch"
+    BATCH_APPLICATION = "model-monitoring-batch-application"
+    STREAM = None
+
+    @staticmethod
+    def all():
+        return [
+            MonitoringFunctionNames.WRITER,
+            MonitoringFunctionNames.STREAM,
+        ]
 
 
 @dataclass

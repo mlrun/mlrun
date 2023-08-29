@@ -220,11 +220,11 @@ class ModelMonitoringApplication(StepToDict):
             upload_artifacts=True,
             labels={"workflow": "model-monitoring-app-logger"},
         )
-        context._secrets_manager.add_source(
-            kind="inline",
-            source={"V3IO_ACCESS_KEY": os.environ.get("MODEL_MONITORING_ACCESS_KEY")},
-        )
-        context._init_dbs(mlrun.get_run_db(secrets=context._secrets_manager))
+        # context._secrets_manager.add_source(
+        #     kind="inline",
+        #     source={"V3IO_ACCESS_KEY": os.environ.get("MODEL_MONITORING_ACCESS_KEY")},
+        # )
+        # context._init_dbs(mlrun.get_run_db(secrets=context._secrets_manager))
         return context
 
     @staticmethod
@@ -297,4 +297,32 @@ class PushToMonitoringWriter(StepToDict):
 
     def _lazy_init(self):
         if self.output_stream is None:
-            self.output_stream = get_stream_pusher(self.stream_uri)
+            self.output_stream = get_stream_pusher(
+                self.stream_uri,
+                access_key=os.environ.get(
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PIPELINES_ACCESS_KEY
+                ),
+            )
+
+
+class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
+    def __int__(self, evidently_project_uid):
+        self.evidently_project_uid = evidently_project_uid
+        pass
+
+    def run_application(
+        self,
+        application_name: str,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+        sample_df: pd.DataFrame,
+        schedule_time: pd.Timestamp,
+        latest_request: pd.Timestamp,
+        endpoint_id: str,
+        output_stream_uri: str,
+    ) -> Union[
+        ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
+    ]:
+        pass
+
+    # def log_report_or_

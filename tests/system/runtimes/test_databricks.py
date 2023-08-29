@@ -90,7 +90,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         mlrun_runs = self.project.list_runs(state="running")
         if len(mlrun_runs) < 1:
             raise MLRunRuntimeError(
-                f"No active runs related to the project {self.project_name} could be found."
+                f"No active runs related to project {self.project_name} could be found"
             )
         if len(mlrun_runs) > 1:
             raise MLRunRuntimeError(

@@ -80,7 +80,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             )
         elif len(runs_by_run_name) > 1:
             raise MLRunRuntimeError(
-                f"Too many active runs were found in Databricks with the specified run_name= {run_name}"
+                f"Too many active runs were found in Databricks with run_name={run_name}"
             )
         return runs[0]
 

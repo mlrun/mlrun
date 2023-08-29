@@ -14,6 +14,7 @@
 #
 
 import pathlib
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 
@@ -21,18 +22,47 @@ import mlrun.runtimes.generators
 
 
 @pytest.mark.parametrize(
-    "strategy,param_file,expected_generator_class",
+    "strategy,param_file,expected_generator_class,expected_error",
     [
-        ("list", "hyperparams.csv", mlrun.runtimes.generators.ListGenerator),
-        ("grid", "hyperparams.json", mlrun.runtimes.generators.GridGenerator),
-        ("random", "hyperparams.json", mlrun.runtimes.generators.RandomGenerator),
+        (
+            "list",
+            "hyperparams.csv",
+            mlrun.runtimes.generators.ListGenerator,
+            does_not_raise(),
+        ),
+        (
+            "grid",
+            "hyperparams.json",
+            mlrun.runtimes.generators.GridGenerator,
+            does_not_raise(),
+        ),
+        (
+            "random",
+            "hyperparams.json",
+            mlrun.runtimes.generators.RandomGenerator,
+            does_not_raise(),
+        ),
         # no strategy, default to list
-        ("", "hyperparams.csv", mlrun.runtimes.generators.ListGenerator),
+        (
+            "",
+            "hyperparams.csv",
+            mlrun.runtimes.generators.ListGenerator,
+            does_not_raise(),
+        ),
         # no strategy, default to grid
-        ("", "hyperparams.json", mlrun.runtimes.generators.GridGenerator),
+        (
+            "",
+            "hyperparams.json",
+            mlrun.runtimes.generators.GridGenerator,
+            does_not_raise(),
+        ),
+        # invalid request
+        ("grid", "hyperparams.csv", None, pytest.raises(ValueError)),
     ],
 )
-def test_get_generator(rundb_mock, strategy, param_file, expected_generator_class):
+def test_get_generator(
+    rundb_mock, strategy, param_file, expected_generator_class, expected_error
+):
     run_spec = mlrun.model.RunSpec(inputs={"input1": 1})
     run_spec.strategy = strategy
     run_spec.param_file = str(
@@ -45,12 +75,14 @@ def test_get_generator(rundb_mock, strategy, param_file, expected_generator_clas
         is_api=False,
         store_run=False,
     )
-    generator = mlrun.runtimes.generators.get_generator(run_spec, execution, None)
-    assert isinstance(
-        generator, expected_generator_class
-    ), f"unexpected generator type {type(generator)}"
 
-    if strategy == "list":
-        assert generator.df.keys().to_list() == ["p1", "p2"]
-    elif strategy in ["grid", "random"]:
-        assert sorted(list(generator.hyperparams.keys())) == ["p1", "p2"]
+    with expected_error:
+        generator = mlrun.runtimes.generators.get_generator(run_spec, execution, None)
+        assert isinstance(
+            generator, expected_generator_class
+        ), f"unexpected generator type {type(generator)}"
+
+        if strategy == "list":
+            assert generator.df.keys().to_list() == ["p1", "p2"]
+        elif strategy in ["grid", "random"]:
+            assert sorted(list(generator.hyperparams.keys())) == ["p1", "p2"]

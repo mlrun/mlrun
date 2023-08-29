@@ -57,20 +57,22 @@ def get_or_create_model_endpoint(
     features, set `monitoring_mode=enabled`.
 
     :param project:                  Project name.
-    :param model_path:               The model store path.
+    :param model_path:               The model store path (applicable only to new endpoint_id).
     :param model_endpoint_name:      If a new model endpoint is created, the model endpoint name will be presented
-                                     under this endpoint.
+                                     under this endpoint (applicable only to new endpoint_id).
     :param endpoint_id:              Model endpoint unique ID. If not exist in DB, will generate a new record based
                                      on the provided `endpoint_id`.
     :param function_name:            If a new model endpoint is created, use this function name for generating the
-                                     function URI.
+                                     function URI (applicable only to new endpoint_id).
     :param context:                  MLRun context. If `function_name` not provided, use the context to generate the
                                      full function hash.
     :param sample_set_statistics:    Dictionary of sample set statistics that will be used as a reference data for
-                                     the new model endpoint.
-    :param drift_threshold:          The threshold of which to mark drifts.
-    :param possible_drift_threshold: The threshold of which to mark possible drifts.
-    :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id.
+                                     the new model endpoint (applicable only to new endpoint_id).
+    :param drift_threshold:          The threshold of which to mark drifts (applicable only to new endpoint_id).
+    :param possible_drift_threshold: The threshold of which to mark possible drifts (applicable only to new
+                                     endpoint_id).
+    :param monitoring_mode:          If enabled, apply model monitoring features on the provided endpoint id
+                                     (applicable only to new endpoint_id).
     :param db_session:               A runtime session that manages the current dialog with the database.
 
 
@@ -90,7 +92,7 @@ def get_or_create_model_endpoint(
         model_endpoint = db_session.get_model_endpoint(
             project=project, endpoint_id=endpoint_id
         )
-        # If other fields provided, validate that they are corresponding to the existing model endpoint data
+        # If other fields provided, validate that they are correspond to the existing model endpoint data
         _model_endpoint_validations(
             model_endpoint=model_endpoint,
             model_path=model_path,
@@ -203,7 +205,7 @@ def record_results(
         )
 
         # Getting drift thresholds if not provided
-        drift_threshold, possible_drift_threshold = get_thresholds(
+        drift_threshold, possible_drift_threshold = get_drift_thresholds_if_not_none(
             model_endpoint=model_endpoint,
             drift_threshold=drift_threshold,
             possible_drift_threshold=possible_drift_threshold,
@@ -231,14 +233,14 @@ def _model_endpoint_validations(
     possible_drift_threshold: float = None,
 ):
     """
-    Validate that provided model endpoint configurations are matching the stored fields of the provided `ModelEndpoint`
-    object. Usually, this method is called by `get_or_create_model_endpoint()` in cases that the model endpoint is
+    Validate that provided model endpoint configurations match the stored fields of the provided `ModelEndpoint`
+    object. Usually, this method is called by `get_or_create_model_endpoint()` in cases that the model endpoint
     already exist. If one of the validations fails, this method might raise an error, indicating on possible conflict.
 
     :param model_endpoint:           A `ModelEndpoint` object that contains the expected values.
-    :param model_path:               Model store path. Should be similar to the `model_uri` that is stored under
-                                     `model_endpoint.spec.model_uri`. Model endpoint record refers to a single model
-                                     store path.
+    :param model_path:               Model store path. In case of endpoint_id reuse, should be similar to the model_uri
+                                     that is stored under model_endpoint.spec.model_uri. Model endpoint record refers
+                                     to a single model store path.
     :param sample_set_statistics:    Dictionary of sample set statistics. Once the model endpoint is registered, it
                                      is forbidden to provide a different reference data to that model endpoint.
                                      In case of discrepancy between the provided `sample_set_statistics` and the
@@ -264,8 +266,7 @@ def _model_endpoint_validations(
     ):
         logger.warning(
             "Provided sample set statistics is different from the registered statistics. "
-            "If you wish to use a new statistics as a reference expected data, it is "
-            "recommended to generate a new model endpoint record."
+            "If new sample set statistics is to be used, new model endpoint should be created"
         )
     # drift and possible drift thresholds
     if drift_threshold:
@@ -291,13 +292,13 @@ def _model_endpoint_validations(
             )
 
 
-def get_thresholds(
+def get_drift_thresholds_if_not_none(
     model_endpoint: ModelEndpoint,
     drift_threshold: float = None,
     possible_drift_threshold: float = None,
 ) -> typing.Tuple[float, float]:
     """
-    Generate drift and possible drift thresholds. If one of the thresholds is missing, will try to retrieve
+    Get drift and possible drift thresholds. If one of the thresholds is missing, will try to retrieve
     it from the `ModelEndpoint` object. If not defined under the `ModelEndpoint` as well, will retrieve it from
     the default mlrun configuration.
 

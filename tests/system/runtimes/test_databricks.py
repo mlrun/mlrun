@@ -61,8 +61,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     def _get_active_run_by_name(workspace: WorkspaceClient, run_name: str):
         from datetime import datetime, timedelta
 
-        current_utc_time = datetime.utcnow()
-        previous_day_utc_time = current_utc_time - timedelta(days=1)
+        previous_day_utc_time = datetime.utcnow() - timedelta(days=1)
         previous_day_utc_time_in_ms = int(previous_day_utc_time.timestamp()) * 1000
         # in order to optimize the query, list_runs is filtered by time and active_only.
         runs = list(

@@ -41,7 +41,7 @@ class BaseRuntimeHandler(ABC):
     kind = "base"
     class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    pod_grace_period = 0
+    pod_grace_period_seconds = 0
 
     @staticmethod
     @abstractmethod
@@ -727,7 +727,7 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 get_k8s().delete_pod(
-                    pod.metadata.name, namespace, self.pod_grace_period
+                    pod.metadata.name, namespace, self.pod_grace_period_seconds
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:

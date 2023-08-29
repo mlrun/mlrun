@@ -281,7 +281,9 @@ def _redact_notification_params(
     return notification_object
 
 
-def _generate_notification_secret_key(notification_object: mlrun.model.Notification) -> str:
+def _generate_notification_secret_key(
+    notification_object: mlrun.model.Notification,
+) -> str:
     # hash notification params to generate a unique secret key
     return sha256(
         json.dumps(notification_object.params, sort_keys=True).encode("utf-8")

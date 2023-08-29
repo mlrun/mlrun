@@ -426,11 +426,7 @@ def test_notification_params_masking_on_run(monkeypatch):
     run_uid = "test-run-uid"
     run = {
         "metadata": {"uid": run_uid, "project": "test-project"},
-        "spec": {
-            "notifications": [
-                {"when": "completed", "params": params}
-            ]
-        },
+        "spec": {"notifications": [{"when": "completed", "params": params}]},
     }
     mlrun.api.api.utils.mask_notification_params_on_task(
         run, mlrun.api.constants.MaskOperations.CONCEAL

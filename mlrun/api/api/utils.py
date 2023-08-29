@@ -17,7 +17,7 @@ import json
 import re
 import traceback
 import typing
-from hashlib import sha1
+from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -242,10 +242,15 @@ def _conceal_notification_params_with_secret(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
     if notification_object.params and "secret" not in notification_object.params:
+
+        # create secret key from a hash of the secret params. this will allow multiple notifications with the same
+        # params to share the same secret (saving secret storage space).
+        # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.
+        #       as we currently don't delete runs unless the project is deleted (in which case, the entire secret is
+        #       deleted), we don't need the mechanism yet.
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
-            parent,
-            notification_object.name,
+            _generate_notification_secret_key(notification_object),
         )
         mlrun.api.crud.Secrets().store_project_secrets(
             project,
@@ -274,6 +279,15 @@ def _redact_notification_params(
         notification_object.params[param] = "REDACTED"
 
     return notification_object
+
+
+def _generate_notification_secret_key(
+    notification_object: mlrun.model.Notification,
+) -> str:
+    # hash notification params to generate a unique secret key
+    return sha224(
+        json.dumps(notification_object.params, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def unmask_notification_params_secret_on_task(

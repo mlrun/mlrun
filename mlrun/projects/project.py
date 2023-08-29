@@ -1870,7 +1870,8 @@ class MlrunProject(ModelObj):
         )
         function_object.set_label("models", models_names)
 
-        function_object.apply(mlrun.v3io_cred())
+        if not mlrun.mlconf.is_ce_mode():
+            function_object.apply(mlrun.mount_v3io())
         # Deploy & Add stream triggers
         self.deploy_function(
             function_object,

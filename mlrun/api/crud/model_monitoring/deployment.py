@@ -217,11 +217,9 @@ class MonitoringDeployment:
 
         :return: Model monitoring batch job as a runtime function.
         """
-        job_valid_names = ["model-monitoring-batch", "model-monitoring-batch"]
-        if function_name not in [
-            "model-monitoring-batch",
-            "model-monitoring-application-batch",
-        ]:
+        job_valid_names = [mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.BATCH,
+                           mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.BATCH_APPLICATION]
+        if function_name not in job_valid_names:
             raise mlrun.errors.MLRunRuntimeError(
                 f"Model Monitoring batch job can be only within {job_valid_names}"
             )

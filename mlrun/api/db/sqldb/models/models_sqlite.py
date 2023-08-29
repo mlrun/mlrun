@@ -105,7 +105,6 @@ def make_notification(table):
             UniqueConstraint(
                 "name",
                 "parent_id",
-                extend_existing=True,
                 name=f"_{table}_notifications_uc",
             ),
         )

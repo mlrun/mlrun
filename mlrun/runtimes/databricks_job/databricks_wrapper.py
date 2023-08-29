@@ -27,7 +27,7 @@ from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTas
 import mlrun
 from mlrun.errors import MLRunRuntimeError
 
-credentials_path = "/mlrun/databricks_credentials.yml"
+credentials_path = "/mlrun/databricks_credentials.yaml"
 
 
 def get_task(databricks_run: Run) -> RunTask:

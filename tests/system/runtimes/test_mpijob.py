@@ -38,13 +38,10 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             filename=code_path,
             image="mlrun/mlrun",
-            requirements=["mpi4py"],
         )
         mpijob_function.spec.replicas = replicas
 
-        mpijob_run = mpijob_function.run(
-            returns=["reduced_result", "rank_0_result"], auto_build=True
-        )
+        mpijob_run = mpijob_function.run(returns=["reduced_result", "rank_0_result"])
         assert mpijob_run.status.state == RunStates.completed
 
         reduced_result = mpijob_run.status.results["reduced_result"]

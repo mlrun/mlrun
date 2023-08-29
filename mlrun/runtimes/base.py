@@ -269,7 +269,10 @@ class BaseRuntime(ModelObj):
         :param runobj: Run context object (RunObject) with run metadata and status
         :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
         """
-        return [{"name": k, "value": v} for k, v in self._generate_runtime_env(runobj).items()]
+        return [
+            {"name": k, "value": v}
+            for k, v in self._generate_runtime_env(runobj).items()
+        ]
 
     def run(
         self,

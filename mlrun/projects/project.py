@@ -1840,7 +1840,7 @@ class MlrunProject(ModelObj):
                         f"The name attr of the {application_class} have to be the same as the application name - {name}"
                     )
                 first_step = graph.to(
-                    class_name=application_class, name=name, **application_kwargs
+                    class_name=application_class, **application_kwargs
                 )
             first_step.to(
                 class_name=PushToMonitoringWriter(

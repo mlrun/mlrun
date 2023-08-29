@@ -94,7 +94,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             )
         if len(mlrun_runs) > 1:
             raise MLRunRuntimeError(
-                f"Too many active runs related to the project {self.project_name} were found"
+                f"Too many active runs related to project {self.project_name} were found"
             )
         mlrun_run = mlrun_runs.to_objects()[0]
         db = mlrun.get_run_db()

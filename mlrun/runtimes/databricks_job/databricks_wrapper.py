@@ -143,23 +143,7 @@ def run_mlrun_databricks_job(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
                 callback=print_status,
             )
-            save_credentials(
-                workspace=workspace,
-                waiter=waiter,
-                host=host,
-                token=databricks_token,
-                cluster_id=cluster_id,
-                is_finished=True,
-            )
         except OperationFailed:
-            save_credentials(
-                workspace=workspace,
-                waiter=waiter,
-                host=host,
-                token=databricks_token,
-                cluster_id=cluster_id,
-                is_finished=True,
-            )
             databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
             task_run_id = get_task(databricks_run=databricks_run).run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
@@ -169,6 +153,15 @@ def run_mlrun_databricks_job(
             custom_error += "\nerror trace from databricks:\n" if error_trace else ""
             custom_error += error_trace
             raise MLRunRuntimeError(custom_error)
+        finally:
+            save_credentials(
+                workspace=workspace,
+                waiter=waiter,
+                host=host,
+                token=databricks_token,
+                cluster_id=cluster_id,
+                is_finished=True,
+            )
         run_output = workspace.jobs.get_run_output(get_task(run).run_id)
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:

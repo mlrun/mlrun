@@ -282,11 +282,12 @@ def import_mlrun():
         if self.project.list_runs(state="running"):
             self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
         sleep_code = """
-\n
+
+import time
+
 def handler(**kwargs):
-    import time
-    time.sleep(1000)
-\n
+    time.sleep(1000) # very long sleep
+
 """
         function_ref = FunctionReference(
             kind="databricks",

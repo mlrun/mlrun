@@ -377,9 +377,7 @@ class CustomNotificationPusher(object):
         params: typing.Dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
-            self._async_notifications[notification_type].load_notification(
-                params
-            )
+            self._async_notifications[notification_type].load_notification(params)
         elif notification_type in self._sync_notifications:
             self._sync_notifications[notification_type].load_notification(params)
         else:

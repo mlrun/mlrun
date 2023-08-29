@@ -178,7 +178,7 @@ class MonitoringFunctionNames:
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
             MonitoringFunctionNames.BATCH,
-            MonitoringFunctionNames.BATCH_APPLICATION
+            MonitoringFunctionNames.BATCH_APPLICATION,
         ]
 
 

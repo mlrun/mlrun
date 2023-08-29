@@ -311,6 +311,23 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
+    def test_run_with_conflicting_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        runtime.spec.service_account = "executorsa"
+        runtime.with_executor_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="200m", gpus=1)
+
+        runtime.with_driver_requests(cpu="2", mem="512m")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            self.execute_function(runtime)
+
     def test_run_with_invalid_requests(
         self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):

@@ -26,7 +26,7 @@ from mlrun.errors import MLRunRuntimeError
 
 def main():
     if not os.path.exists(credentials_path):
-        print("credentials_path not found. Retrying in 10 seconds.")
+        print("credentials_path not found. Retrying in 10 seconds...")
         sleep(10)
         if not os.path.exists(credentials_path):
             raise MLRunRuntimeError(

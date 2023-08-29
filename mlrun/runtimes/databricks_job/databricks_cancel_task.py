@@ -40,8 +40,7 @@ def main():
         os.environ[key] = str(value)
     workspace = WorkspaceClient()
     task_id = os.environ.get("TASK_RUN_ID")
-    is_finished = os.environ.get("IS_FINISHED", "False")  # as a string
-    if is_finished == "False":
+    if os.environ.get("IS_FINISHED", "false").lower() == "false":
         run = workspace.jobs.cancel_run(run_id=task_id).result()
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (

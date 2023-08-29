@@ -70,6 +70,12 @@ async def store_datastore_profile(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
+
+    # TODO: Although embedding specialized business logic like the handling of sensitive information in secrets
+    # directly within endpoint code is suboptimal, we currently lack a dedicated CRUD object for managing storage
+    # profiles. Creating one solely for this purpose might introduce unnecessary overhead.
+    # When new features are introduced that warrant a CRUD framework, the logic for handling storage
+    # profiles should be relocated there.
     await run_in_threadpool(
         mlrun.api.crud.Secrets().store_project_secrets,
         project_name,

@@ -168,9 +168,10 @@ class NotificationPusher(object):
         notification_type = NotificationTypes(
             notification_object.kind or NotificationTypes.console
         )
-        notification = notification_type.get_notification()(
-            name, notification_object.params
-        )
+        params = {}
+        params.update(notification_object.secret_params)
+        params.update(notification_object.params)
+        notification = notification_type.get_notification()(name, params)
         if notification.is_async:
             self._async_notifications.append((notification, run, notification_object))
         else:
@@ -297,7 +298,7 @@ class NotificationPusher(object):
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
 
-        # There is no need to mask the params as the secrets are already loaded
+        # There is no need to mask the secret_params as the secrets are already loaded
         db.store_run_notifications(
             [notification],
             run_uid,
@@ -371,15 +372,19 @@ class CustomNotificationPusher(object):
             _sync_push()
 
     def add_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
+        self,
+        notification_type: str,
+        secret_params: typing.Dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
-            self._async_notifications[notification_type].load_notification(params)
+            self._async_notifications[notification_type].load_notification(
+                secret_params
+            )
         elif notification_type in self._sync_notifications:
-            self._sync_notifications[notification_type].load_notification(params)
+            self._sync_notifications[notification_type].load_notification(secret_params)
         else:
             notification = NotificationTypes(notification_type).get_notification()(
-                params=params,
+                secret_params=secret_params,
             )
             if notification.is_async:
                 self._async_notifications[notification_type] = notification
@@ -397,10 +402,10 @@ class CustomNotificationPusher(object):
             logger.warning(f"No notification of type {notification_type} in project")
 
     def edit_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
+        self, notification_type: str, secret_params: typing.Dict[str, str] = None
     ):
         self.remove_notification(notification_type)
-        self.add_notification(notification_type, params)
+        self.add_notification(notification_type, secret_params)
 
     def should_push_notification(self, notification_type):
         notifications = {}
@@ -486,7 +491,7 @@ class CustomNotificationPusher(object):
 
 def _sanitize_notification(notification: mlrun.model.Notification):
     notification_dict = notification.to_dict()
-    notification_dict.pop("params", None)
+    notification_dict.pop("secret_params", None)
     return notification_dict
 
 

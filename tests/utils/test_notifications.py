@@ -426,15 +426,15 @@ def test_notification_params_masking_on_run(monkeypatch):
     run_uid = "test-run-uid"
     run = {
         "metadata": {"uid": run_uid, "project": "test-project"},
-        "spec": {"notifications": [{"when": "completed", "params": params}]},
+        "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
     mlrun.api.api.utils.mask_notification_params_on_task(
         run, mlrun.api.constants.MaskOperations.CONCEAL
     )
-    assert "sensitive" not in run["spec"]["notifications"][0]["params"]
-    assert "secret" in run["spec"]["notifications"][0]["params"]
+    assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
+    assert "secret" in run["spec"]["notifications"][0]["secret_params"]
     assert (
-        run["spec"]["notifications"][0]["params"]["secret"]
+        run["spec"]["notifications"][0]["secret_params"]["secret"]
         == f"mlrun.notifications.{params_hash}"
     )
 
@@ -449,7 +449,7 @@ def test_notification_params_unmasking_on_run(monkeypatch):
                 {
                     "name": "test-notification",
                     "when": ["completed"],
-                    "params": {"secret": "secret-name"},
+                    "secret_params": {"secret": "secret-name"},
                 },
             ],
         },
@@ -471,9 +471,9 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
-    assert "sensitive" in unmasked_run.spec.notifications[0].params
-    assert "secret" not in unmasked_run.spec.notifications[0].params
-    assert unmasked_run.spec.notifications[0].params == secret_value
+    assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
+    assert "secret" not in unmasked_run.spec.notifications[0].secret_params
+    assert unmasked_run.spec.notifications[0].secret_params == secret_value
 
     monkeypatch.setattr(
         mlrun.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret

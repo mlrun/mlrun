@@ -26,7 +26,7 @@ from mlrun.errors import MLRunRuntimeError
 
 def main():
     if not os.path.exists(credentials_path):
-        print("credentials_path not found. Retrying in 10 seconds.")
+        print("credentials_path not found. Retrying in 10 seconds...")
         sleep(10)
         if not os.path.exists(credentials_path):
             raise MLRunRuntimeError(
@@ -44,10 +44,9 @@ def main():
         run = workspace.jobs.cancel_run(run_id=task_id).result()
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (
-            life_cycle_state != RunLifeCycleState.TERMINATING
-            or RunLifeCycleState.TERMINATED
-        ):  # Terminated is also the life_cycle_state of tasks that have already
-            # either failed or succeeded.
+            # TERMINATED is also the life_cycle_state of tasks that have already either failed or succeeded
+            life_cycle_state not in [RunLifeCycleState.TERMINATING, RunLifeCycleState.TERMINATED]
+        ):
             raise MLRunRuntimeError(
                 f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}."
                 f"Please check the status of this task in the Databricks environment."

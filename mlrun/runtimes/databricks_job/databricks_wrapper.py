@@ -28,7 +28,7 @@ from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTas
 import mlrun
 from mlrun.errors import MLRunRuntimeError
 
-credentials_path = "/mlrun/databricks_credentials.yml"
+credentials_path = "/mlrun/databricks_credentials.yaml"
 
 
 def get_task(databricks_run: Run) -> RunTask:
@@ -61,7 +61,7 @@ def save_credentials(
         "IS_FINISHED": is_finished,
     }
     if cluster_id:
-        credentials["DATABRICKS_CLUSTER_ID"] = token
+        credentials["DATABRICKS_CLUSTER_ID"] = cluster_id
 
     with open(credentials_path, "w") as yaml_file:
         yaml.dump(credentials, yaml_file, default_flow_style=False)
@@ -122,7 +122,7 @@ def run_mlrun_databricks_job(
             run_name=databricks_run_name,
             tasks=[
                 SubmitTask(
-                    task_key=f"mlrun_task_{mlrun_databricks_job_id}",
+                    task_key=databricks_run_name,
                     spark_python_task=SparkPythonTask(
                         python_file=f"dbfs:{script_path_on_dbfs}",
                         parameters=[json.dumps(kwargs)],

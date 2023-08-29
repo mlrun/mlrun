@@ -76,7 +76,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         ]
         if len(runs_by_run_name) == 0:
             raise MLRunRuntimeError(
-                f"No active runs were found in Databricks with the specified run_name= {run_name}"
+                f"No active runs were found in Databricks with run_name={run_name}"
             )
         elif len(runs_by_run_name) > 1:
             raise MLRunRuntimeError(

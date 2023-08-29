@@ -122,7 +122,7 @@ def run_mlrun_databricks_job(
             run_name=databricks_run_name,
             tasks=[
                 SubmitTask(
-                    task_key=f"mlrun_task_{mlrun_databricks_job_id}",
+                    task_key=databricks_run_name,
                     spark_python_task=SparkPythonTask(
                         python_file=f"dbfs:{script_path_on_dbfs}",
                         parameters=[json.dumps(kwargs)],

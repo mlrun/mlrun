@@ -412,15 +412,6 @@ class Spark3Runtime(AbstractSparkRuntime):
                 int,
             )
 
-        if "requests" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["requests"]:
-                verify_and_update_in(
-                    job,
-                    "spec.driver.coreRequest",
-                    str(self.spec.driver_resources["requests"]["cpu"]),
-                    str,
-                )
-
         if self.spec.dynamic_allocation:
             if "enabled" in self.spec.dynamic_allocation:
                 update_in(

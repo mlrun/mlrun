@@ -1439,7 +1439,7 @@ def add_notification_to_project(
 ):
     for notification_type, notification_params in notification.items():
         project.notifiers.add_notification(
-            notification_type=notification_type, secret_params=notification_params
+            notification_type=notification_type, params=notification_params
         )
 
 

@@ -374,17 +374,17 @@ class CustomNotificationPusher(object):
     def add_notification(
         self,
         notification_type: str,
-        secret_params: typing.Dict[str, str] = None,
+        params: typing.Dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(
-                secret_params
+                params
             )
         elif notification_type in self._sync_notifications:
-            self._sync_notifications[notification_type].load_notification(secret_params)
+            self._sync_notifications[notification_type].load_notification(params)
         else:
             notification = NotificationTypes(notification_type).get_notification()(
-                secret_params=secret_params,
+                params=params,
             )
             if notification.is_async:
                 self._async_notifications[notification_type] = notification
@@ -402,10 +402,10 @@ class CustomNotificationPusher(object):
             logger.warning(f"No notification of type {notification_type} in project")
 
     def edit_notification(
-        self, notification_type: str, secret_params: typing.Dict[str, str] = None
+        self, notification_type: str, params: typing.Dict[str, str] = None
     ):
         self.remove_notification(notification_type)
-        self.add_notification(notification_type, secret_params)
+        self.add_notification(notification_type, params)
 
     def should_push_notification(self, notification_type):
         notifications = {}

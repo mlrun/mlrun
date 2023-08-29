@@ -49,8 +49,8 @@ def main():
         ):  # Terminated is also the life_cycle_state of tasks that have already
             # either failed or succeeded.
             raise MLRunRuntimeError(
-                f"cancelling task {task_id} has failed."
-                f" Please check the status of this task in the Databricks environment."
+                f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}."
+                f"Please check the status of this task in the Databricks environment."
             )
         print(f"Cancelling task {task_id} has succeeded.")
 

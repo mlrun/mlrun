@@ -307,6 +307,9 @@ def enrich_dask_cluster(
         or "daskdev/dask:latest"
     )
     env = spec.env
+    env.extend(
+        [{"name": k, "value": v} for k, v in function.generate_runtime_env().items()]
+    )
     namespace = meta.namespace or config.namespace
     if spec.extra_pip:
         env.append(spec.extra_pip)

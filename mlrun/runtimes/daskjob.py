@@ -457,7 +457,7 @@ class DaskCluster(KubejobRuntime):
         handler = runobj.spec.handler
         self._force_handler(handler)
 
-        extra_env = self._generate_runtime_env(runobj)
+        extra_env = self.generate_runtime_env(runobj)
         environ.update(extra_env)
 
         context = MLClientCtx.from_dict(

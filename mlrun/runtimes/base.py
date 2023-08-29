@@ -374,15 +374,16 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject):
+    def generate_runtime_env(self, runobj: RunObject = None):
         runtime_env = {
-            "MLRUN_EXEC_CONFIG": runobj.to_json(),
-            "MLRUN_DEFAULT_PROJECT": runobj.metadata.project
-            or self.metadata.project
-            or config.default_project,
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
-        if runobj.spec.verbose:
-            runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
+        if runobj:
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json()
+            if runobj.metadata.project:
+                runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
+            if runobj.spec.verbose:
+                runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
@@ -416,7 +417,7 @@ class BaseRuntime(ModelObj):
             runspec.spec.function = self._function_uri(hash_key=hash_key)
 
     def _get_cmd_args(self, runobj: RunObject):
-        extra_env = self._generate_runtime_env(runobj)
+        extra_env = self.generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
         args = []

@@ -15,6 +15,7 @@
 
 import datetime
 import json
+import typing
 import uuid
 from base64 import b64decode
 
@@ -48,8 +49,8 @@ def save_credentials(
     waiter,
     host: str,
     token: str,
-    cluster_id=None,
-    is_finished=False,
+    cluster_id: typing.Optional[str],
+    is_finished: bool,
 ):
     databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
     task_run_id = get_task(databricks_run=databricks_run).run_id
@@ -137,6 +138,7 @@ def run_mlrun_databricks_job(
             host=host,
             token=databricks_token,
             cluster_id=cluster_id,
+            is_finished=False,
         )
         try:
             run = waiter.result(

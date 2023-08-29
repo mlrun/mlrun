@@ -262,6 +262,15 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
+    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> List[Dict]:
+        """
+        Prepares a runtime environment as it's expected by kubernetes.models.V1Container
+
+        :param runobj: Run context object (RunObject) with run metadata and status
+        :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
+        """
+        return [{"name": k, "value": v} for k, v in self._generate_runtime_env(runobj).items()]
+
     def run(
         self,
         runspec: Optional[
@@ -374,7 +383,14 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def generate_runtime_env(self, runobj: RunObject = None):
+    def _generate_runtime_env(self, runobj: RunObject = None) -> Dict:
+        """
+        Prepares all available environment variables for usage on a runtime
+        Data will be extracted from several sources and most of them are not guaranteed to be available
+
+        :param runobj: Run context object (RunObject) with run metadata and status
+        :return: Dictionary with all the variables that could be parsed
+        """
         runtime_env = {
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
@@ -417,7 +433,7 @@ class BaseRuntime(ModelObj):
             runspec.spec.function = self._function_uri(hash_key=hash_key)
 
     def _get_cmd_args(self, runobj: RunObject):
-        extra_env = self.generate_runtime_env(runobj)
+        extra_env = self._generate_runtime_env(runobj)
         if self.spec.pythonpath:
             extra_env["PYTHONPATH"] = self.spec.pythonpath
         args = []

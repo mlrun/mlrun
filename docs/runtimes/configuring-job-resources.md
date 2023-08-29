@@ -52,7 +52,7 @@ Configure the limits assigned to a function by using `with_limits`. For example:
 
 ```
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                                                       kind="mpijob", image="mlrun/ml-models-gpu")
+                                           kind="mpijob", image="mlrun/mlrun-gpu")
 training_function.spec.replicas = 2
 training_function.with_requests(cpu=2)
 training_function.with_limits(gpus=1)

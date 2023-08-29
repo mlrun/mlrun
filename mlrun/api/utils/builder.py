@@ -335,6 +335,8 @@ def configure_kaniko_ecr_init_container(
     )
     init_container_env = {}
 
+    kpod.env = kpod.env or []
+
     if assume_instance_role:
 
         # assume instance role has permissions to register and store a container image
@@ -624,9 +626,9 @@ def build_runtime(
     if build.base_image:
         mlrun_images = [
             "mlrun/mlrun",
+            "mlrun/mlrun-gpu",
             "mlrun/ml-base",
             "mlrun/ml-models",
-            "mlrun/ml-models-gpu",
         ]
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):

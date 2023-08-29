@@ -29,8 +29,9 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
-# mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
+# mainly used for mlrun, base and models images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
+MLRUN_CONDA_PYTHON_VERSION ?= 39
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 23.2.1
@@ -48,7 +49,7 @@ MLRUN_RAISE_ON_ERROR ?= true
 MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
-MLRUN_CUDA_VERSION ?= 11.7.0
+MLRUN_GPU_CUDA_VERSION ?= 11.7.1-cudnn8-devel-ubuntu20.04
 MLRUN_TENSORFLOW_VERSION ?= 2.9.0
 MLRUN_HOROVOD_VERSION ?= 0.25.0
 # overrides the ml-models base image (models core) since it is broken and ml-models is about to be deprecated anyway
@@ -152,10 +153,10 @@ build: docker-images package-wheel ## Build all artifacts
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	mlrun \
+	mlrun-gpu \
 	jupyter \
 	base \
 	models \
-	models-gpu \
 	log-collector
 
 .PHONY: docker-images
@@ -204,6 +205,48 @@ push-mlrun: mlrun ## Push mlrun docker image
 pull-mlrun: ## Pull mlrun docker image
 	docker pull $(MLRUN_IMAGE_NAME_TAGGED)
 
+MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
+MLRUN_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-gpu
+MLRUN_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-gpu
+MLRUN_GPU_IMAGE_NAME_TAGGED := $(MLRUN_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED),)
+DEFAULT_IMAGES += $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+
+.PHONY: mlrun-gpu
+mlrun-gpu: update-version-file ## Build mlrun gpu docker image
+	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
+	docker build \
+		--file dockerfiles/gpu/Dockerfile \
+		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
+		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
+		.
+
+.PHONY: push-mlrun-gpu
+push-mlrun-gpu: mlrun-gpu ## Push mlrun gpu docker image
+	docker push $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+	$(MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-mlrun-gpu
+pull-mlrun-gpu: ## Pull mlrun gpu docker image
+	docker pull $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+
+.PHONY: prebake-mlrun-gpu
+prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
+	docker build \
+		--file dockerfiles/gpu/prebaked.Dockerfile \
+		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_CONDA_PYTHON_VERSION) \
+		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
+		.
+
+.PHONY: push-prebake-mlrun-gpu
+push-prebake-mlrun-gpu: ## Push prebake mlrun GPU based docker image
+	docker push $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
 MLRUN_BASE_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
@@ -280,53 +323,6 @@ push-models: models ## Push models docker image
 .PHONY: pull-models
 pull-models: ## Pull models docker image
 	docker pull $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
-
-
-MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
-MLRUN_MODELS_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
-MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_CUDA_VERSION)-base-ubuntu20.04
-MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED) || true,)
-MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED),)
-DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-
-.PHONY: models-gpu
-models-gpu: update-version-file ## Build models-gpu docker image
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED) \
-		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) \
-		.
-
-.PHONY: push-models-gpu
-push-models-gpu: models-gpu ## Push models gpu docker image
-	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
-
-.PHONY: pull-models-gpu
-pull-models-gpu: ## Pull models gpu docker image
-	docker pull $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-
-.PHONY: prebake-models-gpu
-prebake-models-gpu: ## Build prebake models GPU docker image
-	docker build \
-		--file dockerfiles/models-gpu/prebaked.Dockerfile \
-		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		--tag $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED) \
-		.
-
-.PHONY: push-prebake-models-gpu
-push-prebake-models-gpu: ## Push prebake models GPU docker image
-	docker push $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED)
-
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)
@@ -599,6 +595,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
+		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db

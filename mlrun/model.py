@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import json
 import pathlib
 import re
 import time
@@ -583,6 +584,17 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc
+
+        # validate that size of notification params doesn't exceed 1 MB, due to k8s default secret size limitation.
+        # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        # TODO: split params to params and secret_params, and store secret_params in a secret
+        if (
+            len(json.dumps(self.params))
+            > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification params size exceeds max size of 1 MB"
+            )
 
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):

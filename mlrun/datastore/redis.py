@@ -80,12 +80,8 @@ class RedisStore(DataStore):
 
     @classmethod
     def build_redis_key(cls, key, prefix_only=False):
-        if key.startswith("redis://"):
-            start = len("redis://")
-        elif key.startswith("rediss://"):
-            start = key[len("redis://") :]
-        else:
-            start = 0
+        prefixes = ["redis://", "rediss://", "ds://"]
+        start = next((len(prefix) for prefix in prefixes if key.startswith(prefix)), 0)
         # skip over user/pass, host, port
         start = key.find("/", start)
         # insert the prefix '{' hashtag to the key as stored in redis

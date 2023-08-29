@@ -141,7 +141,7 @@ def test_submit_job_auto_mount(
 
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     expected_env_vars = {
         "V3IO_API": api_url,
         "V3IO_USERNAME": username,
@@ -173,7 +173,7 @@ def test_submit_job_ensure_function_has_auth_set(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     expected_env_vars = {
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
             secret_name,

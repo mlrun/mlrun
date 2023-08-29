@@ -13,12 +13,22 @@
 # limitations under the License.
 #
 
+import sys
+import typing
+
 import mlrun.common
 from mlrun.common.schemas.model_monitoring import (
     EndpointUID,
     FunctionURI,
     VersionedModel,
 )
+
+FeatureStats = typing.NewType("FeatureStats", dict[str, dict[str, typing.Any]])
+Histogram = typing.NewType("Histogram", list[list])
+BinCounts = typing.NewType("BinCounts", list[int])
+BinEdges = typing.NewType("BinEdges", list[float])
+
+_MAX_FLOAT = sys.float_info.max
 
 
 def create_model_endpoint_uid(function_uri: str, versioned_model: str):
@@ -69,3 +79,34 @@ def parse_monitoring_stream_path(stream_uri: str, project: str):
             project=project
         )
     return stream_uri
+
+
+def _get_counts(hist: Histogram) -> BinCounts:
+    """Return the histogram counts"""
+    return BinCounts(hist[0])
+
+
+def _get_edges(hist: Histogram) -> BinEdges:
+    """Return the histogram edges"""
+    return BinEdges(hist[1])
+
+
+def pad_hist(hist: Histogram) -> None:
+    """Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace"""
+    counts = _get_counts(hist)
+    edges = _get_edges(hist)
+
+    counts.insert(0, 0)
+    edges.insert(0, -_MAX_FLOAT)
+
+    counts.append(0)
+    edges.append(_MAX_FLOAT)
+
+
+def pad_features_hist(feature_stats: FeatureStats) -> None:
+    """
+    Given a feature statistics dictionary, pad the histograms with edges bins
+    inplace to cover input statistics from -inf to inf.
+    """
+    for feature in feature_stats.values():
+        pad_hist(Histogram(feature["hist"]))

@@ -17,7 +17,7 @@ import json
 import re
 import traceback
 import typing
-from hashlib import sha1, sha256
+from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -260,7 +260,7 @@ def _conceal_notification_params_with_secret(
             ),
             allow_internal_secrets=True,
         )
-        notification_object.params = {"secret": f"$ref:{secret_key}"}
+        notification_object.params = {"secret": secret_key}
 
     return notification_object
 
@@ -285,7 +285,7 @@ def _generate_notification_secret_key(
     notification_object: mlrun.model.Notification,
 ) -> str:
     # hash notification params to generate a unique secret key
-    return sha256(
+    return sha224(
         json.dumps(notification_object.params, sort_keys=True).encode("utf-8")
     ).hexdigest()
 
@@ -337,8 +337,6 @@ def unmask_notification_params_secret(
     params_secret = params.get("secret", "")
     if not params_secret:
         return notification_object
-
-    params_secret = params_secret.replace("$ref:", "")
 
     k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
     if not k8s:

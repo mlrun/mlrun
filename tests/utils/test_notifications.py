@@ -420,7 +420,7 @@ def test_notification_params_masking_on_run(monkeypatch):
         mlrun.api.crud.Secrets, "store_project_secrets", _store_project_secrets
     )
     params = {"sensitive": "sensitive-value"}
-    params_hash = hashlib.sha256(
+    params_hash = hashlib.sha224(
         json.dumps(params, sort_keys=True).encode("utf-8")
     ).hexdigest()
     run_uid = "test-run-uid"
@@ -435,7 +435,7 @@ def test_notification_params_masking_on_run(monkeypatch):
     assert "secret" in run["spec"]["notifications"][0]["params"]
     assert (
         run["spec"]["notifications"][0]["params"]["secret"]
-        == f"$ref:mlrun.notifications.{params_hash}"
+        == f"mlrun.notifications.{params_hash}"
     )
 
 

@@ -45,7 +45,8 @@ def main():
         life_cycle_state = run.as_dict().get("state").get("life_cycle_state")
         if (
             # TERMINATED is also the life_cycle_state of tasks that have already either failed or succeeded
-            life_cycle_state not in [RunLifeCycleState.TERMINATING, RunLifeCycleState.TERMINATED]
+            life_cycle_state
+            not in [RunLifeCycleState.TERMINATING, RunLifeCycleState.TERMINATED]
         ):
             raise MLRunRuntimeError(
                 f"Cancelling task {task_id} has failed, life cycle state is: {life_cycle_state}."

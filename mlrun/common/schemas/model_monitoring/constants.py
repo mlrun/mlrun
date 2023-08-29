@@ -177,6 +177,8 @@ class MonitoringFunctionNames:
         return [
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
+            MonitoringFunctionNames.BATCH,
+            MonitoringFunctionNames.BATCH_APPLICATION
         ]
 
 

@@ -17,7 +17,7 @@ ARG MLRUN_BASE_IMAGE=mlrun/ml-base:unstable-core
 FROM ${MLRUN_BASE_IMAGE}
 
 # Install Open-MPI:
-ARG OMPI_VERSION=4.1.4
+ARG OMPI_VERSION=4.1.5
 RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 ENV OMPI_ALLOW_RUN_AS_ROOT=1

@@ -51,7 +51,7 @@ ENV PIP_NO_CACHE_DIR=1
 ENV LD_LIBRARY_PATH /usr/local/cuda-11.7/lib64:$LD_LIBRARY_PATH
 
 # Install Open-MPI:
-ARG OMPI_VERSION=4.1.4
+ARG OMPI_VERSION=4.1.5
 RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 ENV OMPI_ALLOW_RUN_AS_ROOT=1

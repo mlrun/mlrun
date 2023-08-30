@@ -46,7 +46,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 ENV PATH /opt/conda/bin:$PATH
 
 # Install Open-MPI:
-ARG OMPI_VERSION=4.1.4
+ARG OMPI_VERSION=4.1.5
 RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 ENV OMPI_ALLOW_RUN_AS_ROOT=1

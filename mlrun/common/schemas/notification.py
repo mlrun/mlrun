@@ -59,7 +59,7 @@ class Notification(pydantic.BaseModel):
     params: typing.Dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None
-    secret_params: typing.Dict[str, typing.Any] = None
+    secret_params: typing.Optional[typing.Dict[str, typing.Any]] = None
 
 
 class SetNotificationRequest(pydantic.BaseModel):

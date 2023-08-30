@@ -22,7 +22,8 @@ The notification object's schema is:
 - `name`: str - notification name
 - `message`: str - notification message
 - `severity`: str - notification severity (info, warning, error, debug)
-- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-kinds))
+- `params`: dict - notification parameters (See definitions in [Notification Kinds](#notification-params-and-secrets))
+- `secret_params`: dict - secret data notification parameters (See definitions in [Notification Params and Secrets](#notification-kinds))
 - `condition`: str - jinja template for a condition that determines whether the notification is sent or not (See [Notification Conditions](#notification-conditions))
 
 
@@ -38,10 +39,15 @@ These cases are:
 > **Disclaimer:** Local notifications aren't persisted in mlrun API
 
 ## Notification Params and Secrets
-The notification parameters might contain sensitive information (slack webhook, git token, etc.). For this reason, 
-when a notification is created its params are masked in a kubernetes secret. The secret is named 
-`<run-uid>-<notification-id>` (or `<schedule-name>-<notification-id>`) and is created in the namespace where mlrun is 
-installed. In the notification params the secret reference is stored under the `secret` key once masked.
+The notification parameters often contain sensitive information, such as Slack webhooks Git tokens, etc.
+To safeguard this sensitive data, we've implemented a masking process for the notification's `secret_params`.
+When a notification is created, its `secret_params` are automatically masked and stored in a kubernetes secret.
+The naming convention for the secret is `<run-uid>-<notification-id>` (or `<schedule-name>-<notification-id>`).
+This secret is created within the namespace where MLRun is installed.
+Inside the notification's `secret_params`, you'll find a reference to the secret under the `secret` key once it's been masked.
+For non-sensitive notification parameters, you can simply use the `params` parameter, which doesn't go through this masking process.
+It's essential to utilize `secret_params` exclusively for handling sensitive information, ensuring secure data management.
+
 
 ## Notification Kinds
 
@@ -79,7 +85,7 @@ notification = mlrun.model.Notification(
     name="notification-1",
     message="completed",
     severity="info",
-    params={"webhook": "<slack webhook url>"}
+    secret_params={"webhook": "<slack webhook url>"}
 )
 function.run(handler=handler, notifications=[notification])
 ```
@@ -88,10 +94,10 @@ function.run(handler=handler, notifications=[notification])
 For pipelines, you configure the notifications on the project notifiers. For example:
 
 ```python
-project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})
-project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"})
+project.notifiers.add_notification(notification_type="slack",secret_params={"webhook":"<slack webhook url>"})
+project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>"}, secret_params={"token": "<token>"})
 ```
-Instead of passing the webhook in the notification params, it is also possible in a Jupyter notebook to use the ` %env` 
+Instead of passing the webhook in the notification `secret_params`, it is also possible in a Jupyter notebook to use the ` %env` 
 magic command:
 ```
 %env SLACK_WEBHOOK=<slack webhook url>
@@ -99,7 +105,7 @@ magic command:
 
 Editing and removing notifications is done similarly with the following methods:
 ```python
-project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
+project.notifiers.edit_notification(notification_type="slack",secret_params={"webhook":"<new slack webhook url>"})
 project.notifiers.remove_notification(notification_type="slack")
 ```
 
@@ -142,7 +148,7 @@ notification = mlrun.model.Notification(
     name="notification-1",
     message="completed",
     severity="info",
-    params={"webhook": "<slack webhook url>"},
+    secret_params={"webhook": "<slack webhook url>"},
     condition='{{ run["status"]["results"]["drift"] > 0.1 }}'
 )
 ```

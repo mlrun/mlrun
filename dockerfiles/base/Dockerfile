@@ -58,7 +58,7 @@ RUN conda config --add channels conda-forge && \
     conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
 
-COPY ./dockerfiles/mlrun/requirements.txt ./mlrun-image-requirements.txt
+COPY ./dockerfiles/base/mlrun_requirements.txt ./mlrun-image-requirements.txt
 COPY ./extras-requirements.txt ./extras-requirements.txt
 COPY ./requirements.txt ./
 RUN python -m pip install \

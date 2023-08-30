@@ -457,6 +457,8 @@ class DaskCluster(KubejobRuntime):
         handler = runobj.spec.handler
         self._force_handler(handler)
 
+        # TODO: investigate if the following instructions could overwrite the environment on any MLRun API Pod
+        # Such action could result on race conditions against other runtimes and MLRun itself
         extra_env = self._generate_runtime_env(runobj)
         environ.update(extra_env)
 

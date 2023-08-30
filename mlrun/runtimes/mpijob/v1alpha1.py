@@ -108,8 +108,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 self.spec.priority_class_name,
             )
 
-        extra_env = self._generate_runtime_env(runobj)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        extra_env = self.generate_runtime_k8s_env(runobj)
         self._update_container(job, "env", extra_env + self.spec.env)
         if self.spec.image_pull_policy:
             self._update_container(job, "imagePullPolicy", self.spec.image_pull_policy)

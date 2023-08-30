@@ -303,26 +303,3 @@ class PushToMonitoringWriter(StepToDict):
                     mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PIPELINES_ACCESS_KEY
                 ),
             )
-
-
-class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
-    def __int__(self, evidently_project_uid):
-        self.evidently_project_uid = evidently_project_uid
-        pass
-
-    def run_application(
-        self,
-        application_name: str,
-        sample_df_stats: pd.DataFrame,
-        feature_stats: pd.DataFrame,
-        sample_df: pd.DataFrame,
-        schedule_time: pd.Timestamp,
-        latest_request: pd.Timestamp,
-        endpoint_id: str,
-        output_stream_uri: str,
-    ) -> Union[
-        ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
-    ]:
-        pass
-
-    # def log_report_or_

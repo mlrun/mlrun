@@ -39,6 +39,7 @@ import yaml
 from deprecated import deprecated
 
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
@@ -86,9 +87,6 @@ from .pipelines import (
     get_workflow_engine,
     pipeline_context,
 )
-
-MODEL_MONITORING_APPLICATION_LABEL_KEY = "type"
-MODEL_MONITORING_APPLICATION_LABEL_VAL = "model-monitoring-application"
 
 
 class ProjectError(Exception):
@@ -1845,7 +1843,7 @@ class MlrunProject(ModelObj):
             first_step.to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
-                    writer_application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
+                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
                     stream_uri=None,
                 ),
             ).respond()
@@ -1865,8 +1863,8 @@ class MlrunProject(ModelObj):
         )
         models_names = "all"
         function_object.set_label(
-            MODEL_MONITORING_APPLICATION_LABEL_KEY,
-            MODEL_MONITORING_APPLICATION_LABEL_VAL,
+            mm_constants.ModelMonitoringAppTag.KEY,
+            mm_constants.ModelMonitoringAppTag.VAL,
         )
         function_object.set_label("models", models_names)
 
@@ -2041,8 +2039,8 @@ class MlrunProject(ModelObj):
         """
         application = self.get_function(key=name)
         if (
-            application.metadata.labels.get(MODEL_MONITORING_APPLICATION_LABEL_KEY)
-            == MODEL_MONITORING_APPLICATION_LABEL_VAL
+            application.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
+            == mm_constants.ModelMonitoringAppTag.VAL
         ):
             self.remove_function(name=name)
             mlrun.db.get_run_db().delete_function(name=name.lower())
@@ -3126,7 +3124,7 @@ class MlrunProject(ModelObj):
         """
         return self.list_functions(
             labels=[
-                f"{MODEL_MONITORING_APPLICATION_LABEL_KEY}={MODEL_MONITORING_APPLICATION_LABEL_VAL}"
+                f"{mm_constants.ModelMonitoringAppTag.KEY}={mm_constants.ModelMonitoringAppTag.VAL}"
             ]
         )
 

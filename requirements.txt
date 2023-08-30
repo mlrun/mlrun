@@ -54,4 +54,4 @@ deprecated~=1.2
 jinja2~=3.1
 anyio~=3.5
 scikit-learn
-evidently
+evidently==0.4.3

@@ -41,9 +41,8 @@ These cases are:
 ## Notification Params and Secrets
 The notification parameters often contain sensitive information, such as Slack webhooks Git tokens, etc.
 To safeguard this sensitive data, we've implemented a masking process for the notification's `secret_params`.
-When a notification is created, its `secret_params` are automatically masked and stored in a kubernetes secret.
-The naming convention for the secret is `<run-uid>-<notification-id>` (or `<schedule-name>-<notification-id>`).
-This secret is created within the namespace where MLRun is installed.
+When a notification is created, its `secret_params` are automatically masked and stored in a mlrun project secret.
+The name of the secret is built from the hash of the params themselves (So if multiple notifications use the same secret, it won't waste space in the project secret).
 Inside the notification's `secret_params`, you'll find a reference to the secret under the `secret` key once it's been masked.
 For non-sensitive notification parameters, you can simply use the `params` parameter, which doesn't go through this masking process.
 It's essential to utilize `secret_params` exclusively for handling sensitive information, ensuring secure data management.

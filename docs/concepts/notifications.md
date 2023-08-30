@@ -40,7 +40,8 @@ These cases are:
 
 ## Notification Params and Secrets
 The notification parameters often contain sensitive information, such as Slack webhooks Git tokens, etc.
-To safeguard this sensitive data, we've implemented a masking process for the notification's `secret_params`.
+To ensure the safety of this sensitive data, the parameters are split into 2 objects - `params` and `secret_params`.
+Either can be used to store any notification parameter. However the `secret_params` will be protected by project secrets.
 When a notification is created, its `secret_params` are automatically masked and stored in a mlrun project secret.
 The name of the secret is built from the hash of the params themselves (So if multiple notifications use the same secret, it won't waste space in the project secret).
 Inside the notification's `secret_params`, you'll find a reference to the secret under the `secret` key once it's been masked.

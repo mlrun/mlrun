@@ -22,11 +22,12 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
 
 ## Storage credentials and parameters
-Data stores might require connection credentials. These can be provided through [data store profiles](#using-data-store-profiles), 
-project/job context secrets, or environment variables (though this is not recommended). The exact credentials depend on the type 
-of the data store. They are listed in the following sections. 
-Each parameter specified can be provided in the datastore profile, as an environment variable, 
+Data stores might require connection credentials. These can be provided through environment variables 
+or project/job context secrets. The exact credentials depend on the type of the data store. They are 
+listed in the following sections. Each parameter specified can be provided as an environment variable, 
 or as a project-secret that has the same key as the name of the parameter.
+
+You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
 
 MLRun jobs that are executed remotely run in independent pods, with their own environment. When setting an environment 
 variable in the development environment (for example Jupyter), this has no effect on the executing pods. Therefore, 
@@ -125,13 +126,13 @@ contents directly to the query engine.
 ## Using data store profiles
 
 ```{Admonition} Note
-This feature currently supports Kafka, Redis, and S3 data sources.
+This feature currently supports Redis.
 ```
 
 You can use a data store profile to manage datastore credentials. A data store profile 
 holds all the information required to address an external data source. You can create 
 multiple profiles for one datasource, for example, 
-two different AWS data stores with different credentials. Targets, sources, and artifacts, 
+two different Redis data stores with different credentials. Targets, sources, and artifacts, 
 can all use the data store profile.
 
 Create a data store profile in the context of a project. 

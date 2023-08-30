@@ -39,6 +39,7 @@ import yaml
 from deprecated import deprecated
 
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
@@ -1845,7 +1846,7 @@ class MlrunProject(ModelObj):
             first_step.to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,
-                    writer_application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
+                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
                     stream_uri=None,
                 ),
             ).respond()

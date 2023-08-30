@@ -26,7 +26,7 @@ from mlrun.model_monitoring.application import ModelMonitoringApplication
 
 
 class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
-    def __int__(
+    def __init__(
         self, evidently_workspace_path: str = None, evidently_project_id: str = None
     ):
         """

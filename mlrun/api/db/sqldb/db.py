@@ -3408,6 +3408,7 @@ class SQLDB(DBInterface):
             severity=notification_record.severity,
             when=notification_record.when.split(","),
             condition=notification_record.condition,
+            secret_params=notification_record.secret_params,
             params=notification_record.params,
             status=notification_record.status,
             sent_time=notification_record.sent_time,
@@ -3837,6 +3838,7 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
+            notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (
                 notification_model.status

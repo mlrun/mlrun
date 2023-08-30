@@ -15,6 +15,7 @@ Batch runtimes:
 * **local** - execute a Python or shell program 
 * **{ref}`job <job-function>`** - run the code in a Kubernetes Pod
 * **{ref}`dask <dask-overview>`** - run the code as a Dask Distributed job (over Kubernetes)
+* **{ref}`databricks <databricks>`** - run a Spark "job" on a Databricks cluster
 * **{ref}`mpijob <horovod>`** - run distributed jobs and Horovod over the MPI job operator, used mainly for deep learning jobs 
 * **{ref}`spark <spark-operator>`** - run the job as a Spark job (using Spark Kubernetes Operator)
 * **[remote-spark](../feature-store/using-spark-engine.html#remote-spark-ingestion-example)** - run the job on a remote Spark service/cluster (e.g. Iguazio Spark service)
@@ -55,6 +56,7 @@ The limits methods are different for Spark and Dask:
 ../runtimes/job-function
 ../runtimes/serving-function
 ../runtimes/dask-overview
+../runtimes/databricks
 ../runtimes/horovod
 ../runtimes/spark-operator
 ../concepts/nuclio-real-time-functions

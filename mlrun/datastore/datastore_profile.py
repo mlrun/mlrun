@@ -39,13 +39,20 @@ class DatastoreProfile(pydantic.BaseModel):
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "-__-"
         full_key = (
-            "datastore-profiles"
+            "mlrun.datastore-profiles"
             + secret_name_separator
             + project
             + secret_name_separator
             + profile_name
         )
         return full_key
+
+
+class DatastoreProfileBasic(DatastoreProfile):
+    type: str = pydantic.Field("basic")
+    _private_attributes = "private"
+    public: str
+    private: typing.Optional[str] = None
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -130,7 +137,10 @@ class DatastoreProfile2Json(pydantic.BaseModel):
 
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
-        ds_profile_factory = {"redis": DatastoreProfileRedis}
+        ds_profile_factory = {
+            "redis": DatastoreProfileRedis,
+            "basic": DatastoreProfileBasic,
+        }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
         else:

@@ -17,7 +17,7 @@ import json
 import re
 import traceback
 import typing
-from hashlib import sha1
+from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -241,21 +241,29 @@ def _notification_params_mask_op(
 def _conceal_notification_params_with_secret(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    if notification_object.params and "secret" not in notification_object.params:
+    if (
+        notification_object.secret_params
+        and "secret" not in notification_object.secret_params
+    ):
+
+        # create secret key from a hash of the secret params. this will allow multiple notifications with the same
+        # params to share the same secret (saving secret storage space).
+        # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.
+        #       as we currently don't delete runs unless the project is deleted (in which case, the entire secret is
+        #       deleted), we don't need the mechanism yet.
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
-            parent,
-            notification_object.name,
+            _generate_notification_secret_key(notification_object),
         )
         mlrun.api.crud.Secrets().store_project_secrets(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secrets={secret_key: json.dumps(notification_object.params)},
+                secrets={secret_key: json.dumps(notification_object.secret_params)},
             ),
             allow_internal_secrets=True,
         )
-        notification_object.params = {"secret": secret_key}
+        notification_object.secret_params = {"secret": secret_key}
 
     return notification_object
 
@@ -263,17 +271,26 @@ def _conceal_notification_params_with_secret(
 def _redact_notification_params(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    if not notification_object.params:
+    if not notification_object.secret_params:
         return notification_object
 
     # If the notification params contain a secret key, we consider them concealed and don't redact them
-    if "secret" in notification_object.params:
+    if "secret" in notification_object.secret_params:
         return notification_object
 
-    for param in notification_object.params:
-        notification_object.params[param] = "REDACTED"
+    for param in notification_object.secret_params:
+        notification_object.secret_params[param] = "REDACTED"
 
     return notification_object
+
+
+def _generate_notification_secret_key(
+    notification_object: mlrun.model.Notification,
+) -> str:
+    # hash notification params to generate a unique secret key
+    return sha224(
+        json.dumps(notification_object.secret_params, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def unmask_notification_params_secret_on_task(
@@ -319,8 +336,8 @@ def unmask_notification_params_secret_on_task(
 def unmask_notification_params_secret(
     project: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    params = notification_object.params or {}
-    params_secret = params.get("secret", "")
+    secret_params = notification_object.secret_params or {}
+    params_secret = secret_params.get("secret", "")
     if not params_secret:
         return notification_object
 
@@ -330,7 +347,7 @@ def unmask_notification_params_secret(
             "Not running in k8s environment, cannot load notification params secret"
         )
 
-    notification_object.params = json.loads(
+    notification_object.secret_params = json.loads(
         mlrun.api.crud.Secrets().get_project_secret(
             project,
             mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -346,8 +363,8 @@ def unmask_notification_params_secret(
 def delete_notification_params_secret(
     project: str, notification_object: mlrun.model.Notification
 ) -> None:
-    params = notification_object.params or {}
-    params_secret = params.get("secret", "")
+    secret_params = notification_object.secret_params or {}
+    params_secret = secret_params.get("secret", "")
     if not params_secret:
         return
 

@@ -13,6 +13,8 @@
 # limitations under the License.
 #
 
+import typing
+
 from pydantic import BaseModel
 
 
@@ -20,4 +22,5 @@ class DatastoreProfile(BaseModel):
     name: str
     type: str
     object: str
+    private: typing.Optional[str]
     project: str

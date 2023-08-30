@@ -65,7 +65,8 @@ def get_generator(spec: RunSpec, execution, param_file_secrets: dict = None):
 
             if strategy in ["grid", "random"]:
                 raise ValueError(
-                    "param file cannot be used with grid or random strategy, use list strategy ot leave empty."
+                    "CSV param file cannot be used with grid or random strategy, "
+                    "use a JSON file for parameters or leave empty."
                 )
         elif not strategy or strategy in ["grid", "random"]:
             hyperparams = json.loads(obj.get())

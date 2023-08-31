@@ -80,12 +80,13 @@ In any `run` method you can configure the notifications via their model. For exa
 
 ```python
 notification = mlrun.model.Notification(
-    kind="slack",
+    kind="webhook",
     when=["completed","error"],
     name="notification-1",
     message="completed",
     severity="info",
-    secret_params={"webhook": "<slack webhook url>"}
+    secret_params={"url": "<webhook url>"},
+    params={"method": "GET", "verify_ssl": True},
 )
 function.run(handler=handler, notifications=[notification])
 ```
@@ -94,10 +95,10 @@ function.run(handler=handler, notifications=[notification])
 For pipelines, you configure the notifications on the project notifiers. For example:
 
 ```python
-project.notifiers.add_notification(notification_type="slack",secret_params={"webhook":"<slack webhook url>"})
-project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>"}, secret_params={"token": "<token>"})
+project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})
+project.notifiers.add_notification(notification_type="git", params={"repo": "<repo>", "issue": "<issue>", "token": "<token>"})
 ```
-Instead of passing the webhook in the notification `secret_params`, it is also possible in a Jupyter notebook to use the ` %env` 
+Instead of passing the webhook in the notification `params`, it is also possible in a Jupyter notebook to use the ` %env` 
 magic command:
 ```
 %env SLACK_WEBHOOK=<slack webhook url>
@@ -105,7 +106,7 @@ magic command:
 
 Editing and removing notifications is done similarly with the following methods:
 ```python
-project.notifiers.edit_notification(notification_type="slack",secret_params={"webhook":"<new slack webhook url>"})
+project.notifiers.edit_notification(notification_type="slack",params={"webhook":"<new slack webhook url>"})
 project.notifiers.remove_notification(notification_type="slack")
 ```
 

@@ -133,7 +133,8 @@ You can use a data store profile to manage datastore credentials. A data store p
 holds all the information required to address an external data source. You can create 
 multiple profiles for one datasource, for example, 
 two different Redis data stores with different credentials. Targets, sources, and artifacts, 
-can all use the data store profile.
+can all use the data store profile. See also {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile` and 
+{py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`.
 
 Create a data store profile in the context of a project. 
 

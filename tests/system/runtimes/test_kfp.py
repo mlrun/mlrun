@@ -78,8 +78,9 @@ class TestKFP(tests.system.base.TestMLRunSystem):
                 outputs=["mymodel"],
             )
 
-            if str(p1) != "{{pipelineparam:op=;name=p1}}":
-                raise ValueError(f"p1 was expected to be a pipeline param but is {p1}")
+            assert (
+                str(p1) == "{{pipelineparam:op=;name=p1}}"
+            ), f"p1 was expected to be a pipeline param but is {p1}"
 
         arguments = {"p1": 8}
         run_id = self.project.run(

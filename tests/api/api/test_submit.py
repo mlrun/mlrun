@@ -385,8 +385,11 @@ def test_submit_job_with_hyper_params_file(
     task_spec["selector"] = "max.loss"
     task_spec["strategy"] = "list"
 
+    data_item = _MockDataItem()
+    data_item.suffix = ""
+
     with unittest.mock.patch.object(
-        mlrun.MLClientCtx, "get_dataitem", return_value=_MockDataItem()
+        mlrun.MLClientCtx, "get_dataitem", return_value=data_item
     ) as data_item_mock:
         resp = client.post("submit_job", json=submit_job_body)
         assert resp.status_code == http.HTTPStatus.OK.value

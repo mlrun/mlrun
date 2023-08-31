@@ -52,7 +52,7 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
         """
         evidently_object_html = evidently_object.get_html()
         self.context.log_artifact(
-            artifact_name, body=evidently_object_html.encode("utf-8")
+            artifact_name, body=evidently_object_html.encode("utf-8"), format="html"
         )
 
     def log_project_dashboard(
@@ -77,7 +77,7 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
 
         dashboard_html = self._render(determine_template("inline"), template_params)
         self.context.log_artifact(
-            artifact_name, body=dashboard_html.encode("utf-8")
+            artifact_name, body=dashboard_html.encode("utf-8"), format="html"
         )
 
     @staticmethod

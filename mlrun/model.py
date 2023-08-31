@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import json
 import pathlib
 import re
 import time
@@ -32,6 +33,7 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
@@ -557,6 +559,7 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
@@ -569,6 +572,7 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
@@ -582,6 +586,17 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc
+
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
+        # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        if (
+            len(json.dumps(self.secret_params))
+            > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification params size exceeds max size of 1 MB"
+            )
 
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
@@ -1580,11 +1595,12 @@ class TargetPathObject:
     def get_templated_path(self):
         return self.full_path_template
 
-    def get_absolute_path(self):
-        if self.run_id:
-            return self.full_path_template.format(run_id=self.run_id)
-        else:
-            return self.full_path_template
+    def get_absolute_path(self, project_name=None):
+        path = fill_project_path_template(
+            artifact_path=self.full_path_template,
+            project=project_name,
+        )
+        return path.format(run_id=self.run_id) if self.run_id else path
 
 
 class DataSource(ModelObj):

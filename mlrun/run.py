@@ -420,7 +420,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
         if upload_artifacts:
-            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path = mlrun.utils.helpers.fill_project_path_template(
                 mlconf.artifact_path, project or mlconf.default_project
             )
             update_in(newspec, ["spec", run_keys.output_path], artifact_path)
@@ -578,10 +578,10 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, "args" mode will push params into command template, example:
-                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
-                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
-                      `{}` for parameters like in the "args" mode
+    :param mode:     runtime mode:
+            * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
+                     params substitutions like {xparam} and will be replaced with the value of the xparam param
+                     if a command is not specified, then image entrypoint shall be used.
     :param handler:  The default function handler to call for the job or nuclio function, in batch functions
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
@@ -614,7 +614,7 @@ def new_function(
         else:
             supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
-                f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
+                f"Unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
 
     if not name:

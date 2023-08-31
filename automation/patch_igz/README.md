@@ -4,10 +4,11 @@
 In order to deploy your current code (for debugging), you need the following:
 
 * Install automation/requirements.txt
-* Create a deploy_env.yml based on deploy_env_template.yml
+* Create a patch_env.yml based on patch_env_template.yml
 * Have a docker registry you can push to (e.g. docker.io via account on docker.com) as well as a public mlrun-api repo on it
 * Make sure you are logged in into your registry (docker login --username user --password passwd), or optionally add username/password to config
 * From mlrun root dir run ./automation/patch_igz/patch_remote.py
+* If requesting to reset DB, DB_USER must be defined in patch_env.yml
 
 WARNING: This may not persist after system restart
 

@@ -232,7 +232,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         return list(map(kubernetes_api_client.sanitize_for_serialization, list_))
 
     def test_deploy_default_image_without_limits(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         mlrun.config.config.httpdb.builder.docker_registry = "test_registry"
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
@@ -241,25 +241,42 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
-    def test_run_without_runspec(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
+    def test_run_without_runspec(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         self.execute_function(runtime)
         self._assert_custom_object_creation_config()
 
-    def test_run_without_required_resources(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+    def test_run_with_default_resources(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
         )
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            self.execute_function(runtime)
-        assert exc.value.args[0] == "Sparkjob must contain executor requests"
+
+        expected_executor_resources = {
+            "requests": {"cpu": "1", "mem": "5g"},
+            "limits": {"cpu": "2"},
+        }
+        expected_driver_resources = {
+            "requests": {"cpu": "1", "mem": "2g"},
+            "limits": {"cpu": "2"},
+        }
+
+        expected_cores = {
+            "executor": 1,
+            "driver": 1,
+        }
+        runtime.with_cores(expected_cores["executor"], expected_cores["driver"])
+
+        self.execute_function(runtime)
+        self._assert_custom_object_creation_config(
+            expected_driver_resources=expected_driver_resources,
+            expected_executor_resources=expected_executor_resources,
+            expected_cores=expected_cores,
+        )
 
     def test_run_with_limits_and_requests(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -294,8 +311,44 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             expected_cores=expected_cores,
         )
 
+    def test_run_with_conflicting_limits_and_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+
+        runtime.spec.service_account = "executorsa"
+        runtime.with_executor_requests(cpu="1", mem="1G")
+        runtime.with_executor_limits(cpu="200m", gpus=1)
+
+        runtime.with_driver_requests(cpu="2", mem="512m")
+        runtime.with_driver_limits(cpu="3", gpus=1)
+
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            self.execute_function(runtime)
+
+    def test_run_with_invalid_requests(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        with pytest.raises(ValueError):
+            # Java notation applies to spark-operator memory requests
+            runtime.with_driver_requests(mem="2Gi", cpu="3")
+
+    def test_run_with_invalid_limits(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
+            set_resources=False
+        )
+        with pytest.raises(ValueError):
+            runtime.with_driver_limits(cpu="not a number", gpus=1)
+
     def test_run_with_limits_and_requests_patch_true(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -333,7 +386,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_limits_and_requests_patch_false(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime(
             set_resources=False
@@ -345,7 +398,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_driver_requests(mem="1G")
         runtime.with_driver_limits(cpu="10")
         expected_driver_resources = {
-            "requests": {"mem": "1G"},
+            "requests": {"mem": "1G", "cpu": "1"},
             "limits": {"cpu": "10"},
         }
 
@@ -356,7 +409,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.with_executor_requests(mem="2G")
         runtime.with_executor_limits(cpu="5")
         expected_executor_resources = {
-            "requests": {"mem": "2G"},
+            "requests": {"mem": "2G", "cpu": "1"},
             "limits": {"cpu": "5"},
         }
         expected_cores = {
@@ -373,7 +426,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_host_path_volume(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
         shared_volume = kubernetes.client.V1Volume(
@@ -439,9 +492,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             ],
         )
 
-    def test_java_options(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
-    ):
+    def test_java_options(self, db: sqlalchemy.orm.Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         driver_java_options = "-Dmyproperty=somevalue"
         runtime.spec.driver_java_options = driver_java_options
@@ -470,7 +521,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         driver_cores,
         expect_failure,
         db: sqlalchemy.orm.Session,
-        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
         if expect_failure:
@@ -497,7 +548,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         mount_v3io_to_executor,
         with_igz_spark_twice,
         db: sqlalchemy.orm.Session,
-        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         runtime = self._generate_runtime()
 
@@ -564,7 +615,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_deploy_with_image_pull_secret(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
 
         # no image pull secret
@@ -588,7 +639,10 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         self._assert_image_pull_secret(new_image_pull_secret)
 
     def test_get_offline_features(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+        k8s_secrets_mock,
     ):
         # TODO - this test needs to be moved outside of the api runtimes tests and into the spark runtime sdk tests
         #   once moved, the `watch=False` can be removed
@@ -598,6 +652,9 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         fv.save = unittest.mock.Mock()
 
         runtime = self._generate_runtime()
+        # auto mount requires auth info but this test is supposed to run in the client
+        # re-enable when test is moved
+        runtime.spec.disable_auto_mount = True
         runtime.with_igz_spark = unittest.mock.Mock()
 
         self._reset_mocks()
@@ -704,7 +761,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         )
 
     def test_run_with_load_source_on_run(
-        self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
     ):
         # set default output path
         mlrun.mlconf.artifact_path = "v3io:///tmp"
@@ -716,7 +773,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
         runtime.spec.build.load_source_on_run = True
         # expect pre-condition error, not supported
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError) as exc:
-            runtime.run()
+            runtime.run(auth_info=mlrun.common.schemas.AuthInfo())
 
         assert (
             str(exc.value) == "Sparkjob does not support loading source code on run, "

@@ -60,7 +60,7 @@ class FrontendSpec(pydantic.BaseModel):
     function_deployment_target_image_template: typing.Optional[str]
     function_deployment_target_image_name_prefix_template: str
     function_deployment_target_image_registries_to_enforce_prefix: typing.List[str] = []
-    function_deployment_mlrun_command: typing.Optional[str]
+    function_deployment_mlrun_requirement: typing.Optional[str]
     auto_mount_type: typing.Optional[str]
     auto_mount_params: typing.Dict[str, str] = {}
     default_artifact_path: str

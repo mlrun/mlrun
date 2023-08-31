@@ -73,7 +73,7 @@ def get_frontend_spec(
         function_deployment_target_image_template=function_deployment_target_image_template,
         function_deployment_target_image_name_prefix_template=function_target_image_name_prefix_template,
         function_deployment_target_image_registries_to_enforce_prefix=registries_to_enforce_prefix,
-        function_deployment_mlrun_command=_resolve_function_deployment_mlrun_command(),
+        function_deployment_mlrun_requirement=mlrun.api.utils.builder.resolve_mlrun_install_command_version(),
         auto_mount_type=config.storage.auto_mount_type,
         auto_mount_params=config.get_storage_auto_mount_params(),
         default_artifact_path=config.artifact_path,
@@ -85,15 +85,6 @@ def get_frontend_spec(
         ce_mode=config.ce.mode,
         ce=config.ce.to_dict(),
     )
-
-
-def _resolve_function_deployment_mlrun_command():
-    # TODO: When UI adds a requirements section, mlrun should be specified there instead of the commands section i.e.
-    #  frontend spec will contain only the mlrun_version_specifier instead of the full command
-    mlrun_version_specifier = (
-        mlrun.api.utils.builder.resolve_mlrun_install_command_version()
-    )
-    return f'python -m pip install "{mlrun_version_specifier}"'
 
 
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:

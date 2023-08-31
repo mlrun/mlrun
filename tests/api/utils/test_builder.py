@@ -1024,12 +1024,9 @@ def _mock_default_service_account(monkeypatch, service_account):
             ["git+https://${GIT_TOKEN}@github.com/GiladShapira94/new-mlrun.git}"],
             "--build-arg A=b C=d --test",
             [
-                "ARG GIT_TOKEN_ARG",
-                "ARG A_ARG",
-                "ARG C_ARG",
-                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
-                "ENV A=$A_ARG",
-                "ENV C=$C_ARG",
+                "ARG GIT_TOKEN",
+                "ARG A",
+                "ARG C",
             ],
         ),
         (
@@ -1038,8 +1035,7 @@ def _mock_default_service_account(monkeypatch, service_account):
             ["echo bla"],
             [],
             [
-                "ARG GIT_TOKEN_ARG",
-                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
+                "ARG GIT_TOKEN",
             ],
         ),
         (
@@ -1051,10 +1047,8 @@ def _mock_default_service_account(monkeypatch, service_account):
             [],
             [],
             [
-                "ARG GIT_TOKEN_ARG",
-                "ARG Test_ARG",
-                "ENV GIT_TOKEN=$GIT_TOKEN_ARG",
-                "ENV Test=$Test_ARG",
+                "ARG GIT_TOKEN",
+                "ARG Test",
             ],
         ),
         (None, "source.zip", [], "", []),
@@ -1100,7 +1094,7 @@ def test_make_dockerfile_with_build_and_extra_args(
         (
             [client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")],
             "--build-arg test1=val1",
-            ["test1_ARG=val1"],
+            ["test1=val1"],
         ),
         ([], "", []),
         (
@@ -1109,7 +1103,7 @@ def test_make_dockerfile_with_build_and_extra_args(
                 client.V1EnvVar(name="TEST", value="test"),
             ],
             "--build-arg a=b c=d",
-            ["a_ARG=b", "c_ARG=d"],
+            ["a=b", "c=d"],
         ),
     ],
 )
@@ -1129,9 +1123,7 @@ def test_make_kaniko_pod_command_using_build_args(
             extra_args=extra_args,
         )
 
-    expected_env_vars = [
-        f"{env_var.name}_ARG={env_var.value}" for env_var in builder_env
-    ]
+    expected_env_vars = [f"{env_var.name}={env_var.value}" for env_var in builder_env]
     if extra_args:
         expected_env_vars.extend(parsed_extra_args)
 
@@ -1219,9 +1211,9 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg2",
                 "value2",
                 "--build-arg",
-                "KEY1_ARG=VALUE1",
+                "KEY1=VALUE1",
                 "--build-arg",
-                "KEY2_ARG=VALUE2",
+                "KEY2=VALUE2",
             ],
         ),
         (
@@ -1232,9 +1224,9 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg2",
                 "value2",
                 "--build-arg",
-                "KEY1_ARG=VALUE1",
+                "KEY1=VALUE1",
                 "--build-arg",
-                "KEY2_ARG=new_value2",
+                "KEY2=new_value2",
             ],
         ),
         (
@@ -1244,31 +1236,31 @@ def test_validate_extra_args(extra_args, expected):
                 "--arg1",
                 "value1",
                 "--build-arg",
-                "KEY1_ARG=VALUE1",
+                "KEY1=VALUE1",
                 "--build-arg",
-                "KEY2_ARG=VALUE2",
+                "KEY2=VALUE2",
             ],
         ),
         (
-            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
+            ["--arg1", "--build-arg", "KEY1=VALUE1"],
             "--build-arg KEY2=VALUE2",
             [
                 "--arg1",
                 "--build-arg",
-                "KEY1_ARG=VALUE1",
+                "KEY1=VALUE1",
                 "--build-arg",
-                "KEY2_ARG=VALUE2",
+                "KEY2=VALUE2",
             ],
         ),
         (
             [],
             "--build-arg KEY1=VALUE1",
-            ["--build-arg", "KEY1_ARG=VALUE1"],
+            ["--build-arg", "KEY1=VALUE1"],
         ),
         (
             ["--arg1"],
             "--build-arg KEY1=VALUE1",
-            ["--arg1", "--build-arg", "KEY1_ARG=VALUE1"],
+            ["--arg1", "--build-arg", "KEY1=VALUE1"],
         ),
         (
             [],
@@ -1389,8 +1381,6 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     ]
 
     dock_arg_lines = [line for line in dock.splitlines() if line.startswith("ARG")]
-    dock_env_lines = [line for line in dock.splitlines() if line.startswith("ENV")]
     for arg in kpod_build_args:
         arg_key, arg_val = arg.split("=")
         assert f"ARG {arg_key}" in dock_arg_lines
-        assert f"ENV {arg_key.replace('_ARG', '')}=${arg_key}" in dock_env_lines

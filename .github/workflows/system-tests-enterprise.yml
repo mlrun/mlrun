@@ -306,7 +306,16 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        test_component: [api,runtimes,projects,model_monitoring,examples,backwards_compatibility,feature_store]
+        test_component:
+        - api
+        - runtimes
+        - projects
+        - model_monitoring
+        - examples
+        - backwards_compatibility
+        - datastore
+        - logs
+        - feature_store
     steps:
     - uses: actions/checkout@v3
       # checking out to the resolved branch to run system tests on, as now we run the actual tests, we don't want to run

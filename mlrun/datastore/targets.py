@@ -600,7 +600,12 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_target_path(self):
         path_object = self._target_path_object
-        return path_object.get_absolute_path() if path_object else None
+        project_name = self._resource.metadata.project if self._resource else None
+        return (
+            path_object.get_absolute_path(project_name=project_name)
+            if path_object
+            else None
+        )
 
     def get_target_path_with_credentials(self):
         return self.get_target_path()
@@ -1174,6 +1179,12 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds"):
             datastore_profile = datastore_profile_read(endpoint)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
             endpoint = datastore_profile.url_with_credentials()
         else:
             parsed_endpoint = urlparse(endpoint)

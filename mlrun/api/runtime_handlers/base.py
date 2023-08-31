@@ -428,7 +428,7 @@ class BaseRuntimeHandler(ABC):
         project: str,
         uid: str,
         crd_object,
-        run: Dict = None,
+        run: Dict,
     ):
         """
         Update the UI URL for relevant jobs.
@@ -960,8 +960,8 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
-        self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
-        _, updated_run_state = self._ensure_run_state(
+
+        _, updated_run_state, run = self._ensure_run_state(
             db,
             db_session,
             project,
@@ -971,6 +971,11 @@ class BaseRuntimeHandler(ABC):
             run,
             search_run=False,
         )
+
+        # Update the UI URL after ensured run state because it also ensures that a run exists
+        # (A runtime resource might exist before the run is created)
+        self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
+
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
@@ -1141,7 +1146,7 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, dict]:
         if run is None:
             run = {}
         if search_run:
@@ -1160,10 +1165,13 @@ class BaseRuntimeHandler(ABC):
             run = {"metadata": {"project": project, "name": name, "uid": uid}}
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
+
             if db_run_state == run_state:
-                return False, run_state
-            # if the current run state is terminal and different than the desired - log
+                return False, run_state, run
+
+            # if the current run state is terminal and different from the desired - log
             if db_run_state in RunStates.terminal_states():
+
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
                 if run_state not in RunStates.terminal_states():
@@ -1186,7 +1194,7 @@ class BaseRuntimeHandler(ABC):
                                 now=now,
                                 debounce_period=debounce_period,
                             )
-                            return False, run_state
+                            return False, run_state, run
 
                 logger.warning(
                     "Run record has terminal state but monitoring found different state on runtime resource. Changing",
@@ -1201,7 +1209,7 @@ class BaseRuntimeHandler(ABC):
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
         db.store_run(db_session, run, uid, project)
 
-        return True, run_state
+        return True, run_state, run
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:

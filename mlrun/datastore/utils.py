@@ -24,7 +24,8 @@ import mlrun.datastore
 
 
 def store_path_to_spark(path):
-    if path.startswith("redis://") or path.startswith("rediss://"):
+    schemas = ["redis://", "rediss://", "ds://"]
+    if any(path.startswith(schema) for schema in schemas):
         url = urlparse(path)
         if url.path:
             path = url.path

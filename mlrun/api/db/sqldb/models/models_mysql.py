@@ -121,6 +121,7 @@ def make_notification(table):
         condition = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
 
@@ -532,7 +533,16 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         type = Column(String(255, collation=SQLCollationUtil.collation()))
-        body = Column(String(1024, collation=SQLCollationUtil.collation()))
+        _full_object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
 
 
 # Must be after all table definitions

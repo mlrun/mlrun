@@ -31,10 +31,8 @@ on:
       skip_images:
         description: 'Comma separated list of images to skip scanning'
         required: false
-
-        # disabling gpu images for now as scanning them takes more disk space than we can afford
         # test images are not scanned as they are not used in production
-        default: 'test,models-gpu'
+        default: 'test'
       publish_results:
         description: 'Whether to publish results to Github or not (default empty - no publish)'
         required: false

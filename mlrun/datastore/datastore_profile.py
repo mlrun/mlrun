@@ -48,6 +48,17 @@ class DatastoreProfile(pydantic.BaseModel):
         return full_key
 
 
+class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
+    def __init__(self):
+        self._data = {}  # Initialize the dictionary
+
+    def add(self, profile: DatastoreProfile):
+        self._data[profile.name] = profile
+
+    def get(self, key):
+        return self._data.get(key, None)
+
+
 class DatastoreProfileBasic(DatastoreProfile):
     type: str = pydantic.Field("basic")
     _private_attributes = "private"
@@ -162,6 +173,10 @@ def datastore_profile_read(url):
 
     profile_name = parsed_url.hostname
     project_name = parsed_url.username or mlrun.mlconf.default_project
+    datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+    if datastore:
+        return datastore
+
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
@@ -180,3 +195,7 @@ def datastore_profile_read(url):
         private_json=private_body,
     )
     return datastore
+
+
+def register_temporary_client_datastore_profile(profile: DatastoreProfile):
+    TemporaryClientDatastoreProfiles().add(profile)

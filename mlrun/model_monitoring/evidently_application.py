@@ -57,7 +57,10 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
         )
 
     def log_project_dashboard(
-        self, timestamp_start: pd.Timestamp, timestamp_end: pd.Timestamp, artifact_name: str = "dashboard"
+        self,
+        timestamp_start: pd.Timestamp,
+        timestamp_end: pd.Timestamp,
+        artifact_name: str = "dashboard",
     ):
         """
         Logs an Evidently project dashboard.

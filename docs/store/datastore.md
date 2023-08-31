@@ -133,12 +133,9 @@ You can use a data store profile to manage datastore credentials. A data store p
 holds all the information required to address an external data source. You can create 
 multiple profiles for one datasource, for example, 
 two different Redis data stores with different credentials. Targets, sources, and artifacts, 
-can all use the data store profile. See also {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile` and 
-{py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`.
+can all use the data store profile. 
 
-Create a data store profile in the context of a project. 
-
-Example of creating a Redis datastore profile:
+Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
    `profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
    The username and password parameters are optional. 
@@ -150,3 +147,8 @@ Example of creating a Redis datastore profile:
 	explicitly in the URI using the format:<br>
     `RedisNoSqlTarget(path="ds://another_project@test_profile")`
 
+See also {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile`, 
+{py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`, and {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`.
+
+The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
+the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.

@@ -38,6 +38,10 @@ class KubejobRuntime(KubeResource):
 
     _is_remote = True
 
+    @staticmethod
+    def _get_lifecycle():
+        return None
+
     def is_deployed(self):
         """check if the function is deployed (has a valid container)"""
         if self.spec.image:
@@ -285,7 +289,6 @@ class KubejobRuntime(KubeResource):
                 print_log(text)
                 offset += len(text)
 
-        print()
         return self.status.state
 
     def deploy_step(
@@ -335,6 +338,7 @@ class KubejobRuntime(KubeResource):
             command,
             args,
             workdir,
+            self._get_lifecycle(),
         )
         pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
         try:
@@ -372,7 +376,7 @@ class KubejobRuntime(KubeResource):
         return workdir
 
 
-def func_to_pod(image, runtime, extra_env, command, args, workdir):
+def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
     container = client.V1Container(
         name="base",
         image=image,
@@ -383,6 +387,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         image_pull_policy=runtime.spec.image_pull_policy,
         volume_mounts=runtime.spec.volume_mounts,
         resources=runtime.spec.resources,
+        lifecycle=lifecycle,
     )
 
     pod_spec = kube_resource_spec_to_pod_spec(runtime.spec, container)

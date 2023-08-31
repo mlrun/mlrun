@@ -56,13 +56,14 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
         )
 
     def log_project_dashboard(
-        self, timestamp_start: pd.Timestamp, timestamp_end: pd.Timestamp
+        self, timestamp_start: pd.Timestamp, timestamp_end: pd.Timestamp, artifact_name: str = "dashboard"
     ):
         """
         Logs an Evidently project dashboard.
 
         :param timestamp_start: (pd.Timestamp) The start timestamp for the dashboard data.
         :param timestamp_end:   (pd.Timestamp) The end timestamp for the dashboard data.
+        :param artifact_name:
         """
 
         dashboard_info = self.evidently_project.build_dashboard_info(
@@ -74,7 +75,10 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
             additional_graphs={},
         )
 
-        self._render(determine_template("inline"), template_params)
+        dashboard_html = self._render(determine_template("inline"), template_params)
+        self.context.log_artifact(
+            artifact_name, body=dashboard_html.encode("utf-8")
+        )
 
     @staticmethod
     def _render(temple_func, template_params: TemplateParams):

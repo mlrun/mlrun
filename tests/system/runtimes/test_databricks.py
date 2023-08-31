@@ -14,7 +14,6 @@
 #
 import copy
 import os
-import threading
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -84,7 +83,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         return runs[0]
 
     def _abort_run(self):
-        print("start aborting")
+        self._logger.info("start aborting")
         mlrun_runs = self.project.list_runs(state="running")
         if len(mlrun_runs) < 1:
             raise MLRunRuntimeError(
@@ -298,10 +297,7 @@ def handler(**kwargs):
         test_run_uid = uuid.uuid4()
         databricks_run_name = f"databricks_abort_test_{test_run_uid}"
         params = {"task_parameters": {"databricks_run_name": databricks_run_name}}
-        run_thread = threading.Thread(
-            target=lambda: function.run(project=self.project_name, params=params)
-        )
-        run_thread.start()
+        function.run(project=self.project_name, params=params, watch=False)
         # wait for databricks to run the function.
         time.sleep(10)
         workspace = WorkspaceClient()
@@ -313,9 +309,9 @@ def handler(**kwargs):
             RunLifeCycleState.RUNNING,
         )
         self._abort_run()
+        time.sleep(5)
         run = workspace.jobs.get_run(run_id=run.run_id)
         # wait for databricks to update the status.
-        time.sleep(5)
         assert run.state.life_cycle_state in (
             RunLifeCycleState.TERMINATING,
             RunLifeCycleState.TERMINATED,

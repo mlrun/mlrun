@@ -21,14 +21,6 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
-# Update base pip packages (usually pip, setuptools, wheel):
-# NOTE: here we use /usr/local/bin/python directly to avoid usaing the conda env
-# as we want to upgrade the OS python packages
-RUN /usr/local/bin/python -m pip  list --disable-pip-version-check --format freeze \
-    | grep -v '^\-e' \
-    | cut -d'=' -f1 \
-    | xargs /usr/local/bin/python -m pip install --upgrade
-
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context

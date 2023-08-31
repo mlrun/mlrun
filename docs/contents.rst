@@ -21,8 +21,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
-   concepts/notifications
-    
+       
 .. toctree::
    :maxdepth: 1
    :caption: MLOps tasks

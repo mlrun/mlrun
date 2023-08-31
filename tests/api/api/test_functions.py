@@ -32,13 +32,15 @@ import mlrun.api.crud
 import mlrun.api.main
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.chief
+import mlrun.api.utils.clients.iguazio
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.utils.model_monitoring
+import mlrun.model_monitoring.tracking_policy
 import tests.api.api.utils
 import tests.conftest
 
@@ -346,8 +348,9 @@ def test_tracking_on_serving(
     httpserver,
     monkeypatch,
 ):
-    """Validating that the `mlrun.utils.model_monitoring.TrackingPolicy` configurations are generated as expected when
-    the user applies model monitoring on a serving function"""
+    """Validate that the `mlrun.common.schemas.model_monitoring.tracking_policy.TrackingPolicy` configurations are
+    generated as expected when the user applies model monitoring on a serving function
+    """
 
     # Generate a test project
     tests.api.api.utils.create_project(client, PROJECT)
@@ -366,12 +369,12 @@ def test_tracking_on_serving(
     functions_to_monkeypatch = {
         mlrun.api.api.utils: ["apply_enrichment_and_validation_on_function"],
         mlrun.api.api.endpoints.functions: [
-            "_process_model_monitoring_secret",
+            "process_model_monitoring_secret",
             "_create_model_monitoring_stream",
         ],
         mlrun.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],
-        mlrun.utils.model_monitoring: ["get_stream_path"],
+        mlrun.api.crud.model_monitoring: ["get_stream_path"],
     }
 
     for package in functions_to_monkeypatch:
@@ -395,7 +398,9 @@ def test_tracking_on_serving(
 
     assert function_from_db["spec"]["track_models"]
 
-    tracking_policy_default = mlrun.utils.model_monitoring.TrackingPolicy().to_dict()
+    tracking_policy_default = (
+        mlrun.model_monitoring.tracking_policy.TrackingPolicy().to_dict()
+    )
     assert (
         deepdiff.DeepDiff(
             tracking_policy_default,
@@ -495,6 +500,118 @@ def test_build_function_with_project_repo(
     assert function.spec.build.load_source_on_run == load_source_on_run
 
     mlrun.api.utils.builder.build_image = original_build_runtime
+
+
+def test_build_function_masks_access_key(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    # set auto mount to ensure it doesn't override the access key
+    mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
+    tests.api.api.utils.create_project(client, PROJECT)
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "env": [
+                {
+                    "name": "V3IO_ACCESS_KEY",
+                    "value": "123456789",
+                },
+                {
+                    "name": "V3IO_USERNAME",
+                    "value": "user",
+                },
+            ],
+        },
+    }
+    monkeypatch.setattr(
+        mlrun.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    function = mlrun.new_function(runtime=response.json()["data"])
+    assert function.get_env("V3IO_ACCESS_KEY") == {
+        "secretKeyRef": {"key": "accessKey", "name": "secret-ref-user-123456789"}
+    }
+
+
+@pytest.mark.parametrize(
+    "kind, expected_status_code, expected_reason",
+    [
+        ("job", HTTPStatus.OK.value, None),
+        (
+            "nuclio",
+            HTTPStatus.BAD_REQUEST.value,
+            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+        ),
+        (
+            "serving",
+            HTTPStatus.BAD_REQUEST.value,
+            "runtime error: Function access key must be set (function.metadata.credentials.access_key)",
+        ),
+    ],
+)
+def test_build_no_access_key(
+    monkeypatch,
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    k8s_secrets_mock,
+    kind,
+    expected_status_code,
+    expected_reason,
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
+
+    tests.api.api.utils.create_project(client, PROJECT)
+    function_dict = {
+        "kind": kind,
+        "metadata": {
+            "name": "function-name",
+            "project": "project-name",
+            "tag": "latest",
+        },
+        "spec": {
+            "env": [],
+        },
+    }
+
+    monkeypatch.setattr(
+        mlrun.api.utils.builder,
+        "build_image",
+        lambda *args, **kwargs: "success",
+    )
+
+    response = client.post(
+        "build/function",
+        json={"function": function_dict},
+    )
+    assert response.status_code == expected_status_code
+    if expected_reason:
+        assert response.json()["detail"]["reason"] == expected_reason
 
 
 def test_start_function_succeeded(
@@ -664,7 +781,6 @@ def _generate_function(
 def _generate_build_function_request(
     func, with_mlrun: bool = True, skip_deployed: bool = False, to_json: bool = True
 ):
-
     request = {
         "function": func.to_dict(),
         "with_mlrun": "yes" if with_mlrun else "false",

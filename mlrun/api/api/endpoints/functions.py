@@ -34,7 +34,8 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
+import mlrun.api.api.utils
+import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
 import mlrun.api.launcher
@@ -44,19 +45,21 @@ import mlrun.api.utils.clients.chief
 import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
+import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
+from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunRuntimeError, err_to_str
+from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 from mlrun.run import new_function
-from mlrun.runtimes import RuntimeKinds, ServingRuntime, runtime_resources_map
+from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
-from mlrun.utils import get_in, logger, parse_versioned_object_uri, update_in
-from mlrun.utils.model_monitoring import parse_model_endpoint_store_prefix
+from mlrun.utils import get_in, logger, update_in
 
 router = APIRouter()
 
@@ -94,7 +97,9 @@ async def store_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
@@ -262,9 +267,11 @@ async def build_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
-    logger.info(f"build_function:\n{data}")
+    logger.info("Building function", data=data)
     function = data.get("function")
     project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
     function_name = function.get("metadata", {}).get("name")
@@ -344,7 +351,9 @@ async def start_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.info("Got request to start function", body=data)
 
@@ -385,7 +394,9 @@ async def function_status(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     resp = await _get_function_status(data, auth_info)
     return {
@@ -419,7 +430,9 @@ async def build_status(
         mlrun.api.crud.Functions().get_function, db_session, name, project, tag
     )
     if not fn:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
+        )
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
@@ -448,21 +461,21 @@ async def build_status(
 
 
 def _handle_job_deploy_status(
-    db_session,
-    fn,
-    name,
-    project,
-    tag,
-    offset,
-    logs,
+    db_session: Session,
+    fn: dict,
+    name: str,
+    project: str,
+    tag: str,
+    offset: int,
+    logs: bool,
 ):
     # job deploy status
-    state = get_in(fn, "status.state", "")
+    function_state = get_in(fn, "status.state", "")
     pod = get_in(fn, "status.build_pod", "")
     image = get_in(fn, "spec.build.image", "")
     out = b""
     if not pod:
-        if state == mlrun.common.schemas.FunctionState.ready:
+        if function_state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -474,17 +487,19 @@ def _handle_job_deploy_status(
             content=out,
             media_type="text/plain",
             headers={
-                "function_status": state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
         )
 
     # read from log file
-    terminal_states = ["failed", "error", "ready"]
-    log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
-    if state in terminal_states and log_file.exists():
-        if state == mlrun.common.schemas.FunctionState.ready:
+    log_file = mlrun.api.api.utils.log_path(project, f"build_{name}__{tag or 'latest'}")
+    if (
+        function_state in mlrun.common.schemas.FunctionState.terminal_states()
+        and log_file.exists()
+    ):
+        if function_state == mlrun.common.schemas.FunctionState.ready:
             # when the function has been built we set the created image into the `spec.image` for reference see at the
             # end of the function where we resolve if the status is ready and then set the spec.build.image to
             # spec.image
@@ -500,40 +515,65 @@ def _handle_job_deploy_status(
             content=out,
             media_type="text/plain",
             headers={
-                "x-mlrun-function-status": state,
-                "function_status": state,
+                "x-mlrun-function-status": function_state,
+                "function_status": function_state,
                 "function_image": image,
                 "builder_pod": pod,
             },
         )
 
-    # TODO: change state to pod_status
-    state = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).get_pod_status(
-        pod
+    build_pod_state = mlrun.api.utils.singletons.k8s.get_k8s_helper(
+        silent=False
+    ).get_pod_status(pod)
+    logger.debug(
+        "Resolved pod status",
+        function_name=name,
+        pod_status=build_pod_state,
+        pod_name=pod,
     )
-    logger.info("Resolved pod status", pod_status=state, pod_name=pod)
 
-    if state == "succeeded":
-        logger.info("Build completed successfully")
-        state = mlrun.common.schemas.FunctionState.ready
-    if state in ["failed", "error"]:
-        logger.error("Build failed", pod_name=pod, pod_status=state)
-        state = mlrun.common.schemas.FunctionState.error
+    normalized_pod_function_state = (
+        mlrun.common.schemas.FunctionState.get_function_state_from_pod_state(
+            build_pod_state
+        )
+    )
+    if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
+        logger.info(
+            "Build completed successfully",
+            function_name=name,
+            pod=pod,
+            pod_state=build_pod_state,
+        )
+    elif normalized_pod_function_state == mlrun.common.schemas.FunctionState.error:
+        logger.error(
+            "Build failed", function_name=name, pod_name=pod, pod_status=build_pod_state
+        )
 
-    if (logs and state != "pending") or state in terminal_states:
+    if (
+        (
+            logs
+            and normalized_pod_function_state
+            != mlrun.common.schemas.FunctionState.pending
+        )
+        or normalized_pod_function_state
+        in mlrun.common.schemas.FunctionState.terminal_states()
+    ):
         try:
             resp = mlrun.api.utils.singletons.k8s.get_k8s_helper(silent=False).logs(pod)
         except ApiException as exc:
             logger.warning(
                 "Failed to get build logs",
                 function_name=name,
-                function_state=state,
+                function_state=normalized_pod_function_state,
                 pod=pod,
                 exc_info=exc,
             )
             resp = ""
 
-        if state in terminal_states:
+        if (
+            normalized_pod_function_state
+            in mlrun.common.schemas.FunctionState.terminal_states()
+        ):
             # TODO: move to log collector
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("wb") as fp:
@@ -543,28 +583,31 @@ def _handle_job_deploy_status(
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
-    update_in(fn, "status.state", state)
-    if state == mlrun.common.schemas.FunctionState.ready:
-        update_in(fn, "spec.image", image)
+    # check if the previous function state is different from the current build pod state, if that is the case then
+    # update the function and store to the database
+    if function_state != normalized_pod_function_state:
+        update_in(fn, "status.state", normalized_pod_function_state)
 
-    versioned = False
-    if state == mlrun.common.schemas.FunctionState.ready:
-        versioned = True
-    mlrun.api.crud.Functions().store_function(
-        db_session,
-        fn,
-        name,
-        project,
-        tag,
-        versioned=versioned,
-    )
+        versioned = False
+        if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
+            update_in(fn, "spec.image", image)
+            versioned = True
+
+        mlrun.api.crud.Functions().store_function(
+            db_session,
+            fn,
+            name,
+            project,
+            tag,
+            versioned=versioned,
+        )
 
     return Response(
         content=out,
         media_type="text/plain",
         headers={
-            "x-mlrun-function-status": state,
-            "function_status": state,
+            "x-mlrun-function-status": normalized_pod_function_state,
+            "function_status": normalized_pod_function_state,
             "function_image": image,
             "builder_pod": pod,
         },
@@ -668,21 +711,25 @@ def _build_function(
         fn = new_function(runtime=function)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
-        run_db = get_run_db_instance(db_session)
+        # connect to run db
+        run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
-        mlrun.api.launcher.ServerSideLauncher.enrich_runtime(runtime=fn)
-        fn.save(versioned=False)
-        if fn.kind in RuntimeKinds.nuclio_runtimes():
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                fn,
-                auth_info,
-            )
 
+        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
+
+        # Enrich runtime with project defaults
+        launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
+        # When runtime is nuclio, building means we deploy the function and not just build its image
+        # so we need full enrichment
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
+
+        fn.save(versioned=False)
+        if is_nuclio_runtime:
             if fn.kind == RuntimeKinds.serving:
                 # Handle model monitoring
                 try:
@@ -692,14 +739,16 @@ def _build_function(
                         # Generating model monitoring access key
                         model_monitoring_access_key = None
                         if not mlrun.mlconf.is_ce_mode():
-                            model_monitoring_access_key = _process_model_monitoring_secret(
+                            model_monitoring_access_key = process_model_monitoring_secret(
                                 db_session,
                                 fn.metadata.project,
-                                mlrun.common.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                             )
 
-                            stream_path = mlrun.utils.model_monitoring.get_stream_path(
-                                project=fn.metadata.project
+                            stream_path = (
+                                mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=fn.metadata.project
+                                )
                             )
 
                             if stream_path.startswith("v3io://"):
@@ -712,19 +761,15 @@ def _build_function(
 
                         if fn.spec.tracking_policy:
                             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
-                            fn.spec.tracking_policy = (
-                                mlrun.utils.model_monitoring.TrackingPolicy.from_dict(
-                                    fn.spec.tracking_policy
-                                )
+                            fn.spec.tracking_policy = TrackingPolicy.from_dict(
+                                fn.spec.tracking_policy
                             )
                         else:
                             # Initialize tracking policy with default values
-                            fn.spec.tracking_policy = (
-                                mlrun.utils.model_monitoring.TrackingPolicy()
-                            )
+                            fn.spec.tracking_policy = TrackingPolicy()
 
                         # deploy both model monitoring stream and model monitoring batch job
-                        mlrun.api.crud.ModelEndpoints().deploy_monitoring_functions(
+                        mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             db_session=db_session,
                             auth_info=auth_info,
@@ -749,7 +794,7 @@ def _build_function(
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
-            log_file = log_path(
+            log_file = mlrun.api.api.utils.log_path(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
@@ -771,7 +816,7 @@ def _build_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: {err_to_str(err)}",
         )
@@ -781,7 +826,7 @@ def _build_function(
 def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: functionUrl not specified",
         )
@@ -791,7 +836,7 @@ def _parse_start_function_body(db_session, data):
         db_session, name, project, tag, hash_key
     )
     if not runtime:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: function {url} not found",
         )
@@ -807,52 +852,41 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        resource = runtime_resources_map.get(function.kind)
-        if "start" not in resource:
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason="runtime error: 'start' not supported by this runtime",
-            )
-        try:
-            run_db = get_run_db_instance(db_session)
-            function.set_db_connection(run_db)
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                function,
-                auth_info,
-            )
+        run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
+        function.set_db_connection(run_db)
+        mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+            function,
+            auth_info,
+        )
 
-            #  resp = resource["start"](fn)  # TODO: handle resp?
-            resource["start"](
-                function,
-                client_version=client_version,
-                client_python_version=client_python_version,
-            )
-            function.save(versioned=False)
-            logger.info("Fn:\n %s", function.to_yaml())
-        except Exception as err:
-            logger.error(traceback.format_exc())
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason=f"runtime error: {err_to_str(err)}",
-            )
+        mlrun.api.crud.Functions().start_function(
+            function, client_version, client_python_version
+        )
+        logger.info("Fn:\n %s", function.to_yaml())
+
+    except mlrun.errors.MLRunBadRequestError:
+        raise
+
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime error: {err_to_str(err)}",
+        )
     finally:
         mlrun.api.db.session.close_session(db_session)
 
 
 async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
-    logger.info(f"function_status:\n{data}")
+    logger.info(f"Getting function status:\n{data}")
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: selector or runtime kind not specified",
+            reason="Runtime error: selector or runtime kind not specified",
         )
     project, name = data.get("project"), data.get("name")
-    # Only after 0.6.6 the client start sending the project and name, as long as 0.6.6 is a valid version we'll need
-    # to try and resolve them from the selector. TODO: remove this when 0.6.6 is not relevant anymore
-    if not project or not name:
-        project, name, _ = mlrun.runtimes.utils.parse_function_selector(selector)
 
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.function,
@@ -862,21 +896,22 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
         auth_info,
     )
 
-    resource = runtime_resources_map.get(kind)
-    if "status" not in resource:
-        log_and_raise(
-            HTTPStatus.BAD_REQUEST.value,
-            reason="runtime error: 'status' not supported by this runtime",
-        )
-
     try:
-        resp = resource["status"](selector)
-        logger.info("status: %s", resp)
+        status = mlrun.api.crud.Functions().get_function_status(
+            kind,
+            selector,
+        )
+        logger.info("Got function status", status=status)
+        return status
+
+    except mlrun.errors.MLRunBadRequestError:
+        raise
+
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
-            reason=f"runtime error: {err_to_str(err)}",
+            reason=f"Runtime error: {err_to_str(err)}",
         )
 
 
@@ -934,7 +969,7 @@ def _get_function_env_var(fn: ServingRuntime, var_name: str):
     return None
 
 
-def _process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
+def process_model_monitoring_secret(db_session, project_name: str, secret_key: str):
     # The expected result of this method is an access-key placed in an internal project-secret.
     # If the user provided an access-key as the "regular" secret_key, then we delete this secret and move contents
     # to the internal secret instead. Else, if the internal secret already contained a value, keep it. Last option

@@ -114,11 +114,11 @@ class GitNotification(NotificationBase):
                 with open(os.environ["GITHUB_EVENT_PATH"]) as fp:
                     data = fp.read()
                     event = json.loads(data)
-                    if "issue" not in event:
+                    if "number" not in event:
                         raise mlrun.errors.MLRunInvalidArgumentError(
                             f"issue not found in github actions event\ndata={data}"
                         )
-                    issue = event["issue"].get("number")
+                    issue = event["number"]
             headers = {
                 "Accept": "application/vnd.github.v3+json",
                 "Authorization": f"token {token}",

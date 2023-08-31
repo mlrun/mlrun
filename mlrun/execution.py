@@ -1038,8 +1038,10 @@ class MLClientCtx(object):
 
     def _update_run(self, commit=False, message=""):
         """
-        update the required fields in the run object (using mlrun.utils.helpers.update_in)
-        instead of overwriting existing
+        update the required fields in the run object instead of overwriting existing values with empty ones
+
+        :param commit:  commit the changes to the DB if autocommit is not set or update the tmpfile alone
+        :param message: commit message
         """
         self._merge_tmpfile()
         if commit or self._autocommit:

@@ -14,6 +14,7 @@
 #
 
 import datetime
+import json
 import logging
 import os
 import pathlib
@@ -117,7 +118,7 @@ class SystemTestPreparer:
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
         self._purge_db = purge_db
-        self._ssh_client = None
+        self._ssh_client: typing.Optional[paramiko.SSHClient] = None
 
         self._env_config = {
             "MLRUN_DBPATH": mlrun_dbpath,
@@ -198,11 +199,17 @@ class SystemTestPreparer:
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
+        suppress_error_strings: list = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
+        suppress_error_strings = suppress_error_strings or []
 
         log_command_location = "locally" if local else "on data cluster"
+
+        # ssh session might not be active if the command reran due retry mechanism on a connection failure
+        if not local:
+            self._ensure_ssh_session_active()
 
         if verbose:
             self._logger.log(
@@ -231,7 +238,20 @@ class SystemTestPreparer:
                     verbose,
                 )
             if exit_status != 0 and not suppress_errors:
-                raise RuntimeError(f"Command failed with exit status: {exit_status}")
+                for suppress_error_string in suppress_error_strings:
+                    if suppress_error_string in str(stderr):
+                        self._logger.log(
+                            "warning",
+                            "Suppressing error",
+                            stderr=stderr,
+                            suppress_error_string=suppress_error_string,
+                        )
+                        break
+                else:
+                    raise RuntimeError(
+                        f"Command failed with exit status: {exit_status}"
+                    )
+
         except (paramiko.SSHException, RuntimeError) as exc:
             err_log_kwargs = {
                 "error": str(exc),
@@ -372,6 +392,14 @@ class SystemTestPreparer:
         )
 
     def _enrich_env(self):
+        devutils_outputs = self._get_devutils_status()
+        if "redis" in devutils_outputs:
+            self._logger.log("debug", "Enriching env with redis info")
+            # uncomment when url is accessible from outside the cluster
+            # self._env_config["MLRUN_REDIS__URL"] = f"redis://{devutils_outputs['redis']['app_url']}"
+            # self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
+            # self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
+
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
@@ -451,20 +479,26 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
+        suppress_error_strings: list = None,
     ):
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
         while not finished and retries < max_retries:
             try:
-                self._run_command(command, verbose=False)
+                self._run_command(
+                    command,
+                    verbose=False,
+                    suppress_error_strings=suppress_error_strings,
+                )
                 finished = True
 
-            except Exception:
+            except Exception as exc:
                 self._logger.log(
                     "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
                     retry_number=retries,
+                    exc=exc,
                 )
                 retries += 1
                 time.sleep(interval)
@@ -539,6 +573,11 @@ class SystemTestPreparer:
                 "--force",
                 "mlrun",
                 mlrun_archive,
+                # enable audit events - will be ignored by provctl if mlrun version does not support it
+                # TODO: remove when setup is upgraded to iguazio version >= 3.5.4 since audit events
+                #  are enabled by default
+                "--feature-gates",
+                "mlrun.auditevents=enabled",
             ],
             detach=True,
         )
@@ -594,17 +633,24 @@ class SystemTestPreparer:
             password = f"-p {self._mysql_password} "
 
         drop_db_cmd = f"mysql --socket=/run/mysqld/mysql.sock -u {self._mysql_user} {password}-e 'DROP DATABASE mlrun;'"
-        self._run_kubectl_command(
-            args=[
-                "exec",
-                "-n",
-                self.Constants.namespace,
-                "-it",
-                mlrun_db_pod_name_cmd,
-                "--",
-                drop_db_cmd,
-            ],
-            verbose=False,
+
+        args = [
+            "kubectl",
+            "exec",
+            "-n",
+            self.Constants.namespace,
+            "-it",
+            mlrun_db_pod_name_cmd,
+            "--",
+            drop_db_cmd,
+        ]
+        command = " ".join(args)
+        self._run_and_wait_until_successful(
+            command,
+            command_name="delete mlrun db",
+            max_retries=5,
+            interval=10,
+            suppress_error_strings=["database doesn\\'t exist"],
         )
 
     def _get_pod_name_command(self, labels):
@@ -646,11 +692,12 @@ class SystemTestPreparer:
             ]
         )
 
-    def _run_kubectl_command(self, args, verbose=True):
+    def _run_kubectl_command(self, args, verbose=True, suppress_error_strings=None):
         return self._run_command(
             command="kubectl",
             args=args,
             verbose=verbose,
+            suppress_error_strings=suppress_error_strings,
         )
 
     def _serialize_env_config(self, allow_none_values: bool = False):
@@ -698,6 +745,53 @@ class SystemTestPreparer:
         if stderr:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
         return service_name.strip()
+
+    def _get_devutils_status(self):
+        out, err = "", ""
+        try:
+            out, err = self._run_command(
+                "python3",
+                [
+                    "/home/iguazio/dev_utilities.py",
+                    "status",
+                    "--redis",
+                    "--kafka",
+                    "--mysql",
+                    "--redisinsight",
+                    "--output",
+                    "json",
+                ],
+            )
+        except Exception as exc:
+            self._logger.log(
+                "warning", "Failed to enrich env", exc=exc, err=err, out=out
+            )
+
+        return json.loads(out or "{}")
+
+    def _ensure_ssh_session_active(self):
+        self._logger.log("info", "Ensuring ssh session is active")
+        try:
+            self._ssh_client.exec_command("ls > /dev/null")
+        except Exception as exc:
+            exc_msg = str(exc)
+            self._logger.log("warning", "Failed to execute command", exc=exc_msg)
+            if any(
+                map(
+                    lambda err_msg: err_msg.lower() in exc_msg.lower(),
+                    [
+                        "No existing session",
+                        "session not active",
+                        "Unable to connect to",
+                    ],
+                )
+            ):
+                self._logger.log("info", "Reconnecting to remote")
+                self.connect_to_remote()
+                self._logger.log("info", "Reconnected to remote")
+                return
+            raise
+        self._logger.log("info", "SSH session is active")
 
 
 @click.group()

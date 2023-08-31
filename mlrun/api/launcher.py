@@ -13,20 +13,40 @@
 # limitations under the License.
 from typing import Dict, List, Optional, Union
 
+from dependency_injector import containers, providers
+
 import mlrun.api.crud
-import mlrun.api.db.sqldb.session
+import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
 import mlrun.execution
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
+import mlrun.launcher.factory
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.regex
 
+# must be at the bottom to avoid circular import conflicts and can't use 'from' notation because unit tests mock this
+import mlrun.api.api.utils  # isort:skip
 
-class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+
+class ServerSideLauncher(launcher.BaseLauncher):
+    def __init__(
+        self,
+        local: bool = False,
+        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        if local:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Launch of local run inside the server is not allowed"
+            )
+
+        self._auth_info = auth_info
+
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
@@ -132,7 +152,6 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             # single run
             try:
                 resp = runtime._run(run, execution)
-
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
@@ -145,15 +164,34 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
-    @staticmethod
     def enrich_runtime(
-        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+        project_name: Optional[str] = "",
+        full: bool = True,
     ):
         """
         Enrich the runtime object with the project spec and metadata.
         This is done only on the server side, since it's the source of truth for the project, and we want to keep the
         client side enrichment as minimal as possible.
+        :param runtime:         the runtime object to enrich
+        :param project_name:    the project name of the project to enrich the runtime with
+        :param full:            whether to enrich the runtime with the project's full spec (before run)
+                                e.g. mount, service account, etc.
         """
+
+        # if auth given in request ensure the function pod will have these auth env vars set, otherwise the job won't
+        # be able to communicate with the api
+        mlrun.api.api.utils.ensure_function_has_auth_set(
+            runtime, self._auth_info, allow_empty_access_key=not full
+        )
+
+        if full:
+            self._enrich_full_spec(runtime)
+
+        # mask sensitive data after full spec enrichment in case auth was enriched by auto mount
+        mlrun.api.api.utils.mask_function_sensitive_data(runtime, self._auth_info)
+
         # ensure the runtime has a project before we enrich it with the project's spec
         runtime.metadata.project = (
             project_name
@@ -165,9 +203,26 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         # in normal use cases if no project is found we will get an error
         if project:
             project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
             mlrun.projects.pipelines.enrich_function_object(
-                project, runtime, copy_function=False
+                project, runtime, copy_function=False, try_auto_mount=False
             )
+
+    def _enrich_full_spec(
+        self,
+        runtime: "mlrun.runtimes.base.BaseRuntime",
+    ):
+
+        # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
+        # config and params passed in the auth_info.
+        # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.
+        mlrun.api.api.utils.try_perform_auto_mount(runtime, self._auth_info)
+
+        # Validate function's service-account, based on allowed SAs for the project,
+        # if existing in a project-secret.
+        mlrun.api.api.utils.process_function_service_account(runtime)
+
+        mlrun.api.api.utils.ensure_function_security_context(runtime, self._auth_info)
 
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):
@@ -175,7 +230,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.api.db.sqldb.session.create_session()
+        session = mlrun.common.db.sql_session.create_session()
         mlrun.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,
@@ -194,3 +249,24 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
+
+    def _validate_runtime(
+        self,
+        runtime: "mlrun.runtimes.BaseRuntime",
+        run: "mlrun.run.RunObject",
+    ):
+        if (
+            mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and not mlrun.mlconf.httpdb.jobs.allow_local_run
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Local runtimes can not be run through API (not locally)"
+            )
+
+        super()._validate_runtime(runtime, run)
+
+
+# Once this file is imported it will set the container server side launcher
+@containers.override(mlrun.launcher.factory.LauncherContainer)
+class ServerSideLauncherContainer(containers.DeclarativeContainer):
+    server_side_launcher = providers.Factory(ServerSideLauncher)

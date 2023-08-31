@@ -26,8 +26,11 @@ project.set_function(name='deploy-model', func='hub://v2_model_server')
 
 ## Write a pipeline
 
-Next, define the pipeline that orchestrates the three components. This pipeline is simple, however you can create very complex pipelines with branches, conditions, and more.
+Next, define the pipeline that orchestrates the three components. This pipeline is simple, however, you can create very complex pipelines with branches, conditions, and more.
 
+```{admonition} Tip
+To pass parameters between steps, use the `outputs` parameter. 
+```
 ```
 %%writefile pipelines/training_pipeline.py
 from kfp import dsl

@@ -17,7 +17,7 @@ import json
 import re
 import traceback
 import typing
-from hashlib import sha1
+from hashlib import sha1, sha224
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
@@ -27,6 +27,7 @@ from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
+import mlrun.api.constants
 import mlrun.api.crud
 import mlrun.api.db.base
 import mlrun.api.utils.auth.verifier
@@ -37,15 +38,16 @@ import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
 from mlrun.api.db.sqldb.db import SQLDB
+from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
-from mlrun.db.sqldb import SQLDB as SQLRunDB
 from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import get_in, logger, parse_versioned_object_uri
+from mlrun.utils import get_in, logger
 
 
 def log_and_raise(status=HTTPStatus.BAD_REQUEST.value, **kw):
@@ -132,6 +134,8 @@ def get_secrets(
 def get_run_db_instance(
     db_session: Session,
 ):
+    # TODO: getting the run db should be done seamlessly by the run db factory and not require this logic to
+    #  inject the session
     db = get_db()
     if isinstance(db, SQLDB):
         run_db = SQLRunDB(db.dsn, db_session)
@@ -155,12 +159,8 @@ def parse_submit_run_body(data):
     return function_dict, function_url, task
 
 
-def _generate_function_and_task_from_submit_run_body(
-    db_session: Session, auth_info: mlrun.common.schemas.AuthInfo, data
-):
+def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     function_dict, function_url, task = parse_submit_run_body(data)
-    # TODO: block exec for function["kind"] in ["", "local]  (must be a
-    # remote/container runtime)
 
     if function_dict and not function_url:
         function = new_function(runtime=function_dict)
@@ -187,7 +187,6 @@ def _generate_function_and_task_from_submit_run_body(
             # assign values from it to the main function object
             function = enrich_function_from_dict(function, function_dict)
 
-    apply_enrichment_and_validation_on_function(function, auth_info)
     apply_enrichment_and_validation_on_task(task)
 
     return function, task
@@ -203,12 +202,20 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(task):
+    # Conceal notification config params from the task object with secrets
+    mask_notification_params_on_task(task, mlrun.api.constants.MaskOperations.CONCEAL)
 
-    # Masking notification config params from the task object
-    mask_notification_params_on_task(task)
 
-
-def mask_notification_params_on_task(task):
+def mask_notification_params_on_task(
+    task: dict,
+    action: mlrun.api.constants.MaskOperations,
+):
+    """
+    Mask notification config params from the task object
+    :param task:    The task object to mask
+    :param action:  The masking operation to perform on the notification config params (conceal/redact)
+    """
+    mask_op = _notification_params_mask_op(action)
     run_uid = get_in(task, "metadata.uid")
     project = get_in(task, "metadata.project")
     notifications = task.get("spec", {}).get("notifications", [])
@@ -217,33 +224,73 @@ def mask_notification_params_on_task(task):
         for notification in notifications:
             notification_object = mlrun.model.Notification.from_dict(notification)
             masked_notifications.append(
-                mask_notification_params_with_secret(
-                    project, run_uid, notification_object
-                ).to_dict()
+                mask_op(project, run_uid, notification_object).to_dict()
             )
     task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
-def mask_notification_params_with_secret(
+def _notification_params_mask_op(
+    action,
+) -> typing.Callable[[str, str, mlrun.model.Notification], mlrun.model.Notification]:
+    return {
+        mlrun.api.constants.MaskOperations.CONCEAL: _conceal_notification_params_with_secret,
+        mlrun.api.constants.MaskOperations.REDACT: _redact_notification_params,
+    }[action]
+
+
+def _conceal_notification_params_with_secret(
     project: str, parent: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    if notification_object.params and "secret" not in notification_object.params:
+    if (
+        notification_object.secret_params
+        and "secret" not in notification_object.secret_params
+    ):
+
+        # create secret key from a hash of the secret params. this will allow multiple notifications with the same
+        # params to share the same secret (saving secret storage space).
+        # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.
+        #       as we currently don't delete runs unless the project is deleted (in which case, the entire secret is
+        #       deleted), we don't need the mechanism yet.
         secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
             mlrun.api.crud.SecretsClientType.notifications,
-            parent,
-            notification_object.name,
+            _generate_notification_secret_key(notification_object),
         )
         mlrun.api.crud.Secrets().store_project_secrets(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secrets={secret_key: json.dumps(notification_object.params)},
+                secrets={secret_key: json.dumps(notification_object.secret_params)},
             ),
             allow_internal_secrets=True,
         )
-        notification_object.params = {"secret": secret_key}
+        notification_object.secret_params = {"secret": secret_key}
 
     return notification_object
+
+
+def _redact_notification_params(
+    project: str, parent: str, notification_object: mlrun.model.Notification
+) -> mlrun.model.Notification:
+    if not notification_object.secret_params:
+        return notification_object
+
+    # If the notification params contain a secret key, we consider them concealed and don't redact them
+    if "secret" in notification_object.secret_params:
+        return notification_object
+
+    for param in notification_object.secret_params:
+        notification_object.secret_params[param] = "REDACTED"
+
+    return notification_object
+
+
+def _generate_notification_secret_key(
+    notification_object: mlrun.model.Notification,
+) -> str:
+    # hash notification params to generate a unique secret key
+    return sha224(
+        json.dumps(notification_object.secret_params, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 def unmask_notification_params_secret_on_task(
@@ -289,8 +336,8 @@ def unmask_notification_params_secret_on_task(
 def unmask_notification_params_secret(
     project: str, notification_object: mlrun.model.Notification
 ) -> mlrun.model.Notification:
-    params = notification_object.params or {}
-    params_secret = params.get("secret", "")
+    secret_params = notification_object.secret_params or {}
+    params_secret = secret_params.get("secret", "")
     if not params_secret:
         return notification_object
 
@@ -300,7 +347,7 @@ def unmask_notification_params_secret(
             "Not running in k8s environment, cannot load notification params secret"
         )
 
-    notification_object.params = json.loads(
+    notification_object.secret_params = json.loads(
         mlrun.api.crud.Secrets().get_project_secret(
             project,
             mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -316,8 +363,8 @@ def unmask_notification_params_secret(
 def delete_notification_params_secret(
     project: str, notification_object: mlrun.model.Notification
 ) -> None:
-    params = notification_object.params or {}
-    params_secret = params.get("secret", "")
+    secret_params = notification_object.secret_params or {}
+    params_secret = secret_params.get("secret", "")
     if not params_secret:
         return
 
@@ -376,11 +423,12 @@ def validate_and_mask_notification_list(
     mlrun.model.Notification.validate_notification_uniqueness(notification_objects)
 
     return [
-        mask_notification_params_with_secret(project, parent, notification_object)
+        _conceal_notification_params_with_secret(project, parent, notification_object)
         for notification_object in notification_objects
     ]
 
 
+# TODO: split enrichment and validation to separate functions should be in the launcher
 def apply_enrichment_and_validation_on_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
@@ -817,7 +865,6 @@ def ensure_function_security_context(
         mlrun.common.schemas.SecurityContextEnrichmentModes.override.value,
         mlrun.common.schemas.SecurityContextEnrichmentModes.retain.value,
     ]:
-
         # before iguazio 3.6 the user unix id is not passed in the session verification response headers
         # so we need to request it explicitly
         if auth_info.user_unix_id is None:
@@ -884,16 +931,8 @@ def submit_run_sync(
     project = None
     response = None
     try:
-        fn, task = _generate_function_and_task_from_submit_run_body(
-            db_session, auth_info, data
-        )
-        if (
-            mlrun.runtimes.RuntimeKinds.is_local_runtime(fn.kind)
-            and not mlrun.mlconf.httpdb.jobs.allow_local_run
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Local runtimes can not be run through API (not locally)"
-            )
+        fn, task = _generate_function_and_task_from_submit_run_body(db_session, data)
+
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
         logger.info("Submitting run", function=fn.to_dict(), task=task)
@@ -903,7 +942,6 @@ def submit_run_sync(
             if isinstance(cron_trigger, dict):
                 cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(**cron_trigger)
             schedule_labels = task["metadata"].get("labels")
-            created = False
 
             # if the task is pointing to a remote function (hub://), we need to save it to the db
             # and update the task to point to the saved function, so that the scheduler will be able to
@@ -914,42 +952,26 @@ def submit_run_sync(
                 data.pop("function_url", None)
                 task["spec"]["function"] = function_uri.replace("db://", "")
 
-            try:
-                get_scheduler().update_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                logger.debug(
-                    "No existing schedule found, creating a new one",
-                    project=task["metadata"]["project"],
-                    name=task["metadata"]["name"],
-                )
-                get_scheduler().create_schedule(
-                    db_session,
-                    auth_info,
-                    task["metadata"]["project"],
-                    task["metadata"]["name"],
-                    mlrun.common.schemas.ScheduleKinds.job,
-                    data,
-                    cron_trigger,
-                    schedule_labels,
-                )
-                created = True
-            project = task["metadata"]["project"]
+            is_update = get_scheduler().store_schedule(
+                db_session,
+                auth_info,
+                task["metadata"]["project"],
+                task["metadata"]["name"],
+                mlrun.common.schemas.ScheduleKinds.job,
+                data,
+                cron_trigger,
+                schedule_labels,
+            )
 
+            project = task["metadata"]["project"]
             response = {
                 "schedule": schedule,
                 "project": task["metadata"]["project"],
                 "name": task["metadata"]["name"],
                 # indicate whether it was created or modified
-                "action": "created" if created else "modified",
+                "action": "modified" if is_update else "created",
             }
+
         else:
             # When processing a hyper-param run, secrets may be needed to access the parameters file (which is accessed
             # locally from the mlrun service pod) - include project secrets and the caller's access key
@@ -966,7 +988,12 @@ def submit_run_sync(
                 auth_info.data_session or auth_info.access_key
             )
 
-            run = fn.run(task, watch=False, param_file_secrets=param_file_secrets)
+            run = fn.run(
+                task,
+                watch=False,
+                param_file_secrets=param_file_secrets,
+                auth_info=auth_info,
+            )
             run_uid = run.metadata.uid
             project = run.metadata.project
             if run:

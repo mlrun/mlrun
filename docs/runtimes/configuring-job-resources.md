@@ -9,6 +9,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 **In this section**
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
+- [Number of GPUs](#number-of-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
@@ -51,7 +52,7 @@ Configure the limits assigned to a function by using `with_limits`. For example:
 
 ```
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                                                       kind="mpijob", image="mlrun/ml-models-gpu")
+                                           kind="mpijob", image="mlrun/mlrun-gpu")
 training_function.spec.replicas = 2
 training_function.with_requests(cpu=2)
 training_function.with_limits(gpus=1)
@@ -60,6 +61,11 @@ training_function.with_limits(gpus=1)
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
+## Number of GPUs
+
+When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of 
+workers. You can set the number of workers for each trigger and the number of GPUs for each pod 
+using the MLRun SDK.
 
 ## Volumes
 

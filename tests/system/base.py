@@ -17,12 +17,13 @@ import pathlib
 import sys
 import typing
 
+import igz_mgmt
 import pytest
 import yaml
 from deepdiff import DeepDiff
 
 import mlrun.common.schemas
-from mlrun import get_run_db, mlconf, set_environment
+from mlrun import get_run_db, mlconf
 from mlrun.utils import create_logger
 
 logger = create_logger(level="debug", name="test-system")
@@ -42,6 +43,7 @@ class TestMLRunSystem:
         "V3IO_FRAMESD",
         "V3IO_USERNAME",
         "V3IO_ACCESS_KEY",
+        "MLRUN_IGUAZIO_API_URL",
         "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE",
     ]
 
@@ -58,6 +60,13 @@ class TestMLRunSystem:
         cls._run_db = get_run_db()
         cls.custom_setup_class()
         cls._logger = logger.get_child(cls.__name__.lower())
+        cls.project: typing.Optional[mlrun.projects.MlrunProject] = None
+
+        if "MLRUN_IGUAZIO_API_URL" in env:
+            cls._igz_mgmt_client = igz_mgmt.Client(
+                endpoint=env["MLRUN_IGUAZIO_API_URL"],
+                access_key=env["V3IO_ACCESS_KEY"],
+            )
 
         # the dbpath is already configured on the test startup before this stage
         # so even though we set the env var, we still need to directly configure
@@ -77,7 +86,6 @@ class TestMLRunSystem:
         self._run_db = get_run_db()
 
         if not self._skip_set_environment():
-            set_environment(project=self.project_name)
             self.project = mlrun.get_or_create_project(self.project_name, "./")
 
         self.custom_setup()
@@ -180,6 +188,7 @@ class TestMLRunSystem:
 
     @property
     def assets_path(self):
+        """Returns the test file directory "assets" directory."""
         return (
             pathlib.Path(sys.modules[self.__module__].__file__).absolute().parent
             / "assets"
@@ -291,7 +300,7 @@ class TestMLRunSystem:
         iteration_results: bool = False,
     ):
         self._logger.debug("Verifying run outputs", spec=run_outputs)
-        assert run_outputs["chart"].startswith(str(output_path))
+        assert run_outputs["plotly"].startswith(str(output_path))
         assert run_outputs["mydf"] == f"store://artifacts/{project}/{name}_mydf:{uid}"
         assert run_outputs["model"] == f"store://artifacts/{project}/{name}_model:{uid}"
         assert (

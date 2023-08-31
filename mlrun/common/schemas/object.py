@@ -78,3 +78,7 @@ class ObjectKind(mlrun.common.types.StrEnum):
     hub_source = "HubSource"
     hub_item = "HubItem"
     hub_catalog = "HubCatalog"
+
+
+class ObjectStatusState(mlrun.common.types.StrEnum):
+    CREATED = "created"

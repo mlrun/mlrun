@@ -1,5 +1,5 @@
 (ci-cd-automate)=
-# CD/CD automation with Git
+# CI/CD automation with Git
 
 **In this section**
 
@@ -8,4 +8,5 @@
 
 automate-project-git-source
 load-project-yaml
+ci-integration
 ````

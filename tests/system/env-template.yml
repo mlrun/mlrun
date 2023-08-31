@@ -21,6 +21,9 @@ MLRUN_DBPATH:
 # The webapi https_direct url - e.g. https://default-tenant.app.hedingber-28-1.iguazio-cd2.com:8444
 V3IO_API:
 
+# Iguazio API URL - e.g. https://dashboard.default-tenant.app.hedingber-28-1.iguazio-cd2.com
+MLRUN_IGUAZIO_API_URL:
+
 # The framesd url - e.g. https://framesd.default-tenant.app.hedingber-28-1.iguazio-cd2.com
 V3IO_FRAMESD:
 

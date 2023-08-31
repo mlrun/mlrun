@@ -14,21 +14,15 @@
 import os.path
 import typing
 from copy import deepcopy
-from datetime import datetime
-from typing import Dict, Optional, Tuple
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
-from sqlalchemy.orm import Session
 
+import mlrun.db
 import mlrun.errors
 import mlrun.utils.regex
-from mlrun.api.db.base import DBInterface
 from mlrun.config import config
-from mlrun.db import get_run_db
 from mlrun.errors import err_to_str
-from mlrun.runtimes.base import BaseRuntimeHandler
-from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 
 from ...execution import MLClientCtx
 from ...model import RunObject
@@ -41,7 +35,7 @@ from ...utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
-from ..base import RunError, RuntimeClassMode
+from ..base import RunError
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
 from ..utils import get_item_name, get_k8s
@@ -242,7 +236,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
-        get_run_db().delete_function(name=sj.metadata.name)
+        mlrun.db.get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         driver_limits = self.spec.driver_resources.get("limits")
@@ -292,7 +286,7 @@ class AbstractSparkRuntime(KubejobRuntime):
         :return True if the function is ready (deployed)
         """
         # connect will populate the config from the server config
-        get_run_db()
+        mlrun.db.get_run_db()
         if not self.spec.build.base_image:
             self.spec.build.base_image = self._default_image
         return super().deploy(
@@ -372,6 +366,13 @@ class AbstractSparkRuntime(KubejobRuntime):
             )
 
         super()._pre_run(runobj, execution)
+
+    @staticmethod
+    def _parse_cpu_resource_string(cpu):
+        if isinstance(cpu, str) and cpu.endswith("m"):
+            return float(cpu[:-1]) / 1000
+        else:
+            return float(cpu)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
@@ -492,12 +493,14 @@ with ctx:
             for k, v in self.spec.hadoop_conf.items():
                 job["spec"]["hadoopConf"][f"{k}"] = f"{v}"
 
+        executor_cpu_limit = None
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
+                executor_cpu_limit = self.spec.executor_resources["limits"]["cpu"]
                 verify_and_update_in(
                     job,
                     "spec.executor.coreLimit",
-                    self.spec.executor_resources["limits"]["cpu"],
+                    executor_cpu_limit,
                     str,
                 )
         if "requests" in self.spec.executor_resources:
@@ -508,6 +511,17 @@ with ctx:
                 int,
             )
             if "cpu" in self.spec.executor_resources["requests"]:
+                if executor_cpu_limit is not None:
+                    executor_cpu_request = self.spec.executor_resources["requests"][
+                        "cpu"
+                    ]
+                    if self._parse_cpu_resource_string(
+                        executor_cpu_request
+                    ) > self._parse_cpu_resource_string(executor_cpu_limit):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Executor CPU request ({executor_cpu_request}) is higher than limit "
+                            f"({executor_cpu_limit})"
+                        )
                 verify_and_update_in(
                     job,
                     "spec.executor.coreRequest",
@@ -535,8 +549,10 @@ with ctx:
                         gpu_quantity,
                         int,
                     )
+        driver_cpu_limit = None
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
+                driver_cpu_limit = self.spec.driver_resources["limits"]["cpu"]
                 verify_and_update_in(
                     job,
                     "spec.driver.coreLimit",
@@ -544,7 +560,22 @@ with ctx:
                     str,
                 )
         if "requests" in self.spec.driver_resources:
-            # CPU Requests for driver moved to child classes as spark3 supports string (i.e: "100m") and not only int
+            if "cpu" in self.spec.driver_resources["requests"]:
+                if driver_cpu_limit is not None:
+                    driver_cpu_request = self.spec.driver_resources["requests"]["cpu"]
+                    if self._parse_cpu_resource_string(
+                        driver_cpu_request
+                    ) > self._parse_cpu_resource_string(driver_cpu_limit):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Driver CPU request ({driver_cpu_request}) is higher than limit "
+                            f"({driver_cpu_limit})"
+                        )
+                verify_and_update_in(
+                    job,
+                    "spec.driver.coreRequest",
+                    str(self.spec.driver_resources["requests"]["cpu"]),
+                    str,
+                )
             if "memory" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
                     job,
@@ -841,124 +872,3 @@ with ctx:
     @spec.setter
     def spec(self, spec):
         raise NotImplementedError()
-
-
-class SparkRuntimeHandler(BaseRuntimeHandler):
-    kind = "spark"
-    class_modes = {
-        RuntimeClassMode.run: "spark",
-    }
-
-    def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
-    ) -> Tuple[bool, Optional[datetime], Optional[str]]:
-        state = crd_object.get("status", {}).get("applicationState", {}).get("state")
-        in_terminal_state = state in SparkApplicationStates.terminal_states()
-        desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
-            state
-        )
-        completion_time = None
-        if in_terminal_state:
-            if crd_object.get("status", {}).get("terminationTime"):
-                completion_time = datetime.fromisoformat(
-                    crd_object.get("status", {})
-                    .get("terminationTime")
-                    .replace("Z", "+00:00")
-                )
-            else:
-                last_submission_attempt_time = crd_object.get("status", {}).get(
-                    "lastSubmissionAttemptTime"
-                )
-                if last_submission_attempt_time:
-                    last_submission_attempt_time = last_submission_attempt_time.replace(
-                        "Z", "+00:00"
-                    )
-                    completion_time = datetime.fromisoformat(
-                        last_submission_attempt_time
-                    )
-        return in_terminal_state, completion_time, desired_run_state
-
-    def _update_ui_url(
-        self,
-        db: DBInterface,
-        db_session: Session,
-        project: str,
-        uid: str,
-        crd_object,
-        run: Dict = None,
-    ):
-        app_state = (
-            crd_object.get("status", {}).get("applicationState", {}).get("state")
-        )
-        state = SparkApplicationStates.spark_application_state_to_run_state(app_state)
-        ui_url = None
-        if state == RunStates.running:
-            ui_url = (
-                crd_object.get("status", {})
-                .get("driverInfo", {})
-                .get("webUIIngressAddress")
-            )
-        db_ui_url = run.get("status", {}).get("ui_url")
-        if db_ui_url == ui_url:
-            return
-        run.setdefault("status", {})["ui_url"] = ui_url
-        db.store_run(db_session, run, uid, project)
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"
-
-    @staticmethod
-    def _get_main_runtime_resource_label_selector() -> str:
-        """
-        There are some runtimes which might have multiple k8s resources attached to a one runtime, in this case
-        we don't want to pull logs from all but rather only for the "driver"/"launcher" etc
-        :return: the label selector
-        """
-        return "spark-role=driver"
-
-    @staticmethod
-    def _get_crd_info() -> Tuple[str, str, str]:
-        return (
-            AbstractSparkRuntime.group,
-            AbstractSparkRuntime.version,
-            AbstractSparkRuntime.plural,
-        )
-
-    def _delete_extra_resources(
-        self,
-        db: DBInterface,
-        db_session: Session,
-        namespace: str,
-        deleted_resources: typing.List[Dict],
-        label_selector: str = None,
-        force: bool = False,
-        grace_period: int = None,
-    ):
-        """
-        Handling config maps deletion
-        """
-        uids = []
-        for crd_dict in deleted_resources:
-            uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
-            uids.append(uid)
-
-        config_maps = get_k8s().v1api.list_namespaced_config_map(
-            namespace, label_selector=label_selector
-        )
-        for config_map in config_maps.items:
-            try:
-                uid = config_map.metadata.labels.get("mlrun/uid", None)
-                if force or uid in uids:
-                    get_k8s().v1api.delete_namespaced_config_map(
-                        config_map.metadata.name, namespace
-                    )
-                    logger.info(f"Deleted config map: {config_map.metadata.name}")
-            except ApiException as exc:
-                # ignore error if config map is already removed
-                if exc.status != 404:
-                    raise

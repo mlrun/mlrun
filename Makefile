@@ -29,11 +29,11 @@ MLRUN_DOCKER_REGISTRY ?=
 MLRUN_NO_CACHE ?=
 MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # do not specify the patch version so that we can easily upgrade it when needed - it is determined by the base image
-# mainly used for mlrun, base, models and models-gpu images. mlrun API version >= 1.3.0 should always have python 3.9
+# mainly used for mlrun, base and models images. mlrun API version >= 1.3.0 should always have python 3.9
 MLRUN_PYTHON_VERSION ?= 3.9
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
-MLRUN_PIP_VERSION ?= 22.3.0
+MLRUN_PIP_VERSION ?= 23.2.1
 MLRUN_CACHE_DATE ?= $(shell date +%s)
 # empty by default, can be set to something like "tag-name" which will cause to:
 # 1. docker pull the same image with the given tag (cache image) before the build
@@ -48,7 +48,7 @@ MLRUN_RAISE_ON_ERROR ?= true
 MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
-MLRUN_CUDA_VERSION ?= 11.7.0
+MLRUN_GPU_CUDA_VERSION ?= 11.7.1-cudnn8-devel-ubuntu20.04
 MLRUN_TENSORFLOW_VERSION ?= 2.9.0
 MLRUN_HOROVOD_VERSION ?= 0.25.0
 # overrides the ml-models base image (models core) since it is broken and ml-models is about to be deprecated anyway
@@ -117,36 +117,16 @@ install-all-requirements: ## Install all requirements needed for development and
 	python -m pip install .[all]
 
 .PHONY: create-migration-sqlite
-create-migration-sqlite: export MLRUN_HTTPDB__DSN="sqlite:///$(shell pwd)/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 create-migration-sqlite: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-ifndef MLRUN_MIGRATION_MESSAGE
-	$(error MLRUN_MIGRATION_MESSAGE is undefined)
-endif
-	alembic -c ./mlrun/api/alembic.ini upgrade head
-	alembic -c ./mlrun/api/alembic.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+	./automation/scripts/create_migration_sqlite.sh
 
 .PHONY: create-migration-mysql
-create-migration-mysql: export MLRUN_HTTPDB__DSN="mysql+pymysql://root:pass@localhost:3306/mlrun"
 create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must be set)
-ifndef MLRUN_MIGRATION_MESSAGE
-	$(error MLRUN_MIGRATION_MESSAGE is undefined)
-endif
-	docker run \
-		--name=migration-db \
-		--rm \
-		-v $(shell pwd):/mlrun \
-		-p 3306:3306 \
-		-e MYSQL_ROOT_PASSWORD="pass" \
-		-e MYSQL_ROOT_HOST=% \
-		-e MYSQL_DATABASE="mlrun" \
-		-d \
-		mysql/mysql-server:8.0 \
-		--character-set-server=utf8 \
-		--collation-server=utf8_bin
-	alembic -c ./mlrun/api/alembic_mysql.ini upgrade head
-	alembic -c ./mlrun/api/alembic_mysql.ini revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
-	docker kill migration-db
-	docker rm migration-db
+	./automation/scripts/create_migration_mysql.sh
+
+.PHONY: create-migration
+create-migration: create-migration-sqlite create-migration-mysql
+	@echo "Migrations created successfully"
 
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
@@ -172,10 +152,10 @@ build: docker-images package-wheel ## Build all artifacts
 DEFAULT_DOCKER_IMAGES_RULES = \
 	api \
 	mlrun \
+	mlrun-gpu \
 	jupyter \
 	base \
 	models \
-	models-gpu \
 	log-collector
 
 .PHONY: docker-images
@@ -209,6 +189,7 @@ mlrun: update-version-file ## Build mlrun docker image
 	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/mlrun/Dockerfile \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		$(MLRUN_IMAGE_DOCKER_CACHE_FROM_FLAG) \
@@ -224,6 +205,48 @@ push-mlrun: mlrun ## Push mlrun docker image
 pull-mlrun: ## Pull mlrun docker image
 	docker pull $(MLRUN_IMAGE_NAME_TAGGED)
 
+MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_GPU_CUDA_VERSION)
+MLRUN_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/mlrun-gpu
+MLRUN_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/mlrun-gpu
+MLRUN_GPU_IMAGE_NAME_TAGGED := $(MLRUN_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)), docker pull $(MLRUN_CACHE_IMAGE_NAME_TAGGED) || true,)
+MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_GPU_CACHE_IMAGE_NAME_TAGGED),)
+DEFAULT_IMAGES += $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+
+.PHONY: mlrun-gpu
+mlrun-gpu: update-version-file ## Build mlrun gpu docker image
+	$(MLRUN_CACHE_IMAGE_PULL_COMMAND)
+	docker build \
+		--file dockerfiles/gpu/Dockerfile \
+		--build-arg MLRUN_GPU_BASE_IMAGE=$(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
+		$(MLRUN_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
+		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
+		--tag $(MLRUN_GPU_IMAGE_NAME_TAGGED) \
+		.
+
+.PHONY: push-mlrun-gpu
+push-mlrun-gpu: mlrun-gpu ## Push mlrun gpu docker image
+	docker push $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+	$(MLRUN_GPU_CACHE_IMAGE_PUSH_COMMAND)
+
+.PHONY: pull-mlrun-gpu
+pull-mlrun-gpu: ## Pull mlrun gpu docker image
+	docker pull $(MLRUN_GPU_IMAGE_NAME_TAGGED)
+
+.PHONY: prebake-mlrun-gpu
+prebake-mlrun-gpu: ## Build prebake mlrun GPU based docker image
+	docker build \
+		--file dockerfiles/gpu/prebaked.Dockerfile \
+		--build-arg CUDA_VER=$(MLRUN_GPU_CUDA_VERSION) \
+		--build-arg MLRUN_ANACONDA_PYTHON_DISTRIBUTION=$(MLRUN_ANACONDA_PYTHON_DISTRIBUTION) \
+		--tag $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED) \
+		.
+
+.PHONY: push-prebake-mlrun-gpu
+push-prebake-mlrun-gpu: ## Push prebake mlrun GPU based docker image
+	docker push $(MLRUN_GPU_PREBAKED_IMAGE_NAME_TAGGED)
 
 MLRUN_BASE_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
 MLRUN_BASE_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)base
@@ -270,9 +293,6 @@ MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED := $(if $(MLRUN_MODELS_BASE_IMAGE_OVERRIDE),
 MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED)),)
 MLRUN_MODELS_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_MODELS_IMAGE_NAME_TAGGED) $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_MODELS_CACHE_IMAGE_NAME_TAGGED),)
-# The following CFLAGS resolves anaconda issue on top of python 3.7 - https://github.com/cocodataset/cocoapi/issues/94
-# TODO: remove when we drop support for python 3.7
-MLRUN_CFLAGS ?= $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. '{if($$2==7) {print "-L/usr/lib/x86_64-linux-gnu/"}}')
 DEFAULT_IMAGES += $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
 
 .PHONY: models-core
@@ -282,7 +302,6 @@ models-core: base-core ## Build models core docker image
 		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_CORE_BASE_IMAGE_NAME_TAGGED) \
 		--build-arg TENSORFLOW_VERSION=$(MLRUN_TENSORFLOW_VERSION) \
 		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		--build-arg MLRUN_CFLAGS=$(MLRUN_CFLAGS) \
 		$(MLRUN_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
 		--tag $(MLRUN_CORE_MODELS_IMAGE_NAME_TAGGED) .
@@ -304,67 +323,6 @@ push-models: models ## Push models docker image
 .PHONY: pull-models
 pull-models: ## Pull models docker image
 	docker pull $(MLRUN_MODELS_IMAGE_NAME_TAGGED)
-
-
-MLRUN_MODELS_GPU_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
-MLRUN_MODELS_GPU_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)models-gpu
-MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_GPU_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:$(MLRUN_CUDA_VERSION)-base-ubuntu20.04
-MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED := quay.io/mlrun/prebaked-cuda:11.0-cudnn8-devel-ubuntu18.04
-# set the base image to MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED when using python 3.7
-MLRUN_MODELS_GPU_BASE_IMAGE ?= $(shell echo "$(MLRUN_PYTHON_VERSION)" | awk -F. -v PY39_IMAGE_NAME="$(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED)" -v PY37_IMAGE_NAME="$(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED)" '{if($$2==7) {print PY37_IMAGE_NAME} else {print PY39_IMAGE_NAME}}')
-MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
-MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED)),)
-MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED) || true,)
-MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_MODELS_GPU_CACHE_IMAGE_NAME_TAGGED),)
-DEFAULT_IMAGES += $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-
-.PHONY: models-gpu
-models-gpu: update-version-file ## Build models-gpu docker image
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PULL_COMMAND)
-	docker build \
-		--file dockerfiles/models-gpu/Dockerfile \
-		--build-arg MLRUN_BASE_IMAGE=$(MLRUN_MODELS_GPU_BASE_IMAGE) \
-		$(MLRUN_MODELS_GPU_IMAGE_DOCKER_CACHE_FROM_FLAG) \
-		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED) \
-		.
-
-.PHONY: push-models-gpu
-push-models-gpu: models-gpu ## Push models gpu docker image
-	docker push $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-	$(MLRUN_MODELS_GPU_CACHE_IMAGE_PUSH_COMMAND)
-
-.PHONY: pull-models-gpu
-pull-models-gpu: ## Pull models gpu docker image
-	docker pull $(MLRUN_MODELS_GPU_IMAGE_NAME_TAGGED)
-
-.PHONY: prebake-models-gpu
-prebake-models-gpu: ## Build prebake models GPU docker image
-	docker build \
-		--file dockerfiles/models-gpu/prebaked.Dockerfile \
-		--build-arg CUDA_VER=$(MLRUN_CUDA_VERSION) \
-		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
-		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
-		--build-arg HOROVOD_VERSION=$(MLRUN_HOROVOD_VERSION) \
-		--tag $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED) \
-		.
-
-.PHONY: push-prebake-models-gpu
-push-prebake-models-gpu: ## Push prebake models GPU docker image
-	docker push $(MLRUN_PREBAKED_MODELS_GPU_IMAGE_NAME_TAGGED)
-
-.PHONY: prebake-models-gpu-py37
-prebake-models-gpu-py37: ## Build prebake models GPU docker image  for python 3.7
-	docker build \
-		--file dockerfiles/models-gpu/py37/prebaked.Dockerfile \
-		--tag $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED) \
-		.
-
-.PHONY: push-prebake-models-gpu-py37
-push-prebake-models-gpu-py37: ## Push prebake models GPU docker image  for python 3.7
-	docker push $(MLRUN_PREBAKED_MODELS_GPU_PY37_IMAGE_NAME_TAGGED)
-
 
 MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)
@@ -527,7 +485,7 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
-		tests/frameworks/test_ml_frameworks.py
+		tests
 
 
 .PHONY: test-integration-dockerized
@@ -637,6 +595,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--add-host host.docker.internal:host-gateway \
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
+		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
@@ -677,12 +636,12 @@ fmt: ## Format the code (using black and isort)
 	python -m isort .
 
 .PHONY: lint-imports
-lint-imports: ## making sure imports dependencies are aligned
+lint-imports: ## Validates import dependencies
 	@echo "Running import linter"
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check ## Run lint on the code
+lint: flake8 fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
 fmt-check: ## Format and check the code (using black)

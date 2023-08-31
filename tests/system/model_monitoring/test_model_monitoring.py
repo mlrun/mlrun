@@ -21,25 +21,17 @@ from time import monotonic, sleep
 from typing import Optional
 
 import fsspec
+import numpy as np
 import pandas as pd
 import pytest
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
 
-import mlrun
-import mlrun.api.crud
 import mlrun.artifacts.model
-import mlrun.common.model_monitoring as model_monitoring_constants
-import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring
 import mlrun.feature_store
-import mlrun.utils
-from mlrun.common.model_monitoring import EndpointType, ModelMonitoringMode
-from mlrun.common.schemas import (
-    ModelEndpoint,
-    ModelEndpointMetadata,
-    ModelEndpointSpec,
-    ModelEndpointStatus,
-)
+import mlrun.model_monitoring.api
+import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
 from mlrun.runtimes import BaseRuntime
@@ -204,25 +196,29 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         # )
         # assert len(filter_labels) == 4
 
-    def _mock_random_endpoint(self, state: Optional[str] = None) -> ModelEndpoint:
+    def _mock_random_endpoint(
+        self, state: Optional[str] = None
+    ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         def random_labels():
             return {
                 f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)
             }
 
-        return ModelEndpoint(
-            metadata=ModelEndpointMetadata(
+        return mlrun.common.schemas.model_monitoring.ModelEndpoint(
+            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
                 project=self.project_name,
                 labels=random_labels(),
                 uid=str(randint(1000, 5000)),
             ),
-            spec=ModelEndpointSpec(
+            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(
                 function_uri=f"test/function_{randint(0, 100)}:v{randint(0, 100)}",
                 model=f"model_{randint(0, 100)}:v{randint(0, 100)}",
                 model_class="classifier",
                 active=True,
             ),
-            status=ModelEndpointStatus(state=state),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(
+                state=state
+            ),
         )
 
 
@@ -239,7 +235,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         # 1 - a single model endpoint is created
         # 2 - stream metrics are recorded as expected under the model endpoint
 
-        simulation_time = 90  # 90 seconds
         # Deploy Model Servers
         project = mlrun.get_run_db().get_project(self.project_name)
 
@@ -284,13 +279,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         # Simulating valid requests
         iris_data = iris["data"].tolist()
-        t_end = monotonic() + simulation_time
-        while monotonic() < t_end:
+
+        for i in range(102):
             data_point = choice(iris_data)
             serving_fn.invoke(
                 f"v2/models/{model_name}/infer", json.dumps({"inputs": [data_point]})
             )
-            sleep(uniform(0.2, 1.1))
+            sleep(choice([0.01, 0.04]))
 
         # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
@@ -300,6 +295,8 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
         endpoint = endpoints_list[0]
         assert len(endpoint.status.metrics) > 0
+
+        assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
 
         predictions_per_second = endpoint.status.metrics["real_time"][
             "predictions_per_second"
@@ -313,7 +310,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 
-    project_name = "pr-regression-model-monitoring"
+    project_name = "pr-regression-model-monitoring-v4"
 
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
@@ -409,7 +406,7 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Define tracking policy
         tracking_policy = {
-            model_monitoring_constants.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
+            mlrun.common.schemas.model_monitoring.EventFieldType.DEFAULT_BATCH_INTERVALS: "0 */3 * * *"
         }
 
         # Enable model monitoring
@@ -436,7 +433,10 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
         # Validate monitoring mode
         model_endpoint = endpoints_list[0]
-        assert model_endpoint.spec.monitoring_mode == ModelMonitoringMode.enabled.value
+        assert (
+            model_endpoint.spec.monitoring_mode
+            == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+        )
 
         # Validate tracking policy
         batch_job = db.get_schedule(
@@ -451,20 +451,15 @@ class TestModelMonitoringRegression(TestMLRunSystem):
         # ) + len(model_endpoint.spec.label_names)
 
         # Validate monitoring feature set URI
-        assert mlrun.feature_store.get_feature_set(
-            model_endpoint.status.monitoring_feature_set_uri
-        )
-
         monitoring_feature_set = mlrun.feature_store.get_feature_set(
-            f"store://feature-sets/{self.project_name}/monitoring-serving-diabetes_model-latest:latest"
+            model_endpoint.status.monitoring_feature_set_uri
         )
 
-        # Validate URI structure in both model endpoint object and monitoring feature set (remove the default version
-        # tag from the feature set URI)
-        assert (
-            model_endpoint.status.monitoring_feature_set_uri
-            == monitoring_feature_set.uri.replace(":latest", "")
+        expected_uri = (
+            f"store://feature-sets/{self.project_name}/monitoring-"
+            f"{serving_fn.metadata.name}-{model_name}-latest:{model_endpoint.metadata.uid}_"
         )
+        assert expected_uri == monitoring_feature_set.uri
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -627,7 +622,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
 
         assert len(top_level_endpoints) == 1
-        assert top_level_endpoints[0].status.endpoint_type == EndpointType.ROUTER
+        assert (
+            top_level_endpoints[0].status.endpoint_type
+            == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+        )
 
         children_list = top_level_endpoints[0].status.children_uids
         assert len(children_list) == len(model_names)
@@ -637,7 +635,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         )
         assert len(endpoints_children_list) == len(model_names)
         for child in endpoints_children_list:
-            assert child.status.endpoint_type == EndpointType.LEAF_EP
+            assert (
+                child.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            )
 
         # list model endpoints and perform analysis for each endpoint
         endpoints_list = mlrun.get_run_db().list_model_endpoints(self.project_name)
@@ -652,7 +653,10 @@ class TestVotingModelMonitoring(TestMLRunSystem):
             )
             assert data.empty is False
 
-            if endpoint.status.endpoint_type == EndpointType.LEAF_EP:
+            if (
+                endpoint.status.endpoint_type
+                == mlrun.common.schemas.model_monitoring.EndpointType.LEAF_EP
+            ):
                 assert (
                     datetime.fromisoformat(endpoint.status.first_request) >= start_time
                 )
@@ -728,7 +732,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         schema = json.loads(schema_raw.body)
 
         # Validate the schema key value
-        assert schema["key"] == model_monitoring_constants.EventFieldType.UID
+        assert schema["key"] == mlrun.common.schemas.model_monitoring.EventFieldType.UID
 
         # Create a new dictionary of field_name:field_type out of the schema dictionary
         fields_dict = {item["name"]: item["type"] for item in schema["fields"]}
@@ -738,6 +742,94 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         assert fields_dict["function_uri"] == "string"
         assert fields_dict["endpoint_type"] == "string"
         assert fields_dict["active"] == "boolean"
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestBatchDrift(TestMLRunSystem):
+    """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
+    the monitoring process of the batch infer job function that can be imported from the functions hub."""
+
+    project_name = "pr-batch-drift"
+
+    def test_batch_drift(self):
+        # Main validations:
+        # 1 - Generate new model endpoint record through get_or_create_model_endpoint() within MLRun SDK
+        # 2 - Write monitoring parquet result to the relevant context
+        # 3 - Register and trigger monitoring batch drift job
+        # 4 - Log monitoring artifacts
+
+        # Generate project and context (context will be used for logging the artifacts)
+        project = mlrun.get_run_db().get_project(self.project_name)
+        context = mlrun.get_or_create_ctx(name="batch-drift-context")
+
+        # Log a model artifact
+        iris = load_iris()
+        train_set = pd.DataFrame(
+            data=np.c_[iris["data"], iris["target"]],
+            columns=(
+                [
+                    "sepal_length_cm",
+                    "sepal_width_cm",
+                    "petal_length_cm",
+                    "petal_width_cm",
+                    "p0",
+                ]
+            ),
+        )
+        model_name = "sklearn_RandomForestClassifier"
+        # Upload the model through the projects API so that it is available to the serving function
+        project.log_model(
+            model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=train_set,
+            artifact_path=f"v3io:///projects/{project.metadata.name}",
+            label_column="p0",
+        )
+
+        # Generate a dataframe that will be writen as a monitoring parquet
+        # This dataframe is basically replacing the result set that is being generated through the batch infer function
+        infer_results_df = pd.DataFrame(
+            {
+                "sepal_length_cm": [-500, -500],
+                "sepal_width_cm": [-500, -500],
+                "petal_length_cm": [-500, -500],
+                "petal_width_cm": [-500, -500],
+                "p0": [0, 0],
+            }
+        )
+        infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+
+        # Record results and trigger the monitoring batch job
+        endpoint_id = "123123123123"
+        mlrun.model_monitoring.api.record_results(
+            project=project.metadata.name,
+            endpoint_id=endpoint_id,
+            model_path=project.get_artifact_uri(
+                key=model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name="batch-drift-test",
+            function_name="batch-drift-function",
+            context=context,
+            infer_results_df=infer_results_df,
+            trigger_monitoring_job=True,
+        )
+
+        # Test the drift results
+        model_endpoint = mlrun.model_monitoring.api.get_or_create_model_endpoint(
+            project=project.metadata.name, endpoint_id=endpoint_id
+        )
+        assert model_endpoint.status.feature_stats
+        assert model_endpoint.status.current_stats
+        assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
+
+        # Validate that the artifacts were logged under the generated context
+        artifacts = context.artifacts
+        assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
+        assert artifacts[1]["metadata"]["key"] == "features_drift_results"
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

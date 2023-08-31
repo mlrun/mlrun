@@ -24,7 +24,8 @@ import mlrun.datastore
 
 
 def store_path_to_spark(path):
-    if path.startswith("redis://") or path.startswith("rediss://"):
+    schemas = ["redis://", "rediss://", "ds://"]
+    if any(path.startswith(schema) for schema in schemas):
         url = urlparse(path)
         if url.path:
             path = url.path
@@ -96,7 +97,7 @@ def filter_df_start_end_time(
     if isinstance(df, pd.DataFrame):
         return _execute_time_filter(df, time_column, start_time, end_time)
     else:
-        filter_df_generator(df, time_column, start_time, end_time)
+        return filter_df_generator(df, time_column, start_time, end_time)
 
 
 def filter_df_generator(

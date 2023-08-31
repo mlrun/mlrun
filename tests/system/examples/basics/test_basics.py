@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+import mlrun
 from mlrun import new_task, run_local
 from mlrun.artifacts import PlotArtifact
 from tests.system.base import TestMLRunSystem
@@ -44,8 +45,11 @@ class TestBasics(TestMLRunSystem):
         )
 
     def test_basics(self):
-        run_object = run_local(
-            self._basics_task, command="training.py", workdir=str(self.assets_path)
+        function = mlrun.new_function(kind="job", command="training.py")
+        run_object = function.run(
+            self._basics_task,
+            workdir=str(self.assets_path),
+            local=True,
         )
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 
@@ -82,10 +86,12 @@ class TestBasics(TestMLRunSystem):
         )
 
     def test_basics_hyper_parameters(self):
-        run_object = run_local(
+        function = mlrun.new_function(kind="job", command="training.py")
+        run_object = function.run(
             self._basics_task.with_hyper_params({"p2": [5, 2, 3]}, "min.loss"),
             command="training.py",
             workdir=str(self.assets_path),
+            local=True,
         )
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 

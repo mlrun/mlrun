@@ -1,0 +1,108 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+name: CI (Go)
+
+on:
+  pull_request:
+    branches:
+    - development
+    - '[0-9]+.[0-9]+.x'
+    - 'feature/**'
+    paths:
+      - go/**
+
+  # Run CI also on push to backport release branches - we sometimes push code there by cherry-picking, meaning it
+  # doesn't go through CI (no PR)
+  # For master all code is coming from development where it's coming from PRs (meaning it's passing CI) but there's the
+  # rare scenario where the combination of merged PRs won't pass CI
+  push:
+    branches:
+    - master
+    - '[0-9]+.[0-9]+.x'
+    paths:
+      - go/**
+
+env:
+  NAMESPACE: mlrun-integ-test
+
+jobs:
+  go-lint:
+    name: Lint code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump runner context
+        run: echo "$RUNNER_CONTEXT"
+        env:
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version-file: "go/go.mod"
+          cache-dependency-path: "go/go.sum"
+          cache: true
+      - name: Install protobuf compiler
+        run: |
+          sudo apt-get update && sudo apt install -y protobuf-compiler
+          
+          # version is coupled to `go/cmd/schemas_compiler/docker/Dockerfile`
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+      - name: Lint
+        run: make lint-go
+
+  go-unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run GO tests
+        run: |
+          make test-go-unit-dockerized
+
+  go-integration-tests:
+    name: Run Integration Tests in Kubernetes Environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      # since github-actions gives us 14G only, and fills it up with some garbage
+      - name: Freeing up disk space
+        run: |
+          "${GITHUB_WORKSPACE}/automation/scripts/github_workflow_free_space.sh"
+      - uses: manusa/actions-setup-minikube@v2.7.2
+        with:
+          minikube version: "v1.28.0"
+          kubernetes version: "v1.25.3"
+          driver: docker
+          github token: ${{ github.token }}
+      - name: Prepare minikube
+        run: |
+          minikube kubectl -- config view --flatten > kubeconfig_flatten
+          echo "MLRUN_TEST_KUBECONFIG=$(pwd)/kubeconfig_flatten" >> $GITHUB_ENV
+      - name: Run GO tests
+        run: |
+          make test-go-integration-dockerized
+      - name: Output some logs in case of failure
+        if: ${{ failure() }}
+        # add set -x to print commands before executing to make logs reading easier
+        run: |
+          set -x
+          minikube ip
+          minikube logs
+          minikube kubectl -- --namespace ${NAMESPACE} get events
+          minikube kubectl -- --namespace ${NAMESPACE} logs -l app.kubernetes.io/component=api,app.kubernetes.io/name=mlrun --tail=-1
+          minikube kubectl -- --namespace ${NAMESPACE} get pods
+          minikube kubectl -- --namespace ${NAMESPACE} get pods -o yaml
+          minikube kubectl -- --namespace ${NAMESPACE} describe pods
+          set +x

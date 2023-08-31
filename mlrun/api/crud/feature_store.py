@@ -58,6 +58,11 @@ class FeatureStore(
         if not feature_set.spec.engine:
             feature_set.spec.engine = "storey"
 
+        if not feature_set.status.state:
+            feature_set.status.state = (
+                mlrun.common.schemas.object.ObjectStatusState.CREATED
+            )
+
         return self._store_object(
             db_session,
             project,

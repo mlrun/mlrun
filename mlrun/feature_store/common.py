@@ -20,8 +20,9 @@ from mlrun.common.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import StorePrefix, logger, parse_versioned_object_uri
+from mlrun.utils import StorePrefix, logger
 
+from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 
 project_separator = "/"

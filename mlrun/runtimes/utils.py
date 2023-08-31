@@ -24,18 +24,14 @@ import pandas as pd
 from kubernetes import client
 
 import mlrun
-import mlrun.api.utils.builder
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.utils.regex
-from mlrun.api.utils.clients import nuclio
 from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
-from mlrun.runtimes.constants import MPIJobCRDVersions
 
 from ..artifacts import TableArtifact
 from ..config import config, is_running_as_api
-from ..k8s_utils import is_running_inside_kubernetes_cluster
 from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
@@ -61,85 +57,12 @@ class _ContextStore:
 global_context = _ContextStore()
 
 
-cached_mpijob_crd_version = None
-cached_nuclio_version = None
-
-
-# resolve mpijob runtime according to the mpi-operator's supported crd-version
-# if specified on mlrun config set it likewise,
-# if not specified, try resolving it according to the mpi-operator, otherwise set to default
-# since this is a heavy operation (sending requests to k8s/API), and it's unlikely that the crd version
-# will change in any context - cache it
-def resolve_mpijob_crd_version():
-    global cached_mpijob_crd_version
-    if not cached_mpijob_crd_version:
-
-        # config override everything
-        # on client side, expecting it to get enriched from the API through the client-spec
-        mpijob_crd_version = config.mpijob_crd_version
-
-        if not mpijob_crd_version:
-            in_k8s_cluster = is_running_inside_kubernetes_cluster()
-
-            if in_k8s_cluster and is_running_as_api():
-                import mlrun.api.utils.singletons.k8s
-
-                k8s_helper = mlrun.api.utils.singletons.k8s.get_k8s_helper()
-                namespace = k8s_helper.resolve_namespace()
-
-                # try resolving according to mpi-operator that's running
-                res = k8s_helper.list_pods(
-                    namespace=namespace, selector="component=mpi-operator"
-                )
-                if len(res) > 0:
-                    mpi_operator_pod = res[0]
-                    mpijob_crd_version = mpi_operator_pod.metadata.labels.get(
-                        "crd-version"
-                    )
-
-            # backoff to use default if wasn't resolved in API
-            if not mpijob_crd_version:
-                mpijob_crd_version = MPIJobCRDVersions.default()
-
-        if mpijob_crd_version not in MPIJobCRDVersions.all():
-            raise ValueError(
-                f"unsupported mpijob crd version: {mpijob_crd_version}. "
-                f"supported versions: {MPIJobCRDVersions.all()}"
-            )
-        cached_mpijob_crd_version = mpijob_crd_version
-
-    return cached_mpijob_crd_version
-
-
 def resolve_spark_operator_version():
     try:
         regex = re.compile("spark-([23])")
         return int(regex.findall(config.spark_operator_version)[0])
     except Exception:
         raise ValueError("Failed to resolve spark operator's version")
-
-
-# if nuclio version specified on mlrun config set it likewise,
-# if not specified, get it from nuclio api client
-# since this is a heavy operation (sending requests to API), and it's unlikely that the version
-# will change - cache it (this means if we upgrade nuclio, we need to restart mlrun to re-fetch the new version)
-def resolve_nuclio_version():
-    global cached_nuclio_version
-
-    if not cached_nuclio_version:
-
-        # config override everything
-        nuclio_version = config.nuclio_version
-        if not nuclio_version and config.nuclio_dashboard_url:
-            try:
-                nuclio_client = nuclio.Client()
-                nuclio_version = nuclio_client.get_dashboard_version()
-            except Exception as exc:
-                logger.warning("Failed to resolve nuclio version", exc=err_to_str(exc))
-
-        cached_nuclio_version = nuclio_version
-
-    return cached_nuclio_version
 
 
 def calc_hash(func, tag=""):

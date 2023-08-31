@@ -27,7 +27,9 @@ tasks: typing.Dict = {}
 # This module is different from mlrun.db.periodic in that this module's functions aren't supposed to persist
 # also this module supports asyncio while the other currently not
 # TODO: merge the modules
-async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
+async def _periodic_function_wrapper(
+    interval: typing.Union[int, float], function, *args, **kwargs
+):
     while True:
         try:
             if asyncio.iscoroutinefunction(function):
@@ -45,7 +47,12 @@ async def _periodic_function_wrapper(interval: int, function, *args, **kwargs):
 
 
 def run_function_periodically(
-    interval: int, name: str, replace: bool, function, *args, **kwargs
+    interval: typing.Union[float, int],
+    name: str,
+    replace: bool,
+    function,
+    *args,
+    **kwargs
 ):
     global tasks
     logger.debug("Submitting function to run periodically", name=name)

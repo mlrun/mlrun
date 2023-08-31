@@ -15,7 +15,6 @@
 import ast
 import inspect
 import re
-import sys
 
 from mlrun.model import FunctionEntrypoint
 
@@ -250,14 +249,6 @@ def iter_elems(ann):
         return ann.value.elts
     if not hasattr(ann, "slice"):
         return [ann.value]
-
-    # From python 3.9, slice is an expr and we should evaluate it recursively. Left this for backward compatibility.
-    # TODO: Remove this in 1.5.0 when we drop support for python 3.7
-    if sys.version_info < (3, 9):
-        if hasattr(ann.slice, "elts"):
-            return ann.slice.elts
-        elif hasattr(ann.slice, "value"):
-            return [ann.slice.value]
 
     return [ann]
 

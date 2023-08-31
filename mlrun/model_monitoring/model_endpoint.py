@@ -16,7 +16,7 @@
 from typing import Any, Dict, List, Optional
 
 import mlrun.model
-from mlrun.common.model_monitoring import (
+from mlrun.common.schemas.model_monitoring.constants import (
     EndpointType,
     EventKeyMetrics,
     EventLiveStats,

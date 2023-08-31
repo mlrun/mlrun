@@ -36,6 +36,7 @@ from mlrun.utils.v3io_clients import get_frames_client
 from .. import errors
 from ..data_types import ValueType
 from ..platforms.iguazio import parse_path, split_path
+from .datastore_profile import datastore_profile_read
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -82,11 +83,12 @@ def default_target_names():
     return [target.strip() for target in targets.split(",")]
 
 
-def get_default_targets():
+def get_default_targets(offline_only=False):
     """initialize the default feature set targets list"""
     return [
         DataTargetBase(target, name=str(target), partitioned=(target == "parquet"))
         for target in default_target_names()
+        if not offline_only or not target == "nosql"
     ]
 
 
@@ -598,7 +600,12 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_target_path(self):
         path_object = self._target_path_object
-        return path_object.get_absolute_path() if path_object else None
+        project_name = self._resource.metadata.project if self._resource else None
+        return (
+            path_object.get_absolute_path(project_name=project_name)
+            if path_object
+            else None
+        )
 
     def get_target_path_with_credentials(self):
         return self.get_target_path()
@@ -1170,20 +1177,30 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        parsed_endpoint = urlparse(endpoint)
-        if parsed_endpoint.username or parsed_endpoint.password:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Provide Redis username and password only via secrets"
-            )
-        user = self._get_credential("REDIS_USER", "")
-        password = self._get_credential("REDIS_PASSWORD", "")
-        host = parsed_endpoint.hostname
-        port = parsed_endpoint.port if parsed_endpoint.port else "6379"
-        scheme = parsed_endpoint.scheme
-        if user or password:
-            endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+        if endpoint.startswith("ds"):
+            datastore_profile = datastore_profile_read(endpoint)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
+            endpoint = datastore_profile.url_with_credentials()
         else:
-            endpoint = f"{scheme}://{host}:{port}"
+            parsed_endpoint = urlparse(endpoint)
+            if parsed_endpoint.username or parsed_endpoint.password:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Provide Redis username and password only via secrets"
+                )
+            user = self._get_credential("REDIS_USER", "")
+            password = self._get_credential("REDIS_PASSWORD", "")
+            host = parsed_endpoint.hostname
+            port = parsed_endpoint.port if parsed_endpoint.port else "6379"
+            scheme = parsed_endpoint.scheme
+            if user or password:
+                endpoint = f"{scheme}://{user}:{password}@{host}:{port}"
+            else:
+                endpoint = f"{scheme}://{host}:{port}"
         return endpoint, uri
 
     def get_table_object(self):

@@ -18,6 +18,7 @@ import mergedeep
 import sqlalchemy.orm
 
 import mlrun.api.api.utils
+import mlrun.api.runtime_handlers
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
@@ -50,7 +51,7 @@ class RuntimeResources(
             self.validate_runtime_resources_kind(kind)
             kinds = [kind]
         for kind in kinds:
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
             resources = runtime_handler.list_resources(
                 project, object_id, label_selector, group_by
             )
@@ -88,7 +89,7 @@ class RuntimeResources(
                     )
         runtimes_resources_output = [] if group_by is None else {}
         for kind, runtime_resources_list in runtime_resources_by_kind.items():
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
             resources = runtime_handler.build_output_from_runtime_resources(
                 runtime_resources_list, group_by
             )
@@ -122,7 +123,7 @@ class RuntimeResources(
             self.validate_runtime_resources_kind(kind)
             kinds = [kind]
         for kind in kinds:
-            runtime_handler = mlrun.runtimes.get_runtime_handler(kind)
+            runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
             if object_id:
                 runtime_handler.delete_runtime_object_resources(
                     mlrun.api.utils.singletons.db.get_db(),

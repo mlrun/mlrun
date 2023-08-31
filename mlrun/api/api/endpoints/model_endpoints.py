@@ -23,7 +23,8 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.api.api.deps
-import mlrun.api.crud
+import mlrun.api.crud.model_monitoring.deployment
+import mlrun.api.crud.model_monitoring.helpers
 import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 from mlrun.errors import MLRunConflictError
@@ -64,7 +65,7 @@ async def create_or_patch(
         auth_info,
     )
     # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.ModelEndpoints().get_access_key(auth_info)
+    mlrun.api.crud.model_monitoring.helpers.get_access_key(auth_info)
     if project != model_endpoint.metadata.project:
         raise MLRunConflictError(
             f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"

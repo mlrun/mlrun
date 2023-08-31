@@ -84,6 +84,7 @@ class ProjectSpec(pydantic.BaseModel):
     origin_url: typing.Optional[str] = None
     desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
     custom_packagers: typing.Optional[typing.List[typing.Tuple[str, bool]]] = None
+    default_image: typing.Optional[str] = None
 
     class Config:
         extra = pydantic.Extra.allow

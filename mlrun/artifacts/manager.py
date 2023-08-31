@@ -17,7 +17,6 @@ from os.path import isdir
 
 import mlrun.config
 
-from ..db import RunDBInterface
 from ..utils import (
     is_legacy_artifact,
     is_relative_path,
@@ -51,6 +50,7 @@ from .plots import (
     PlotlyArtifact,
 )
 
+# TODO - Remove deprecated types when deleted in 1.7.0
 artifact_types = {
     "": Artifact,
     "artifact": Artifact,
@@ -65,7 +65,7 @@ artifact_types = {
     "bokeh": BokehArtifact,
 }
 
-# TODO - Remove this when legacy types are deleted in 1.5.0
+# TODO - Remove this when legacy types are deleted in 1.6.0
 legacy_artifact_types = {
     "": LegacyArtifact,
     "dir": LegacyDirArtifact,
@@ -111,7 +111,7 @@ def dict_to_artifact(struct: dict) -> Artifact:
 class ArtifactManager:
     def __init__(
         self,
-        db: RunDBInterface = None,
+        db: "mlrun.db.RunDBInterface" = None,
         calc_hash=True,
     ):
         self.calc_hash = calc_hash

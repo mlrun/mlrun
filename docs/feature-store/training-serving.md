@@ -17,7 +17,7 @@ import mlrun.feature_store as fstore
 svc = fstore.get_online_feature_service(<feature vector name>)
 ```
 
-After creating the service you can use the feature vector's entity to get the latest feature vector for it.
+After creating the service, you can use the feature vector's entity to get the latest feature vector for it.
 Pass a list of `{<key name>: <key value>}` pairs to receive a batch of feature vectors.
 
 ```python

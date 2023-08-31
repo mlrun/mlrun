@@ -395,3 +395,13 @@ class TestRemotePipeline(tests.projects.base_pipeline.TestPipeline):
                         assert step["affinity"] == k8s_api.sanitize_for_serialization(
                             tests.projects.assets.remote_pipeline_with_overridden_resources.overridden_affinity
                         )
+
+
+@pytest.mark.parametrize("workflow_name", [("test-test"), ("new-1-main"), ("test")])
+def test_workflow_name(workflow_name):
+    project_name = "test"
+    # When creating a schedule workflow we adding the project name to the workflow name.
+    before_renaming = f"{project_name}-{workflow_name}"
+    assert workflow_name == mlrun.utils.normalize_workflow_name(
+        before_renaming, project_name
+    )

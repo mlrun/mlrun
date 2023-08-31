@@ -38,7 +38,6 @@ from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def make_label(table):
@@ -52,6 +51,9 @@ def make_label(table):
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         value = Column(String(255, collation=SQLCollationUtil.collation()))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.parent}/{self.name}/{self.value}"
 
     return Label
 
@@ -86,6 +88,9 @@ def make_tag_v2(table):
         obj_id = Column(Integer, ForeignKey(f"{table}.id"))
         obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     return Tag
 
 
@@ -116,6 +121,7 @@ def make_notification(table):
         condition = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
 
@@ -258,6 +264,9 @@ with warnings.catch_warnings():
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
         __table_args__ = (UniqueConstraint("project", "name", name="_schedules_v2_uc"),)
@@ -316,6 +325,9 @@ with warnings.catch_warnings():
 
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
 
     class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
@@ -507,6 +519,30 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
+
+        def get_identifier_string(self) -> str:
+            return f"{self.version}"
+
+    class DatastoreProfile(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = "datastore_profiles"
+        __table_args__ = (
+            UniqueConstraint("name", "project", name="_datastore_profiles_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        type = Column(String(255, collation=SQLCollationUtil.collation()))
+        _full_object = Column("object", JSON)
+
+        @property
+        def full_object(self):
+            if self._full_object:
+                return json.loads(self._full_object)
+
+        @full_object.setter
+        def full_object(self, value):
+            self._full_object = json.dumps(value, default=str)
 
 
 # Must be after all table definitions

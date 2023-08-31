@@ -19,7 +19,6 @@ import socket
 import tempfile
 import time
 import uuid
-import warnings
 from base64 import b64decode
 from copy import deepcopy
 from os import environ, makedirs, path
@@ -36,9 +35,9 @@ import mlrun.errors
 import mlrun.utils.helpers
 from mlrun.kfpops import format_summary_from_kfp_run, show_kfp_run
 
+from .common.helpers import parse_versioned_object_uri
 from .config import config as mlconf
 from .datastore import store_manager
-from .db import get_or_set_dburl, get_run_db
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import BaseMetadata, RunObject, RunTemplate
@@ -56,6 +55,7 @@ from .runtimes import (
     Spark3Runtime,
     get_runtime_class,
 )
+from .runtimes.databricks.databricks import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
@@ -63,8 +63,6 @@ from .utils import (
     extend_hub_uri_if_needed,
     get_in,
     logger,
-    new_pipe_metadata,
-    parse_versioned_object_uri,
     retry_until_successful,
     run_keys,
     update_in,
@@ -422,7 +420,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
         if upload_artifacts:
-            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path = mlrun.utils.helpers.fill_project_path_template(
                 mlconf.artifact_path, project or mlconf.default_project
             )
             update_in(newspec, ["spec", run_keys.output_path], artifact_path)
@@ -455,8 +453,8 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
 
     special URLs::
 
-        function hub: hub://{name}[:{tag}]
-        local mlrun db:       db://{project-name}/{name}[:{tag}]
+        function hub:       hub://[{source}/]{name}[:{tag}]
+        local mlrun db:     db://{project-name}/{name}[:{tag}]
 
     examples::
 
@@ -476,7 +474,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     if url.startswith("db://"):
         url = url[5:]
         _project, name, tag, hash_key = parse_versioned_object_uri(url)
-        db = get_run_db(db or get_or_set_dburl(), secrets=secrets)
+        db = mlrun.db.get_run_db(db or mlrun.db.get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, _project, tag, hash_key)
         if not runtime:
             raise KeyError(f"function {name}:{tag} not found in the DB")
@@ -580,10 +578,10 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, "args" mode will push params into command template, example:
-                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
-                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
-                      `{}` for parameters like in the "args" mode
+    :param mode:     runtime mode:
+            * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
+                     params substitutions like {xparam} and will be replaced with the value of the xparam param
+                     if a command is not specified, then image entrypoint shall be used.
     :param handler:  The default function handler to call for the job or nuclio function, in batch functions
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
@@ -616,7 +614,7 @@ def new_function(
         else:
             supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
-                f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
+                f"Unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
 
     if not name:
@@ -716,6 +714,7 @@ def code_to_function(
     LocalRuntime,
     Spark3Runtime,
     RemoteSparkRuntime,
+    DatabricksRuntime,
 ]:
     """Convenience function to insert code and configure an mlrun runtime.
 
@@ -850,6 +849,9 @@ def code_to_function(
             "when not using the embed_code option"
         )
 
+    if kind == RuntimeKinds.databricks and not embed_code:
+        raise ValueError("databricks tasks only support embed_code=True")
+
     is_nuclio, subkind = resolve_nuclio_subkind(kind)
     code_origin = add_name(add_code_metadata(filename), name)
 
@@ -859,6 +861,12 @@ def code_to_function(
         handler=handler or "handler",
         kind=subkind,
         ignored_tags=ignored_tags,
+    )
+    spec["spec"]["env"].append(
+        {
+            "name": "MLRUN_HTTPDB__NUCLIO__EXPLICIT_ACK",
+            "value": mlrun.mlconf.httpdb.nuclio.explicit_ack,
+        }
     )
     spec_kind = get_in(spec, "kind", "")
     if not kind and spec_kind not in ["", "Function"]:
@@ -927,6 +935,8 @@ def code_to_function(
     build.code_origin = code_origin
     build.origin_filename = filename or (name + ".ipynb")
     build.extra = get_in(spec, "spec.build.extra")
+    build.extra_args = get_in(spec, "spec.build.extra_args")
+    build.builder_env = get_in(spec, "spec.build.builder_env")
     if not embed_code:
         if code_output:
             r.spec.command = code_output
@@ -941,125 +951,6 @@ def code_to_function(
         update_function_entry_points(r, code)
     r.spec.default_handler = handler
     return r
-
-
-@deprecated(
-    version="1.3.0",
-    reason="'run_pipeline' will be removed in 1.5.0, use 'project.run' instead",
-    category=FutureWarning,
-)
-def run_pipeline(
-    pipeline,
-    arguments=None,
-    project=None,
-    experiment=None,
-    run=None,
-    namespace=None,
-    artifact_path=None,
-    ops=None,
-    url=None,
-    # TODO: deprecated, remove in 1.5.0
-    ttl=None,
-    remote: bool = True,
-    cleanup_ttl=None,
-):
-    """
-    remote KubeFlow pipeline execution
-
-    Submit a workflow task to KFP via mlrun API service
-
-    :param pipeline:   KFP pipeline function or path to .yaml/.zip pipeline file
-    :param arguments:  pipeline arguments
-    :param project:    name of project
-    :param experiment: experiment name
-    :param run:        optional, run name
-    :param namespace:  Kubernetes namespace (if not using default)
-    :param url:        optional, url to mlrun API service
-    :param artifact_path:  target location/url for mlrun artifacts
-    :param ops:        additional operators (.apply() to all pipeline functions)
-    :param ttl:        pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                       workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
-    :param remote:     read kfp data from mlrun service (default=True). Run pipeline from local kfp data (remote=False)
-      is deprecated. Should not be used
-    :param cleanup_ttl:
-                       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                       workflow and all its resources are deleted)
-
-    :returns: kubeflow pipeline id
-    """
-    if ttl:
-        warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-            "This will be removed in 1.5.0",
-            # TODO: Remove this in 1.5.0
-            FutureWarning,
-        )
-
-    artifact_path = artifact_path or mlconf.artifact_path
-    project = project or mlconf.default_project
-    artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
-        artifact_path, project or mlconf.default_project
-    )
-    if artifact_path and "{{run.uid}}" in artifact_path:
-        artifact_path.replace("{{run.uid}}", "{{workflow.uid}}")
-    if not artifact_path:
-        raise ValueError("artifact path was not specified")
-
-    namespace = namespace or mlconf.namespace
-    arguments = arguments or {}
-
-    if remote or url:
-        from .projects.pipelines import WorkflowSpec, pipeline_context
-
-        clear_pipeline_context = False
-        # if pipeline_context.workflow isn't set it means the `run_pipeline` method was called directly
-        # so to make sure the pipeline and functions inside are being run in the KFP pipeline we set the pipeline
-        # context with KFP engine
-        if not pipeline_context.workflow:
-            workflow_spec = WorkflowSpec(engine="kfp")
-            pipeline_context.set(pipeline_context.project, workflow=workflow_spec)
-            clear_pipeline_context = True
-
-        pipeline_run_id = _run_pipeline(
-            pipeline=pipeline,
-            arguments=arguments,
-            project=project,
-            experiment=experiment,
-            run=run,
-            namespace=namespace,
-            artifact_path=artifact_path,
-            ops=ops,
-            url=url,
-            cleanup_ttl=cleanup_ttl or ttl,
-        )
-
-        if clear_pipeline_context:
-            pipeline_context.clear()
-
-    # this shouldn't be used, keeping for backwards compatibility until the entire method is deprecated
-    else:
-        client = Client(namespace=namespace)
-        if isinstance(pipeline, str):
-            experiment = client.create_experiment(name=experiment)
-            run_result = client.run_pipeline(
-                experiment.id, run, pipeline, params=arguments
-            )
-        else:
-            conf = new_pipe_metadata(
-                artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=ops
-            )
-            run_result = client.create_run_from_pipeline_func(
-                pipeline,
-                arguments,
-                run_name=run,
-                experiment_name=experiment,
-                pipeline_conf=conf,
-            )
-
-        pipeline_run_id = run_result.run_id
-        logger.info(f"Pipeline run id={id}, check UI for progress")
-
-    return pipeline_run_id
 
 
 def _run_pipeline(

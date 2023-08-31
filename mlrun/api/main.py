@@ -37,6 +37,7 @@ from mlrun.api.api.api import api_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.periodic import (
     cancel_all_periodic_functions,
     cancel_periodic_function,
@@ -52,7 +53,7 @@ from mlrun.api.utils.singletons.project_member import (
 from mlrun.api.utils.singletons.scheduler import get_scheduler, initialize_scheduler
 from mlrun.config import config
 from mlrun.errors import err_to_str
-from mlrun.runtimes import RuntimeClassMode, RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
 
 API_PREFIX = "/api"
@@ -176,6 +177,7 @@ async def move_api_to_online():
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
     ):
+        mlrun.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
@@ -368,7 +370,7 @@ async def _start_log_for_run(
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+            runtime_handler: mlrun.api.runtime_handlers.BaseRuntimeHandler = (
                 await fastapi.concurrency.run_in_threadpool(
                     get_runtime_handler, run_kind
                 )
@@ -616,7 +618,7 @@ def _push_terminal_run_notifications(db: mlrun.api.db.base.DBInterface, db_sessi
     logger.debug(
         "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
-    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push(db)
+    mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
     _last_notification_push_time = now
 

@@ -14,4 +14,5 @@
 #
 # flake8: noqa: F401 - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
+from .helpers import get_stream_path
 from .model_endpoints import ModelEndpoints

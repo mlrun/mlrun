@@ -5,13 +5,13 @@
 
 **In this section**
 * [Data and feature engineering](#Data-and-feature-engineering-using-the-feature-store)
-* [Example of Simple model serving router](#example-of-a-simple-model-serving-router)
-* [Example of Advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
+* [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
+* [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
 * [Example of NLP processing pipeline with real-time streaming](#example-of-nlp-processing-pipeline-with-real-time-streaming)
 
 In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.html) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
-- [Advanced Model Serving Graph Notebook Example](./graph-example.html) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
+- [Advanced model serving graph notebook example](./graph-example.html) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - [MLRun demos repository](https://github.com/mlrun/demos) for additional use cases and full end-to-end examples, including fraud prevention using the Iguazio feature store, a mask detection demo, and converting existing ML code to an MLRun project.
 
 ## Data and feature engineering (using the feature store)
@@ -47,7 +47,7 @@ add models to it, and then deploy it.
     fn.invoke('/v2/models/model1/infer', body={"inputs": [5]})
 ```
 
-The Serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
+The serving function supports the same protocol used in KFServing V2 and Triton Serving framework. 
 To invoke the model, to use following url: `<function-host>/v2/models/model1/infer`.
 
 See the [**serving protocol specification**](./model-api.html) for details.
@@ -80,7 +80,7 @@ tests one or more classifier models against a held-out dataset.
 
 ## Example of advanced data processing and serving ensemble
 
-MLRun Serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
+MLRun serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
  or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
 passes the data into a model ensemble, and finishes off with post processing. 
 
@@ -100,28 +100,23 @@ Build and connect the graph (DAG) using the custom function and classes and plot
 Add steps using the `step.to()` method (adds a new step after the current one), or using the 
 `graph.add_step()` method.
 
-If you want the error from the graph or the step to be fed into a specific step (catcher), 
-use the `graph.error_handler()` (apply to all steps) or `step.error_handler()` 
-(apply to a specific step).
+Use the graph `error_handler` if you want an error from the graph or a step to be fed into a specific state (catcher). See the full description in {ref}`pipelines-error-handling`.
 
 Specify which step is the responder (returns the HTTP response) using the `step.respond()` method. 
 If the responder is not specified, the graph is non-blocking.
 
 ```python
-# use built-in storey class or our custom Echo class to create and link Task steps
+# use built-in storey class or our custom Echo class to create and link Task steps. Add an error handling step that runs only if the "Echo" step fails
 graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})') \
-     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler("catcher")
+     .to(class_name="Echo", name="pre-process", some_arg='abc').error_handler(name='catcher', handler='handle_error', full_event=True)
 
-# add an Ensemble router with two child models (routes), the "*" prefix mark it is a router class
+# add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
 router = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process")
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
-# add the final step (after the router) which handles post processing and respond to the client
+# add the final step (after the router), which handles post-processing and response to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
-
-# add error handling step, run only when/if the "pre-process" step fail (keep after="")  
-graph.add_step(handler="error_catcher", name="catcher", full_event=True, after="")
 
 # plot the graph (using Graphviz) and run a test
 graph.plot(rankdir='LR')

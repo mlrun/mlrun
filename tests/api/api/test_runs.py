@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import time
 import unittest.mock
 import uuid
@@ -31,7 +32,7 @@ from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 
 API_V1 = "/api/v1"
-RUNS_API_V1 = f"{API_V1}/runs"
+RUNS_API_V1 = f"{API_V1}/projects/{{project}}/runs"
 
 
 def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
@@ -246,27 +247,29 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
     runs = _list_and_assert_objects(
         client,
-        {"project": "*"},
+        {},
         81,
+        project="*",
     )
 
     # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
     runs = _list_and_assert_objects(
         client,
-        {"project": projects[0], "iter": False},
+        {"iter": False},
         9,
+        project=projects[0],
     )
 
     # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
         client,
         {
-            "project": projects[0],
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.created,
             "partition-order": mlrun.common.schemas.OrderType.asc,
         },
         3,
+        project=projects[0],
     )
     # sorted by ascending created so only the first ones created
     for run in runs:
@@ -276,12 +279,12 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         {
-            "project": projects[0],
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
         },
         3,
+        project=projects[0],
     )
     # sorted by descending updated so only the third ones created
     for run in runs:
@@ -291,20 +294,19 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         {
-            "project": projects[0],
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
         },
         15,
+        project=projects[0],
     )
 
     # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
     runs = _list_and_assert_objects(
         client,
         {
-            "project": projects[0],
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
@@ -312,6 +314,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
             "max-partitions": 2,
         },
         10,
+        project=projects[0],
     )
     for run in runs:
         # Partitions are ordered from latest updated to oldest, which means that 3,2 must be here.
@@ -321,7 +324,6 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     runs = _list_and_assert_objects(
         client,
         {
-            "project": projects[0],
             "iter": False,
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
@@ -330,16 +332,21 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
             "max-partitions": 1,
         },
         2,
+        project=projects[0],
     )
 
     for run in runs:
         assert run["metadata"]["name"] == "run-name-3" and run["metadata"]["iter"] == 0
 
     # Some negative testing - no sort by field
-    response = client.get(f"{RUNS_API_V1}?partition-by=name")
+    response = client.get(
+        f"{RUNS_API_V1.format(project=projects[0])}?partition-by=name"
+    )
     assert response.status_code == HTTPStatus.BAD_REQUEST.value
     # An invalid partition-by field - will be failed by fastapi due to schema validation.
-    response = client.get(f"{RUNS_API_V1}?partition-by=key&partition-sort-by=name")
+    response = client.get(
+        f"{RUNS_API_V1.format(project=projects[0])}?partition-by=key&partition-sort-by=name"
+    )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
@@ -362,10 +369,10 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
     runs = _list_and_assert_objects(
         client,
         {
-            "project": project,
             "uid": "uid_1",
         },
         1,
+        project=project,
     )
     assert runs[0]["metadata"]["uid"] == "uid_1"
 
@@ -373,11 +380,11 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
     runs = _list_and_assert_objects(
         client,
         {
-            "project": project,
             "uid": uid_list,
         },
         # One fictive uid
         len(uid_list) - 1,
+        project=project,
     )
 
     expected_uids = set(uid_list)
@@ -396,7 +403,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid="some-uid", project=project)
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(f"{RUNS_API_V1}?project={project}")
+    response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
@@ -407,7 +414,7 @@ def test_delete_runs_with_permissions(db: Session, client: TestClient):
     _store_run(db, uid=None, project=second_project)
     all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
-    response = client.delete(f"{RUNS_API_V1}?project=*")
+    response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
     runs = mlrun.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
@@ -422,23 +429,82 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     project = "some-project"
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
-    response = client.delete(f"{RUNS_API_V1}?project={project}")
+    response = client.delete(RUNS_API_V1.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
 
     # try delete runs with no permission to project (project contains runs)
     _store_run(db, uid="some-uid", project=project)
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
-    response = client.delete(f"{RUNS_API_V1}?project={project}")
+    response = client.delete(RUNS_API_V1.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
-    response = client.delete(f"{RUNS_API_V1}?project=*")
+    response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
+
+
+def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
+    notifications = [
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            "secret_params": {
+                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+                "other_param": "other_value",
+            },
+            "severity": "info",
+            "when": ["error"],
+        },
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            # should not redact secrets
+            "params": {
+                "secret": "my-secret",
+            },
+            "severity": "info",
+            "when": ["completed"],
+        },
+    ]
+
+    masked_notifications = copy.deepcopy(notifications)
+    masked_notifications[0]["secret_params"]["webhook"] = "REDACTED"
+    masked_notifications[0]["secret_params"]["other_param"] = "REDACTED"
+
+    expected_response_params = {
+        "spec.notifications": masked_notifications,
+    }
+
+    uid = "1234567890"
+    project = "test-store-run-masking"
+    run = {
+        "metadata": {
+            "name": "unmasked-run",
+            "project": project,
+            "uid": uid,
+        },
+        "spec": {
+            "notifications": notifications,
+        },
+    }
+
+    mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+    resp = client.get(f"run/{project}/{uid}")
+    assert resp.status_code == HTTPStatus.OK.value
+
+    response_body = resp.json()["data"]
+    for param, expected_value in expected_response_params.items():
+        value = mlrun.utils.get_in(response_body, param)
+        assert value == expected_value
 
 
 def _store_run(db, uid, project="some-project"):
@@ -451,8 +517,10 @@ def _store_run(db, uid, project="some-project"):
     return mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
 
 
-def _list_and_assert_objects(client: TestClient, params, expected_number_of_runs: int):
-    response = client.get(RUNS_API_V1, params=params)
+def _list_and_assert_objects(
+    client: TestClient, params, expected_number_of_runs: int, project: str
+):
+    response = client.get(RUNS_API_V1.format(project=project), params=params)
     assert response.status_code == HTTPStatus.OK.value, response.text
 
     runs = response.json()["runs"]

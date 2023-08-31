@@ -22,6 +22,7 @@ import pytest
 from automation.version.version_file import (
     create_or_update_version_file,
     get_current_version,
+    is_stable_version,
     resolve_next_version,
 )
 
@@ -51,8 +52,8 @@ def git_repo(tmpdir, request):
 @pytest.mark.parametrize(
     "base_version,tags,expected_current_version",
     [
-        # no tags were made
-        ("1.5.0", [], None),
+        # no tags were made, default to base_version
+        ("1.5.0", [], "1.5.0"),
         # tags were made, but none of them are similar to base_version, use latest greatest (< base version)
         (
             "1.5.0",
@@ -107,31 +108,44 @@ def test_current_version(git_repo, base_version, tags, expected_current_version)
 
 
 @pytest.mark.parametrize(
-    "bump_type,current_version,feature_name,expected_next_version",
+    "bump_type,current_version,base_version,feature_name,expected_next_version",
     [
-        ("rc", "1.0.0", None, "1.0.1-rc1"),
-        ("rc", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
-        ("rc", "1.0.0-rc1", None, "1.0.0-rc2"),
-        ("rc", "1.0.0-rc1", "ft-test", "1.0.0-rc2+ft-test"),
-        ("rc-grad", "1.0.0-rc1", None, "1.0.0"),
-        ("rc-grad", "1.0.0-rc1", "ft-test", "1.0.0-rc1+ft-test"),
-        ("patch", "1.0.0", None, "1.0.1"),
-        ("patch", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
-        ("patch", "1.0.0-rc1", None, "1.0.1"),
-        ("patch", "1.0.0-rc1", "ft-test", "1.0.1-rc1+ft-test"),
-        ("minor", "1.0.0", None, "1.1.0"),
-        ("minor", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
-        ("minor", "1.0.0-rc1", None, "1.1.0"),
-        ("minor", "1.0.0-rc1", "ft-test", "1.1.0-rc1+ft-test"),
-        ("major", "1.0.0", None, "2.0.0"),
-        ("major", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
-        ("major", "1.0.0-rc1", None, "2.0.0"),
-        ("major", "1.0.0-rc1", "ft-test", "2.0.0-rc1+ft-test"),
+        # current version is olden than current base version,
+        # the next expected version is derived from the base version
+        ("rc", "1.0.0", "1.1.0", None, "1.1.0-rc1"),
+        ("rc-grad", "1.0.0", "1.1.0", None, "1.1.0"),
+        ("patch", "1.0.0", "1.1.0", None, "1.1.1"),
+        ("minor", "1.0.0", "1.1.0", None, "1.2.0"),
+        ("major", "1.0.0", "1.1.0", None, "2.0.0"),
+        # current+base tagged
+        ("rc", "1.0.0", "1.0.0", None, "1.0.1-rc1"),
+        ("rc", "1.0.0", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("rc", "1.0.0-rc1", "1.0.0", None, "1.0.0-rc2"),
+        ("rc", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.0-rc2+ft-test"),
+        ("rc-grad", "1.0.0-rc1", "1.0.0", None, "1.0.0"),
+        ("rc-grad", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.0-rc1+ft-test"),
+        ("patch", "1.0.0", "1.0.0", None, "1.0.1"),
+        ("patch", "1.0.0", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("patch", "1.0.0-rc1", "1.0.0", None, "1.0.1"),
+        ("patch", "1.0.0-rc1", "1.0.0", "ft-test", "1.0.1-rc1+ft-test"),
+        ("minor", "1.0.0", "1.0.0", None, "1.1.0"),
+        ("minor", "1.0.0", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
+        ("minor", "1.0.0-rc1", "1.0.0", None, "1.1.0"),
+        ("minor", "1.0.0-rc1", "1.0.0", "ft-test", "1.1.0-rc1+ft-test"),
+        ("major", "1.0.0", "1.0.0", None, "2.0.0"),
+        ("major", "1.0.0", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
+        ("major", "1.0.0-rc1", "1.0.0", None, "2.0.0"),
+        ("major", "1.0.0-rc1", "1.0.0", "ft-test", "2.0.0-rc1+ft-test"),
     ],
 )
-def test_next_version(bump_type, current_version, feature_name, expected_next_version):
+def test_next_version(
+    bump_type, current_version, base_version, feature_name, expected_next_version
+):
     next_version = resolve_next_version(
-        bump_type, packaging.version.parse(current_version), feature_name
+        bump_type,
+        packaging.version.parse(current_version),
+        packaging.version.parse(base_version),
+        feature_name,
     )
     assert (
         next_version == expected_next_version
@@ -166,3 +180,16 @@ def test_create_or_update_version_file(git_repo, base_version, expected_version)
         "version": expected_version,
         "git_commit": latest_commit_hash.stdout.strip().decode(),
     }
+
+
+@pytest.mark.parametrize(
+    "version,expected_is_stable",
+    [
+        ("1.0.0", True),
+        ("1.0.0-rc1", False),
+        ("1.0.0+unstable", False),
+        ("1.0.0-rc1+ft-test", False),
+    ],
+)
+def test_is_stable_version(version: str, expected_is_stable: bool):
+    assert is_stable_version(version) is expected_is_stable

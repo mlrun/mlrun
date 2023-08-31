@@ -15,6 +15,7 @@
 import os
 import os.path
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest.mock
@@ -68,7 +69,7 @@ def test_sync_functions(rundb_mock):
     assert fn.metadata.name == "train", "train func did not return"
 
 
-def test_sync_functions_with_names_different_than_default():
+def test_sync_functions_with_names_different_than_default(rundb_mock):
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
 
@@ -338,18 +339,24 @@ def test_load_project(
         assert os.path.exists(os.path.join(context, project_file))
 
 
-def test_load_project_with_setup(context):
+@pytest.mark.parametrize("op", ["new", "load"])
+def test_project_with_setup(context, op):
     # load the project from the "assets/load_setup_test" dir, and init using the project_setup.py in it
     project_path = (
         pathlib.Path(tests.conftest.tests_root_directory)
         / "projects"
         / "assets"
-        / "load_setup_test"
+        / f"{op}_setup_test"
     )
-    project = mlrun.load_project(
-        context=project_path, name="projset", save=False, parameters={"p2": "123"}
+    name = f"projset-{op}"
+    if op == "new":
+        func = mlrun.new_project
+    else:
+        func = mlrun.load_project
+    project = func(
+        context=project_path, name=name, save=False, parameters={"p2": "123"}
     )
-    mlrun.utils.logger.info(f"Project: {project}")
+    mlrun.utils.logger.info("Created project", project=project)
 
     # see assets/load_setup_test/project_setup.py for extra project settings
     # test that a function was added and its metadata was set from param[p2]
@@ -361,11 +368,14 @@ def test_load_project_with_setup(context):
     assert srv_func.spec.graph["x"].class_name == "MyCls", "serving graph was not set"
 
     # test that the project metadata was set correctly
-    assert project.name == "projset"
+    assert project.name == name
     assert project.spec.context == project_path
 
     # test that the params contain all params from the yaml, the load, and the setup script
-    assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
+    if op == "new":
+        assert project.spec.params == {"p2": "123", "test123": "456"}  # no YAML
+    else:
+        assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
 @pytest.mark.parametrize(
@@ -425,7 +435,7 @@ def _assert_project_function_objects(project, expected_function_objects):
         )
 
 
-def test_set_function_requirements():
+def test_set_function_requirements(rundb_mock):
     project = mlrun.projects.project.MlrunProject.from_dict(
         {
             "metadata": {
@@ -724,7 +734,7 @@ def test_get_artifact_uri():
     assert uri == "store://models/arti/y:prod"
 
 
-def test_export_to_zip():
+def test_export_to_zip(rundb_mock):
     project_dir_path = pathlib.Path(tests.conftest.results) / "zip-project"
     project = mlrun.new_project(
         "tozip", context=str(project_dir_path / "code"), save=False
@@ -890,6 +900,62 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     mlrun.get_run_db().store_project("proj1", proj1)
     run6 = mlrun.run_function(proj1.get_function("f1"), project_object=proj1)
     assert run6.spec.output_path == proj1.spec.artifact_path
+
+
+@pytest.mark.parametrize(
+    "workflow_path,exception",
+    [
+        (
+            "./",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': './'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "https://test",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': 'https://test'. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        (
+            "",
+            pytest.raises(
+                ValueError,
+                match=str(
+                    re.escape(
+                        "Invalid 'workflow_path': ''. Please provide a valid URL/path to a file."
+                    )
+                ),
+            ),
+        ),
+        ("https://test.py", does_not_raise()),
+        # relative path
+        ("./workflow.py", does_not_raise()),
+        # only file name
+        ("workflow.py", does_not_raise()),
+        # absolute path
+        (
+            str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_set_workflow_with_invalid_path(
+    chdir_to_test_location, workflow_path, exception
+):
+    proj = mlrun.new_project("proj", save=False)
+    with exception:
+        proj.set_workflow("main", workflow_path)
 
 
 def test_project_ops():

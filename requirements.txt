@@ -13,9 +13,7 @@ click~=8.0.0
 # with the new features, therefore limiting to 1.8.13
 kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
-# ipython 8.0 + only supports python3.8 +, so to keep backwards compatibility with python 3.7 we support 7.x
-# we rely on pip and nuclio-jupyter requirements to install the right package per python version
-ipython>=7.0, <9.0
+ipython~=8.0
 nuclio-jupyter~=0.9.11
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
@@ -27,8 +25,6 @@ pandas~=1.2, <1.5.0
 pyarrow>=10.0, <12
 pyyaml~=5.1
 requests~=2.22
-# in sqlalchemy>=2.0 there is breaking changes (such as in Table class autoload argument is removed)
-sqlalchemy~=1.4
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
 v3io~=0.5.21
@@ -45,18 +41,15 @@ dask~=2021.11.2
 distributed~=2021.11.2
 # iguazio systems are running 1.17-1.21 so ideally we would use 17.X or later, but kfp limiting to <13.0
 kubernetes~=12.0
-# TODO: move to API requirements (shouldn't really be here, the sql run db using the API sqldb is preventing us from
-#  separating the SDK and API code) (referring to humanfriendly and fastapi)
-humanfriendly~=9.2
-fastapi~=0.95.2
-fsspec~=2023.1.0
+dependency-injector~=4.41
+fsspec>=2023.1,<2023.7
 v3iofs~=0.1.15
-storey~=1.4.3
+storey~=1.5.5
 deepdiff~=5.0
-pymysql~=1.0
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
 setuptools~=65.5
 deprecated~=1.2
 jinja2~=3.1
+anyio~=3.5

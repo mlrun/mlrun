@@ -20,15 +20,14 @@ from kubernetes import client
 from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
+import mlrun.db
 import mlrun.errors
-from mlrun.runtimes.base import BaseRuntimeHandler
 
-from ..db import RunDBError
 from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError, RuntimeClassMode
+from .base import RunError
 from .pod import KubeResource, kube_resource_spec_to_pod_spec
 from .utils import get_k8s
 
@@ -113,6 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
+        builder_env=None,
+        extra_args=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -129,30 +130,34 @@ class KubejobRuntime(KubeResource):
                            function run, use only if you dont plan on changing the build config between runs
         :param requirements: a list of packages to install
         :param requirements_file: requirements file to install
-        :param overwrite:  overwrite existing build configuration
-
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
+        :param overwrite:  overwrite existing build configuration (currently applies to requirements and commands)
+           * False: the new params are merged with the existing
            * True: the existing params are replaced by the new ones
         :param verify_base_image:           verify that the base image is configured
                                             (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
+            e.g. builder_env={"GIT_TOKEN": token}
         """
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
-            image,
-            base_image,
-            commands,
-            secret,
-            source,
-            extra,
-            load_source_on_run,
-            with_mlrun,
-            auto_build,
-            requirements,
-            requirements_file,
-            overwrite,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret,
+            source=source,
+            extra=extra,
+            load_source_on_run=load_source_on_run,
+            with_mlrun=with_mlrun,
+            auto_build=auto_build,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=overwrite,
+            builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         if verify_base_image or prepare_image_for_deploy:
@@ -257,7 +262,7 @@ class KubejobRuntime(KubeResource):
         offset = 0
         try:
             text, _ = db.get_builder_status(self, 0, logs=logs)
-        except RunDBError:
+        except mlrun.db.RunDBError:
             raise ValueError("function or build process not found")
 
         def print_log(text):
@@ -360,10 +365,8 @@ class KubejobRuntime(KubeResource):
 
         if self.spec.clone_target_dir:
             workdir = workdir or ""
-            if workdir.startswith("./"):
-                # TODO: use 'removeprefix' when we drop python 3.7 support
-                # workdir.removeprefix("./")
-                workdir = workdir[2:]
+            workdir = workdir.removeprefix("./")
+
             return os.path.join(self.spec.clone_target_dir, workdir)
 
         return workdir
@@ -374,7 +377,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
-        command=[command],
+        command=[command] if command else None,
         args=args,
         working_dir=workdir,
         image_pull_policy=runtime.spec.image_pull_policy,
@@ -390,24 +393,3 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         ]
 
     return pod_spec
-
-
-class KubeRuntimeHandler(BaseRuntimeHandler):
-    kind = "job"
-    class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
-
-    @staticmethod
-    def _expect_pods_without_uid() -> bool:
-        """
-        builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
-        don't have the uid in their labels
-        """
-        return True
-
-    @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        return True
-
-    @staticmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        return f"mlrun/uid={object_id}"

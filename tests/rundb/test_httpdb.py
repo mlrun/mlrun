@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import codecs
-import io
 import sys
 import time
-import unittest.mock
 from collections import namedtuple
 from os import environ
 from pathlib import Path
@@ -29,7 +27,6 @@ from uuid import uuid4
 
 import deepdiff
 import pytest
-import requests_mock
 
 import mlrun.artifacts.base
 import mlrun.common.schemas
@@ -396,6 +393,13 @@ def test_list_functions(create_server):
         # Server or client version is unstable, assuming compatibility
         ("0.7.1", "0.0.0+unstable", True),
         ("0.0.0+unstable", "0.7.1", True),
+        # feature branch
+        ("0.7.1", "0.0.0+feature-branch", True),
+        ("0.7.1-rc1", "0.0.0+feature-branch", True),
+        ("0.7.1-rc1+feature-branch", "0.0.0+feature-branch", True),
+        ("0.7.1", "0.7.1+feature-branch", True),
+        ("0.7.1-rc1", "0.7.1+feature-branch", True),
+        ("0.7.1-rc1+feature-branch", "0.7.1+feature-branch", True),
     ],
 )
 def test_version_compatibility_validation(server_version, client_version, compatible):
@@ -696,7 +700,7 @@ def test_feature_vectors(create_server):
     ), "Features didn't get updated properly"
 
 
-def test_project_file_db_roundtrip(create_server):
+def test_project_sql_db_roundtrip(create_server):
     server: Server = create_server()
     db: HTTPRunDB = server.conn
 
@@ -734,7 +738,6 @@ def test_project_file_db_roundtrip(create_server):
     function_name = "trainer-function"
     function = mlrun.new_function(function_name, project_name)
     project.set_function(function, function_name)
-    project.set_function("hub://describe", "describe")
     workflow_name = "workflow-name"
     workflow_file_path = Path(tests_root_directory) / "rundb" / "workflow.py"
     project.set_workflow(workflow_name, str(workflow_file_path))
@@ -776,61 +779,3 @@ def _assert_projects(expected_project, project):
     )
     assert expected_project.spec.desired_state == project.spec.desired_state
     assert expected_project.spec.desired_state == project.status.state
-
-
-def test_watch_logs_continue():
-    mlrun.mlconf.httpdb.logs.decode.errors = "replace"
-
-    # create logs with invalid utf-8 byte
-    log_lines = [
-        b"Firstrow",
-        b"Secondrow",
-        b"Thirdrow",
-        b"Smiley\xf0\x9f\x98\x86",
-        b"\xf0",  # invalid utf-8 - should be replaced with U+FFFD (�)
-        b"LastRow",
-    ]
-    log_contents = b"".join(log_lines)
-    db = mlrun.db.httpdb.HTTPRunDB("http+mock://wherever.com")
-    run_uid = "some-uid"
-    project = "some-project"
-    adapter = requests_mock.Adapter()
-    current_log_line = 0
-
-    # assert that the log contents are invalid utf-8
-    with pytest.raises(UnicodeDecodeError):
-        for log_line in log_lines:
-            log_line.decode()
-
-    def callback(request, context):
-        nonlocal current_log_line
-        offset = int(request.qs["offset"][0])
-        current_log_line += 1
-
-        # when offset is 0 -> return first log line
-        # when offset is len(log_lines[i]) -> return second log line, and so on
-        # the idea is to always return the next log line, extracted by the log contents
-        # to test offset calculation is valid from the client set
-        context.status_code = 200
-        if current_log_line < len(log_lines):
-            context.headers["x-mlrun-run-state"] = "running"
-        len_next_word = len(log_lines[current_log_line - 1])
-        contents = log_contents[offset : offset + len_next_word]
-        return contents
-
-    adapter.register_uri(
-        "GET",
-        f"http+mock://wherever.com/api/v1/log/{project}/{run_uid}",
-        content=callback,
-    )
-    db.session = db._init_session()
-    db.session.mount("http+mock", adapter)
-    mlrun.mlconf.httpdb.logs.pull_logs_default_interval = 0.1
-    with unittest.mock.patch("sys.stdout", new_callable=io.StringIO) as newprint:
-        db.watch_log(run_uid, project=project)
-        # the first log line is printed with a newline
-        assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
-
-    assert adapter.call_count == len(
-        log_lines
-    ), "should have called the adapter once per log line"

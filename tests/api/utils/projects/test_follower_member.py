@@ -84,14 +84,21 @@ def test_sync_projects(
         state=mlrun.common.schemas.ProjectState.offline,
     )
     project_only_in_db = _generate_project(name="only-in-db")
+    project_will_be_unarchived = _generate_project(
+        name="project-will-be-unarchived",
+        state=mlrun.common.schemas.ProjectState.archived,
+    )
     for _project in [
         project_nothing_changed,
         project_in_creation,
         project_will_be_offline,
         project_only_in_db,
         project_will_be_in_deleting,
+        project_will_be_unarchived,
     ]:
         projects_follower.create_project(db, _project)
+
+    project_will_be_unarchived.status.state = mlrun.common.schemas.ProjectState.online
     nop_leader_list_projects_mock = unittest.mock.Mock(
         return_value=(
             [
@@ -100,6 +107,7 @@ def test_sync_projects(
                 project_in_deletion,
                 project_offline,
                 project_moved_to_deletion,
+                project_will_be_unarchived,
             ],
             None,
         )
@@ -115,13 +123,12 @@ def test_sync_projects(
             project_offline,
             project_only_in_db,
             project_moved_to_deletion,
+            project_will_be_unarchived,
         ],
     )
 
-    # ensure after full sync project that is not in leader is removed
-    mlrun.api.crud.Projects().delete_project_resources = unittest.mock.Mock(
-        return_value=None
-    )
+    # ensure after full sync project that is not in leader is archived
+    project_only_in_db.status.state = mlrun.common.schemas.ProjectState.archived
     projects_follower._sync_projects(full_sync=True)
     _assert_list_projects(
         db,
@@ -130,7 +137,9 @@ def test_sync_projects(
             project_nothing_changed,
             project_in_creation,
             project_offline,
+            project_only_in_db,
             project_moved_to_deletion,
+            project_will_be_unarchived,
         ],
     )
 

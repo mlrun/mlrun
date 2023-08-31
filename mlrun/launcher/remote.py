@@ -19,7 +19,7 @@ import requests
 import mlrun.common.schemas.schedule
 import mlrun.db
 import mlrun.errors
-import mlrun.launcher.client
+import mlrun.launcher.client as launcher
 import mlrun.run
 import mlrun.runtimes
 import mlrun.runtimes.generators
@@ -28,7 +28,7 @@ import mlrun.utils.notifications
 from mlrun.utils import logger
 
 
-class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
+class ClientRemoteLauncher(launcher.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
@@ -106,9 +106,9 @@ class ClientRemoteLauncher(mlrun.launcher.client.ClientBaseLauncher):
         )
         self._store_function(runtime, run)
 
-        return self.submit_job(runtime, run, schedule, watch)
+        return self._submit_job(runtime, run, schedule, watch)
 
-    def submit_job(
+    def _submit_job(
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
         run: "mlrun.run.RunObject",

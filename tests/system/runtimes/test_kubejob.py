@@ -388,3 +388,45 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
         # Before the change of ML-3265 this test should've fail because no normalization was applied on the task name
         assert run.metadata.name == "asc-merger"
+
+    def test_function_with_builder_env(self):
+        name = "test-build-env-vars"
+        builder_env_key = "ARG1"
+        builder_env_val = "value1"
+
+        extra_args_env_key = "ARG2"
+        extra_args_env_val = "value2"
+        extra_args_flag = "--skip-tls-verify"
+        expected_results = [builder_env_val, extra_args_env_val]
+
+        extra_args = (
+            f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
+        )
+        code_path = str(self.assets_path / "function_with_env_vars.py")
+        project = mlrun.get_or_create_project(self.project_name, self.results_path)
+
+        image_name = ".test-custom-image"
+        project.build_image(
+            image=image_name,
+            set_as_default=True,
+            with_mlrun=False,
+            base_image="mlrun/mlrun",
+            requirements=["vaderSentiment"],
+            commands=[
+                f"echo ${builder_env_key} > /tmp/args.txt",
+                f"echo ${extra_args_env_key} >> /tmp/args.txt",
+            ],
+            builder_env={builder_env_key: builder_env_val},
+            extra_args=extra_args,
+        )
+        project.set_function(
+            code_path,
+            name=name,
+            image=image_name,
+            kind="job",
+            handler="handler",
+        )
+
+        run = project.run_function(name)
+        results = run.status.results["results"]
+        assert results == expected_results

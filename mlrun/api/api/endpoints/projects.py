@@ -20,6 +20,7 @@ import sqlalchemy.orm
 from fastapi.concurrency import run_in_threadpool
 
 import mlrun.api.api.deps
+import mlrun.api.crud
 import mlrun.api.utils.auth.verifier
 import mlrun.api.utils.clients.chief
 import mlrun.common.schemas
@@ -321,6 +322,93 @@ async def get_project_summary(
             auth_info,
         )
     return project_summary
+
+
+@router.post("/projects/{name}/load")
+async def load_project(
+    name: str,
+    url: str,
+    secrets: mlrun.common.schemas.SecretsData = None,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        mlrun.api.api.deps.authenticate_request
+    ),
+    db_session: sqlalchemy.orm.Session = fastapi.Depends(
+        mlrun.api.api.deps.get_db_session
+    ),
+):
+    """
+    Loading a project remotely from a given source.
+
+    :param name:                project name
+    :param url:                 git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+    :param secrets:             Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
+    :param auth_info:           auth info of the request
+    :param db_session:          session that manages the current dialog with the database
+
+    :returns: a Run object of the load project function
+    """
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        spec=mlrun.common.schemas.ProjectSpec(source=url),
+    )
+
+    # We must create the project before we run the remote load_project function because
+    # we want this function will be running under the project itself instead of the default project.
+    project, _ = await fastapi.concurrency.run_in_threadpool(
+        get_project_member().create_project,
+        db_session=db_session,
+        project=project,
+        projects_role=auth_info.projects_role,
+        leader_session=auth_info.session,
+    )
+
+    # Storing secrets in project
+    if secrets is not None:
+        await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.secret,
+            project.metadata.name,
+            secrets.provider,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+
+        await run_in_threadpool(
+            mlrun.api.crud.Secrets().store_project_secrets,
+            project.metadata.name,
+            secrets,
+        )
+
+    # Creating the auxiliary function for loading the project:
+    load_project_runner = await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.WorkflowRunners().create_runner,
+        run_name=f"load-{name}",
+        project=name,
+        db_session=db_session,
+        auth_info=auth_info,
+        image=mlrun.mlconf.default_base_image,
+    )
+
+    logger.debug(
+        "Saved function for loading project",
+        project_name=name,
+        function_name=load_project_runner.metadata.name,
+        kind=load_project_runner.kind,
+        source=project.spec.source,
+    )
+
+    run = await fastapi.concurrency.run_in_threadpool(
+        mlrun.api.crud.WorkflowRunners().run,
+        runner=load_project_runner,
+        project=project,
+        workflow_request=None,
+        load_only=True,
+    )
+    return {"data": run.to_dict()}
 
 
 def _is_request_from_leader(

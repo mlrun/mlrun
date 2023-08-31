@@ -22,9 +22,10 @@ from sqlalchemy.orm import Session
 import mlrun.api.crud
 import mlrun.common.schemas
 import tests.conftest
+from mlrun.api.runtime_handlers import get_runtime_handler
 from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
-from mlrun.runtimes import RuntimeKinds, get_runtime_handler
+from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase

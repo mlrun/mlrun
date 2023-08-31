@@ -22,6 +22,7 @@ from nuclio import KafkaTrigger
 
 import mlrun
 import mlrun.common.schemas
+from mlrun.model_monitoring.tracking_policy import TrackingPolicy
 
 from ..datastore import parse_kafka_url
 from ..model import ObjectList
@@ -36,7 +37,7 @@ from ..serving.states import (
     new_remote_endpoint,
     params_to_step,
 )
-from ..utils import get_caller_globals, logger, model_monitoring, set_paths
+from ..utils import get_caller_globals, logger, set_paths
 from .function import NuclioSpec, RemoteRuntime
 from .function_reference import FunctionReference
 
@@ -146,7 +147,6 @@ class ServingSpec(NuclioSpec):
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -304,7 +304,7 @@ class ServingRuntime(RemoteRuntime):
         batch: int = None,
         sample: int = None,
         stream_args: dict = None,
-        tracking_policy: Union[model_monitoring.TrackingPolicy, dict] = None,
+        tracking_policy: Union[TrackingPolicy, dict] = None,
     ):
         """set tracking parameters:
 
@@ -334,9 +334,7 @@ class ServingRuntime(RemoteRuntime):
         if tracking_policy:
             if isinstance(tracking_policy, dict):
                 # Convert tracking policy dictionary into `model_monitoring.TrackingPolicy` object
-                self.spec.tracking_policy = model_monitoring.TrackingPolicy.from_dict(
-                    tracking_policy
-                )
+                self.spec.tracking_policy = TrackingPolicy.from_dict(tracking_policy)
             else:
                 # Tracking_policy is already a `model_monitoring.TrackingPolicy` object
                 self.spec.tracking_policy = tracking_policy
@@ -475,6 +473,17 @@ class ServingRuntime(RemoteRuntime):
 
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
+
+                engine = self.spec.graph.engine or "async"
+                if mlrun.mlconf.is_explicit_ack() and engine == "async":
+                    trigger_args["explicit_ack_mode"] = trigger_args.get(
+                        "explicit_ack_mode", "explicitOnly"
+                    )
+                    extra_attributes = trigger_args.get("extra_attributes", {})
+                    trigger_args["extra_attributes"] = extra_attributes
+                    extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                        "workerAllocationMode", "static"
+                    )
 
                 if (
                     stream.path.startswith("kafka://")

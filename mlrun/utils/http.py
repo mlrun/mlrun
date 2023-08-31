@@ -52,7 +52,9 @@ class HTTPSessionWithRetry(requests.Session):
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
         ConnectionRefusedError,
         ConnectionAbortedError,
+        ConnectionError,
         # often happens when the server is overloaded and can't handle the load.
+        requests.exceptions.ConnectionError,
         requests.exceptions.ConnectTimeout,
         requests.exceptions.ReadTimeout,
         urllib3.exceptions.ReadTimeoutError,
@@ -69,12 +71,12 @@ class HTTPSessionWithRetry(requests.Session):
     ):
         """
         Initialize a new HTTP session with retry logic.
-        :param max_retries: Maximum number of retries to attempt.
-        :param retry_backoff_factor: Wait interval retries in seconds.
-        :param retry_on_exception: Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
-        :param retry_on_status: Retry on error status codes. defaults to True.
-        :param retry_on_post: Retry on POST requests. defaults to False.
-        :param verbose: Print debug messages.
+        :param max_retries:             Maximum number of retries to attempt.
+        :param retry_backoff_factor:    Wait interval retries in seconds.
+        :param retry_on_exception:      Retry on the HTTP_RETRYABLE_EXCEPTIONS. defaults to True.
+        :param retry_on_status:         Retry on error status codes. defaults to True.
+        :param retry_on_post:           Retry on POST requests. defaults to False.
+        :param verbose:                 Print debug messages.
         """
         super().__init__()
 
@@ -166,12 +168,21 @@ class HTTPSessionWithRetry(requests.Session):
             )
             return False
 
+        def exception_is_retryable(exc, retryable_exceptions):
+            def err_chain(err):
+                while err:
+                    yield err
+                    err = err.__cause__
+
+            return any(
+                isinstance(err_in_chain, retryable_exc)
+                for retryable_exc in retryable_exceptions
+                for err_in_chain in err_chain(exc)
+            )
+
         # only retryable exceptions
-        exception_is_retryable = any(
-            msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
-        ) or any(
-            isinstance(exc, retryable_exc)
-            for retryable_exc in self.HTTP_RETRYABLE_EXCEPTIONS
+        exception_is_retryable = exception_is_retryable(
+            exc, self.HTTP_RETRYABLE_EXCEPTIONS
         )
 
         if not exception_is_retryable:
@@ -192,6 +203,7 @@ class HTTPSessionWithRetry(requests.Session):
         self, retry_on_post: bool = False
     ) -> typing.FrozenSet[str]:
         methods = urllib3.util.retry.Retry.DEFAULT_ALLOWED_METHODS
+        methods = methods.union({"PATCH"})
         if retry_on_post:
             methods = methods.union({"POST"})
         return frozenset(methods)

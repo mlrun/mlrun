@@ -18,6 +18,7 @@ import json
 import pytest
 
 import mlrun
+import mlrun.common.helpers
 import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests.conftest import examples_path
@@ -182,7 +183,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert type(fn.metadata.labels) == dict, "metadata labels were not set"
         run = fn.run(workdir=str(examples_path), local=True)
 
-        project, uri, tag, hash_key = mlrun.utils.parse_versioned_object_uri(
+        project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(
             run.spec.function
         )
         local_fn = mlrun.get_run_db().get_function(

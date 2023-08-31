@@ -22,6 +22,7 @@ import sqlalchemy.orm
 import mlrun.api.crud
 import mlrun.api.utils.builder
 import mlrun.api.utils.clients.iguazio
+import mlrun.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
@@ -69,7 +70,7 @@ def test_get_frontend_spec(
         == mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled
     )
     assert frontend_spec.default_function_image_by_kind is not None
-    assert frontend_spec.function_deployment_mlrun_command is not None
+    assert frontend_spec.function_deployment_mlrun_requirement is not None
     assert frontend_spec.default_artifact_path is not None
     # fields UI expects to be in the template
     assert (
@@ -101,8 +102,8 @@ def test_get_frontend_spec(
         == mlrun.api.api.utils.get_allowed_path_prefixes_list()
     )
     assert (
-        frontend_spec.function_deployment_mlrun_command
-        == f'python -m pip install "{mlrun.api.utils.builder.resolve_mlrun_install_command_version()}"'
+        frontend_spec.function_deployment_mlrun_requirement
+        == mlrun.api.utils.builder.resolve_mlrun_install_command_version()
     )
 
 
@@ -186,7 +187,7 @@ def test_get_frontend_spec_nuclio_streams(
         },
     ]:
         # init cached value to None in the beginning of each test case
-        mlrun.runtimes.utils.cached_nuclio_version = None
+        mlrun.api.utils.runtimes.nuclio.cached_nuclio_version = None
         mlrun.mlconf.igz_version = test_case.get("iguazio_version")
         mlrun.mlconf.nuclio_version = test_case.get("nuclio_version")
 

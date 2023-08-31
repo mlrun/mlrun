@@ -14,6 +14,7 @@
 #
 import pathlib
 import sys
+from contextlib import nullcontext as does_not_raise
 
 import pytest
 from deepdiff import DeepDiff
@@ -140,14 +141,32 @@ def test_v3io_stream_trigger():
         ack_window_size=10,
         access_key="x",
     )
-
-    print(function.spec.config)
     trigger = function.spec.config["spec.triggers.mystream"]
     assert trigger["attributes"]["containerName"] == "projects"
     assert trigger["attributes"]["streamPath"] == "x/y"
     assert trigger["password"] == "x"
     assert trigger["attributes"]["yy"] == "123"
     assert trigger["attributes"]["ackWindowSize"] == 10
+
+
+@pytest.mark.parametrize(
+    "consumer_group,expected",
+    [
+        ("my_group", does_not_raise()),
+        ("_mygroup", pytest.raises(mlrun.errors.MLRunInvalidArgumentError)),
+    ],
+)
+def test_v3io_stream_trigger_validate_consumer_group(consumer_group, expected):
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    with expected:
+        function.add_v3io_stream_trigger(
+            "v3io:///projects/x/y",
+            name="mystream",
+            group=consumer_group,
+            access_key="x",
+        )
+        trigger = function.spec.config["spec.triggers.mystream"]
+        assert trigger["attributes"]["consumerGroup"] == consumer_group
 
 
 def test_resolve_git_reference_from_source():

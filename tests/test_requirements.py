@@ -93,11 +93,13 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "aiobotocore": {"~=2.4.2"},
-        "storey": {"~=1.4.3"},
+        "aiobotocore": {">=2.4.2,<2.6"},
+        "storey": {"~=1.5.5"},
+        "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
-        "typing-extensions": {">=3.10.0,<5"},
-        "sphinx": {"~=4.3.0"},
+        # protobuf is limited just for docs
+        "protobuf": {"~=3.20.3"},
+        "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         "click": {"~=8.0.0"},
@@ -110,10 +112,10 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {"~=2023.1.0"},
-        "adlfs": {"~=2022.2.0"},
-        "s3fs": {"~=2023.1.0"},
-        "gcsfs": {"~=2023.1.0"},
+        "fsspec": {">=2023.1,<2023.7"},
+        "adlfs": {">=2022.2,<2023.5"},
+        "s3fs": {">=2023.1,<2023.7"},
+        "gcsfs": {">=2023.1,<2023.7"},
         "distributed": {"~=2021.11.2"},
         "dask": {"~=2021.11.2"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
@@ -121,14 +123,11 @@ def test_requirement_specifiers_convention():
         "urllib3": {">=1.26.9, <1.27"},
         "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
-        "alembic": {"~=1.4,<1.6.0"},
-        "boto3": {"~=1.24.59"},
+        "boto3": {">=1.24.59,<1.27"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
         "pandas": {"~=1.2, <1.5.0"},
-        "ipython": {">=7.0, <9.0"},
-        "importlib_metadata": {">=3.6"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "orjson": {"~=3.3, <3.8.12"},
         "pydantic": {"~=1.10, >=1.10.8"},
@@ -137,6 +136,8 @@ def test_requirement_specifiers_convention():
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},
+        # due to a bug in apscheduler with python 3.9 https://github.com/agronholm/apscheduler/issues/770
+        "apscheduler": {"~=3.6, !=3.10.2"},
         # used in tests
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator

@@ -57,6 +57,8 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
     hub_source = "hub-source"
+    workflow = "workflow"
+    datastore_profile = "datastore-profile"
 
     def to_resource_string(
         self,
@@ -85,10 +87,13 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.runtime_resource: "/projects/{project_name}/runtime-resources",
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
+            AuthorizationResourceTypes.datastore_profile: "/projects/{project_name}/datastore_profiles",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
             # TODO - this was reverted to /marketplace since MLRun needs to be able to run with old igz versions. Once
-            # we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
+            #  we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
             AuthorizationResourceTypes.hub_source: "/marketplace/sources",
+            # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
+            AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

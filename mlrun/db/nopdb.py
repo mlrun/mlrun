@@ -31,7 +31,7 @@ class NopDB(RunDBInterface):
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):
             env_var_message = (
-                "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API "
+                "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API "
                 "server in order to connect"
             )
             if config.httpdb.nop_db.raise_error:
@@ -45,7 +45,8 @@ class NopDB(RunDBInterface):
 
             return
 
-        if attr == "connect":
+        # ignore __class__ because __getattribute__ overrides the parent class's method and it spams logs
+        if attr in ["connect", "__class__"]:
             return super().__getattribute__(attr)
         else:
             nop()
@@ -93,6 +94,7 @@ class NopDB(RunDBInterface):
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         pass
 
@@ -454,7 +456,12 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ):
         pass
 
     def get_hub_source(self, source_name: str):
@@ -487,5 +494,23 @@ class NopDB(RunDBInterface):
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,
+    ):
+        pass
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def delete_datastore_profile(self, name: str, project: str):
+        pass
+
+    def list_datastore_profiles(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        pass
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
     ):
         pass

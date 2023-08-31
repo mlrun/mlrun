@@ -13,28 +13,30 @@
 # limitations under the License.
 import enum
 import http
+import re
 import tempfile
 import time
 import traceback
 import typing
-import warnings
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
+from urllib.parse import urlparse
 
 import kfp
 import requests
 import semver
 
 import mlrun
-import mlrun.api.utils.helpers
 import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
+import mlrun.platforms
 import mlrun.projects
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
 from ..config import config
+from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
 from ..runtimes import BaseRuntime
@@ -99,12 +101,14 @@ class HTTPRunDB(RunDBInterface):
     """
 
     kind = "http"
+    # by default we don't retry on POST request as they are usually not idempotent
+    # here is a list of identified POST requests that are idempotent ('store' vs 'create') and can be retried
+    RETRIABLE_POST_PATHS = [
+        r"\/?projects\/.+\/artifacts\/.+\/.+",
+        r"\/?run\/.+\/.+",
+    ]
 
-    def __init__(self, base_url, user="", password="", token=""):
-        self.base_url = base_url
-        self.user = user
-        self.password = password
-        self.token = token
+    def __init__(self, url):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -112,6 +116,33 @@ class HTTPRunDB(RunDBInterface):
         self._wait_for_project_deletion_interval = 3
         self.client_version = version.Version().get()["version"]
         self.python_version = str(version.Version().get_python_version())
+
+        self._enrich_and_validate(url)
+
+    def _enrich_and_validate(self, url):
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        if scheme not in ("http", "https"):
+            raise ValueError(
+                f"Invalid URL scheme {scheme} for HTTPRunDB, only http(s) is supported"
+            )
+
+        endpoint = parsed_url.hostname
+        if parsed_url.port:
+            endpoint += f":{parsed_url.port}"
+        base_url = f"{parsed_url.scheme}://{endpoint}{parsed_url.path}"
+
+        username = parsed_url.username or config.httpdb.user
+        password = parsed_url.password or config.httpdb.password
+
+        username, password, token = mlrun.platforms.add_or_refresh_credentials(
+            parsed_url.hostname, username, password, config.httpdb.token
+        )
+
+        self.base_url = base_url
+        self.user = username
+        self.password = password
+        self.token = token
 
     def __repr__(self):
         cls = self.__class__.__name__
@@ -211,8 +242,10 @@ class HTTPRunDB(RunDBInterface):
                     if isinstance(dict_[key], enum.Enum):
                         dict_[key] = dict_[key].value
 
-        if not self.session:
-            self.session = self._init_session()
+        # if the method is POST, we need to update the session with the appropriate retry policy
+        if not self.session or method == "POST":
+            retry_on_post = self._is_retry_on_post_allowed(method, path)
+            self.session = self._init_session(retry_on_post)
 
         try:
             response = self.session.request(
@@ -240,15 +273,28 @@ class HTTPRunDB(RunDBInterface):
 
         return response
 
-    def _init_session(self):
+    def _init_session(self, retry_on_post: bool = False):
         return mlrun.utils.HTTPSessionWithRetry(
             retry_on_exception=config.httpdb.retry_api_call_on_exception
-            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            retry_on_post=retry_on_post,
         )
 
     def _path_of(self, prefix, project, uid):
         project = project or config.default_project
         return f"{prefix}/{project}/{uid}"
+
+    def _is_retry_on_post_allowed(self, method, path: str):
+        """
+        Check if the given path is allowed to be retried on POST method
+        :param method:  used to verify that the method is POST since if there is no session initialized there is no
+                        need to initialize it with retry policy for POST when the method is not POST
+        :param path:    the path to check
+        :return:        True if the path is allowed to be retried on POST method and method is POST, False otherwise
+        """
+        return method == "POST" and any(
+            re.match(regex, path) for regex in self.RETRIABLE_POST_PATHS
+        )
 
     def connect(self, secrets=None):
         """Connect to the MLRun API server. Must be called prior to executing any other method.
@@ -291,10 +337,6 @@ class HTTPRunDB(RunDBInterface):
             config.ui.url = config.resolve_ui_url() or server_cfg.get("ui_url")
             config.artifact_path = config.artifact_path or server_cfg.get(
                 "artifact_path"
-            )
-            config.feature_store.data_prefixes = (
-                config.feature_store.data_prefixes
-                or server_cfg.get("feature_store_data_prefixes")
             )
             config.spark_app_image = config.spark_app_image or server_cfg.get(
                 "spark_app_image"
@@ -353,7 +395,6 @@ class HTTPRunDB(RunDBInterface):
                 if server_cfg.get("scrape_metrics") is not None
                 else config.scrape_metrics
             )
-            config.hub_url = server_cfg.get("hub_url") or config.hub_url
             config.default_function_node_selector = (
                 server_cfg.get("default_function_node_selector")
                 or config.default_function_node_selector
@@ -394,6 +435,22 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
+            config.model_endpoint_monitoring.store_type = (
+                server_cfg.get("model_endpoint_monitoring_store_type")
+                or config.model_endpoint_monitoring.store_type
+            )
+            config.model_endpoint_monitoring.endpoint_store_connection = (
+                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
+                or config.model_endpoint_monitoring.endpoint_store_connection
+            )
+            config.packagers = server_cfg.get("packagers") or config.packagers
+            server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
+            for prefix in ["default", "nosql", "redisnosql"]:
+                server_prefix_value = server_data_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.feature_store.data_prefixes, prefix, server_prefix_value
+                    )
 
         except Exception as exc:
             logger.warning(
@@ -609,6 +666,24 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not project
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
@@ -1214,10 +1289,13 @@ class HTTPRunDB(RunDBInterface):
             text = resp.content.decode()
         return text, last_log_timestamp
 
-    def remote_start(self, func_url) -> mlrun.common.schemas.BackgroundTask:
+    def start_function(
+        self, func_url: str = None, function: "mlrun.runtimes.BaseRuntime" = None
+    ) -> mlrun.common.schemas.BackgroundTask:
         """Execute a function remotely, Used for ``dask`` functions.
 
         :param func_url: URL to the function to be executed.
+        :param function: The function object to start, not needed here.
         :returns: A BackgroundTask object, with details on execution process and its status.
         """
 
@@ -1262,13 +1340,13 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call("GET", path, error_message)
         return mlrun.common.schemas.BackgroundTask(**response.json())
 
-    def remote_status(self, project, name, kind, selector):
+    def function_status(self, project, name, kind, selector):
         """Retrieve status of a function being executed remotely (relevant to ``dask`` functions).
 
-        :param project: The project of the function
-        :param name: The name of the function
-        :param kind: The kind of the function, currently ``dask`` is supported.
-        :param selector: Selector clause to be applied to the Kubernetes status query to filter the results.
+        :param project:     The project of the function
+        :param name:        The name of the function
+        :param kind:        The kind of the function, currently ``dask`` is supported.
+        :param selector:    Selector clause to be applied to the Kubernetes status query to filter the results.
         """
 
         try:
@@ -1331,8 +1409,6 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
-        # TODO: deprecated, remove in 1.5.0
-        ttl=None,
         cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
@@ -1345,19 +1421,9 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
-        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
-                    and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
-
-        if ttl:
-            warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -1365,7 +1431,7 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_metadata(
                 artifact_path=artifact_path,
-                cleanup_ttl=cleanup_ttl or ttl,
+                cleanup_ttl=cleanup_ttl,
                 op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(
@@ -1628,7 +1694,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-
         partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
@@ -2141,7 +2206,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-
             # projects is just a list of strings
             return response.json()["projects"]
 
@@ -2250,7 +2314,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2274,7 +2340,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,
@@ -2776,6 +2842,35 @@ class HTTPRunDB(RunDBInterface):
             params=attributes,
         )
 
+    def deploy_monitoring_batch_job(
+        self,
+        project: str = "",
+        default_batch_image: str = "mlrun/mlrun",
+        with_schedule: bool = False,
+    ):
+        """
+        Submit model monitoring batch job. By default, submit only the batch job as ML function without scheduling.
+        To submit a scheduled job as well, please set with_schedule = True.
+
+        :param project:             Project name.
+        :param default_batch_image: The default image of the model monitoring batch job. By default, the image
+                                    is mlrun/mlrun.
+        :param with_schedule:       If true, submit the model monitoring scheduled job as well.
+
+
+        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_batch_image": default_batch_image,
+            "with_schedule": with_schedule,
+        }
+        path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
@@ -2799,7 +2894,7 @@ class HTTPRunDB(RunDBInterface):
             import mlrun.common.schemas
 
             # Add a private source as the last one (will be #1 in the list)
-            private_source = mlrun.common.schemas.IndexedHubeSource(
+            private_source = mlrun.common.schemas.IndexedHubSource(
                 order=-1,
                 source=mlrun.common.schemas.HubSource(
                     metadata=mlrun.common.schemas.HubObjectMetadata(
@@ -2859,12 +2954,30 @@ class HTTPRunDB(RunDBInterface):
         response = self.api_call(method="PUT", path=path, json=source)
         return mlrun.common.schemas.IndexedHubSource(**response.json())
 
-    def list_hub_sources(self):
+    def list_hub_sources(
+        self,
+        item_name: Optional[str] = None,
+        tag: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[mlrun.common.schemas.hub.IndexedHubSource]:
         """
         List hub sources in the MLRun DB.
+
+        :param item_name:   Sources contain this item will be returned, If not provided all sources will be returned.
+        :param tag:         Item tag to filter by, supported only if item name is provided.
+        :param version:     Item version to filter by, supported only if item name is provided and tag is not.
+
+        :returns: List of indexed hub sources.
         """
         path = "hub/sources"
-        response = self.api_call(method="GET", path=path).json()
+        params = {}
+        if item_name:
+            params["item-name"] = normalize_name(item_name)
+        if tag:
+            params["tag"] = tag
+        if version:
+            params["version"] = version
+        response = self.api_call(method="GET", path=path, params=params).json()
         results = []
         for item in response:
             results.append(mlrun.common.schemas.IndexedHubSource(**item))
@@ -2913,7 +3026,7 @@ class HTTPRunDB(RunDBInterface):
         :returns: :py:class:`~mlrun.common.schemas.hub.HubCatalog` object, which is essentially a list
             of :py:class:`~mlrun.common.schemas.hub.HubItem` entries.
         """
-        path = (f"hub/sources/{source_name}/items",)
+        path = f"hub/sources/{source_name}/items"
         params = {
             "version": version,
             "tag": tag,
@@ -2970,7 +3083,7 @@ class HTTPRunDB(RunDBInterface):
 
         :return: http response with the asset in the content attribute
         """
-        path = (f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}",)
+        path = f"hub/sources/{source_name}/items/{item_name}/assets/{asset_name}"
         params = {
             "version": version,
             "tag": tag,
@@ -3062,6 +3175,195 @@ class HTTPRunDB(RunDBInterface):
                 ],
             },
         )
+
+    def store_run_notifications(
+        self,
+        notification_objects: typing.List[mlrun.model.Notification],
+        run_uid: str,
+        project: str = None,
+        mask_params: bool = True,
+    ):
+        """
+        For internal use.
+        The notification mechanism may run "locally" for certain runtimes.
+        However, the updates occur in the API so nothing to do here.
+        """
+        pass
+
+    def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        workflow_spec: Union[
+            mlrun.projects.pipelines.WorkflowSpec,
+            mlrun.common.schemas.WorkflowSpec,
+            dict,
+        ],
+        arguments: Optional[Dict] = None,
+        artifact_path: Optional[str] = None,
+        source: Optional[str] = None,
+        run_name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ):
+        """
+        Submitting workflow for a remote execution.
+
+        :param project:         project name
+        :param name:            workflow name
+        :param workflow_spec:   the workflow spec to execute
+        :param arguments:       arguments for the workflow
+        :param artifact_path:   artifact target path of the workflow
+        :param source:          source url of the project
+        :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
+        :param namespace:       kubernetes namespace if other than default
+
+        :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
+        """
+        image = (
+            workflow_spec.image
+            if hasattr(workflow_spec, "image")
+            else workflow_spec.get("image", None)
+        )
+        req = {
+            "arguments": arguments,
+            "artifact_path": artifact_path,
+            "source": source,
+            "run_name": run_name,
+            "namespace": namespace,
+        }
+        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+            req["spec"] = workflow_spec.dict()
+        elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
+            req["spec"] = workflow_spec.to_dict()
+        else:
+            req["spec"] = workflow_spec
+        req["spec"]["image"] = image
+        response = self.api_call(
+            "POST",
+            f"projects/{project}/workflows/{name}/submit",
+            json=req,
+        )
+        return mlrun.common.schemas.WorkflowResponse(**response.json())
+
+    def get_workflow_id(
+        self,
+        project: str,
+        name: str,
+        run_id: str,
+        engine: str = "",
+    ):
+        """
+        Retrieve workflow id from the uid of the workflow runner.
+
+        :param project: project name
+        :param name:    workflow name
+        :param run_id:  the id of the workflow runner - the job that runs the workflow
+        :param engine:  pipeline runner
+
+        :returns:   :py:class:`~mlrun.common.schemas.GetWorkflowResponse`.
+        """
+        params = {}
+        if engine:
+            params["engine"] = engine
+        response = self.api_call(
+            "GET",
+            f"projects/{project}/workflows/{name}/runs/{run_id}",
+            params=params,
+        )
+        return mlrun.common.schemas.GetWorkflowResponse(**response.json())
+
+    def load_project(
+        self,
+        name: str,
+        url: str,
+        secrets: Optional[Dict] = None,
+        save_secrets: bool = True,
+    ) -> str:
+        """
+        Loading a project remotely from the given source.
+        :param name:            project name
+        :param url:             git or tar.gz or .zip sources archive path e.g.:
+                                git://github.com/mlrun/demo-xgb-project.git
+                                http://mysite/archived-project.zip
+                                The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url.
+                                For more information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project.
+                                Setting to False will cause waiting for the process completion.
+
+        :returns:               The terminal state of load project process.
+        """
+        params = {"url": url}
+        body = None
+        if secrets:
+            provider = mlrun.common.schemas.SecretProviderName.kubernetes
+            secrets_input = mlrun.common.schemas.SecretsData(
+                provider=provider, secrets=secrets
+            )
+            body = secrets_input.dict()
+        response = self.api_call(
+            "POST", f"projects/{name}/load", params=params, body=dict_to_json(body)
+        )
+        response = response.json()
+        run = mlrun.RunObject.from_dict(response["data"])
+        state, _ = run.logs()
+
+        if secrets and not save_secrets:
+            self.delete_project_secrets(project=name, secrets=list(secrets.keys()))
+            if state != "completed":
+                logger.error("Load project task failed, deleting project")
+                self.delete_project(name, mlrun.common.schemas.DeletionStrategy.cascade)
+
+        return state
+
+    def get_datastore_profile(
+        self, name: str, project: str
+    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastore = DatastoreProfile2Json.create_from_json(
+                public_json=public_wrapper["object"]
+            )
+            return datastore
+        return None
+
+    def delete_datastore_profile(self, name: str, project: str):
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        self.api_call(method="DELETE", path=path)
+        return None
+
+    def list_datastore_profiles(
+        self, project: str
+    ) -> List[mlrun.common.schemas.DatastoreProfile]:
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
+
+    def store_datastore_profile(
+        self, profile: mlrun.common.schemas.DatastoreProfile, project: str
+    ):
+        """
+        Create or replace a datastore profile.
+        :returns: None
+        """
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        self.api_call(method="PUT", path=path, json=profile.dict())
 
 
 def _as_json(obj):

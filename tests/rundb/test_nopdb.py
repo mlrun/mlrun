@@ -16,6 +16,7 @@
 import pytest
 
 import mlrun
+import mlrun.db.nopdb
 
 
 def test_nopdb():
@@ -23,7 +24,7 @@ def test_nopdb():
     assert mlrun.mlconf.httpdb.nop_db.raise_error is False
 
     rundb = mlrun.get_run_db()
-    assert isinstance(rundb, mlrun.db.NopDB)
+    assert isinstance(rundb, mlrun.db.nopdb.NopDB)
 
     # not expected to fail as it in the white list
     rundb.connect()

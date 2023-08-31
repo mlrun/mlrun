@@ -16,6 +16,7 @@ import mlrun
 
 
 def kfpipeline():
+    # sleeping for 60 seconds to be able to abort the run in the middle of the execution
     time_to_sleep = 60
 
     step_1 = mlrun.run_function(

@@ -52,14 +52,20 @@ class PackagerA(Packager):
         return ["result"]
 
     @classmethod
-    def is_packable(cls, obj: Any, artifact_type: str = None) -> bool:
+    def is_packable(
+        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+    ) -> bool:
         return type(obj) is cls.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     @classmethod
     def pack(
-        cls, obj: str, artifact_type: str = None, configurations: dict = None
+        cls,
+        obj: str,
+        key: str = None,
+        artifact_type: str = None,
+        configurations: dict = None,
     ) -> dict:
-        return {f"{configurations['key']}_from_PackagerA": obj}
+        return {f"{key}_from_PackagerA": obj}
 
     @classmethod
     def unpack(
@@ -155,9 +161,13 @@ class PackagerC(PackagerA):
 
     @classmethod
     def pack(
-        cls, obj: float, artifact_type: str = None, configurations: dict = None
+        cls,
+        obj: float,
+        key: str = None,
+        artifact_type: str = None,
+        configurations: dict = None,
     ) -> dict:
-        return {configurations["key"]: round(obj, configurations["n_round"])}
+        return {key: round(obj, configurations["n_round"])}
 
     @classmethod
     def unpack(

@@ -22,6 +22,7 @@ import fsspec
 import v3io.dataplane
 
 import mlrun
+from mlrun.datastore.helpers import ONE_GB, ONE_MB
 
 from ..platforms.iguazio import parse_path, split_path
 from .base import (
@@ -36,8 +37,6 @@ from .base import (
 )
 
 V3IO_LOCAL_ROOT = "v3io"
-ONE_GB = 1024 * 1024 * 1024
-ONE_MB = 1024 * 1024
 
 
 class V3ioStore(DataStore):

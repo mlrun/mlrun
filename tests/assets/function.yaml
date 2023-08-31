@@ -1,0 +1,49 @@
+# Copyright 2018 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+kind: job
+metadata:
+  name: example
+  tag: ''
+  hash: 6ac98156983aea68309906730510762e1dd9fb60
+  project: ''
+  labels:
+    author: John Doe
+  categories:
+  - machine-learning
+spec:
+  command: ''
+  args: []
+  image: mlrun/mlrun
+  build:
+    functionSourceCode: ZGVmIGhhbmRsZXIoKToKICAgIHByaW50KCJUaGlzIGlzIGFuIGV4YW1wbGUgZnVuY3Rpb24iKQo=
+    commands: []
+  entry_points:
+    handler:
+      name: handler
+      doc: ''
+      parameters: []
+      outputs:
+      - default: ''
+      lineno: 1
+  description: Test function for development use.
+  default_handler: handler
+  disable_auto_mount: false
+  env: []
+  priority_class_name: ''
+  preemption_mode: prevent
+  affinity: null
+  tolerations: null
+  security_context: {}
+verbose: false

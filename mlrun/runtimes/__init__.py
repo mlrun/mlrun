@@ -23,29 +23,23 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
+    "DatabricksRuntime",
 ]
 
-from mlrun.runtimes.utils import (
-    resolve_mpijob_crd_version,
-    resolve_spark_operator_version,
-)
+from mlrun.runtimes.utils import resolve_spark_operator_version
 
-from .base import BaseRuntime, BaseRuntimeHandler, RunError, RuntimeClassMode  # noqa
+from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
-from .daskjob import DaskCluster, DaskRuntimeHandler, get_dask_resource  # noqa
+from .daskjob import DaskCluster  # noqa
+from .databricks.databricks import DatabricksRuntime
 from .function import RemoteRuntime
-from .kubejob import KubejobRuntime, KubeRuntimeHandler  # noqa
+from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
-from .mpijob import (  # noqa
-    MpiRuntimeV1,
-    MpiRuntimeV1Alpha1,
-    MpiV1Alpha1RuntimeHandler,
-    MpiV1RuntimeHandler,
-)
+from .mpijob import MpiRuntimeContainer, MpiRuntimeV1, MpiRuntimeV1Alpha1  # noqa
 from .nuclio import nuclio_init_hook
-from .remotesparkjob import RemoteSparkRuntime, RemoteSparkRuntimeHandler
+from .remotesparkjob import RemoteSparkRuntime
 from .serving import ServingRuntime, new_v2_model_server
-from .sparkjob import Spark3Runtime, SparkRuntimeHandler
+from .sparkjob import Spark3Runtime
 
 # for legacy imports (MLModelServer moved from here to /serving)
 from ..serving import MLModelServer, new_v1_model_server  # noqa isort: skip
@@ -101,6 +95,7 @@ class RuntimeKinds(object):
     serving = "serving"
     local = "local"
     handler = "handler"
+    databricks = "databricks"
 
     @staticmethod
     def all():
@@ -114,6 +109,7 @@ class RuntimeKinds(object):
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
             RuntimeKinds.local,
+            RuntimeKinds.databricks,
         ]
 
     @staticmethod
@@ -124,6 +120,7 @@ class RuntimeKinds(object):
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
         ]
 
     @staticmethod
@@ -181,25 +178,9 @@ class RuntimeKinds(object):
         return False
 
     @staticmethod
-    def is_watchable(kind):
-        """
-        Returns True if the runtime kind is watchable, False otherwise.
-        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
-        is completed.
-        """
-        # "" or None counted as local
-        if not kind:
-            return False
-        return kind not in [
-            RuntimeKinds.local,
-            RuntimeKinds.handler,
-            RuntimeKinds.dask,
-        ]
-
-    @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
-        Returns True if the runtime kind requires absolute artifacts' path (e.i. is local), False otherwise.
+        Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.
         """
         if RuntimeKinds.is_local_runtime(kind):
             return False
@@ -214,48 +195,9 @@ class RuntimeKinds(object):
         return False
 
 
-runtime_resources_map = {RuntimeKinds.dask: get_dask_resource()}
-
-runtime_handler_instances_cache = {}
-
-
-def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
-    global runtime_handler_instances_cache
-    if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = resolve_mpijob_crd_version()
-        crd_version_to_runtime_handler_class = {
-            MPIJobCRDVersions.v1alpha1: MpiV1Alpha1RuntimeHandler,
-            MPIJobCRDVersions.v1: MpiV1RuntimeHandler,
-        }
-        runtime_handler_class = crd_version_to_runtime_handler_class[mpijob_crd_version]
-        if not runtime_handler_instances_cache.setdefault(RuntimeKinds.mpijob, {}).get(
-            mpijob_crd_version
-        ):
-            runtime_handler_instances_cache[RuntimeKinds.mpijob][
-                mpijob_crd_version
-            ] = runtime_handler_class()
-        return runtime_handler_instances_cache[RuntimeKinds.mpijob][mpijob_crd_version]
-
-    kind_runtime_handler_map = {
-        RuntimeKinds.dask: DaskRuntimeHandler,
-        RuntimeKinds.spark: SparkRuntimeHandler,
-        RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
-        RuntimeKinds.job: KubeRuntimeHandler,
-    }
-    runtime_handler_class = kind_runtime_handler_map[kind]
-    if not runtime_handler_instances_cache.get(kind):
-        runtime_handler_instances_cache[kind] = runtime_handler_class()
-    return runtime_handler_instances_cache[kind]
-
-
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:
-        mpijob_crd_version = resolve_mpijob_crd_version()
-        crd_version_to_runtime = {
-            MPIJobCRDVersions.v1alpha1: MpiRuntimeV1Alpha1,
-            MPIJobCRDVersions.v1: MpiRuntimeV1,
-        }
-        return crd_version_to_runtime[mpijob_crd_version]
+        return MpiRuntimeContainer.selector()
 
     if kind == RuntimeKinds.spark:
         return Spark3Runtime
@@ -268,6 +210,7 @@ def get_runtime_class(kind: str):
         RuntimeKinds.job: KubejobRuntime,
         RuntimeKinds.local: LocalRuntime,
         RuntimeKinds.remotespark: RemoteSparkRuntime,
+        RuntimeKinds.databricks: DatabricksRuntime,
     }
 
     return kind_runtime_map[kind]

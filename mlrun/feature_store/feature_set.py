@@ -273,7 +273,7 @@ class FeatureSetStatus(ModelObj):
         :param run_uri: last run used for ingestion
         """
 
-        self.state = state or "created"
+        self.state = state or mlrun.common.schemas.object.ObjectStatusState.CREATED
         self._targets: ObjectList = None
         self.targets = targets or []
         self.stats = stats or {}
@@ -418,16 +418,6 @@ class FeatureSet(ModelObj):
             fullname += ":" + self._metadata.tag
         return fullname
 
-    def _override_run_db(
-        self,
-        session,
-    ):
-        # Import here, since this method only runs in API context. If this import was global, client would need
-        # API requirements and would fail.
-        from ..api.api.utils import get_run_db_instance
-
-        self._run_db = get_run_db_instance(session)
-
     def _get_run_db(self):
         if self._run_db:
             return self._run_db
@@ -442,7 +432,9 @@ class FeatureSet(ModelObj):
             target = get_online_target(self, name)
 
         if target:
-            return target.get_path().get_absolute_path()
+            return target.get_path().get_absolute_path(
+                project_name=self.metadata.project
+            )
 
     def set_targets(
         self,
@@ -477,7 +469,7 @@ class FeatureSet(ModelObj):
         targets = targets or []
         if with_defaults:
             self.spec.with_default_targets = True
-            targets.extend(get_default_targets())
+            targets.extend(get_default_targets(offline_only=self.spec.passthrough))
         else:
             self.spec.with_default_targets = False
 

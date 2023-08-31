@@ -58,7 +58,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert fn.metadata.name == "describe", "func did not return"
 
         # test that functions can be fetched from the DB (w/o set_function)
-        mlrun.import_function("hub://sklearn_classifier", new_name="train").save()
+        mlrun.import_function("hub://auto_trainer", new_name="train").save()
         fn = project.get_function("train")
         assert fn.metadata.name == "train", "train func did not return"
 
@@ -240,6 +240,18 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert project.spec.workflows == []
         assert project.spec.artifacts == []
         assert project.spec.conda == ""
+
+    def test_set_project_secrets(self):
+        # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
+        project_name = "some-project"
+        project_object = mlrun.get_or_create_project(project_name)
+
+        secrets = {"secret1": "value1", "secret2": "value2"}
+        project_object.set_secrets(secrets)
+        secret_keys = (
+            mlrun.get_run_db().list_project_secret_keys(project_name).secret_keys
+        )
+        assert secret_keys == list(secrets.keys())
 
 
 def _assert_projects(expected_project, project):

@@ -26,7 +26,6 @@ import mlrun
 from mlrun.errors import err_to_str
 
 from .config import config
-from .db import get_or_set_dburl, get_run_db
 from .model import HyperParamOptions, RunSpec
 from .utils import (
     dict_to_yaml,
@@ -297,7 +296,7 @@ def mlrun_op(
     outputs = [] if outputs is None else outputs
     labels = {} if labels is None else labels
 
-    rundb = rundb or get_or_set_dburl()
+    rundb = rundb or mlrun.db.get_or_set_dburl()
     cmd = [
         "python",
         "-m",
@@ -732,20 +731,21 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
     return dag, project, workflow["status"].get("message", "")
 
 
-def format_summary_from_kfp_run(kfp_run, project=None, session=None):
+def format_summary_from_kfp_run(
+    kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
+):
     override_project = project if project and project != "*" else None
     dag, project, message = generate_kfp_dag_and_resolve_project(
         kfp_run, override_project
     )
     run_id = get_in(kfp_run, "run.id")
 
+    # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
+    if not run_db:
+        run_db = mlrun.db.get_run_db()
+
     # enrich DAG with mlrun run info
-    if session:
-        runs = mlrun.api.utils.singletons.db.get_db().list_runs(
-            session, project=project, labels=f"workflow={run_id}"
-        )
-    else:
-        runs = get_run_db().list_runs(project=project, labels=f"workflow={run_id}")
+    runs = run_db.list_runs(project=project, labels=f"workflow={run_id}")
 
     for run in runs:
         step = get_in(run, ["metadata", "labels", "mlrun/runner-pod"])

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import json
 import pathlib
 import re
 import time
@@ -32,6 +33,7 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
@@ -137,6 +139,8 @@ class ModelObj:
 
 # model class for building ModelObj dictionaries
 class ObjectDict:
+    kind = "object_dict"
+
     def __init__(self, classes_map, default_kind=""):
         self._children = OrderedDict()
         self._default_kind = default_kind
@@ -354,6 +358,8 @@ class ImageBuilder(ModelObj):
         with_mlrun=None,
         auto_build=None,
         requirements: list = None,
+        extra_args=None,
+        builder_env=None,
     ):
         self.functionSourceCode = functionSourceCode  #: functionSourceCode
         self.codeEntryType = ""  #: codeEntryType
@@ -365,6 +371,8 @@ class ImageBuilder(ModelObj):
         self.base_image = base_image  #: base_image
         self.commands = commands or []  #: commands
         self.extra = extra  #: extra
+        self.extra_args = extra_args  #: extra args
+        self.builder_env = builder_env  #: builder env
         self.secret = secret  #: secret
         self.registry = registry  #: registry
         self.load_source_on_run = load_source_on_run  #: load_source_on_run
@@ -406,6 +414,8 @@ class ImageBuilder(ModelObj):
         requirements=None,
         requirements_file=None,
         overwrite=False,
+        builder_env=None,
+        extra_args=None,
     ):
         if image:
             self.image = image
@@ -427,6 +437,10 @@ class ImageBuilder(ModelObj):
             self.with_mlrun = with_mlrun
         if auto_build:
             self.auto_build = auto_build
+        if builder_env:
+            self.builder_env = builder_env
+        if extra_args:
+            self.extra_args = extra_args
 
     def with_commands(
         self,
@@ -545,6 +559,7 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
@@ -557,6 +572,7 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
@@ -570,6 +586,17 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc
+
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
+        # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        if (
+            len(json.dumps(self.secret_params))
+            > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification params size exceeds max size of 1 MB"
+            )
 
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
@@ -903,7 +930,7 @@ class RunSpec(ModelObj):
 
     def extract_type_hints_from_inputs(self):
         """
-        This method extracts the type hints from the inputs keys in the input dictionary.
+        This method extracts the type hints from the input keys in the input dictionary.
 
         As a result, after the method ran the inputs dictionary - a dictionary of parameter names as keys and paths as
         values, will be cleared from type hints and the extracted type hints will be saved in the spec's inputs type
@@ -986,7 +1013,7 @@ class RunSpec(ModelObj):
         # Validate correct pattern:
         if input_key.count(":") > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Incorrect input pattern. Inputs keys can have only a single ':' in them to specify the desired type "
+                f"Incorrect input pattern. Input keys can have only a single ':' in them to specify the desired type "
                 f"the input will be parsed as. Given: {input_key}."
             )
 
@@ -1309,25 +1336,17 @@ class RunObject(RunTemplate):
         """return or watch on the run logs"""
         if not db:
             db = mlrun.get_run_db()
+
         if not db:
-            print("DB is not configured, cannot show logs")
+            logger.warning("DB is not configured, cannot show logs")
             return None
 
-        new_offset = 0
-        if db.kind == "http":
-            state, new_offset = db.watch_log(
-                self.metadata.uid, self.metadata.project, watch=watch, offset=offset
-            )
-        # not expected to reach this else, as FileDB is not supported any more and because we don't watch logs on API
-        else:
-            state, text = db.get_log(
-                self.metadata.uid, self.metadata.project, offset=offset
-            )
-            if text:
-                print(text.decode())
-
+        state, new_offset = db.watch_log(
+            self.metadata.uid, self.metadata.project, watch=watch, offset=offset
+        )
         if state:
-            print(f"final state: {state}")
+            logger.debug("Run reached terminal state", state=state)
+
         return state, new_offset
 
     def wait_for_completion(
@@ -1576,11 +1595,12 @@ class TargetPathObject:
     def get_templated_path(self):
         return self.full_path_template
 
-    def get_absolute_path(self):
-        if self.run_id:
-            return self.full_path_template.format(run_id=self.run_id)
-        else:
-            return self.full_path_template
+    def get_absolute_path(self, project_name=None):
+        path = fill_project_path_template(
+            artifact_path=self.full_path_template,
+            project=project_name,
+        )
+        return path.format(run_id=self.run_id) if self.run_id else path
 
 
 class DataSource(ModelObj):

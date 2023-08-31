@@ -16,11 +16,9 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
-import time
 import traceback
 import typing
 import uuid
-import warnings
 
 import kfp.compiler
 from kfp import dsl
@@ -34,9 +32,11 @@ from mlrun.utils import (
     get_ui_url,
     logger,
     new_pipe_metadata,
-    parse_versioned_object_uri,
+    normalize_workflow_name,
+    retry_until_successful,
 )
 
+from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
@@ -76,32 +76,23 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args=None,
         name=None,
         handler=None,
-        # TODO: deprecated, remove in 1.5.0
-        ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
+        image: str = None,
     ):
-        if ttl:
-            warnings.warn(
-                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-                "This will be removed in 1.5.0",
-                # TODO: Remove this in 1.5.0
-                FutureWarning,
-            )
-
         self.engine = engine
         self.code = code
         self.path = path
         self.args = args
         self.name = name
         self.handler = handler
-        self.ttl = cleanup_ttl or ttl
-        self.cleanup_ttl = cleanup_ttl or ttl
+        self.cleanup_ttl = cleanup_ttl
         self.args_schema = args_schema
         self.run_local = False
         self._tmp_path = None
         self.schedule = schedule
+        self.image = image
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -384,7 +375,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, copy_function=True
+    project, function, decorator=None, copy_function=True, try_auto_mount=True
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -418,11 +409,12 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
-    if (
-        decorator and AutoMountType.is_auto_modifier(decorator)
-    ) or project.spec.disable_auto_mount:
-        f.spec.disable_auto_mount = True
-    f.try_auto_mount_based_on_config()
+    if try_auto_mount:
+        if (
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
+            f.spec.disable_auto_mount = True
+        f.try_auto_mount_based_on_config()
 
     return f
 
@@ -557,7 +549,7 @@ class _KFPRunner(_PipelineRunner):
 
         conf = new_pipe_metadata(
             artifact_path=artifact_path,
-            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl,
         )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
@@ -590,7 +582,7 @@ class _KFPRunner(_PipelineRunner):
             experiment=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
-            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl,
         )
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
@@ -751,137 +743,56 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
-    @staticmethod
-    def _prepare_load_and_run_function(
-        source: str,
-        project_name: str,
-        save: bool,
-        workflow_name: str,
-        workflow_spec: WorkflowSpec,
-        artifact_path: str,
-        workflow_handler: str,
-        namespace: str,
-        subpath: str,
-    ) -> typing.Tuple[mlrun.runtimes.RemoteRuntime, "mlrun.RunObject"]:
-        """
-        Helper function for creating the runspec of the load and run function.
-        For internal use only.
-        :param source:              The source of the project.
-        :param project_name:        project name
-        :param save:                either to save the project in the DB
-        :param workflow_name:       workflow name
-        :param workflow_spec:       workflow to run
-        :param artifact_path:       path to store artifacts
-        :param workflow_handler:    workflow function handler (for running workflow function directly)
-        :param namespace:           kubernetes namespace if other than default
-        :param subpath:             project subpath (within the archive)
-        :return:
-        """
-        # Creating the load project and workflow running function:
-        load_and_run_fn = mlrun.new_function(
-            name=mlrun.mlconf.default_workflow_runner_name.format(workflow_name),
-            project=project_name,
-            kind="job",
-            image=mlrun.mlconf.default_base_image,
-        )
-        runspec = mlrun.RunObject(
-            spec=mlrun.model.RunSpec(
-                parameters={
-                    "url": source,
-                    "project_name": project_name,
-                    "save": save,
-                    "workflow_name": workflow_name or workflow_spec.name,
-                    "workflow_path": workflow_spec.path,
-                    "workflow_arguments": workflow_spec.args,
-                    "artifact_path": artifact_path,
-                    "workflow_handler": workflow_handler or workflow_spec.handler,
-                    "namespace": namespace,
-                    "ttl": workflow_spec.cleanup_ttl or workflow_spec.ttl,
-                    "engine": workflow_spec.engine,
-                    "local": workflow_spec.run_local,
-                    "schedule": workflow_spec.schedule,
-                    "subpath": subpath,
-                },
-                handler="mlrun.projects.load_and_run",
-            ),
-            metadata=mlrun.model.RunMetadata(name=workflow_name),
-        )
-
-        runspec = runspec.set_label("job-type", "workflow-runner").set_label(
-            "workflow", workflow_name
-        )
-        return load_and_run_fn, runspec
-
     @classmethod
     def run(
         cls,
-        project,
+        project: "mlrun.projects.MlrunProject",
         workflow_spec: WorkflowSpec,
-        name=None,
-        workflow_handler=None,
-        secrets=None,
-        artifact_path=None,
-        namespace=None,
-        source=None,
+        name: str = None,
+        workflow_handler: typing.Union[str, typing.Callable] = None,
+        secrets: mlrun.secrets.SecretsStore = None,
+        artifact_path: str = None,
+        namespace: str = None,
+        source: str = None,
     ) -> typing.Optional[_PipelineRunStatus]:
-        workflow_name = name.split("-")[-1] if f"{project.name}-" in name else name
-
-        run_id = None
-
-        # If the user provided a source we want to load the project from the source
-        # (like from a specific commit/branch from git repo) without changing the source of the project (save=False).
-        save, current_source = (
-            (False, source) if source else (True, project.spec.source)
-        )
-        if "://" not in current_source:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Remote workflows can only be performed by a project with remote source (e.g git:// or http://),"
-                f" but the specified source '{current_source}' is not remote. "
-                f"Either put your code in Git, or archive it and then set a source to it."
-                f" For more details, read"
-                f" https://docs.mlrun.org/en/latest/concepts/scheduled-jobs.html#scheduling-a-workflow"
-            )
-
-        # Creating the load project and workflow running function:
-        load_and_run_fn, runspec = cls._prepare_load_and_run_function(
-            source=current_source,
-            project_name=project.name,
-            save=save,
-            workflow_name=workflow_name,
-            workflow_spec=workflow_spec,
-            artifact_path=artifact_path,
-            workflow_handler=workflow_handler,
-            namespace=namespace,
-            subpath=project.spec.subpath,
-        )
+        workflow_name = normalize_workflow_name(name=name, project_name=project.name)
+        workflow_id = None
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
         inner_engine = get_workflow_engine(workflow_spec.engine)
-
-        msg = "executing workflow"
-        if workflow_spec.schedule:
-            msg += " scheduling"
-        logger.info(
-            f"{msg} '{load_and_run_fn.metadata.name}' remotely with {workflow_spec.engine} engine"
-        )
-
+        run_db = mlrun.get_run_db()
         try:
-            run = load_and_run_fn.run(
-                runspec=runspec,
-                local=False,
-                schedule=workflow_spec.schedule,
+            workflow_response = run_db.submit_workflow(
+                project=project.name,
+                name=workflow_name,
+                workflow_spec=workflow_spec,
                 artifact_path=artifact_path,
+                source=source,
+                run_name=config.workflows.default_workflow_runner_name.format(
+                    workflow_name
+                ),
+                namespace=namespace,
             )
             if workflow_spec.schedule:
                 return
-            # Fetching workflow id:
-            while not run_id:
-                run.refresh()
-                run_id = run.status.results.get("workflow_id", None)
-                time.sleep(1)
+
+            # Getting workflow id from run:
+            response = retry_until_successful(
+                1,
+                getattr(mlrun.mlconf.workflows.timeouts, inner_engine.engine),
+                logger,
+                False,
+                run_db.get_workflow_id,
+                project=project.name,
+                name=workflow_response.name,
+                run_id=workflow_response.run_id,
+                engine=workflow_spec.engine,
+            )
+            workflow_id = response.workflow_id
             # After fetching the workflow_id the workflow executed successfully
             state = mlrun.run.RunStatuses.succeeded
+            pipeline_context.clear()
 
         except Exception as e:
             trace = traceback.format_exc()
@@ -892,8 +803,8 @@ class _RemoteRunner(_PipelineRunner):
             )
             state = mlrun.run.RunStatuses.failed
             return _PipelineRunStatus(
-                run_id,
-                inner_engine,
+                run_id=workflow_id,
+                engine=inner_engine,
                 project=project,
                 workflow=workflow_spec,
                 state=state,
@@ -904,8 +815,8 @@ class _RemoteRunner(_PipelineRunner):
         )
         pipeline_context.clear()
         return _PipelineRunStatus(
-            run_id,
-            inner_engine,
+            run_id=workflow_id,
+            engine=inner_engine,
             project=project,
             workflow=workflow_spec,
             state=state,
@@ -922,16 +833,6 @@ def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     setattr(mod, "funcs", functions)  # should be replaced with "functions" in future
     setattr(mod, "functions", functions)
     setattr(mod, "this_project", project)
-
-    if hasattr(mod, "init_functions"):
-
-        # TODO: remove in 1.5.0
-        warnings.warn(
-            "'init_functions' is deprecated in 1.3.0 and will be removed in 1.5.0. "
-            "Place function initialization in the pipeline code.",
-            FutureWarning,
-        )
-        getattr(mod, "init_functions")(functions, project, secrets)
 
     # verify all functions are in this project (init_functions may add new functions)
     for f in functions.values():
@@ -981,12 +882,11 @@ def load_and_run(
     namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
-    # TODO: deprecated, remove in 1.5.0
-    ttl: int = None,
     engine: str = None,
     local: bool = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
+    load_only: bool = False,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1009,23 +909,14 @@ def load_and_run(
     :param namespace:           kubernetes namespace if other than default
     :param sync:                force functions sync before run
     :param dirty:               allow running the workflow when the git repo is dirty
-    :param ttl:                 pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
-                                workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
     :param schedule:            ScheduleCronTrigger class instance or a standard crontab expression string
     :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                                 workflow and all its resources are deleted)
+    :param load_only:           for just loading the project, inner use.
     """
-    if ttl:
-        warnings.warn(
-            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
-            "This will be removed in 1.5.0",
-            # TODO: Remove this in 1.5.0
-            FutureWarning,
-        )
-
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",
@@ -1035,6 +926,7 @@ def load_and_run(
             subpath=subpath,
             clone=clone,
             save=save,
+            sync_functions=True,
         )
     except Exception as error:
         if schedule:
@@ -1061,6 +953,9 @@ def load_and_run(
 
     context.logger.info(f"Loaded project {project.name} from remote successfully")
 
+    if load_only:
+        return
+
     workflow_log_message = workflow_name or workflow_path
     context.logger.info(f"Running workflow {workflow_log_message} from remote")
     run = project.run(
@@ -1073,7 +968,7 @@ def load_and_run(
         sync=sync,
         watch=False,  # Required for fetching the workflow_id
         dirty=dirty,
-        cleanup_ttl=cleanup_ttl or ttl,
+        cleanup_ttl=cleanup_ttl,
         engine=engine,
         local=local,
     )

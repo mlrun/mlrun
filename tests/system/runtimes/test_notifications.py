@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pytest
+
 import mlrun
 import tests.system.base
 
@@ -43,7 +45,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         error_notification = self._create_notification(
             name=error_notification_name,
             message="should-fail",
-            params={
+            secret_params={
                 "webhook": "https://invalid.slack.url.com",
             },
         )
@@ -51,7 +53,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             kind="slack",
             name=success_notification_name,
             message="should-succeed",
-            params={
+            secret_params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",
             },
@@ -156,7 +158,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         notification = self._create_notification(
             name=notification_name,
             message="should-succeed",
-            params={
+            secret_params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",
             },
@@ -188,6 +190,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
     ):
         return mlrun.model.Notification(
@@ -197,7 +200,66 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             message=message or "test-notification-message",
             condition=condition,
             severity=severity or "info",
+            secret_params=secret_params or {},
             params=params or {},
+        )
+
+    @pytest.mark.parametrize(
+        "verify_ssl,expected_run_status,url",
+        [
+            (True, "error", "https://self-signed.badssl.com/"),
+            (False, "sent", "https://self-signed.badssl.com/"),
+            (None, "sent", "http://httpstat.us/200"),
+            (False, "sent", "http://httpstat.us/200"),
+        ],
+    )
+    def test_webhook_notification_ssl(self, verify_ssl, expected_run_status, url):
+        notification_name = "ssl-notification"
+
+        def _assert_notifications():
+            runs = self._run_db.list_runs(
+                project=self.project_name,
+                with_notifications=True,
+            )
+            assert len(runs) == 1
+            run_notifications = runs[0]["status"]["notifications"]
+            assert len(run_notifications) == 1
+            assert run_notifications[notification_name]["status"] == expected_run_status
+
+        notification = self._create_notification(
+            kind="webhook",
+            when=["completed", "error"],
+            name=notification_name,
+            message="completed",
+            severity="info",
+            secret_params={
+                "url": url,
+                "method": "GET",
+                "verify_ssl": verify_ssl,
+            },
+        )
+
+        function = mlrun.new_function(
+            "function-from-module",
+            kind="job",
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+
+        run = function.run(
+            handler="json.dumps",
+            params={"obj": {"x": 99}},
+            notifications=[notification],
+        )
+        assert run.output("return") == '{"x": 99}'
+
+        # the notifications are sent asynchronously, so we need to wait for them
+        mlrun.utils.retry_until_successful(
+            1,
+            40,
+            self._logger,
+            True,
+            _assert_notifications,
         )
 
     def _create_sleep_func_in_project(self):

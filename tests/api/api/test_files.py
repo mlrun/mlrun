@@ -38,13 +38,13 @@ def test_files_not_found(db: Session, client: TestClient) -> None:
 
 
 def validate_files_status_code(client: TestClient, status_code: int):
-    resp = client.get("files?schema=v3io&path=mybucket/files.txt")
+    resp = client.get("projects/{project}/files?schema=v3io&path=mybucket/files.txt")
     assert resp.status_code == status_code
 
-    resp = client.get("files?schema=v3io&path=mybucket/")
+    resp = client.get("projects/{project}/files?schema=v3io&path=mybucket/")
     assert resp.status_code == status_code
 
-    resp = client.get("filestat?schema=v3io&path=mybucket/files.txt")
+    resp = client.get("projects/{project}/filestat?schema=v3io&path=mybucket/files.txt")
     assert resp.status_code == status_code
 
 

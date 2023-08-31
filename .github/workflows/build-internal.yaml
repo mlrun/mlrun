@@ -42,7 +42,7 @@ on:
         default: ''
         type: string
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,jupyter,test'
         default: ''
         type: string
       build_from_cache:
@@ -60,7 +60,7 @@ jobs:
       - id: set-matrix
         uses: ./.github/actions/image-matrix-prep
         with:
-          skip_images: ${{ github.event.inputs.skip_images }}
+          skip_images: ${{ inputs.skip_images }}
 
   build-images:
     name: Build and push image - ${{ matrix.image-name }} (Python ${{ matrix.python-version }})
@@ -96,7 +96,7 @@ jobs:
         echo "tag=$(echo $unstable_tag)" >> $GITHUB_OUTPUT
         echo "no_cache=$(echo $no_cache)" >> $GITHUB_OUTPUT
       env:
-        INPUT_BUILD_FROM_CACHE: ${{ github.event.inputs.build_from_cache }}
+        INPUT_BUILD_FROM_CACHE: ${{ inputs.build_from_cache }}
 
     - name: Set computed versions params
       id: computed_params
@@ -114,9 +114,9 @@ jobs:
           echo ${input_docker_registries:-ghcr.io/})" >> $GITHUB_OUTPUT
         echo "mlrun_cache_date=$(date +%s)" >> $GITHUB_OUTPUT
       env:
-        INPUT_VERSION: ${{ github.event.inputs.version }}
-        INPUT_DOCKER_VERSION: ${{ github.event.inputs.docker_repo }}
-        INPUT_DOCKER_REGISTRIES: ${{ github.event.inputs.docker_registries }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_DOCKER_VERSION: ${{ inputs.docker_repo }}
+        INPUT_DOCKER_REGISTRIES: ${{ inputs.docker_registries }}
 
     - name: Docker login (ghcr)
       uses: docker/login-action@v2
@@ -182,7 +182,7 @@ jobs:
           done;
     - name: Pull cache, build and push test image
       # When version is given we're probably in a release process, we don't need the test image in that case
-      if: matrix.image-name == 'test' && github.event.inputs.version == ''
+      if: matrix.image-name == 'test' && inputs.version == ''
       run: |
         MLRUN_CACHE_DATE=${{ steps.computed_params.outputs.mlrun_cache_date }} \
         MLRUN_DOCKER_REGISTRY=ghcr.io/ \

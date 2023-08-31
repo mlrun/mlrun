@@ -20,7 +20,6 @@ from enum import Enum
 import dotenv
 import kfp.dsl
 import kubernetes.client as k8s_client
-from deprecated import deprecated
 
 import mlrun.errors
 import mlrun.utils.regex
@@ -360,15 +359,25 @@ class KubeResourceSpec(FunctionSpec):
         patch: bool = False,
     ):
         """
-        set pod cpu/memory/gpu limits
-        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        Set pod cpu/memory/gpu limits (max values)
+
+        :param mem:     set limit for memory e.g. '500M', '2G', etc.
+        :param cpu:     set limit for cpu e.g. '0.5', '2', etc.
+        :param gpus:    set limit for gpu
+        :param gpu_type:    set gpu type e.g. "nvidia.com/gpu"
+        :param patch:    by default it overrides the whole limits section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self._verify_and_set_limits("resources", mem, cpu, gpus, gpu_type, patch=patch)
 
     def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
-        set requested (desired) pod cpu/memory resources
-        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        Set requested (desired) pod cpu/memory resources
+
+        :param mem:     set request for memory e.g. '200M', '1G', etc.
+        :param cpu:     set request for cpu e.g. '0.1', '1', etc.
+        :param patch:   by default it overrides the whole requests section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self._verify_and_set_requests("resources", mem, cpu, patch)
 
@@ -1004,15 +1013,6 @@ class KubeResource(BaseRuntime):
             self.set_env(name, value)
         return self
 
-    # TODO: Remove in 1.5.0
-    @deprecated(
-        version="1.3.0",
-        reason="'Job gpus' will be removed in 1.5.0, use 'with_limits' instead",
-        category=FutureWarning,
-    )
-    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
-        update_in(self.spec.resources, ["limits", gpu_type], gpus)
-
     def set_image_pull_configuration(
         self, image_pull_policy: str = None, image_pull_secret_name: str = None
     ):
@@ -1041,15 +1041,25 @@ class KubeResource(BaseRuntime):
         patch: bool = False,
     ):
         """
-        set pod cpu/memory/gpu limits
-        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        Set pod cpu/memory/gpu limits (max values)
+
+        :param mem:     set limit for memory e.g. '500M', '2G', etc.
+        :param cpu:     set limit for cpu e.g. '0.5', '2', etc.
+        :param gpus:    set limit for gpu
+        :param gpu_type:    set gpu type e.g. "nvidia.com/gpu"
+        :param patch:    by default it overrides the whole limits section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self.spec.with_limits(mem, cpu, gpus, gpu_type, patch=patch)
 
     def with_requests(self, mem: str = None, cpu: str = None, patch: bool = False):
         """
-        set requested (desired) pod cpu/memory resources
-        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        Set requested (desired) pod cpu/memory resources
+
+        :param mem:     set request for memory e.g. '200M', '1G', etc.
+        :param cpu:     set request for cpu e.g. '0.1', '1', etc.
+        :param patch:   by default it overrides the whole requests section,
+                        if you wish to patch specific resources use `patch=True`
         """
         self.spec.with_requests(mem, cpu, patch=patch)
 

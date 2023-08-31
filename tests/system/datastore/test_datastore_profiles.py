@@ -29,6 +29,15 @@ class TestDatastoreProfile(TestMLRunSystem):
     def custom_setup(self):
         pass
 
+    def test_datastore_profile_get(self):
+        project = mlrun.get_or_create_project(self.project_name)
+
+        profile1 = DatastoreProfileBasic(name="dsname1", public="http://1.1.1.1:1234")
+
+        project.register_datastore_profile(profile1)
+        profile = project.get_datastore_profile("dsname1")
+        assert profile == profile1
+
     def test_datastore_profile_list(self):
         project = mlrun.get_or_create_project(self.project_name)
 

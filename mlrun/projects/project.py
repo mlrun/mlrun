@@ -3039,6 +3039,11 @@ class MlrunProject(ModelObj):
             profile, self.name
         )
 
+    def get_datastore_profile(self, profile: str) -> DatastoreProfile:
+        return mlrun.db.get_run_db(secrets=self._secrets).get_datastore_profile(
+            profile, self.name
+        )
+
     def list_datastore_profiles(self) -> List[DatastoreProfile]:
         return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
             self.name

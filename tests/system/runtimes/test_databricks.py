@@ -276,7 +276,7 @@ def import_mlrun():
             )
 
     def test_abort_task(self):
-        #  in order to clean up any active runs:
+        #  clean up any active runs
         if self.project.list_runs(state="running"):
             self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
         sleep_code = """

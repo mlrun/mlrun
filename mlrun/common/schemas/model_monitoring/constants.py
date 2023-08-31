@@ -269,3 +269,8 @@ class ResultStatusApp(enum.Enum):
     no_detection = 0
     potential_detection = 1
     detected = 2
+
+
+class ModelMonitoringAppTag:
+    KEY = "type"
+    VAL = "model-monitoring-application"

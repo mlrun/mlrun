@@ -47,6 +47,7 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.api.api import deps
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
@@ -736,10 +737,8 @@ def _build_function(
             )
             model_monitoring_access_key = None
             monitoring_application = (
-                fn.metadata.labels.get(
-                    mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_KEY
-                )
-                == mlrun.projects.project.MODEL_MONITORING_APPLICATION_LABEL_VAL
+                fn.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
+                == mm_constants.ModelMonitoringAppTag.VAL
             )
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models

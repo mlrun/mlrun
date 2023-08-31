@@ -295,8 +295,7 @@ def handler(**kwargs):
         )
         function = function_ref.to_function()
         self._add_databricks_env(function=function)
-        test_run_uid = uuid.uuid4()
-        databricks_run_name = f"databricks_abort_test_{test_run_uid}"
+        databricks_run_name = f"databricks_abort_test_{uuid.uuid4()}"
         params = {"task_parameters": {"databricks_run_name": databricks_run_name}}
         run_thread = threading.Thread(
             target=lambda: function.run(project=self.project_name, params=params)

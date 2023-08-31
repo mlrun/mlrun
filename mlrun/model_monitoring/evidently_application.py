@@ -37,9 +37,7 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
 
         """
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
-        self.evidently_project = self.evidently_workspace.get_project(
-            evidently_project_id
-        )
+        self.evidently_project_id = evidently_project_id
 
     def log_evidently_object(
         self, evidently_object: Union[Report, Suite], artifact_name: str

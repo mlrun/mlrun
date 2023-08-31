@@ -73,10 +73,13 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         ],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.3.0"],
+        "evidently": ["evidently~=0.4.3"]
     }
 
     # see above why we are excluding google-cloud
     exclude_from_complete = ["bokeh", "google-cloud"]
+    # evidently required fastapi>=0.98.0 & uvicorn>=0.22.0
+    exclude_from_api_complete = exclude_from_complete + ["evidently"]
     api_deps = list(
         _load_dependencies_from_file("dockerfiles/mlrun-api/requirements.txt")
     )
@@ -85,7 +88,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
-                exclude=exclude_from_complete,
+                exclude=exclude_from_api_complete,
                 extras_require=extras_require,
             ),
             "complete-api": _get_extra_dependencies(

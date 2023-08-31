@@ -559,6 +559,7 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
@@ -571,6 +572,7 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
@@ -585,11 +587,11 @@ class Notification(ModelObj):
                 "Invalid notification object"
             ) from exc
 
-        # validate that size of notification params doesn't exceed 1 MB, due to k8s default secret size limitation.
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
         # a buffer of 100 KB is added to the size to account for the size of the secret metadata
-        # TODO: split params to params and secret_params, and store secret_params in a secret
         if (
-            len(json.dumps(self.params))
+            len(json.dumps(self.secret_params))
             > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(

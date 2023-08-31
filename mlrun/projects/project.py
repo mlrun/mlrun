@@ -3027,17 +3027,31 @@ class MlrunProject(ModelObj):
         public_body = DatastoreProfile2Json.get_json_public(profile)
         # set project public data to DB
         public_profile = mlrun.common.schemas.DatastoreProfile(
-            name=profile.name, type=profile.type, object=public_body, project=self.name
+            name=profile.name,
+            type=profile.type,
+            object=public_body,
+            private=private_body,
+            project=self.name,
         )
         mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
             public_profile, self.name
         )
         # Set local environment variable
         environ[project_ds_name_private] = private_body
-        # set project secret
-        self.set_secrets(
-            secrets={project_ds_name_private: private_body},
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+
+    def delete_datastore_profile(self, profile: str):
+        project_ds_name_private = DatastoreProfile.generate_secret_key(
+            profile, self.name
+        )
+        if project_ds_name_private in os.environ:
+            del os.environ[project_ds_name_private]
+        mlrun.db.get_run_db(secrets=self._secrets).delete_datastore_profile(
+            profile, self.name
+        )
+
+    def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
+            self.name
         )
 
     def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:

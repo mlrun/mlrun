@@ -297,6 +297,11 @@ class AutoMLRun:
                     f"The model path provided: '{model_path}' is not of a model artifact (store uri) so the framework "
                     f"attribute must be specified."
                 )
+            elif "framework" not in model_artifact.labels:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"No framework defined for the provided model: '{model_path}'. Please log the model again with "
+                    f"the required framework."
+                )
             # Return the framework and the collected files and artifacts:
             return (
                 model_artifact.labels["framework"],

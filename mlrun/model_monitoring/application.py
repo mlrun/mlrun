@@ -113,7 +113,7 @@ class ModelMonitoringApplication(StepToDict):
 
     kind = "monitoring_application"
 
-    def do(self, event):
+    def do(self, event: Dict[str:Any]):
         """
         Process the monitoring event and return application results.
 
@@ -155,7 +155,8 @@ class ModelMonitoringApplication(StepToDict):
         :param endpoint_id:         (str) ID of the monitored model endpoint
         :param output_stream_uri:   (str) URI of the output stream for results
 
-        :returns:                   (List[ModelMonitoringApplicationResult]) The application results.
+        :returns:                   (ModelMonitoringApplicationResult) or
+                                    (List[ModelMonitoringApplicationResult]) of the application results.
         """
         raise NotImplementedError
 
@@ -172,6 +173,22 @@ class ModelMonitoringApplication(StepToDict):
         str,
         str,
     ]:
+        """
+        Converting the event into a single tuple that will be be used for passing the event arguments to the running
+        application
+
+        :param event: dictionary with all the incoming data
+
+        :return: A tuple of:
+                     [0] = (str) application name
+                     [1] = (pd.DataFrame) current input statistics
+                     [2] = (pd.DataFrame) train statistics
+                     [3] = (pd.DataFrame) current input data
+                     [4] = (pd.Timestamp) timestamp of batch schedule time
+                     [5] = (pd.Timestamp) timestamp of the latest request
+                     [6] = (str) endpoint id
+                     [7] = (str) output stream uri
+        """
         return (
             event[
                 mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.APPLICATION_NAME
@@ -220,11 +237,6 @@ class ModelMonitoringApplication(StepToDict):
             upload_artifacts=True,
             labels={"workflow": "model-monitoring-app-logger"},
         )
-        # context._secrets_manager.add_source(
-        #     kind="inline",
-        #     source={"V3IO_ACCESS_KEY": os.environ.get("MODEL_MONITORING_ACCESS_KEY")},
-        # )
-        # context._init_dbs(mlrun.get_run_db(secrets=context._secrets_manager))
         return context
 
     @staticmethod

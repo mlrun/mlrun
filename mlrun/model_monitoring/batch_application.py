@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import concurrent
+import concurrent.futures
 import datetime
 import json
 import os
@@ -130,12 +130,14 @@ class BatchApplicationProcessor:
                     [app.metadata.name for app in application]
                 ).tolist()
             else:
+                logger.info("There are no monitoring application found in this project")
                 applications_names = []
 
         except Exception as e:
             logger.error("Failed to list endpoints", exc=e)
             return
         if endpoints and applications_names:
+            # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
             pool = concurrent.futures.ProcessPoolExecutor(
                 max_workers=len(endpoints),
             )
@@ -165,7 +167,7 @@ class BatchApplicationProcessor:
                         )
                         continue
                     future = pool.submit(
-                        BatchApplicationProcessor.endpoint_process,
+                        BatchApplicationProcessor.model_endpoint_process,
                         endpoint,
                         applications_names,
                         self.batch_dict,
@@ -182,7 +184,7 @@ class BatchApplicationProcessor:
             self._delete_old_parquet()
 
     @staticmethod
-    def endpoint_process(
+    def model_endpoint_process(
         endpoint: dict,
         applications_names: List[str],
         bath_dict: dict,

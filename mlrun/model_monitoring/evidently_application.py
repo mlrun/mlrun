@@ -64,7 +64,7 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
 
         :param timestamp_start: (pd.Timestamp) The start timestamp for the dashboard data.
         :param timestamp_end:   (pd.Timestamp) The end timestamp for the dashboard data.
-        :param artifact_name:
+        :param artifact_name:   (str) The name for the logged artifact.
         """
 
         dashboard_info = self.evidently_project.build_dashboard_info(

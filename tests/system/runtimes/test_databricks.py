@@ -301,7 +301,7 @@ def handler(**kwargs):
             target=lambda: function.run(project=self.project_name, params=params)
         )
         run_thread.start()
-        # wait for databricks to run the function.
+        # wait for databricks to run the function
         time.sleep(10)
         workspace = WorkspaceClient()
         run = self._get_active_run_by_name(

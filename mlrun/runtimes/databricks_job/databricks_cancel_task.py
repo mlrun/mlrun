@@ -35,7 +35,7 @@ def main():
             )
     with open(credentials_path, "r") as yaml_file:
         loaded_data = yaml.safe_load(yaml_file)
-    #  use for flat structure only.
+    # use for flat yaml only
     for key, value in loaded_data.items():
         os.environ[key] = str(value)
     workspace = WorkspaceClient()

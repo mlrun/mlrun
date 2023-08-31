@@ -275,7 +275,7 @@ def import_mlrun():
             )
 
     def test_abort_task(self):
-        #  in order to clean up any active runs:
+        #  clean up any active runs
         if self.project.list_runs(state="running"):
             self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
         sleep_code = """
@@ -294,8 +294,7 @@ def handler(**kwargs):
         )
         function = function_ref.to_function()
         self._add_databricks_env(function=function)
-        test_run_uid = uuid.uuid4()
-        databricks_run_name = f"databricks_abort_test_{test_run_uid}"
+        databricks_run_name = f"databricks_abort_test_{uuid.uuid4()}"
         params = {"task_parameters": {"databricks_run_name": databricks_run_name}}
         function.run(project=self.project_name, params=params, watch=False)
         # wait for databricks to run the function.

@@ -16,9 +16,18 @@ ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.1-cudnn8-devel-ubuntu2
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
 
+# Update OS packages:
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
+
+# Update base pip packages (usually pip, setuptools, wheel):
+# NOTE: here we use /usr/local/bin/python directly to avoid usaing the conda env
+# as we want to upgrade the OS python packages
+RUN /usr/local/bin/python -m pip  list --disable-pip-version-check --format freeze \
+    | grep -v '^\-e' \
+    | cut -d'=' -f1 \
+    | xargs /usr/local/bin/python -m pip install --upgrade
 
 WORKDIR /mlrun
 

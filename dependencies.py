@@ -88,11 +88,11 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "api": api_deps,
             "all": _get_extra_dependencies(extras_require=extras_require),
             "complete": _get_extra_dependencies(
-                exclude=exclude_from_api_complete,
+                exclude=exclude_from_complete,
                 extras_require=extras_require,
             ),
             "complete-api": _get_extra_dependencies(
-                exclude=exclude_from_complete,
+                exclude=exclude_from_api_complete,
                 base_deps=api_deps,
                 extras_require=extras_require,
             ),

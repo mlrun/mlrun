@@ -113,7 +113,7 @@ class ModelMonitoringApplication(StepToDict):
 
     kind = "monitoring_application"
 
-    def do(self, event: Dict[str:Any]):
+    def do(self, event: Dict[str, Any]):
         """
         Process the monitoring event and return application results.
 

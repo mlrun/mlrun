@@ -2,7 +2,7 @@
 # Function of type `serving`
 
 Deploying models in MLRun uses the function type `serving`. You can create a serving function using the `set_function()` call from a notebook. 
-You can also import an existing serving function/template from the {ref}`function-hub`.
+You can also import an existing serving function/template from the {ref}`load-from-hub`.
 
 This example converts a notebook to a serving function, adds a model to it, and deploys it:
 

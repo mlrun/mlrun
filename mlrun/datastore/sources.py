@@ -60,10 +60,6 @@ class BaseSourceDriver(DataSource):
     support_spark = False
     support_storey = False
 
-    def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.path)
-        return store
-
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
@@ -196,11 +192,13 @@ class CSVSource(BaseSourceDriver):
         if time_field and time_field not in parse_dates:
             parse_dates.append(time_field)
 
+        data_item = mlrun.store_manager.object(self.path)
+
         return storey.CSVSource(
-            paths=self.path,
+            paths=data_item.url,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=data_item.store.get_storage_options(),
             parse_dates=parse_dates,
             **attributes,
         )
@@ -339,10 +337,13 @@ class ParquetSource(BaseSourceDriver):
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
+
+        data_item = mlrun.store_manager.object(self.path)
+
         return storey.ParquetSource(
-            paths=self.path,
+            paths=data_item.url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,

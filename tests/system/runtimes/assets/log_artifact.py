@@ -12,9 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
 import pandas as pd
 
-def train(context,i):
-    df = pd.DataFrame({f"col{i}":[i]*10})
-    context.log_dataset(key=f"df",df=df,tag=f"v{i}",artifact_path=mlrun.mlconf.artifact_path+f"/{i}/")
+import mlrun
+
+
+def train(context, i):
+    df = pd.DataFrame({f"col{i}": [i] * 10})
+    context.log_dataset(
+        key="df",
+        df=df,
+        tag=f"v{i}",
+        artifact_path=mlrun.mlconf.artifact_path + f"/{i}/",
+    )

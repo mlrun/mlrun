@@ -16,6 +16,7 @@ import typing
 from os.path import isdir
 
 import mlrun.config
+from mlrun.utils.helpers import fill_project_path_template
 
 from ..utils import (
     is_legacy_artifact,
@@ -49,7 +50,7 @@ from .plots import (
     PlotArtifact,
     PlotlyArtifact,
 )
-from  mlrun.utils.helpers import fill_project_path_template
+
 # TODO - Remove deprecated types when deleted in 1.7.0
 artifact_types = {
     "": Artifact,
@@ -248,7 +249,9 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = fill_project_path_template(artifact_path=target_path, project=project)
+        target_path = fill_project_path_template(
+            artifact_path=target_path, project=project
+        )
         item.target_path = target_path
 
         item.before_log()

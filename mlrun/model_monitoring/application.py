@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from storey import Event
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -127,7 +128,7 @@ class ModelMonitoringApplication(StepToDict):
             self._lazy_init(app_name=resolved_event[0])
         return self.run_application(*resolved_event)
 
-    def _lazy_init(self, app_name):
+    def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
 
     def run_application(
@@ -162,7 +163,7 @@ class ModelMonitoringApplication(StepToDict):
 
     @staticmethod
     def _resolve_event(
-        event,
+        event: Dict[str, Any],
     ) -> Tuple[
         str,
         pd.DataFrame,
@@ -231,7 +232,7 @@ class ModelMonitoringApplication(StepToDict):
         )
 
     @staticmethod
-    def _create_context_for_logging(app_name):
+    def _create_context_for_logging(app_name: str):
         context = mlrun.get_or_create_ctx(
             f"{app_name}-logger",
             upload_artifacts=True,

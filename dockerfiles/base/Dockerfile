@@ -78,4 +78,4 @@ RUN python -m pip install \
 # requirements
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
 RUN python -m pip install \
-    -r base-image-requirements.txt \
+    -r base-image-requirements.txt

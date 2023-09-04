@@ -215,7 +215,6 @@ class BatchApplicationProcessor:
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
                 ]
             )
-            fs_name = m_fs.metadata.name
             labels = endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES
             ]
@@ -229,47 +228,20 @@ class BatchApplicationProcessor:
             # TODO : add extra feature_sets
 
             try:
-                features = [f"{fs_name}.*"]
-                join_graph = fstore.JoinGraph(first_feature_set=fs_name)
-                vector = fstore.FeatureVector(
-                    name=f"{endpoint_id}_vector",
-                    features=features,
-                    with_indexes=True,
-                    join_graph=join_graph,
+                # get sample data
+                df = BatchApplicationProcessor._get_sample_df(
+                    m_fs,
+                    endpoint_id,
+                    end_time,
+                    start_time,
+                    parquet_directory,
+                    storage_options,
                 )
-                vector.feature_set_objects = {
-                    m_fs.metadata.name: m_fs
-                }  # to avoid exception when the taf is not latest
-                entity_rows = pd.DataFrame(
-                    {
-                        mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
-                            endpoint_id
-                        ],
-                        "scheduled_time": [end_time],
-                    }
-                )
-                offline_response = fstore.get_offline_features(
-                    feature_vector=vector,
-                    entity_rows=entity_rows,
-                    entity_timestamp_column="scheduled_time",
-                    start_time=start_time,
-                    end_time=end_time,
-                    timestamp_for_filtering=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
-                    target=ParquetTarget(
-                        path=parquet_directory,
-                        time_partitioning_granularity="minute",
-                        partition_cols=[
-                            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
-                        ],
-                        storage_options=storage_options,
-                    ),
-                )
-                df = offline_response.to_dataframe()
 
                 if len(df) == 0:
                     logger.warn(
                         "Not enough model events since the beginning of the batch interval",
-                        featureset_name=fs_name,
+                        featureset_name=m_fs.metadata.name,
                         endpoint=endpoint[
                             mlrun.common.schemas.model_monitoring.EventFieldType.UID
                         ],
@@ -324,33 +296,17 @@ class BatchApplicationProcessor:
                 inputs=df,
             )
 
-            data = {
-                mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
-                mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
-                mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
-                    parquet_directory=parquet_directory,
-                    schedule_time=end_time,
-                    endpoint_id=endpoint_id,
-                ),
-                mm_constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
-                    sep=" ", timespec="microseconds"
-                ),
-                mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
-                    sep=" ", timespec="microseconds"
-                ),
-                mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
-                mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
-                    project=project,
-                    application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
-                ),
-            }
-            for app_name in applications_names:
-                data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
-                stream_uri = get_stream_path(project=project, application_name=app_name)
-                logger.info(
-                    f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
-                )
-                get_stream_pusher(stream_uri).push([data])
+            # create and push data to all applications
+            BatchApplicationProcessor._push_to_applications(
+                current_stats,
+                feature_stats,
+                parquet_directory,
+                end_time,
+                endpoint_id,
+                latest_request,
+                project,
+                applications_names,
+            )
 
         except FileNotFoundError as e:
             logger.error(
@@ -449,3 +405,115 @@ class BatchApplicationProcessor:
             logger.warn(
                 f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
             )
+
+    @staticmethod
+    def _push_to_applications(
+        current_stats,
+        feature_stats,
+        parquet_directory,
+        end_time,
+        endpoint_id,
+        latest_request,
+        project,
+        applications_names,
+    ):
+        """
+        Pushes data to multiple stream applications.
+
+        :param current_stats:       Current statistics of input data.
+        :param feature_stats:       Statistics of train features.
+        :param parquet_directory:   Directory where sample Parquet files are stored.
+        :param end_time:            End time of the monitoring schedule.
+        :param endpoint_id:         Identifier for the model endpoint.
+        :param latest_request:      Timestamp of the latest model request.
+        :param project: mlrun       Project name.
+        :param applications_names:  List of application names to which data will be pushed.
+
+        """
+        data = {
+            mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
+            mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
+            mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
+                parquet_directory=parquet_directory,
+                schedule_time=end_time,
+                endpoint_id=endpoint_id,
+            ),
+            mm_constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
+            mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
+                project=project,
+                application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
+            ),
+        }
+        for app_name in applications_names:
+            data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
+            stream_uri = get_stream_path(project=project, application_name=app_name)
+            logger.info(
+                f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
+            )
+            get_stream_pusher(stream_uri).push([data])
+
+    @staticmethod
+    def _get_sample_df(
+        feature_set,
+        endpoint_id,
+        end_time,
+        start_time,
+        parquet_directory,
+        storage_options,
+    ):
+        """
+        Retrieves a sample DataFrame of the current input.
+
+        :param feature_set:         The main feature set.
+        :param endpoint_id:         Identifier for the model endpoint.
+        :param end_time:            End time of the monitoring schedule.
+        :param start_time:          Start time of the monitoring schedule.
+        :param parquet_directory:   Directory where Parquet files are stored.
+        :param storage_options:     Storage options for accessing the data.
+
+        :return: Sample DataFrame containing offline features for the specified endpoint.
+
+        """
+        features = [f"{feature_set.metadata.name}.*"]
+        join_graph = fstore.JoinGraph(first_feature_set=feature_set.metadata.name)
+        vector = fstore.FeatureVector(
+            name=f"{endpoint_id}_vector",
+            features=features,
+            with_indexes=True,
+            join_graph=join_graph,
+        )
+        vector.feature_set_objects = {
+            feature_set.metadata.name: feature_set
+        }  # to avoid exception when the taf is not latest
+        entity_rows = pd.DataFrame(
+            {
+                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
+                    endpoint_id
+                ],
+                "scheduled_time": [end_time],
+            }
+        )
+        offline_response = fstore.get_offline_features(
+            feature_vector=vector,
+            entity_rows=entity_rows,
+            entity_timestamp_column="scheduled_time",
+            start_time=start_time,
+            end_time=end_time,
+            timestamp_for_filtering=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
+            target=ParquetTarget(
+                path=parquet_directory,
+                time_partitioning_granularity="minute",
+                partition_cols=[
+                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
+                ],
+                storage_options=storage_options,
+            ),
+        )
+        df = offline_response.to_dataframe()
+        return df

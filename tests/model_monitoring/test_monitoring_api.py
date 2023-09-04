@@ -17,7 +17,7 @@ import mlrun.model_monitoring.api
 
 def test_read_dataset_as_dataframe():
     # Test list with feature columns
-    dataset = [[5.8, 2.8, 5.1, 2.4, 1.0], [6.0, 2.2, 4.0, 1.0, 2.0]]
+    dataset = [[5.8, 2.8, 5.1, 2.4], [6.0, 2.2, 4.0, 1.0]]
     feature_columns = ["feature_1", "feature_2", "feature_3", "feature_4"]
 
     df, _ = mlrun.model_monitoring.api.read_dataset_as_dataframe(

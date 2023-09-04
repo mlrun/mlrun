@@ -557,7 +557,7 @@ def read_dataset_as_dataframe(
     Parse the given dataset into a DataFrame and drop the columns accordingly. In addition, the label columns will be
     parsed and validated as well.
 
-    :param dataset:         The dataset to train the model on.
+    :param dataset:         A dataset that will be converted into a DataFrame.
                             Can be either a list of lists, dict, URI or a FeatureVector.
     :param feature_columns: List of feature columns that will be used to build the dataframe when dataset is from
                             type list or numpy array.

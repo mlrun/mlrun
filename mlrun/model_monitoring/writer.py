@@ -21,8 +21,8 @@ class ModelMonitoringWriter(StepToDict):
 
     kind = "monitoring_application_stream_pusher"
 
-    def __init__(self, name: str = None):
-        self.name = name or "king"
+    def __init__(self, project: str) -> None:
+        self.project = project
 
     def do(self, event):
 
@@ -32,6 +32,6 @@ class ModelMonitoringWriter(StepToDict):
             f"schedule_time = {event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.SCHEDULE_TIME]}, \n"
             f"result_name ={event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_NAME]}, \n"
             f"result_value ={event[mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_VALUE]}, \n"
-            f"my_name = {self.name}."
+            f"my_name = {self.project}."
         )
         return event

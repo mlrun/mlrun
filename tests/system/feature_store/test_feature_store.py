@@ -40,7 +40,10 @@ import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
-from mlrun.datastore.datastore_profile import DatastoreProfileRedis
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileRedis,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -2198,11 +2201,10 @@ class TestFeatureStore(TestMLRunSystem):
             path=path,
         )
         if target_redis.startswith("ds://"):
-            project = mlrun.get_or_create_project(self.project_name)
             profile = DatastoreProfileRedis(
                 name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url
             )
-            project.register_datastore_profile(profile)
+            register_temporary_client_datastore_profile(profile)
 
         targets = [
             CSVTarget(),

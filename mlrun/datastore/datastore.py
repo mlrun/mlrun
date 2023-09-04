@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.datastore_profile import TemporaryClientDatastoreProfiles
 from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
@@ -188,10 +189,13 @@ class StoreManager:
 
         if schema == "ds":
             profile_name = endpoint
-            project_name = urlparse(url).username or mlrun.mlconf.default_project
-            datastore = mlrun.db.get_run_db(
-                secrets=self._secrets
-            ).get_datastore_profile(profile_name, project_name)
+            datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+            if not datastore:
+                project_name = urlparse(url).username or mlrun.mlconf.default_project
+                datastore = mlrun.db.get_run_db(
+                    secrets=self._secrets
+                ).get_datastore_profile(profile_name, project_name)
+
             datastore_type = datastore.type
 
         if schema == "memory":

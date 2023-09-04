@@ -7,7 +7,7 @@ Table of Contents
    
    index
    mlops-dev-flow
-   tutorial/index
+   tutorials/index
    install   
 
 .. toctree::

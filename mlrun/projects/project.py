@@ -287,7 +287,7 @@ def load_project(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
@@ -428,7 +428,7 @@ def get_or_create_project(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
@@ -533,7 +533,7 @@ def _run_project_setup(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)

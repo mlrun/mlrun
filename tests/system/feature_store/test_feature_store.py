@@ -2966,7 +2966,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3487,7 +3487,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3837,7 +3837,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3934,7 +3934,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4316,7 +4316,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4380,7 +4380,7 @@ class TestFeatureStore(TestMLRunSystem):
             dask_cluster = mlrun.new_function(
                 "dask_tests",
                 kind="dask",
-                image="mlrun/ml-models",  # TODO: change the images
+                image="mlrun/mlrun",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True

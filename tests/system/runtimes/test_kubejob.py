@@ -16,6 +16,7 @@ import datetime
 import os
 from sys import executable
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -271,6 +272,29 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--some-arg",
             "val-with-artifact",
         ]
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_log_artifact_with_run_project(self, local):
+        train_path = str(self.assets_path / "log_artifact.py")
+        function_parameter = 100
+        self.project.set_function(
+            train_path,
+            name="log-artifact",
+            image="mlrun/mlrun",
+            kind="job",
+            handler="train",
+        )
+        self.project.run_function(
+            "log-artifact", params={"i": function_parameter}, local=local
+        )
+        resource = self.project.get_store_resource(
+            f"store://datasets/{self.project_name}/log-artifact-train_df#0:latest"
+        ).to_dataitem()
+        expected_df = pd.DataFrame(
+            {f"col{function_parameter}": [function_parameter] * 10}
+        )
+        result_df = resource.as_df()
+        assert expected_df.equals(result_df)
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")

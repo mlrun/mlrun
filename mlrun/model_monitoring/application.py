@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from storey import Event
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring

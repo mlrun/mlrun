@@ -74,6 +74,29 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+
+
+class ApplicationEvent:
+    APPLICATION_NAME = "application_name"
+    CURRENT_STATS = "current_stats"
+    FEATURE_STATS = "feature_stats"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    SCHEDULE_TIME = "schedule_time"
+    LAST_REQUEST = "last_request"
+    ENDPOINT_ID = "endpoint_id"
+    OUTPUT_STREAM_URI = "output_stream_uri"
+
+
+class WriterEvent:
+    APPLICATION_NAME = "application_name"
+    ENDPOINT_ID = "endpoint_id"
+    SCHEDULE_TIME = "schedule_time"
+    RESULT_NAME = "result_name"
+    RESULT_VALUE = "result_value"
+    RESULT_KIND = "result_kind"
+    RESULT_STATUS = "result_status"
+    RESULT_EXTRA_DATA = "result_extra_data"
 
 
 class EventLiveStats:
@@ -103,7 +126,8 @@ class ModelEndpointTarget:
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
-    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    PROJECT_ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
     KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
     STREAM_PATH = "STREAM_PATH"
 
@@ -117,7 +141,8 @@ class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
     STREAM = "stream"
-    PARQUET = "parquet"
+    STREAM_PARQUET = "stream_parquet"
+    BATCH_CONTROLLER_PARQUET = "stream_controller_parquet"
     LOG_STREAM = "log_stream"
 
 
@@ -139,6 +164,22 @@ class PrometheusMetric:
     ERRORS_TOTAL = "errors_total"
     DRIFT_METRICS = "drift_metrics"
     DRIFT_STATUS = "drift_status"
+
+
+class MonitoringFunctionNames:
+    WRITER = "model-monitoring-writer"
+    BATCH = "model-monitoring-batch"
+    BATCH_APPLICATION = "model-monitoring-batch-application"
+    STREAM = None
+
+    @staticmethod
+    def all():
+        return [
+            MonitoringFunctionNames.WRITER,
+            MonitoringFunctionNames.STREAM,
+            MonitoringFunctionNames.BATCH,
+            MonitoringFunctionNames.BATCH_APPLICATION,
+        ]
 
 
 @dataclass
@@ -206,3 +247,30 @@ class DriftStatus(Enum):
     NO_DRIFT = "NO_DRIFT"
     DRIFT_DETECTED = "DRIFT_DETECTED"
     POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
+
+
+class ResultKindApp(enum.Enum):
+    """
+    Enum for the result kind values
+    """
+
+    data_drift = 0
+    concept_drift = 1
+    model_performance = 2
+    system_performance = 3
+
+
+class ResultStatusApp(enum.Enum):
+    """
+    Enum for the result status values, detected means that the app detected some problem.
+    """
+
+    irrelevant = -1
+    no_detection = 0
+    potential_detection = 1
+    detected = 2
+
+
+class ModelMonitoringAppTag:
+    KEY = "type"
+    VAL = "model-monitoring-application"

@@ -347,6 +347,7 @@ def get_or_create_ctx(
     rundb: str = "",
     project: str = "",
     upload_artifacts=False,
+    labels: dict = None,
 ):
     """called from within the user program to obtain a run context
 
@@ -365,7 +366,7 @@ def get_or_create_ctx(
     :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-
+    :param labels:      dict of the context labels
     :return: execution context
 
     Examples::
@@ -441,6 +442,9 @@ def get_or_create_ctx(
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
+    labels = labels or {}
+    for key, val in labels.items():
+        ctx.set_label(key=key, value=val)
     global_context.set(ctx)
     return ctx
 

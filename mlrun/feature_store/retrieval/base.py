@@ -136,7 +136,7 @@ class BaseMerger(abc.ABC):
             order_by=order_by,
         )
 
-    def _write_to_offline_target(self):
+    def _write_to_offline_target(self, timestamp_key=None):
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -144,7 +144,10 @@ class BaseMerger(abc.ABC):
                     "target path was not specified"
                 )
             self._target.set_resource(self.vector)
-            size = self._target.write_dataframe(self._result_df)
+            size = self._target.write_dataframe(
+                self._result_df,
+                timestamp_key=timestamp_key if not self._drop_indexes else None,
+            )
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
@@ -361,7 +364,7 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_offline_target()
+        self._write_to_offline_target(timestamp_key=result_timestamp)
         return OfflineVectorResponse(self)
 
     def init_online_vector_service(

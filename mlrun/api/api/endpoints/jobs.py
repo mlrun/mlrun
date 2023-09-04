@@ -54,7 +54,7 @@ def deploy_monitoring_batch_job(
         model_monitoring_access_key = process_model_monitoring_secret(
             db_session,
             project,
-            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
         )
 
     tracking_policy = TrackingPolicy(default_batch_image=default_batch_image)

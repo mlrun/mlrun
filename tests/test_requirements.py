@@ -174,7 +174,7 @@ def test_requirement_specifiers_inconsistencies():
         "python-dotenv": {"", "~=0.17.0"},
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
-        "lightgbm": {"~=3.0; platform_machine != 'arm64'", ">=3.0"},
+        "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
     }
 
     for (

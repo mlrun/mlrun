@@ -49,7 +49,7 @@ from .plots import (
     PlotArtifact,
     PlotlyArtifact,
 )
-
+from  mlrun.utils.helpers import fill_project_path_template
 # TODO - Remove deprecated types when deleted in 1.7.0
 artifact_types = {
     "": Artifact,
@@ -212,7 +212,8 @@ class ArtifactManager:
             item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
-        item.project = producer.project
+        project = producer.project
+        item.project = project
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
@@ -247,7 +248,7 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-
+        target_path = fill_project_path_template(artifact_path=target_path, project=project)
         item.target_path = target_path
 
         item.before_log()

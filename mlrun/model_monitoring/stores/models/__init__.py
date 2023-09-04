@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+from typing import Optional, Type
+
+from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
+from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
 
 
-def get_ModelEndpointsTable(connection_string: str = None):
+def get_ModelEndpointsTable(connection_string: Optional[str] = None) -> Type:
     """Return ModelEndpointsTable based on the provided connection string"""
-    if "mysql:" in connection_string:
-        from .mysql import ModelEndpointsTable
-    else:
-        from .sqlite import ModelEndpointsTable
-    return ModelEndpointsTable
+    if connection_string and "mysql:" in connection_string:
+        return MySQLModelEndpointsTable
+    return SQLiteModelEndpointsTable

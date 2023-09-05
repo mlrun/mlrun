@@ -109,10 +109,10 @@ def add_credentials_git_remote_url(url: str, secrets=None) -> Tuple[str, bool]:
 
     username = url_obj.username or get_secret("GIT_USERNAME") or get_secret("git_user")
     password = (
-            url_obj.password
-            or get_secret("GIT_PASSWORD")
-            or get_secret("git_password")
-            or ""
+        url_obj.password
+        or get_secret("GIT_PASSWORD")
+        or get_secret("git_password")
+        or ""
     )
     token = get_secret("GITHUB_TOKEN") or get_secret("GIT_TOKEN")
     if token:

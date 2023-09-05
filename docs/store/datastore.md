@@ -27,13 +27,11 @@ or project/job context secrets. The exact credentials depend on the type of the 
 listed in the following sections. Each parameter specified can be provided as an environment variable, 
 or as a project-secret that has the same key as the name of the parameter.
 
-You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
-
 MLRun jobs that are executed remotely run in independent pods, with their own environment. When setting an environment 
 variable in the development environment (for example Jupyter), this has no effect on the executing pods. Therefore, 
-before executing jobs that require access to storage credentials, these need to be provided by creating a datastore 
-profile in the context of the project, assigning environment variables to the MLRun runtime itself, 
-assigning secrets to it, or placing the variables in project-secrets.
+before before executing jobs that require access to storage credentials, these need to be provided by creating a datastore.
+
+You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
@@ -125,15 +123,14 @@ contents directly to the query engine.
   
 ## Using data store profiles
 
-```{Admonition} Note
-This feature currently supports Redis.
-```
-
 You can use a data store profile to manage datastore credentials. A data store profile 
-holds all the information required to address an external data source. You can create 
+holds all the information required to address an external data source, including credentials. 
+You can create 
 multiple profiles for one datasource, for example, 
 two different Redis data stores with different credentials. Targets, sources, and artifacts, 
-can all use the data store profile. 
+can all use the data store profile by using the `ds://<profile-name>` convention.
+After you create a profile object, you make it available on remote pods by calling 
+`project.register_datastore_profile`.
 
 Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
@@ -146,9 +143,27 @@ Create a data store profile in the context of a project. Example of creating a R
     If you want to use a profile from a different project, you can specify it 
 	explicitly in the URI using the format:<br>
     `RedisNoSqlTarget(path="ds://another_project@test_profile")`
+    
+To access a profile from the client/sdk, register the profile locally by calling
+`register_temporary_client_datastore_profile()` with a profile object.
+You can also choose to retrieve the public information of an already registered profile by calling 
+`project.get_datastore_profile()` and then adding the private credentials before registering it locally:
+```
+redis_profile = project.get_datastore_profile("my_profile")
+local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
+register_temporary_client_datastore_profile(local_redis_profile)
+```
 
-See also {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile`, 
-{py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`, and {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`.
+See also:
+- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile` 
+- {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
+- {py:class}`~mlrun.projects.MlrunProject.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 
 the profiles. Access to private attributes is restricted to applications running in Kubernetes pods.
+
+
+```{Admonition} Note
+This feature currently only supports Redis.
+```

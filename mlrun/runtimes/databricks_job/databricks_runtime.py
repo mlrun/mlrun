@@ -19,9 +19,10 @@ from typing import Callable, Dict, List, Optional, Union
 from kubernetes.client import V1ExecAction, V1Handler, V1Lifecycle
 
 import mlrun
+from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.model import HyperParamOptions, RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
-from mlrun.errors import MLRunInvalidArgumentError
+
 
 class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"

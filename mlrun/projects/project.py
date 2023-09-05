@@ -62,7 +62,13 @@ from ..utils import (
     logger,
     update_in,
 )
-from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.clones import (
+    add_credentials_git_remote_url,
+    clone_git,
+    clone_tgz,
+    clone_zip,
+    get_repo_url,
+)
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -2003,19 +2009,38 @@ class MlrunProject(ModelObj):
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
-    def push(self, branch, message=None, update=True, remote=None, add: list = None):
+    def push(
+        self,
+        branch,
+        message=None,
+        update=True,
+        remote: str = None,
+        add: list = None,
+        author_name: str = None,
+        author_email: str = None,
+        secrets=None,
+    ):
         """update spec and push updates to remote git repo
 
-        :param branch:  target git branch
-        :param message: git commit message
-        :param update:  update files (git add update=True)
-        :param remote:  git remote, default to origin
-        :param add:     list of files to add
+        :param branch:       target git branch
+        :param message:      git commit message
+        :param update:       update files (git add update=True)
+        :param remote:       git remote, default to origin
+        :param add:          list of files to add
+        :param author_name:  author name to be used on this commit
+        :param author_email: author email to be used on this commit
+        :param secrets:      dict or SecretStore with Git credentials
         """
         repo = self.spec.repo
         if not repo:
             raise ValueError("git repo is not set/defined")
         self.save()
+
+        if author_name and author_email:
+            config = repo.config_writer()
+            config.set_value("user", "name", author_name)
+            config.set_value("user", "email", author_email)
+            config.release()
 
         add = add or []
         add.append("project.yaml")
@@ -2030,8 +2055,9 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands and run git push from the terminal "
-                        "once to store your credentials:\n"
+                        'Git is not configured. Either use "author_name", "author_email" and "secrets" parameters or '
+                        "run the following commands from the terminal and run git push once to store "
+                        "your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
@@ -2043,7 +2069,23 @@ class MlrunProject(ModelObj):
 
         if not branch:
             raise ValueError("please specify the remote branch")
-        repo.git.push(remote or "origin", branch)
+
+        remote = remote or "origin"
+        clean_remote = repo.remotes[remote].url
+        enriched_remote, is_remote_enriched = add_credentials_git_remote_url(
+            clean_remote, secrets=secrets or {}
+        )
+        try:
+            if is_remote_enriched:
+                repo.remotes[remote].set_url(enriched_remote, clean_remote)
+            repo.git.push(remote, branch)
+        except RuntimeError as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Failed to push changes to Git repository"
+            ) from e
+        finally:
+            if is_remote_enriched:
+                repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
     def sync_functions(self, names: list = None, always=True, save=False):
         """reload function objects from specs and files"""

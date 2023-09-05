@@ -139,7 +139,7 @@ class BatchApplicationProcessor:
         if endpoints and applications_names:
             # Initialize a process pool that will be used to run each endpoint applications on a dedicated process
             pool = concurrent.futures.ProcessPoolExecutor(
-                max_workers=len(endpoints),
+                max_workers=min(len(endpoints), 10),
             )
             futures = []
             for endpoint in endpoints:

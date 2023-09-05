@@ -774,7 +774,8 @@ def _build_function(
                             # Initialize tracking policy with default values
                             fn.spec.tracking_policy = TrackingPolicy()
 
-                        # deploy both model monitoring stream and model monitoring batch job
+                        # deploy model monitoring stream, model monitoring batch job,
+                        # model monitoring batch application job and model monitoring writer
                         mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             db_session=db_session,
@@ -950,7 +951,7 @@ def _create_model_monitoring_stream(
         ]
     else:
         function_names = [mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM]
-        if function.spec.tracking_policy.application_batch:
+        if function.spec.tracking_policy["application_batch"] == "true":
             function_names += [mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER]
         stream_paths = [
             (

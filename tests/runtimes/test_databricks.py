@@ -21,6 +21,7 @@ from mlrun.runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 
 def test_prevent_run_locally():
     databricks_runtime = DatabricksRuntime()
-    with pytest.raises(MLRunInvalidArgumentError) as error:
+    with pytest.raises(
+        MLRunInvalidArgumentError, match="Databricks runtime cannot run locally."
+    ):
         databricks_runtime.run(local=True)
-    assert str(error.value) == "Databricks runtime cannot run locally."

@@ -174,6 +174,7 @@ class BatchApplicationProcessor:
                         self.project,
                         self.parquet_directory,
                         self.storage_options,
+                        self.model_monitoring_access_key,
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):
@@ -191,18 +192,19 @@ class BatchApplicationProcessor:
         project: str,
         parquet_directory: str,
         storage_options: dict,
+        model_monitoring_access_key: str,
     ):
         """
         Process a model endpoint and trigger the monitoring applications,
         this function running on different process for each endpoint.
 
-        :param endpoint:            (dict) Dictionary representing the model endpoint.
-        :param applications_names:  (Lst[str]) List of application names to push results to.
-        :param bath_dict:           (dict) Dictionary containing batch interval start and end times.
-        :param project:             (str) Project name.
-        :param parquet_directory:   (str) Directory to store Parquet files
-        :param storage_options:     (dict) Storage options for writing ParquetTarget.
-
+        :param endpoint:                    (dict) Dictionary representing the model endpoint.
+        :param applications_names:          (Lst[str]) List of application names to push results to.
+        :param bath_dict:                   (dict) Dictionary containing batch interval start and end times.
+        :param project:                     (str) Project name.
+        :param parquet_directory:           (str) Directory to store Parquet files
+        :param storage_options:             (dict) Storage options for writing ParquetTarget.
+        :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
         """
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
@@ -306,6 +308,7 @@ class BatchApplicationProcessor:
                 latest_request,
                 project,
                 applications_names,
+                model_monitoring_access_key,
             )
 
         except FileNotFoundError as e:
@@ -416,6 +419,7 @@ class BatchApplicationProcessor:
         latest_request,
         project,
         applications_names,
+        model_monitoring_access_key,
     ):
         """
         Pushes data to multiple stream applications.
@@ -456,7 +460,9 @@ class BatchApplicationProcessor:
             logger.info(
                 f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
             )
-            get_stream_pusher(stream_uri).push([data])
+            get_stream_pusher(stream_uri, access_key=model_monitoring_access_key).push(
+                [data]
+            )
 
     @staticmethod
     def _get_sample_df(

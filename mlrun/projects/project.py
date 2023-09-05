@@ -2631,7 +2631,7 @@ class MlrunProject(ModelObj):
         secrets_dict = {}
         if access_key:
             secrets_dict[
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY
             ] = access_key
 
         if endpoint_store_connection:

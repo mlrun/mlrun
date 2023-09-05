@@ -632,13 +632,13 @@ class MonitoringDeployment:
         if function_name in mm_constants.MonitoringFunctionNames.all():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
+                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     project
                 ),
                 mlrun.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     mlrun.api.crud.secrets.SecretsClientType.model_monitoring,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
+                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                 ),
             )
 

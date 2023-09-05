@@ -751,7 +751,7 @@ def _build_function(
                         model_monitoring_access_key = process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
-                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PROJECT_ACCESS_KEY,
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                         )
 
                         _create_model_monitoring_stream(

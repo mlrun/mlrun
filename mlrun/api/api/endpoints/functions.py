@@ -758,6 +758,7 @@ def _build_function(
                             project=fn.metadata.project,
                             function=fn,
                             monitoring_application=monitoring_application,
+                            model_monitoring_access_key=model_monitoring_access_key,
                         )
 
                     if serving_to_monitor:
@@ -935,23 +936,33 @@ def _create_model_monitoring_stream(
     project: str,
     function,
     monitoring_application: bool,
+    model_monitoring_access_key: str,
 ):
     if monitoring_application:
         stream_paths = [
-            mlrun.api.crud.model_monitoring.get_stream_path(
-                project=function.metadata.project,
-                application_name=function.metadata.name,
+            (
+                mlrun.api.crud.model_monitoring.get_stream_path(
+                    project=function.metadata.project,
+                    application_name=function.metadata.name,
+                ),
+                model_monitoring_access_key,
             )
         ]
     else:
         stream_paths = [
-            mlrun.api.crud.model_monitoring.get_stream_path(
-                project=function.metadata.project, application_name=application_name
+            (
+                mlrun.api.crud.model_monitoring.get_stream_path(
+                    project=function.metadata.project, application_name=application_name
+                ),
+                model_monitoring_access_key
+                if application_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+                else None,
             )
             for application_name in mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.all()
         ]
 
-    for stream_path in stream_paths:
+    for stream_path, access_key in stream_paths:
         if stream_path.startswith("v3io://"):
             _init_serving_function_stream_args(fn=function)
 
@@ -980,6 +991,7 @@ def _create_model_monitoring_stream(
                 shard_count=stream_args.shard_count,
                 retention_period_hours=stream_args.retention_period_hours,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
+                access_key=access_key,
             )
 
             if not (

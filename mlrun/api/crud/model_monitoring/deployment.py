@@ -643,7 +643,6 @@ class MonitoringDeployment:
             )
 
             function.metadata.credentials.access_key = model_monitoring_access_key
-            # function.apply(mlrun.mount_v3io())
             function.apply(mlrun.v3io_cred())
 
             # Ensure that the auth env vars are set

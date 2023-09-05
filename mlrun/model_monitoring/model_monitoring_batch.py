@@ -459,7 +459,10 @@ def calculate_inputs_statistics(
 
     # Recalculate the histograms over the bins that are set in the sample-set of the end point:
     for feature in inputs_statistics.keys():
-        if feature in sample_set_statistics:
+        if (
+            feature in sample_set_statistics
+            and "hist" in sample_set_statistics[feature]
+        ):
             counts, bins = np.histogram(
                 inputs[feature].to_numpy(),
                 bins=sample_set_statistics[feature]["hist"][1],

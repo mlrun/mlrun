@@ -27,7 +27,7 @@ from mlrun.common.db.sql_session import create_session, get_engine
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
-from .models import get_ModelEndpointsTable
+from .models import get_model_endpoints_table
 from .models.base import Base
 
 
@@ -69,7 +69,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
 
         self._engine = get_engine(dsn=self.sql_connection_string)
-        self.ModelEndpointsTable = get_ModelEndpointsTable(
+        self.ModelEndpointsTable = get_model_endpoints_table(
             connection_string=self.sql_connection_string
         )
         # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`

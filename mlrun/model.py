@@ -656,22 +656,22 @@ class HyperParamOptions(ModelObj):
     """Hyper Parameter Options
 
     Parameters:
-        param_file (str):       hyper params input file path/url, instead of inline
-        strategy (str):         hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
-        stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
-        dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
-        max_iterations (int):   max number of runs (in random strategy)
-        max_errors (int):       max number of child runs errors for the overall job to fail
-        teardown_dask (bool):   kill the dask cluster pods after the runs
+        param_file (str):                   hyper params input file path/url, instead of inline
+        strategy (HyperParamStrategies):    hyper param strategy - grid, list or random
+        selector (str):                     selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
+        stop_condition (str):               early stop condition e.g. "accuracy > 0.9"
+        parallel_runs (int):                number of param combinations to run in parallel (over Dask)
+        dask_cluster_uri (str):             db uri for a deployed dask cluster function, e.g. db://myproject/dask
+        max_iterations (int):               max number of runs (in random strategy)
+        max_errors (int):                   max number of child runs errors for the overall job to fail
+        teardown_dask (bool):               kill the dask cluster pods after the runs
     """
 
     def __init__(
         self,
         param_file=None,
-        strategy=None,
-        selector: HyperParamStrategies = None,
+        strategy: typing.Optional[HyperParamStrategies] = None,
+        selector=None,
         stop_condition=None,
         parallel_runs=None,
         dask_cluster_uri=None,

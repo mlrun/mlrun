@@ -426,7 +426,7 @@ class SQLRunDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:

@@ -14,6 +14,7 @@
 import typing
 from copy import deepcopy
 
+from deprecated import deprecated
 from kubernetes import client
 
 import mlrun.runtimes.pod
@@ -25,7 +26,12 @@ from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
 
 
-# TODO: v1alpha1 is not used anymore, remove this class
+# TODO: Remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="v1alpha1 mpi will be removed in 1.7.0, use v1 instead",
+    category=FutureWarning,
+)
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     _mpijob_template = {
         "apiVersion": "kubeflow.org/v1alpha1",

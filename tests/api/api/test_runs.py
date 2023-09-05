@@ -455,7 +455,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
             "kind": "slack",
             "message": "completed",
             "name": "notification-1",
-            "params": {
+            "secret_params": {
                 "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
                 "other_param": "other_value",
             },
@@ -477,8 +477,8 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
     ]
 
     masked_notifications = copy.deepcopy(notifications)
-    masked_notifications[0]["params"]["webhook"] = "REDACTED"
-    masked_notifications[0]["params"]["other_param"] = "REDACTED"
+    masked_notifications[0]["secret_params"]["webhook"] = "REDACTED"
+    masked_notifications[0]["secret_params"]["other_param"] = "REDACTED"
 
     expected_response_params = {
         "spec.notifications": masked_notifications,

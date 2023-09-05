@@ -39,13 +39,31 @@ class DatastoreProfile(pydantic.BaseModel):
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "-__-"
         full_key = (
-            "datastore-profiles"
+            "mlrun.datastore-profiles"
             + secret_name_separator
             + project
             + secret_name_separator
             + profile_name
         )
         return full_key
+
+
+class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
+    def __init__(self):
+        self._data = {}  # Initialize the dictionary
+
+    def add(self, profile: DatastoreProfile):
+        self._data[profile.name] = profile
+
+    def get(self, key):
+        return self._data.get(key, None)
+
+
+class DatastoreProfileBasic(DatastoreProfile):
+    type: str = pydantic.Field("basic")
+    _private_attributes = "private"
+    public: str
+    private: typing.Optional[str] = None
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -130,7 +148,10 @@ class DatastoreProfile2Json(pydantic.BaseModel):
 
         decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
-        ds_profile_factory = {"redis": DatastoreProfileRedis}
+        ds_profile_factory = {
+            "redis": DatastoreProfileRedis,
+            "basic": DatastoreProfileBasic,
+        }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
         else:
@@ -152,6 +173,10 @@ def datastore_profile_read(url):
 
     profile_name = parsed_url.hostname
     project_name = parsed_url.username or mlrun.mlconf.default_project
+    datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+    if datastore:
+        return datastore
+
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
@@ -170,3 +195,7 @@ def datastore_profile_read(url):
         private_json=private_body,
     )
     return datastore
+
+
+def register_temporary_client_datastore_profile(profile: DatastoreProfile):
+    TemporaryClientDatastoreProfiles().add(profile)

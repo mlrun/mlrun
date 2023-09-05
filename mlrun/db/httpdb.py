@@ -18,7 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -666,6 +666,24 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not project
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
@@ -2296,7 +2314,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2320,7 +2340,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,
@@ -3312,12 +3332,26 @@ class HTTPRunDB(RunDBInterface):
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        self.api_call(method="DELETE", path=path)
+        return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str

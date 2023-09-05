@@ -1,4 +1,4 @@
-# Copyright 2020 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,9 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-ARG MLRUN_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.0-base-ubuntu20.04
 
-FROM ${MLRUN_BASE_IMAGE}
+ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.1-cudnn8-devel-ubuntu20.04
+
+FROM ${MLRUN_GPU_BASE_IMAGE}
+
+# Update OS packages:
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /mlrun
 
@@ -30,12 +36,8 @@ RUN python -m pip install \
     -r mlrun-image-requirements.txt
 
 COPY ./dockerfiles/base/requirements.txt ./base-image-requirements.txt
-COPY ./dockerfiles/models/requirements.txt ./models-image-requirements.txt
-COPY ./dockerfiles/models-gpu/requirements.txt ./models-gpu-image-requirements.txt
 RUN python -m pip install \
-    -r base-image-requirements.txt \
-    -r models-image-requirements.txt \
-    -r models-gpu-image-requirements.txt
+    -r base-image-requirements.txt
 
 COPY . .
 

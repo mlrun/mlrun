@@ -74,6 +74,8 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
+    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
@@ -126,7 +128,7 @@ class ModelEndpointTarget:
 
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
-    PROJECT_ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
     STREAM_PATH = "STREAM_PATH"
 

@@ -201,7 +201,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run()
         assert run.status.results["some-arg-by-handler"] == args[1]
         assert run.status.results["my-args"] == [
-            "/usr/local/bin/mlrun",
+            "/opt/conda/bin/mlrun",
             "run",
             "--name",
             "function-with-args-handler",

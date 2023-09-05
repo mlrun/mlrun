@@ -241,6 +241,18 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert project.spec.artifacts == []
         assert project.spec.conda == ""
 
+    def test_set_project_secrets(self):
+        # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
+        project_name = "some-project"
+        project_object = mlrun.get_or_create_project(project_name)
+
+        secrets = {"secret1": "value1", "secret2": "value2"}
+        project_object.set_secrets(secrets)
+        secret_keys = (
+            mlrun.get_run_db().list_project_secret_keys(project_name).secret_keys
+        )
+        assert secret_keys == list(secrets.keys())
+
 
 def _assert_projects(expected_project, project):
     assert (

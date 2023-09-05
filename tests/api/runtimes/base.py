@@ -614,7 +614,9 @@ class TestRuntimeBase:
         expected_volume = {
             "flexVolume": {
                 "driver": "v3io/fuse",
-                "options": {},
+                "options": {
+                    "dirsToCreate": f'[{{"name": "users//{v3io_user}", "permissions": 488}}]'
+                },
             },
             "name": "v3io",
         }

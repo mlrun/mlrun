@@ -287,6 +287,9 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             )
             sleep(choice([0.01, 0.04]))
 
+        # Wait for model endpoint stats to be updated
+        sleep(10)
+
         # Test metrics
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
@@ -294,6 +297,7 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         assert len(endpoints_list) == 1
 
         endpoint = endpoints_list[0]
+        self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
         assert len(endpoint.status.metrics) > 0
 
         assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101

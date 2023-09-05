@@ -186,8 +186,8 @@ def datastore_profile_read(url):
     if not public_profile or not private_body:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Unable to retrieve the datastore profile '{url}' from either the server or local environment."
-            "Make sure the profile is registered correctly, or if running in a remote environment,"
-            "use register_temporary_client_datastore_profile() to provide local credentials."
+            "Make sure the profile is registered correctly, or if running in a local environment,"
+            "use register_temporary_client_datastore_profile() to provide credentials locally."
         )
 
     datastore = DatastoreProfile2Json.create_from_json(

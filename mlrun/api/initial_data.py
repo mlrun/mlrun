@@ -648,7 +648,9 @@ def _resolve_current_data_version(
         mlrun.errors.MLRunNotFoundError,
     ) as exc:
         try:
-            projects = db.list_projects(db_session)
+            projects = db.list_projects(
+                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+            )
         except (
             sqlalchemy.exc.ProgrammingError,
             sqlalchemy.exc.OperationalError,

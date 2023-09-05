@@ -172,6 +172,7 @@ default_config = {
             "service_account": {"default": None},
         },
     },
+    # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -179,7 +180,7 @@ default_config = {
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
-            "mpijob": "mlrun/ml-models",
+            "mpijob": "mlrun/mlrun",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options

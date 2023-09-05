@@ -16,6 +16,7 @@ ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.1-cudnn8-devel-ubuntu2
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
 
+# Update OS packages:
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*

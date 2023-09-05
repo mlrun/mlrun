@@ -15,9 +15,11 @@
 
 import datetime
 import json
+import typing
 import uuid
 from base64 import b64decode
 
+import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
@@ -25,6 +27,8 @@ from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTas
 
 import mlrun
 from mlrun.errors import MLRunRuntimeError
+
+credentials_path = "/mlrun/databricks_credentials.yaml"
 
 
 def get_task(databricks_run: Run) -> RunTask:
@@ -40,23 +44,52 @@ def get_task(databricks_run: Run) -> RunTask:
     return databricks_run.tasks[0]
 
 
+def save_credentials(
+    workspace: WorkspaceClient,
+    waiter,
+    host: str,
+    token: str,
+    cluster_id: typing.Optional[str],
+    is_finished: bool,
+):
+    databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
+    task_run_id = get_task(databricks_run=databricks_run).run_id
+    credentials = {
+        "DATABRICKS_HOST": host,
+        "DATABRICKS_TOKEN": token,
+        "TASK_RUN_ID": task_run_id,
+        "IS_FINISHED": is_finished,
+    }
+    if cluster_id:
+        credentials["DATABRICKS_CLUSTER_ID"] = cluster_id
+
+    with open(credentials_path, "w") as yaml_file:
+        yaml.dump(credentials, yaml_file, default_flow_style=False)
+
+
 def run_mlrun_databricks_job(
     context,
     task_parameters: dict,
     **kwargs,
 ):
+    mlrun_databricks_job_id = uuid.uuid4()
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
+    databricks_token = mlrun.get_secret_or_env(key=token_key)
+    host = mlrun.get_secret_or_env(key="DATABRICKS_HOST")
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
+    databricks_run_name = task_parameters.get(
+        "databricks_run_name", f"mlrun_task_{mlrun_databricks_job_id}"
+    )
 
     logger = context.logger
-    workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
-    mlrun_databricks_job_id = uuid.uuid4()
+    workspace = WorkspaceClient(token=databricks_token)
+
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
-        f"mlrun_task_{mlrun_databricks_job_id}.py"
+        f"{databricks_run_name}.py"
     )
 
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
@@ -86,10 +119,10 @@ def run_mlrun_databricks_job(
                 cluster_spec_kwargs.update(new_cluster_spec)
             submit_task_kwargs["new_cluster"] = ClusterSpec(**cluster_spec_kwargs)
         waiter = workspace.jobs.submit(
-            run_name=f"py-sdk-run-{mlrun_databricks_job_id}",
+            run_name=databricks_run_name,
             tasks=[
                 SubmitTask(
-                    task_key=f"hello_world-{mlrun_databricks_job_id}",
+                    task_key=databricks_run_name,
                     spark_python_task=SparkPythonTask(
                         python_file=f"dbfs:{script_path_on_dbfs}",
                         parameters=[json.dumps(kwargs)],
@@ -99,6 +132,14 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
+        save_credentials(
+            workspace=workspace,
+            waiter=waiter,
+            host=host,
+            token=databricks_token,
+            cluster_id=cluster_id,
+            is_finished=False,
+        )
         try:
             run = waiter.result(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
@@ -114,6 +155,15 @@ def run_mlrun_databricks_job(
             custom_error += "\nerror trace from databricks:\n" if error_trace else ""
             custom_error += error_trace
             raise MLRunRuntimeError(custom_error)
+        finally:
+            save_credentials(
+                workspace=workspace,
+                waiter=waiter,
+                host=host,
+                token=databricks_token,
+                cluster_id=cluster_id,
+                is_finished=True,
+            )
         run_output = workspace.jobs.get_run_output(get_task(run).run_id)
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:

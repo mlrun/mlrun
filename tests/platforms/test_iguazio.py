@@ -135,7 +135,10 @@ def test_mount_v3io():
             "expected_volume": {
                 "flexVolume": {
                     "driver": "v3io/fuse",
-                    "options": {"accessKey": access_key},
+                    "options": {
+                        "accessKey": access_key,
+                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
+                    },
                 },
                 "name": "v3io",
             },
@@ -166,6 +169,7 @@ def test_mount_v3io():
                         "accessKey": access_key,
                         "container": "users",
                         "subPath": f"/{username}/custom-remote",
+                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
                     },
                 },
                 "name": "v3io",
@@ -192,7 +196,10 @@ def test_mount_v3io():
             "expected_volume": {
                 "flexVolume": {
                     "driver": "v3io/fuse",
-                    "options": {"accessKey": access_key},
+                    "options": {
+                        "accessKey": access_key,
+                        "dirsToCreate": f'[{{"name": "users//{username}", "permissions": 488}}]',
+                    },
                 },
                 "name": "v3io",
             },

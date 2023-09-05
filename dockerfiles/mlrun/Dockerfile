@@ -16,9 +16,16 @@ ARG MLRUN_PYTHON_VERSION=3.9
 
 FROM gcr.io/iguazio/python:${MLRUN_PYTHON_VERSION}-slim
 
+# Update OS packages:
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
+
+# Update base pip packages (usually pip, setuptools, wheel):
+RUN python -m pip  list --disable-pip-version-check --format freeze \
+    | grep -v '^\-e' \
+    | cut -d'=' -f1 \
+    | xargs python -m pip install --upgrade
 
 ENV PIP_NO_CACHE_DIR=1
 

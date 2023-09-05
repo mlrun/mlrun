@@ -258,7 +258,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Create tutorials tar
         run: |
-          tar -cvf mlrun-tutorials.tar docs/tutorial
+          tar -cvf mlrun-tutorials.tar docs/tutorials
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@v1
         with:

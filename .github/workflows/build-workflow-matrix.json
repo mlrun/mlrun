@@ -15,11 +15,6 @@
     "include-suffix":""
   },
   {
-    "image-name":"models",
-    "python-version":"3.9",
-    "include-suffix":""
-  },
-  {
     "image-name": "mlrun-gpu",
     "python-version":"3.9",
     "include-suffix":""

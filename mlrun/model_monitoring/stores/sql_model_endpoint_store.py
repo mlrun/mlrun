@@ -28,7 +28,6 @@ from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
 from .models import get_model_endpoints_table
-from .models.base import Base
 
 
 class SQLModelEndpointStore(ModelEndpointStore):
@@ -74,7 +73,7 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
         # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
         if not self._engine.has_table(self.table_name):
-            Base.metadata.create_all(bind=self._engine)
+            self.ModelEndpointsTable.metadata.create_all(bind=self._engine)
         self.model_endpoints_table = self.ModelEndpointsTable.__table__
 
     def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):

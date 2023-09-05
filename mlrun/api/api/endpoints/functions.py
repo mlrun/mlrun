@@ -949,17 +949,20 @@ def _create_model_monitoring_stream(
             )
         ]
     else:
+        function_names = [mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM]
+        if function.spec.tracking_policy.application_batch:
+            function_names += [mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER]
         stream_paths = [
             (
                 mlrun.api.crud.model_monitoring.get_stream_path(
-                    project=function.metadata.project, application_name=application_name
+                    project=function.metadata.project, application_name=function_name
                 ),
                 model_monitoring_access_key
-                if application_name
+                if function_name
                 != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
                 else None,
             )
-            for application_name in mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.all()
+            for function_name in function_names
         ]
 
     for stream_path, access_key in stream_paths:

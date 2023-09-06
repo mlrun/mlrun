@@ -288,13 +288,25 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             sleep(choice([0.01, 0.04]))
 
         # Test metrics
+        mlrun.utils.helpers.retry_until_successful(
+            3,
+            10,
+            self._logger,
+            False,
+            self._assert_model_endpoint_metrics,
+        )
+
+    def _assert_model_endpoint_metrics(self):
+
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
         assert len(endpoints_list) == 1
 
         endpoint = endpoints_list[0]
+
         assert len(endpoint.status.metrics) > 0
+        self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
         assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
 
@@ -570,7 +582,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         mlrun.utils.helpers.retry_until_successful(
             2,
             20,
-            mlrun.utils.logger,
+            self._logger,
             False,
             self._check_monitoring_building_state,
             base_runtime=base_runtime,

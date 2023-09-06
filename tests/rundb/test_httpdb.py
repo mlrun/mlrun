@@ -759,7 +759,7 @@ def test_project_sql_db_roundtrip(create_server):
     _assert_projects(project, patched_project)
     get_project = db.get_project(project_name)
     _assert_projects(project, get_project)
-    list_projects = db.list_projects()
+    list_projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
     _assert_projects(project, list_projects[0])
 
 

@@ -14,10 +14,13 @@
 
 import os
 from base64 import b64decode, b64encode
+from typing import Callable, Dict, List, Optional, Union
 
 from kubernetes.client import V1ExecAction, V1Handler, V1Lifecycle
 
-from mlrun.model import RunObject
+import mlrun
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.model import HyperParamOptions, RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 
 
@@ -78,6 +81,60 @@ class DatabricksRuntime(KubejobRuntime):
             runspec.spec.handler = "run_mlrun_databricks_job"
         else:
             raise ValueError("Databricks function must be provided with user code")
+
+    def run(
+        self,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        **launcher_kwargs,
+    ) -> RunObject:
+        if local:
+            raise MLRunInvalidArgumentError("Databricks runtime cannot run locally.")
+        return super().run(
+            runspec=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+            **launcher_kwargs,
+        )
 
 
 _databricks_script_code = """

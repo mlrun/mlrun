@@ -176,19 +176,19 @@ def datastore_profile_read(url):
     datastore = TemporaryClientDatastoreProfiles().get(profile_name)
     if datastore:
         return datastore
-
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
-    if not public_profile:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Failed to fetch datastore profile '{url}' "
-        )
-
     project_ds_name_private = DatastoreProfile.generate_secret_key(
         profile_name, project_name
     )
     private_body = get_secret_or_env(project_ds_name_private)
+    if not public_profile or not private_body:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment."
+            "Make sure the profile is registered correctly, or if running in a local environment,"
+            "use register_temporary_client_datastore_profile() to provide credentials locally."
+        )
 
     datastore = DatastoreProfile2Json.create_from_json(
         public_json=DatastoreProfile2Json.get_json_public(public_profile),

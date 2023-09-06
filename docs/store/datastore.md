@@ -28,8 +28,10 @@ listed in the following sections. Each parameter specified can be provided as an
 or as a project-secret that has the same key as the name of the parameter.
 
 MLRun jobs that are executed remotely run in independent pods, with their own environment. When setting an environment 
-variable in the development environment (for example Jupyter), this has no effect on the executing pods. Therefore, 
-before before executing jobs that require access to storage credentials, these need to be provided by creating a datastore.
+variable in the development environment (for example Jupyter), this has no effect on the executing pods. 
+Therefore, before executing jobs that require access to storage credentials, these need to be provided 
+by assigning environment variables to the MLRun runtime itself, assigning secrets to it, or placing 
+the variables in project-secrets.
 
 You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
 
@@ -136,7 +138,7 @@ Create a data store profile in the context of a project. Example of creating a R
 1. Create the profile, for example:<br>
    `profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
    The username and password parameters are optional. 
-2. Register it within the project, for example:<br>
+2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
    `RedisNoSqlTarget(path="ds://test_profile/a/b")`<br>

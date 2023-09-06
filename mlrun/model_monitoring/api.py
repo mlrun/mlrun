@@ -549,6 +549,7 @@ def get_sample_set_statistics(
 
 def read_dataset_as_dataframe(
     dataset: DatasetType,
+    feature_columns: typing.Union[str, typing.List[str]] = None,
     label_columns: typing.Union[str, typing.List[str]] = None,
     drop_columns: typing.Union[str, typing.List[str], int, typing.List[int]] = None,
 ) -> typing.Tuple[pd.DataFrame, typing.List[str]]:
@@ -556,12 +557,14 @@ def read_dataset_as_dataframe(
     Parse the given dataset into a DataFrame and drop the columns accordingly. In addition, the label columns will be
     parsed and validated as well.
 
-    :param dataset:       The dataset to train the model on.
-                          Can be either a list of lists, dict, URI or a FeatureVector.
-    :param label_columns: The target label(s) of the column(s) in the dataset. for Regression or
-                          Classification tasks.
-    :param drop_columns:  ``str`` / ``int`` or a list of ``str`` / ``int`` that represent the column names / indices to
-                          drop.
+    :param dataset:         A dataset that will be converted into a DataFrame.
+                            Can be either a list of lists, dict, URI or a FeatureVector.
+    :param feature_columns: List of feature columns that will be used to build the dataframe when dataset is from
+                            type list or numpy array.
+    :param label_columns:   The target label(s) of the column(s) in the dataset. for Regression or
+                            Classification tasks.
+    :param drop_columns:    ``str`` / ``int`` or a list of ``str`` / ``int`` that represent the column names / indices
+                            to drop.
 
     :returns: A tuple of:
               [0] = The parsed dataset as a DataFrame
@@ -575,42 +578,42 @@ def read_dataset_as_dataframe(
             drop_columns = [drop_columns]
 
     # Check if the dataset is in fact a Feature Vector:
-    if (
-        dataset.meta
-        and dataset.meta.kind == mlrun.common.schemas.ObjectKind.feature_vector
-    ):
+    if isinstance(dataset, mlrun.feature_store.FeatureVector):
         # Try to get the label columns if not provided:
         if label_columns is None:
-            label_columns = dataset.meta.status.label_column
+            label_columns = dataset.status.label_column
         # Get the features and parse to DataFrame:
         dataset = mlrun.feature_store.get_offline_features(
-            dataset.meta.uri, drop_columns=drop_columns
+            dataset.uri, drop_columns=drop_columns
         ).to_dataframe()
+
+    elif isinstance(dataset, (list, np.ndarray)):
+        if not feature_columns:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Feature columns list must be provided when dataset input as from type list or numpy array"
+            )
+        # Parse the list / numpy array into a DataFrame:
+        dataset = pd.DataFrame(dataset, columns=feature_columns)
+        # Validate the `drop_columns` is given as integers:
+        if drop_columns and not all(isinstance(col, int) for col in drop_columns):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "`drop_columns` must be an integer / list of integers if provided as a list."
+            )
+    elif isinstance(dataset, mlrun.DataItem):
+        # Turn the DataITem to DataFrame:
+        dataset = dataset.as_df()
     else:
-        # Parse to DataFrame according to the dataset's type:
-        if isinstance(dataset, (list, np.ndarray)):
-            # Parse the list / numpy array into a DataFrame:
+        # Parse the object (should be a pd.DataFrame / pd.Series, dictionary) into a DataFrame:
+        try:
             dataset = pd.DataFrame(dataset)
-            # Validate the `drop_columns` is given as integers:
-            if drop_columns and not all(isinstance(col, int) for col in drop_columns):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "`drop_columns` must be an integer / list of integers if provided as a list."
-                )
-        elif isinstance(dataset, mlrun.DataItem):
-            # Turn the DataITem to DataFrame:
-            dataset = dataset.as_df()
-        else:
-            # Parse the object (should be a pd.DataFrame / pd.Series, dictionary) into a DataFrame:
-            try:
-                dataset = pd.DataFrame(dataset)
-            except ValueError as e:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Could not parse the given dataset of type {type(dataset)} into a pandas DataFrame. "
-                    f"Received the following error: {e}"
-                )
-        # Drop columns if needed:
-        if drop_columns:
-            dataset.drop(drop_columns, axis=1, inplace=True)
+        except ValueError as e:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Could not parse the given dataset of type {type(dataset)} into a pandas DataFrame. "
+                f"Received the following error: {e}"
+            )
+    # Drop columns if needed:
+    if drop_columns:
+        dataset.drop(drop_columns, axis=1, inplace=True)
 
     # Turn the `label_columns` into a list by default:
     if label_columns is None:

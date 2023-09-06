@@ -210,7 +210,7 @@ def test_volume_mounts_addition():
 
 
 def test_build_config_with_multiple_commands():
-    image = "mlrun/ml-models"
+    image = "mlrun/mlrun"
     fn = mlrun.new_function(
         "some-function", "some-project", "some-tag", image=image, kind="job"
     )

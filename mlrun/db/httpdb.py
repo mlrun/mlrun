@@ -2179,7 +2179,7 @@ class HTTPRunDB(RunDBInterface):
         owner: str = None,
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        ] = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -2188,9 +2188,9 @@ class HTTPRunDB(RunDBInterface):
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
 
-            - ``full`` (default value) - Return full project objects.
+            - ``name_only`` (default value) - Return just the names of the projects.
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
-            - ``name_only`` - Return just the names of the projects.
+            - ``full``  - Return full project objects.
 
         :param labels: Filter by labels attached to the project.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.

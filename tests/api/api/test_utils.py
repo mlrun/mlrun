@@ -748,7 +748,7 @@ def test_mask_v3io_volume_credentials(
     username = "volume-username"
     access_key = "volume-access-key"
     v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
-        "some-v3io-volume-name", "", access_key
+        "some-v3io-volume-name", "", access_key, user=username
     )
     v3io_volume_mount = kubernetes.client.V1VolumeMount(
         mount_path="some-v3io-mount-path",

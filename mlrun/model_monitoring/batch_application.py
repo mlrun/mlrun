@@ -175,6 +175,7 @@ class BatchApplicationProcessor:
                         self.parquet_directory,
                         self.storage_options,
                         self.model_monitoring_access_key,
+
                     )
                     futures.append(future)
             for future in concurrent.futures.as_completed(futures):
@@ -193,6 +194,7 @@ class BatchApplicationProcessor:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
+
     ):
         """
         Process a model endpoint and trigger the monitoring applications,
@@ -205,6 +207,7 @@ class BatchApplicationProcessor:
         :param parquet_directory:           (str) Directory to store Parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
+
         """
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
@@ -420,6 +423,7 @@ class BatchApplicationProcessor:
         project,
         applications_names,
         model_monitoring_access_key,
+
     ):
         """
         Pushes data to multiple stream applications.

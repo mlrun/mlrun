@@ -752,6 +752,7 @@ def _build_function(
                             db_session,
                             fn.metadata.project,
                             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+
                         )
 
                         _create_model_monitoring_stream(
@@ -759,6 +760,7 @@ def _build_function(
                             function=fn,
                             monitoring_application=monitoring_application,
                             model_monitoring_access_key=model_monitoring_access_key,
+
                         )
 
                     if serving_to_monitor:
@@ -1000,6 +1002,7 @@ def _create_model_monitoring_stream(
                 retention_period_hours=stream_args.retention_period_hours,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
                 access_key=access_key,
+
             )
 
             if not (

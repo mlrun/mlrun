@@ -476,6 +476,7 @@ def calculate_inputs_statistics(
                 )
             )
 
+
     return inputs_statistics
 
 
@@ -761,6 +762,7 @@ class BatchProcessor:
                 )
                 or {}
             )
+
 
             # For backwards compatibility first check if the old drift thresholds
             # (both `possible drift and `drift_detected`) keys exist in the monitor configuration dict

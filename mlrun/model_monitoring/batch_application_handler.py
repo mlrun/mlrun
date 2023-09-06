@@ -15,7 +15,6 @@
 
 import mlrun
 from mlrun.model_monitoring.batch_application import BatchApplicationProcessor
-from mlrun.utils import logger
 
 
 def handler(context: mlrun.run.MLClientCtx):

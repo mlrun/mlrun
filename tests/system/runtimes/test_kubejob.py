@@ -274,7 +274,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         ]
 
     @pytest.mark.parametrize("local", [True, False])
-    def test_log_artifact_with_run_project(self, local):
+    def test_log_artifact_with_run_function(self, local):
         train_path = str(self.assets_path / "log_artifact.py")
         function_parameter = 100
         self.project.set_function(
@@ -294,7 +294,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             {f"col{function_parameter}": [function_parameter] * 10}
         )
         result_df = resource.as_df()
-        assert expected_df.equals(result_df)
+        pd.testing.assert_frame_equal(result_df, expected_df)
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")

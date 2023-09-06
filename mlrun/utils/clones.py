@@ -97,7 +97,7 @@ def add_credentials_git_remote_url(url: str, secrets=None) -> Tuple[str, bool]:
     Besides the URL, this function also returns a bool indicating if any enrichment was done
 
     :param url:     git remote URL to be enriched
-    :param secrets: dict or SecretStore with Git credentials
+    :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
 
     :returns: tuple with the final URL and a boolean indicating if any enrichment was done
     """
@@ -128,7 +128,7 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
 
     :param url:     git remote URL
     :param context: local directory in which the repository must be stored
-    :param secrets: dict or SecretStore with Git credentials
+    :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
     :param clone:   delete all files and folders in "context" if there are any
     """
 

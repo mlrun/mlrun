@@ -2027,9 +2027,9 @@ class MlrunProject(ModelObj):
         :param update:       update files (git add update=True)
         :param remote:       git remote, default to origin
         :param add:          list of files to add
-        :param author_name:  author name to be used on this commit
-        :param author_email: author email to be used on this commit
-        :param secrets:      dict or SecretStore with Git credentials
+        :param author_name:  author's git user name to be used on this commit
+        :param author_email: author's git user email to be used on this commit
+        :param secrets:      dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
         """
         repo = self.spec.repo
         if not repo:

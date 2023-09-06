@@ -15,7 +15,6 @@
 import base64  # noqa: F401
 import os
 import traceback
-import typing
 from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List, Optional

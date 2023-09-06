@@ -61,7 +61,7 @@
 ### Breaking changes
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-|  | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format.
+| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format.
 
 ###  Closed issues
 | ID   | Description                                                    |

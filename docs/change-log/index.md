@@ -1,16 +1,97 @@
 (change-log)=
 # Change log
-
-- [v1.4.1](#v1-4-1) | [v1.4.0](#v1-4-0)
-- [v1.3.4](#v1-3-4) | [v1.3.3](#v1-3-3) | [v1.3.2](#v1-3-2) | [v1.3.1](#v1-3-1) | [v1.3.0](#v1-3-0) 
-- [v1.2.3](#v1-2-3) | [v1.2.2](#v1-2-2) | [v1.2.1](#v1-2-1) | [v1.2.0](#v1-2-0)
-- [v1.1.3](#1-1-3)
-- [v1.0.6](#v1-0-6) | [v1.0.5](#v1-0-5) | [v1.0.4](#v1-0-4) | [v1.0.3](#v1-0-3) | [v1.0.2](#v1-0-2) | [v1.0.0](#v1-0-0)
+- [v1.5.0](#v1-5-0)
+- [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
+- [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
+- [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
+- [v1.1.3](#v1-1-3-28-december-2022) | [v1.1.2](#v1-1-2-20-november-2022) | [v1.1.1](#v1-1-1-18-october-2022) | [v1.1.0](#v1-1-0-6-september-2022)
+- [v1.0.6](#v1-0-6-16-august-2022) | [v1.0.5](#v1-0-5-11-august-2022) | [v1.0.4](#v1-0-4-13-june-2022) | [v1.0.3](#v1-0-3-7-june-2022) | [v1.0.2](#v1-0-2-19-may-2022) | [v1.0.0](#v1-0-0-22-april-2022)
 - [Open issues](#open-issues)
 - [Limitations](#limitations)
 - [Deprecations](#deprecations)
 
-## v1.4.1 (8 August 2023)
+
+## v1.5.0 
+
+
+
+### Infrastructure
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-4366 | MLRun Models and GPU images management. Previous images mlrun/ml-models and mlrun/ml-models-gpu are replaced by mlrun/mlrun and mlrun/mlrun-gpu. All other required images are installed per demo. |
+
+### Alerts
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3854 | Add web-type notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds). |
+
+
+### Data
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles    |
+| ML- | Add support for dbfs (Databricks file system). See [Databricks file system](store/datastore.html#Databricks file system
+
+### Feature store
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3501 | Add support for running Spark jobs on Databricks cluster. See ../runtimes/databricks
+
+
+
+### Models
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-4366 |
+
+
+### UI
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2811 | New Batch inference wizard. |
+| ML-2815 | New Batch Run wizard. |
+| ML-3582 | The Projects > Models > Model Endpoints page now displays the Function Tag. |
+
+###  Closed issues
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3370 | Supports private repo for function hub. **Here or in features?   link to Doc**     |
+
+
+### Breaking changes
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+|  | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format.
+
+###  Closed issues
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+| ML- |  |
+
+
+
+
+
+
+## v1.4.1 (8 August 2023){v1-4-1}
 
 ###  Closed issues
 | ID   | Description                                                    |

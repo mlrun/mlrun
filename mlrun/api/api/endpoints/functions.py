@@ -773,7 +773,7 @@ def _build_function(
                                 function=fn,
                                 monitoring_application=monitoring_application,
                                 stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
-                                    project=function.metadata.project,
+                                    project=fn.metadata.project,
                                     application_name=mm_constants.MonitoringFunctionNames.STREAM,
                                 ),
                             )
@@ -784,7 +784,7 @@ def _build_function(
                                     function=fn,
                                     monitoring_application=monitoring_application,
                                     stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
-                                        project=function.metadata.project,
+                                        project=fn.metadata.project,
                                         application_name=mm_constants.MonitoringFunctionNames.WRITER,
                                     ),
                                     access_key=model_monitoring_access_key,
@@ -808,7 +808,7 @@ def _build_function(
                                 function=fn,
                                 monitoring_application=monitoring_application,
                                 stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
-                                    project=function.metadata.project,
+                                    project=fn.metadata.project,
                                     application_name=fn.metadata.name,
                                 ),
                                 access_key=model_monitoring_access_key,

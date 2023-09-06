@@ -24,12 +24,10 @@ def handler(context: mlrun.run.MLClientCtx):
 
     :param context: the MLRun context
     """
-    logger.info("[DAVID] starting application job")
     batch_processor = BatchApplicationProcessor(
         context=context,
         project=context.project,
     )
     batch_processor.run()
-    logger.info("[DAVID] Finish application job")
     if batch_processor.endpoints_exceptions:
         print(batch_processor.endpoints_exceptions)

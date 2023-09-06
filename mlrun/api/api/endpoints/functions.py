@@ -15,6 +15,7 @@
 import base64  # noqa: F401
 import os
 import traceback
+import typing
 from distutils.util import strtobool
 from http import HTTPStatus
 from typing import List, Optional
@@ -735,7 +736,6 @@ def _build_function(
                 fn,
                 auth_info,
             )
-            model_monitoring_access_key = None
             monitoring_application = (
                 fn.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
                 == mm_constants.ModelMonitoringAppTag.VAL
@@ -746,21 +746,13 @@ def _build_function(
             if serving_to_monitor or monitoring_application:
                 try:
                     if not mlrun.mlconf.is_ce_mode():
-                        # create v3io stream for
-                        # model_monitoring_stream & model_monitoring_writer | model monitoring application
                         model_monitoring_access_key = process_model_monitoring_secret(
                             db_session,
                             fn.metadata.project,
                             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
                         )
-
-                        _create_model_monitoring_stream(
-                            project=fn.metadata.project,
-                            function=fn,
-                            monitoring_application=monitoring_application,
-                            model_monitoring_access_key=model_monitoring_access_key,
-                        )
-
+                    else:
+                        model_monitoring_access_key = None
                     if serving_to_monitor:
                         # Handle model monitoring
                         logger.info("Tracking enabled, initializing model monitoring")
@@ -774,6 +766,30 @@ def _build_function(
                             # Initialize tracking policy with default values
                             fn.spec.tracking_policy = TrackingPolicy()
 
+                        if not mlrun.mlconf.is_ce_mode():
+                            # create v3io stream for model_monitoring_stream
+                            _create_model_monitoring_stream(
+                                project=fn.metadata.project,
+                                function=fn,
+                                monitoring_application=monitoring_application,
+                                stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=function.metadata.project,
+                                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
+                                ),
+                            )
+                            if fn.spec.tracking_policy.application_batch:
+                                # create v3io stream for  model_monitoring_writer | model monitoring application
+                                _create_model_monitoring_stream(
+                                    project=fn.metadata.project,
+                                    function=fn,
+                                    monitoring_application=monitoring_application,
+                                    stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                        project=function.metadata.project,
+                                        application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                                    ),
+                                    access_key=model_monitoring_access_key,
+                                )
+
                         # deploy model monitoring stream, model monitoring batch job,
                         # model monitoring batch application job and model monitoring writer
                         mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
@@ -785,6 +801,18 @@ def _build_function(
                         )
 
                     if monitoring_application:
+                        if not mlrun.mlconf.is_ce_mode():
+                            # create v3io stream for model monitoring application
+                            _create_model_monitoring_stream(
+                                project=fn.metadata.project,
+                                function=fn,
+                                monitoring_application=monitoring_application,
+                                stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=function.metadata.project,
+                                    application_name=fn.metadata.name,
+                                ),
+                                access_key=model_monitoring_access_key,
+                            )
                         # apply stream trigger to monitoring application
                         fn = mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
                             project=fn.metadata.project,
@@ -937,75 +965,42 @@ def _create_model_monitoring_stream(
     project: str,
     function,
     monitoring_application: bool,
-    model_monitoring_access_key: str,
+    stream_path: str,
+    access_key: str = None,
 ):
-    if monitoring_application:
-        stream_paths = [
-            (
-                mlrun.api.crud.model_monitoring.get_stream_path(
-                    project=function.metadata.project,
-                    application_name=function.metadata.name,
-                ),
-                model_monitoring_access_key,
-            )
-        ]
-    else:
-        function_names = [
-            mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
-        ]
-        if function.spec.tracking_policy["application_batch"] == "true":
-            function_names += [
-                mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER
-            ]
-        stream_paths = [
-            (
-                mlrun.api.crud.model_monitoring.get_stream_path(
-                    project=function.metadata.project, application_name=function_name
-                ),
-                model_monitoring_access_key
-                if function_name
-                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
-                else None,
-            )
-            for function_name in function_names
-        ]
+    if stream_path.startswith("v3io://"):
+        _init_serving_function_stream_args(fn=function)
 
-    for stream_path, access_key in stream_paths:
-        if stream_path.startswith("v3io://"):
-            _init_serving_function_stream_args(fn=function)
+        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
-            _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+        # TODO: How should we configure sharding here?
+        logger.info(
+            "Creating model endpoint stream for project",
+            project=project,
+            stream_path=stream_path,
+            container=container,
+            endpoint=config.v3io_api,
+        )
 
-            # TODO: How should we configure sharding here?
-            logger.info(
-                "Creating model endpoint stream for project",
-                project=project,
-                stream_path=stream_path,
-                container=container,
-                endpoint=config.v3io_api,
-            )
+        v3io_client = v3io.dataplane.Client(
+            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+        )
+        stream_args = (
+            config.model_endpoint_monitoring.application_stream_args
+            if monitoring_application
+            else config.model_endpoint_monitoring.serving_stream_args
+        )
+        response = v3io_client.create_stream(
+            container=container,
+            path=stream_path,
+            shard_count=stream_args.shard_count,
+            retention_period_hours=stream_args.retention_period_hours,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            access_key=access_key,
+        )
 
-            v3io_client = v3io.dataplane.Client(
-                endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
-            )
-            stream_args = (
-                config.model_endpoint_monitoring.application_stream_args
-                if monitoring_application
-                else config.model_endpoint_monitoring.serving_stream_args
-            )
-            response = v3io_client.create_stream(
-                container=container,
-                path=stream_path,
-                shard_count=stream_args.shard_count,
-                retention_period_hours=stream_args.retention_period_hours,
-                raise_for_status=v3io.dataplane.RaiseForStatus.never,
-                access_key=access_key,
-            )
-
-            if not (
-                response.status_code == 400 and "ResourceInUse" in str(response.body)
-            ):
-                response.raise_for_status([409, 204])
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
 
 
 def _init_serving_function_stream_args(fn: ServingRuntime):

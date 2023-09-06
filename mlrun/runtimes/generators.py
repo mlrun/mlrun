@@ -47,9 +47,28 @@ def get_generator(spec: RunSpec, execution, param_file_secrets: dict = None):
     obj = None
     if param_file:
         obj = execution.get_dataitem(param_file, secrets=param_file_secrets)
-        if not strategy and obj.suffix == ".csv":
-            strategy = "list"
-        if not strategy or strategy in ["grid", "random"]:
+
+        # for csv files, it will contain a list of iterations to run.
+        # its strategy must be a list, since grid and random strategies would yield a different
+        # results than expected.
+        # e.g.:
+        # param file:
+        # p1 | p2
+        # 1  | 2
+        # 3  | 4
+        # ------
+        # while strategy is grid, the number iteration would be the matrix of the two params instead of two.
+        # thus, ignored.
+        if obj.suffix == ".csv":
+            if not strategy:
+                strategy = "list"
+
+            if strategy in ["grid", "random"]:
+                raise ValueError(
+                    "CSV param file cannot be used with grid or random strategy, "
+                    "use a JSON file for parameters or leave empty."
+                )
+        elif not strategy or strategy in ["grid", "random"]:
             hyperparams = json.loads(obj.get())
 
     if not strategy or strategy == "grid":

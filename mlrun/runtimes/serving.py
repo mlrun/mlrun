@@ -638,6 +638,9 @@ class ServingRuntime(RemoteRuntime):
             self.spec.secret_sources = self._secrets.to_serial()
 
         if self._spec.function_refs:
+            # ensure the function is available to the UI while deploying the child functions
+            self.save(versioned=False)
+
             # deploy child functions
             self._add_ref_triggers()
             self._deploy_function_refs()

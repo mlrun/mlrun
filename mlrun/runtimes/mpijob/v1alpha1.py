@@ -14,6 +14,7 @@
 import typing
 from copy import deepcopy
 
+from deprecated import deprecated
 from kubernetes import client
 
 import mlrun.runtimes.pod
@@ -25,6 +26,12 @@ from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
 from mlrun.utils import get_in, update_in
 
 
+# TODO: Remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="v1alpha1 mpi will be removed in 1.7.0, use v1 instead",
+    category=FutureWarning,
+)
 class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
     _mpijob_template = {
         "apiVersion": "kubeflow.org/v1alpha1",
@@ -37,7 +44,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 "spec": {
                     "containers": [
                         {
-                            "image": "mlrun/ml-models",
+                            "image": "mlrun/mlrun",
                             "name": "base",
                             "command": [],
                             "env": [],
@@ -108,8 +115,7 @@ class MpiRuntimeV1Alpha1(AbstractMPIJobRuntime):
                 self.spec.priority_class_name,
             )
 
-        extra_env = self._generate_runtime_env(runobj)
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
+        extra_env = self.generate_runtime_k8s_env(runobj)
         self._update_container(job, "env", extra_env + self.spec.env)
         if self.spec.image_pull_policy:
             self._update_container(job, "imagePullPolicy", self.spec.image_pull_policy)

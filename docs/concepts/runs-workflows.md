@@ -12,4 +12,5 @@ decorators-and-auto-logging
 submitting-tasks-jobs-to-functions
 workflow-overview
 scheduled-jobs
+notifications
 ```

@@ -15,7 +15,6 @@
 
 import dataclasses
 import json
-import os
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
@@ -311,7 +310,4 @@ class PushToMonitoringWriter(StepToDict):
         if self.output_stream is None:
             self.output_stream = get_stream_pusher(
                 self.stream_uri,
-                access_key=os.environ.get(
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.PIPELINES_ACCESS_KEY
-                ),
             )

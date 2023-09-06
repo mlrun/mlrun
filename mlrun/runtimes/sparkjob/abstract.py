@@ -367,6 +367,13 @@ class AbstractSparkRuntime(KubejobRuntime):
 
         super()._pre_run(runobj, execution)
 
+    @staticmethod
+    def _parse_cpu_resource_string(cpu):
+        if isinstance(cpu, str) and cpu.endswith("m"):
+            return float(cpu[:-1]) / 1000
+        else:
+            return float(cpu)
+
     def _run(self, runobj: RunObject, execution: MLClientCtx):
         self._validate(runobj)
 
@@ -486,12 +493,14 @@ with ctx:
             for k, v in self.spec.hadoop_conf.items():
                 job["spec"]["hadoopConf"][f"{k}"] = f"{v}"
 
+        executor_cpu_limit = None
         if "limits" in self.spec.executor_resources:
             if "cpu" in self.spec.executor_resources["limits"]:
+                executor_cpu_limit = self.spec.executor_resources["limits"]["cpu"]
                 verify_and_update_in(
                     job,
                     "spec.executor.coreLimit",
-                    self.spec.executor_resources["limits"]["cpu"],
+                    executor_cpu_limit,
                     str,
                 )
         if "requests" in self.spec.executor_resources:
@@ -502,6 +511,17 @@ with ctx:
                 int,
             )
             if "cpu" in self.spec.executor_resources["requests"]:
+                if executor_cpu_limit is not None:
+                    executor_cpu_request = self.spec.executor_resources["requests"][
+                        "cpu"
+                    ]
+                    if self._parse_cpu_resource_string(
+                        executor_cpu_request
+                    ) > self._parse_cpu_resource_string(executor_cpu_limit):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Executor CPU request ({executor_cpu_request}) is higher than limit "
+                            f"({executor_cpu_limit})"
+                        )
                 verify_and_update_in(
                     job,
                     "spec.executor.coreRequest",
@@ -529,8 +549,10 @@ with ctx:
                         gpu_quantity,
                         int,
                     )
+        driver_cpu_limit = None
         if "limits" in self.spec.driver_resources:
             if "cpu" in self.spec.driver_resources["limits"]:
+                driver_cpu_limit = self.spec.driver_resources["limits"]["cpu"]
                 verify_and_update_in(
                     job,
                     "spec.driver.coreLimit",
@@ -538,7 +560,22 @@ with ctx:
                     str,
                 )
         if "requests" in self.spec.driver_resources:
-            # CPU Requests for driver moved to child classes as spark3 supports string (i.e: "100m") and not only int
+            if "cpu" in self.spec.driver_resources["requests"]:
+                if driver_cpu_limit is not None:
+                    driver_cpu_request = self.spec.driver_resources["requests"]["cpu"]
+                    if self._parse_cpu_resource_string(
+                        driver_cpu_request
+                    ) > self._parse_cpu_resource_string(driver_cpu_limit):
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Driver CPU request ({driver_cpu_request}) is higher than limit "
+                            f"({driver_cpu_limit})"
+                        )
+                verify_and_update_in(
+                    job,
+                    "spec.driver.coreRequest",
+                    str(self.spec.driver_resources["requests"]["cpu"]),
+                    str,
+                )
             if "memory" in self.spec.driver_resources["requests"]:
                 verify_and_update_in(
                     job,

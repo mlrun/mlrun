@@ -15,5 +15,5 @@
 from mlrun.execution import MLClientCtx
 
 
-def handler(context: MLClientCtx) -> None:
-    context.logger.info("Handler started")
+def handler(context: MLClientCtx, p1: int = 9) -> None:
+    context.logger.info("Handler started", p1=p1)

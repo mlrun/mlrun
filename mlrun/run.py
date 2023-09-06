@@ -55,7 +55,7 @@ from .runtimes import (
     Spark3Runtime,
     get_runtime_class,
 )
-from .runtimes.databricks.databricks import DatabricksRuntime
+from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context

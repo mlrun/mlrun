@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.artifacts
 import mlrun.common.schemas
+from tests.api.conftest import K8sSecretsMock
 
 project = "prj"
 datastore = {
@@ -27,6 +28,7 @@ datastore = {
     "name": "ds",
     "type": "nosql",
     "object": "http://some_url_example/pp",
+    "private": None,
 }
 legacy_api_projects_path = "projects"
 api_datastore_path = f"/api/v1/projects/{project}/datastore-profiles"
@@ -44,7 +46,9 @@ def _create_project(client: TestClient, project_name: str = project):
     return resp
 
 
-def test_datastore_profile_create_ok(db: Session, client: TestClient):
+def test_datastore_profile_create_ok(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     _create_project(client)
     resp = client.put(
         api_datastore_path,
@@ -61,7 +65,9 @@ def test_datastore_profile_create_ok(db: Session, client: TestClient):
     assert json.loads(resp._content) == expected_return
 
 
-def test_datastore_profile_update_ok(db: Session, client: TestClient):
+def test_datastore_profile_update_ok(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     _create_project(client)
     resp = client.put(
         api_datastore_path,
@@ -85,7 +91,9 @@ def test_datastore_profile_update_ok(db: Session, client: TestClient):
     assert json.loads(resp._content) == expected_return
 
 
-def test_datastore_profile_create_fail(db: Session, client: TestClient):
+def test_datastore_profile_create_fail(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # No project created
     resp = client.put(
         api_datastore_path,
@@ -102,7 +110,9 @@ def test_datastore_profile_create_fail(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
 
-def test_datastore_profile_get_fail(db: Session, client: TestClient):
+def test_datastore_profile_get_fail(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # No project created
     resp = client.get(
         api_datastore_path + "/" + datastore["name"],
@@ -121,7 +131,9 @@ def test_datastore_profile_get_fail(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
-def test_datastore_profile_delete_wrong_project(db: Session, client: TestClient):
+def test_datastore_profile_delete_wrong_project(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # No project created
     resp = client.delete(
         api_datastore_path + "/" + datastore["name"],
@@ -129,7 +141,9 @@ def test_datastore_profile_delete_wrong_project(db: Session, client: TestClient)
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
-def test_datastore_profile_delete_not_exist(db: Session, client: TestClient):
+def test_datastore_profile_delete_not_exist(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # Not existing profile
     _create_project(client)
     resp = client.delete(
@@ -138,7 +152,9 @@ def test_datastore_profile_delete_not_exist(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
-def test_datastore_profile_delete(db: Session, client: TestClient):
+def test_datastore_profile_delete(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # Not existing profile
     _create_project(client)
 
@@ -168,7 +184,9 @@ def test_datastore_profile_delete(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.NOT_FOUND.value
 
 
-def test_datastore_profile_list(db: Session, client: TestClient):
+def test_datastore_profile_list(
+    db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+):
     # No project created
     resp = client.get(
         api_datastore_path,

@@ -69,8 +69,17 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
         project: str,
         uid: str,
         crd_object,
-        run: Dict = None,
+        run: Dict,
     ):
+        if not run:
+            logger.warning(
+                "Run object was not provided, cannot update the UI URL",
+                project=project,
+                uid=uid,
+                run=run,
+            )
+            return
+
         app_state = (
             crd_object.get("status", {}).get("applicationState", {}).get("state")
         )
@@ -82,9 +91,11 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
                 .get("driverInfo", {})
                 .get("webUIIngressAddress")
             )
+
         db_ui_url = run.get("status", {}).get("ui_url")
         if db_ui_url == ui_url:
             return
+
         run.setdefault("status", {})["ui_url"] = ui_url
         db.store_run(db_session, run, uid, project)
 

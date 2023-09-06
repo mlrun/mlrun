@@ -36,7 +36,7 @@ from mlrun.config import config
 
 def test_build_runtime_use_base_image_when_no_build():
     fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
-    base_image = "mlrun/ml-models"
+    base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
     ready = mlrun.api.utils.builder.build_runtime(
@@ -48,7 +48,7 @@ def test_build_runtime_use_base_image_when_no_build():
 
 
 def test_build_runtime_use_image_when_no_build():
-    image = "mlrun/ml-models"
+    image = "mlrun/mlrun"
     fn = mlrun.new_function(
         "some-function", "some-project", "some-tag", image=image, kind="job"
     )

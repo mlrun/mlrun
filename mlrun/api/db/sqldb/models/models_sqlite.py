@@ -102,7 +102,11 @@ def make_notification(table):
     class Notification(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_notifications"
         __table_args__ = (
-            UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
+            UniqueConstraint(
+                "name",
+                "parent_id",
+                name=f"_{table}_notifications_uc",
+            ),
         )
 
         id = Column(Integer, primary_key=True)
@@ -125,6 +129,7 @@ def make_notification(table):
         condition = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
         sent_time = Column(

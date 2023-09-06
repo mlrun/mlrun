@@ -811,7 +811,7 @@ async def test_rescheduling_secrets_storing(
     assert jobs[0].args[5].access_key == access_key
     assert jobs[0].args[5].username == username
     k8s_secrets_mock.assert_auth_secret(
-        k8s_secrets_mock.get_auth_secret_name(username, access_key),
+        k8s_secrets_mock.resolve_auth_secret_name(username, access_key),
         username,
         access_key,
     )
@@ -854,7 +854,7 @@ async def test_schedule_crud_secrets_handling(
             cron_trigger,
         )
         _assert_schedule_auth_secrets(
-            k8s_secrets_mock.get_auth_secret_name(username, access_key),
+            k8s_secrets_mock.resolve_auth_secret_name(username, access_key),
             username,
             access_key,
         )
@@ -874,7 +874,7 @@ async def test_schedule_crud_secrets_handling(
         )
 
         _assert_schedule_auth_secrets(
-            k8s_secrets_mock.get_auth_secret_name(username, access_key),
+            k8s_secrets_mock.resolve_auth_secret_name(username, access_key),
             username,
             access_key,
         )
@@ -918,7 +918,7 @@ async def test_schedule_access_key_generation(
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
     _assert_schedule_auth_secrets(
-        k8s_secrets_mock.get_auth_secret_name("", access_key), "", access_key
+        k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
 
     access_key = "generated-access-key-2"
@@ -936,7 +936,7 @@ async def test_schedule_access_key_generation(
     )
     mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
     _assert_schedule_auth_secrets(
-        k8s_secrets_mock.get_auth_secret_name("", access_key), "", access_key
+        k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
 
 
@@ -1021,7 +1021,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
 
     await scheduler.start(db)
     _assert_schedule_auth_secrets(
-        k8s_secrets_mock.get_auth_secret_name(username, access_key),
+        k8s_secrets_mock.resolve_auth_secret_name(username, access_key),
         username,
         access_key,
     )
@@ -1486,7 +1486,7 @@ def _assert_schedule_get_and_list_credentials_enrichment(
         include_credentials=True,
     )
 
-    secret_name = tests.api.conftest.K8sSecretsMock.get_auth_secret_name(
+    secret_name = tests.api.conftest.K8sSecretsMock.resolve_auth_secret_name(
         expected_username, expected_access_key
     )
     secret_ref = mlrun.model.Credentials.secret_reference_prefix + secret_name

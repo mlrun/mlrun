@@ -143,6 +143,7 @@ class TestMLRunIntegration:
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
+                    "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
                 }
             ),
             cwd=TestMLRunIntegration.root_path,

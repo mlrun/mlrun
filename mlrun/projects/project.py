@@ -26,7 +26,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import dotenv
 import git
@@ -1970,19 +1970,29 @@ class MlrunProject(ModelObj):
         """get a list of all the project function names"""
         return [func["name"] for func in self.spec.functions]
 
-    def pull(self, branch=None, remote=None):
+    def pull(
+        self,
+        branch: str = None,
+        remote: str = None,
+        secrets: Union[SecretsStore, dict] = None,
+    ):
         """pull/update sources from git or tar into the context dir
 
         :param branch:  git branch, if not the current one
         :param remote:  git remote, if other than origin
+        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
         """
         url = self.spec.origin_url
         if url and url.startswith("git://"):
             if not self.spec.repo:
                 raise ValueError("repo was not initialized, use load_project()")
-            branch = branch or self.spec.repo.active_branch.name
             remote = remote or "origin"
-            self.spec.repo.git.pull(remote, branch)
+            self._run_authenticated_git_action(
+                action=self.spec.repo.git.pull,
+                args=[remote, branch or self.spec.repo.active_branch.name],
+                remote=remote,
+                secrets=secrets or {},
+            )
         elif url and url.endswith(".tar.gz"):
             clone_tgz(url, self.spec.context, self._secrets)
         elif url and url.endswith(".zip"):
@@ -2018,7 +2028,7 @@ class MlrunProject(ModelObj):
         add: list = None,
         author_name: str = None,
         author_email: str = None,
-        secrets=None,
+        secrets: Union[SecretsStore, dict] = None,
     ):
         """update spec and push updates to remote git repo
 
@@ -2071,21 +2081,12 @@ class MlrunProject(ModelObj):
             raise ValueError("please specify the remote branch")
 
         remote = remote or "origin"
-        clean_remote = repo.remotes[remote].url
-        enriched_remote, is_remote_enriched = add_credentials_git_remote_url(
-            clean_remote, secrets=secrets or {}
+        self._run_authenticated_git_action(
+            action=repo.git.push,
+            args=[remote, branch],
+            remote=remote,
+            secrets=secrets or {},
         )
-        try:
-            if is_remote_enriched:
-                repo.remotes[remote].set_url(enriched_remote, clean_remote)
-            repo.git.push(remote, branch)
-        except RuntimeError as e:
-            raise mlrun.errors.MLRunRuntimeError(
-                "Failed to push changes to Git repository"
-            ) from e
-        finally:
-            if is_remote_enriched:
-                repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
     def sync_functions(self, names: list = None, always=True, save=False):
         """reload function objects from specs and files"""
@@ -3126,6 +3127,40 @@ class MlrunProject(ModelObj):
         :raise MLRunInvalidArgumentError: In case the packager was not in the list.
         """
         self.spec.remove_custom_packager(packager=packager)
+
+    def _run_authenticated_git_action(
+        self,
+        action: Callable,
+        remote: str,
+        args: list = [],
+        kwargs: dict = {},
+        secrets: Union[SecretsStore, dict] = None,
+    ):
+        """Run an arbitrary Git routine while the remote is enriched with secrets
+        Enrichment of the remote URL is undone before this method returns
+        If no secrets are provided, remote remains untouched
+
+        :param action:  a function or method to be run
+        :param remote:  git remote to be temporarily enriched with secrets
+        :param args:    positional arguments to be passed along to action
+        :param kwargs:  keyword arguments to be passed along to action
+        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
+        """
+        clean_remote = self.spec.repo.remotes[remote].url
+        enriched_remote, is_remote_enriched = add_credentials_git_remote_url(
+            clean_remote, secrets=secrets or {}
+        )
+        try:
+            if is_remote_enriched:
+                self.spec.repo.remotes[remote].set_url(enriched_remote, clean_remote)
+            action(*args, **kwargs)
+        except RuntimeError as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to run Git action: {action}"
+            ) from e
+        finally:
+            if is_remote_enriched:
+                self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
 
 def _set_as_current_default_project(project: MlrunProject):

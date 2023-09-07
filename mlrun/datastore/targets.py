@@ -1585,8 +1585,8 @@ class SQLTarget(BaseStoreTarget):
             import sqlalchemy
 
             self.sqlalchemy = sqlalchemy
-        except (ModuleNotFoundError, ImportError) as Error:
-            raise Error(
+        except (ModuleNotFoundError, ImportError):
+            raise mlrun.errors.MLRunMissingDependencyError(
                 "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
             )
 

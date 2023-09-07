@@ -670,7 +670,6 @@ class HTTPRunDB(RunDBInterface):
         if (
             not name
             and not uid
-            and not project
             and not labels
             and not state
             and not last

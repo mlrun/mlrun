@@ -34,3 +34,6 @@ avro~=1.11
 redis~=4.3
 graphviz~=0.20.0
 databricks-sdk~=0.3.0
+# sqlalchemy and pymysql versions should be aligned with mlrun-api due to common use with the model monitoring database
+sqlalchemy~=1.4
+pymysql~=1.0

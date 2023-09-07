@@ -4,6 +4,3 @@ scikit-learn~=1.0
 seaborn~=0.11.0
 scikit-plot~=0.3.7
 mpi4py~=3.1
-# sqlalchemy and pymysql versions should be aligned with mlrun-api due to common use with the model monitoring database
-sqlalchemy~=1.4
-pymysql~=1.0

@@ -18,7 +18,6 @@ import typing
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
-import sqlalchemy
 
 import mlrun.datastore
 
@@ -143,12 +142,19 @@ def select_columns_generator(
 
 def _generate_sql_query_with_time_filter(
     table_name: str,
-    engine: sqlalchemy.engine.Engine,
+    engine,
     time_column: str,
     parse_dates: typing.List[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
 ):
+    # Validate sqlalchemy (not installed by default):
+    try:
+        import sqlalchemy
+    except (ModuleNotFoundError, ImportError) as Error:
+        raise Error(
+            "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+        )
     table = sqlalchemy.Table(
         table_name,
         sqlalchemy.MetaData(),

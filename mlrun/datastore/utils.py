@@ -151,10 +151,10 @@ def _generate_sql_query_with_time_filter(
     # Validate sqlalchemy (not installed by default):
     try:
         import sqlalchemy
-    except (ModuleNotFoundError, ImportError):
+    except (ModuleNotFoundError, ImportError) as exc:
         raise mlrun.errors.MLRunMissingDependencyError(
             "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-        )
+        ) from exc
     table = sqlalchemy.Table(
         table_name,
         sqlalchemy.MetaData(),

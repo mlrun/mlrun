@@ -1585,10 +1585,10 @@ class SQLTarget(BaseStoreTarget):
             import sqlalchemy
 
             self.sqlalchemy = sqlalchemy
-        except (ModuleNotFoundError, ImportError):
+        except (ModuleNotFoundError, ImportError) as exc:
             raise mlrun.errors.MLRunMissingDependencyError(
                 "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-            )
+            ) from exc
 
         create_according_to_data = False  # TODO: open for user
         if time_fields:

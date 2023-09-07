@@ -73,8 +73,12 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
         # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
         if not self._engine.has_table(self.table_name):
-            self.ModelEndpointsTable.metadata.create_all(bind=self._engine)
-        self.model_endpoints_table = self.ModelEndpointsTable.__table__
+            self.ModelEndpointsTable.metadata.create_all(  # pyright: ignore[reportGeneralTypeIssues]
+                bind=self._engine
+            )
+        self.model_endpoints_table = (
+            self.ModelEndpointsTable.__table__  # pyright: ignore[reportGeneralTypeIssues]
+        )
 
     def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):
         """

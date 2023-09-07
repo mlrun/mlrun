@@ -784,17 +784,17 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.Version]:
+    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
         if not config.igz_version:
             return None
         try:
-            parsed_version = semver.Version.parse(config.igz_version)
+            parsed_version = semver.VersionInfo.parse(config.igz_version)
             return parsed_version
         except ValueError:
             # iguazio version is semver compatible only from 3.2, before that it will be something
             # like 3.0_b177_20210806003728
             semver_compatible_igz_version = config.igz_version.split("_")[0]
-            return semver.Version.parse(f"{semver_compatible_igz_version}.0")
+            return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
         # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
@@ -808,7 +808,7 @@ class Config:
                 "Unable to determine if security context enrichment mode is allowed. Missing iguazio version"
             )
 
-        if igz_version < semver.Version.parse("3.5.1-b1"):
+        if igz_version < semver.VersionInfo.parse("3.5.1-b1"):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Security context enrichment mode enabled (override/retain) "
                 f"is not allowed for iguazio version: {igz_version} < 3.5.1"
@@ -819,7 +819,7 @@ class Config:
             return config.kfp_url
         igz_version = self.get_parsed_igz_version()
         # TODO: When Iguazio 3.4 will deprecate we can remove this line
-        if igz_version and igz_version <= semver.Version.parse("3.6.0-b1"):
+        if igz_version and igz_version <= semver.VersionInfo.parse("3.6.0-b1"):
             if namespace is None:
                 if not config.namespace:
                     raise mlrun.errors.MLRunNotFoundError(

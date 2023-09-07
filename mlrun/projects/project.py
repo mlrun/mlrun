@@ -623,7 +623,11 @@ def _load_project_from_db(url, secrets, user_project=False):
     project_name = _add_username_to_project_name_if_needed(
         url.replace("db://", ""), user_project
     )
-    return db.get_project(project_name)
+    project = db.get_project(project_name)
+    if not project:
+        raise mlrun.errors.MLRunNotFoundError(f"Project {project_name} not found")
+
+    return project
 
 
 def _delete_project_from_db(project_name, secrets, deletion_strategy):

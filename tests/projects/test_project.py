@@ -1100,3 +1100,10 @@ def test_set_secrets_file_not_found():
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         project.set_secrets(file_path=file_name)
     assert f"{file_name} does not exist" in str(excinfo.value)
+
+
+def test_get_or_create_project_no_db():
+    mlrun.config.config.dbpath = ""
+    project_name = "project-name"
+    project = mlrun.get_or_create_project(project_name)
+    assert project.name == project_name

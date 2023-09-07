@@ -41,7 +41,6 @@ from tests.system.base import TestMLRunSystem
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
@@ -318,7 +317,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 

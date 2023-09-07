@@ -142,7 +142,7 @@ def select_columns_generator(
 
 def _generate_sql_query_with_time_filter(
     table_name: str,
-    engine,
+    engine: "sqlalchemy.engine.Engine",  # noqa: F821,
     time_column: str,
     parse_dates: typing.List[str],
     start_time: pd.Timestamp,

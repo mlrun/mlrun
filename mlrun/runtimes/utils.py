@@ -20,6 +20,7 @@ from copy import deepcopy
 from io import StringIO
 from sys import stderr
 
+import packaging.version
 import pandas as pd
 from kubernetes import client
 
@@ -230,7 +231,16 @@ def results_to_iter(results, runspec, execution):
 
 def log_iter_artifacts(execution, df, header):
     csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
+    # pandas 1.5.0 renames line_terminator to lineterminator
+    line_terminator_parameter = (
+        "lineterminator"
+        if packaging.version.Version(pd.__version__)
+        >= packaging.version.Version("1.5.0")
+        else "line_terminator"
+    )
+    df.to_csv(
+        csv_buffer, index=False, encoding="utf-8", **{line_terminator_parameter: "\n"}
+    )
     try:
         # may fail due to lack of access credentials to the artifacts store
         execution.log_artifact(

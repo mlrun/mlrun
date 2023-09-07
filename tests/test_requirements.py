@@ -116,8 +116,8 @@ def test_requirement_specifiers_convention():
         "adlfs": {">=2022.2,<2023.5"},
         "s3fs": {">=2023.1,<2023.7"},
         "gcsfs": {">=2023.1,<2023.7"},
-        "distributed": {"~=2021.11.2"},
-        "dask": {"~=2021.11.2"},
+        "distributed": {"~=2023.9.0"},
+        "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.26.9, <1.27"},
@@ -127,7 +127,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
-        "pandas": {"~=1.2, <1.5.0"},
+        "pandas": {">=1.2, <3"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "orjson": {"~=3.3, <3.8.12"},
         "pydantic": {"~=1.10, >=1.10.8"},

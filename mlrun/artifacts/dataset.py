@@ -17,6 +17,7 @@ from io import StringIO
 from typing import Optional, Tuple
 
 import numpy as np
+import packaging.version
 import pandas as pd
 from deprecated import deprecated
 from pandas.io.json import build_table_schema
@@ -94,7 +95,18 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self.spec.get_body()
         csv_buffer = StringIO()
-        self.spec.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        # pandas 1.5.0 renames line_terminator to lineterminator
+        line_terminator_parameter = (
+            "lineterminator"
+            if packaging.version.Version(pd.__version__)
+            >= packaging.version.Version("1.5.0")
+            else "line_terminator"
+        )
+        self.spec.get_body().to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **{line_terminator_parameter: "\n"},
+        )
         return csv_buffer.getvalue()
 
 
@@ -371,7 +383,18 @@ class LegacyTableArtifact(LegacyArtifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        # pandas 1.5.0 renames line_terminator to lineterminator
+        line_terminator_parameter = (
+            "lineterminator"
+            if packaging.version.Version(pd.__version__)
+            >= packaging.version.Version("1.5.0")
+            else "line_terminator"
+        )
+        self._body.to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **{line_terminator_parameter: "\n"},
+        )
         return csv_buffer.getvalue()
 
 

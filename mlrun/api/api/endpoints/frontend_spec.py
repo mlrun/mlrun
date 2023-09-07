@@ -108,9 +108,9 @@ def _resolve_feature_flags() -> mlrun.common.schemas.FeatureFlags:
     )
     nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.disabled
 
-    if mlrun.mlconf.get_parsed_igz_version() and semver.VersionInfo.parse(
+    if mlrun.mlconf.get_parsed_igz_version() and semver.Version.parse(
         mlrun.api.utils.runtimes.nuclio.resolve_nuclio_version()
-    ) >= semver.VersionInfo.parse("1.7.8"):
+    ) >= semver.Version.parse("1.7.8"):
         nuclio_streams = mlrun.common.schemas.NuclioStreamsFeatureFlag.enabled
 
     preemption_nodes = mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled

@@ -2582,8 +2582,8 @@ class HTTPRunDB(RunDBInterface):
     @staticmethod
     def _validate_version_compatibility(server_version, client_version) -> bool:
         try:
-            parsed_server_version = semver.VersionInfo.parse(server_version)
-            parsed_client_version = semver.VersionInfo.parse(client_version)
+            parsed_server_version = semver.Version.parse(server_version)
+            parsed_client_version = semver.Version.parse(client_version)
         except ValueError:
             # This will mostly happen in dev scenarios when the version is unstable and such - therefore we're ignoring
             logger.warning(

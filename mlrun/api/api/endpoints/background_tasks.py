@@ -74,7 +74,7 @@ async def get_internal_background_task(
     # authorization
     # we also skip Iguazio 3.6 for now, until it will add support for it (still in development)
     igz_version = mlrun.mlconf.get_parsed_igz_version()
-    if igz_version and igz_version >= semver.VersionInfo.parse("3.7.0-b1"):
+    if igz_version and igz_version >= semver.Version.parse("3.7.0-b1"):
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.background_task,
             name,

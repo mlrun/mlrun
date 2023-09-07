@@ -143,7 +143,7 @@ def mount_v3iod(namespace, v3io_config_configmap):
 
         # path to shared memory for daemon was changed in Iguazio 3.2.3-b1
         igz_version = mlrun.mlconf.get_parsed_igz_version()
-        if igz_version and igz_version >= semver.VersionInfo.parse("3.2.3-b1"):
+        if igz_version and igz_version >= semver.Version.parse("3.2.3-b1"):
             host_path = "/var/run/iguazio/dayman-shm/"
         add_vol(name="shm", mount_path="/dev/shm", host_path=host_path + namespace)
 

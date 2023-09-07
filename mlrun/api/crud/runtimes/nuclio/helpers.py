@@ -49,13 +49,11 @@ def resolve_nuclio_runtime_python_image(
         return mlrun.mlconf.default_nuclio_runtime
 
     # if mlrun version is older than 1.3.0 we need to use the previous default runtime which is python 3.7
-    if semver.VersionInfo.parse(mlrun_client_version) < semver.VersionInfo.parse(
-        "1.3.0-X"
-    ):
+    if semver.Version.parse(mlrun_client_version) < semver.Version.parse("1.3.0-X"):
         return "python:3.7"
 
     # if mlrun version is 1.3.0 or newer and python version is 3.7 we need to use python 3.7 image
-    if semver.VersionInfo.parse(mlrun_client_version) >= semver.VersionInfo.parse(
+    if semver.Version.parse(mlrun_client_version) >= semver.Version.parse(
         "1.3.0-X"
     ) and python_version.startswith("3.7"):
         return "python:3.7"
@@ -190,12 +188,12 @@ def is_nuclio_version_in_range(min_version: str, max_version: str) -> bool:
     """
     resolved_nuclio_version = None
     try:
-        parsed_min_version = semver.VersionInfo.parse(min_version)
-        parsed_max_version = semver.VersionInfo.parse(max_version)
+        parsed_min_version = semver.Version.parse(min_version)
+        parsed_max_version = semver.Version.parse(max_version)
         resolved_nuclio_version = (
             mlrun.api.utils.runtimes.nuclio.resolve_nuclio_version()
         )
-        parsed_current_version = semver.VersionInfo.parse(resolved_nuclio_version)
+        parsed_current_version = semver.Version.parse(resolved_nuclio_version)
     except ValueError:
         logger.warning(
             "Unable to parse nuclio version, assuming in range",

@@ -58,10 +58,10 @@ def validate_nuclio_version_compatibility(*min_versions):
     :param min_versions: Valid minimum version(s) required, assuming no 2 versions has equal major and minor.
     """
     parsed_min_versions = [
-        semver.VersionInfo.parse(min_version) for min_version in min_versions
+        semver.Version.parse(min_version) for min_version in min_versions
     ]
     try:
-        parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
+        parsed_current_version = semver.Version.parse(mlconf.nuclio_version)
     except ValueError:
 
         # only log when version is set but invalid

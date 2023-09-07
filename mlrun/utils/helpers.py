@@ -880,9 +880,9 @@ def resolve_image_tag_suffix(
     # Python 3.8 images will not be supported for mlrun 1.3.0, meaning that if the user has client with python 3.8
     # and mlrun 1.3.x then the image will be pulled without a suffix (which is the python 3.9 image).
     # using semver (x.y.z-X) to include rc versions as well
-    if semver.VersionInfo.parse("1.5.0-X") > semver.VersionInfo.parse(
+    if semver.Version.parse("1.5.0-X") > semver.Version.parse(
         mlrun_version
-    ) >= semver.VersionInfo.parse("1.3.0-X") and python_version.startswith("3.7"):
+    ) >= semver.Version.parse("1.3.0-X") and python_version.startswith("3.7"):
         return "-py37"
     return ""
 

@@ -1823,23 +1823,12 @@ class MlrunProject(ModelObj):
                 requirements_file=requirements_file,
             )
             graph = func.set_topology("flow")
-            if not isinstance(application_class, str):
-                if not hasattr(application_class, "name"):
-                    application_class.__setattr__("name", name)
-                elif application_class.name != name:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"The name attr of the {application_class} have to be the same as the application name - {name}"
-                    )
-                first_step = graph.to(class_name=application_class)
-            else:
-                name_attr = application_kwargs.pop("name", None)
-                if name_attr is not None and name_attr != name:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"The name attr of the {application_class} have to be the same as the application name - {name}"
-                    )
+            if isinstance(application_class, str):
                 first_step = graph.to(
                     class_name=application_class, **application_kwargs
                 )
+            else:
+                first_step = graph.to(class_name=application_class)
             first_step.to(
                 class_name=PushToMonitoringWriter(
                     project=self.metadata.name,

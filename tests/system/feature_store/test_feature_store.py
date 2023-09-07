@@ -32,7 +32,7 @@ import pytest
 import pytz
 import requests
 from databricks.sdk import WorkspaceClient
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 from storey import MapClass
 
 import mlrun

@@ -1007,7 +1007,8 @@ class BatchProcessor:
         except requests.exceptions.ConnectionError as exc:
             logger.warning(
                 "Can't push metrics to Prometheus registry."
-                "Monitoring stream is not found, probably not deployed: ",
+                "Monitoring stream pod is not found, probably not deployed. "
+                "To deploy, call set_tracking() on a serving function. exc: ",
                 exc=exc,
             )
 

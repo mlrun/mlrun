@@ -169,7 +169,6 @@ jobs:
             --minikube \
             --namespace=${NAMESPACE} \
             --registry-secret-name="" \
-            --disable-prometheus-stack \
             --sqlite /mlrun/db/mlrun.db \
             --override-mlrun-api-image="${{ steps.computed_params.outputs.mlrun_docker_registry }}${{ steps.computed_params.outputs.mlrun_docker_repo }}/mlrun-api:${{ steps.computed_params.outputs.mlrun_docker_tag }}" \
             --override-mlrun-ui-image="ghcr.io/mlrun/mlrun-ui:${{ steps.computed_params.outputs.mlrun_ui_version }}" \

@@ -377,6 +377,8 @@ default_config = {
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
+            # kaniko sometimes fails to push image to registry due to network issues
+            "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",

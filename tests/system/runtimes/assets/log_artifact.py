@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Type, Union
+import pandas as pd
 
-from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
-from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
+import mlrun
 
 
-def get_model_endpoints_table(
-    connection_string: Optional[str] = None,
-) -> Union[Type[MySQLModelEndpointsTable], Type[SQLiteModelEndpointsTable]]:
-    """Return ModelEndpointsTable based on the provided connection string"""
-    if connection_string and "mysql:" in connection_string:
-        return MySQLModelEndpointsTable
-    return SQLiteModelEndpointsTable
+def train(context, i):
+    df = pd.DataFrame({f"col{i}": [i] * 10})
+    context.log_dataset(
+        key="df",
+        df=df,
+        tag=f"v{i}",
+        artifact_path=mlrun.mlconf.artifact_path + f"/{i}/",
+    )

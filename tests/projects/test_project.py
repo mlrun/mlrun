@@ -1147,7 +1147,6 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
     project.spec.repo.remotes["origin"].set_url.assert_not_called()
 
 
-
 def test_get_or_create_project_no_db():
     mlrun.config.config.dbpath = ""
     project_name = "project-name"

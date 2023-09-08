@@ -1989,8 +1989,8 @@ class MlrunProject(ModelObj):
             remote = remote or "origin"
             self._run_authenticated_git_action(
                 action=self.spec.repo.git.pull,
-                args=[remote, branch or self.spec.repo.active_branch.name],
                 remote=remote,
+                args=[remote, branch or self.spec.repo.active_branch.name],
                 secrets=secrets or {},
             )
         elif url and url.endswith(".tar.gz"):
@@ -2083,8 +2083,8 @@ class MlrunProject(ModelObj):
         remote = remote or "origin"
         self._run_authenticated_git_action(
             action=repo.git.push,
-            args=[remote, branch],
             remote=remote,
+            args=[remote, branch],
             secrets=secrets or {},
         )
 

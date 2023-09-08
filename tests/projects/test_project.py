@@ -1100,3 +1100,48 @@ def test_set_secrets_file_not_found():
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         project.set_secrets(file_path=file_name)
     assert f"{file_name} does not exist" in str(excinfo.value)
+
+
+def test_authenticated_git_action_with_remote_cleanup(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy, remote="origin", secrets={"GIT_TOKEN": "my-token"}
+    )
+
+    expected_calls = [
+        unittest.mock.call(
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+            "https://git.server/my-repo",
+        ),
+        unittest.mock.call(
+            "https://git.server/my-repo",
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+        ),
+    ]
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["origin"].set_url.assert_has_calls(
+        expected_calls,
+        any_order=False,
+    )
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+
+
+def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy,
+        remote="organization",
+    )
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+    project.spec.repo.remotes["origin"].set_url.assert_not_called()

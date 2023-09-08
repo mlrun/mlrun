@@ -2046,11 +2046,11 @@ class MlrunProject(ModelObj):
             raise ValueError("git repo is not set/defined")
         self.save()
 
-        if author_name and author_email:
-            config = repo.config_writer()
-            config.set_value("user", "name", author_name)
-            config.set_value("user", "email", author_email)
-            config.release()
+        with repo.config_writer() as config:
+            if author_name:
+                config.set_value("user", "name", author_name)
+            if author_email:
+                config.set_value("user", "email", author_email)
 
         add = add or []
         add.append("project.yaml")

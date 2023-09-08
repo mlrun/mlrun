@@ -3140,7 +3140,7 @@ class MlrunProject(ModelObj):
         Enrichment of the remote URL is undone before this method returns
         If no secrets are provided, remote remains untouched
 
-        :param action:  a function or method to be run
+        :param action:  git callback that may require authentication
         :param remote:  git remote to be temporarily enriched with secrets
         :param args:    positional arguments to be passed along to action
         :param kwargs:  keyword arguments to be passed along to action

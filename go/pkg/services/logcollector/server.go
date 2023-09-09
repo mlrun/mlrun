@@ -25,6 +25,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/mlrun/mlrun/pkg/common"
@@ -1096,6 +1097,16 @@ func (s *Server) deleteProjectLogs(project string) error {
 		3*time.Second,
 		func() (bool, error) {
 			if err := os.RemoveAll(projectLogsDir); err != nil {
+
+				// https://stackoverflow.com/a/76921585
+				if errors.Is(err, syscall.EBUSY) {
+
+					// try to unmount the directory
+					if err := syscall.Unmount(projectLogsDir, 0); err != nil {
+						return true, errors.Wrapf(err, "Failed to unmount project logs directory for project %s", project)
+					}
+				}
+
 				return true, errors.Wrapf(err, "Failed to delete project logs directory for project %s", project)
 			}
 

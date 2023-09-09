@@ -1092,8 +1092,8 @@ func (s *Server) deleteProjectLogs(project string) error {
 
 	// delete the project logs directory (idempotent)
 	if err := common.RetryUntilSuccessful(
-		5*time.Minute,
-		10*time.Second,
+		1*time.Minute,
+		3*time.Second,
 		func() (bool, error) {
 			if err := os.RemoveAll(projectLogsDir); err != nil {
 				return true, errors.Wrapf(err, "Failed to delete project logs directory for project %s", project)

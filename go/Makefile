@@ -17,7 +17,7 @@ MLRUN_DOCKER_REPO ?= mlrun
 MLRUN_DOCKER_TAG ?= $(shell echo "$(MLRUN_VERSION)" | sed -E 's/\+/\-/g')
 MLRUN_DOCKER_IMAGE_PREFIX := $(if $(MLRUN_DOCKER_REGISTRY),$(strip $(MLRUN_DOCKER_REGISTRY))$(MLRUN_DOCKER_REPO),$(MLRUN_DOCKER_REPO))
 
-GO_VERSION=$(shell awk  '/go ([0-9]\.[0-9]{2})/ {print $2}' go.mod)
+GO_VERSION=$(shell awk '/go ([0-9]\.[0-9]{2})/ {print $$2}' go.mod)
 GOPATH ?= $(shell go env GOPATH)
 OS_NAME = $(shell uname)
 DOCKER_IMAGES = log-collector

@@ -29,7 +29,6 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/common/bufferpool"
-	mlruncontext "github.com/mlrun/mlrun/pkg/context"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
@@ -283,18 +282,14 @@ func (s *Server) StartLog(ctx context.Context,
 		}, err
 	}
 
-	// create a child context before calling goroutines, so it won't be canceled
-	// TODO: use https://pkg.go.dev/golang.org/x/tools@v0.5.0/internal/xcontext
-	logStreamCtx, cancelCtxFunc := mlruncontext.NewDetachedWithCancel(ctx)
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(logStreamCtx,
+	go s.startLogStreaming(context.WithoutCancel(ctx),
 		request.RunUID,
 		pod.Name,
 		request.ProjectName,
-		startedStreamingGoroutine,
-		cancelCtxFunc)
+		startedStreamingGoroutine)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
@@ -578,8 +573,8 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		"project", request.Project,
 		"numRunIDs", len(request.RunUIDs))
 
-	// remove each run uid from the state
 	errGroup, _ := errgroup.WithContext(ctx)
+	errGroup.SetLimit(10)
 	var failedToDeleteRunUIDs []string
 	for _, runUID := range request.RunUIDs {
 		runUID := runUID
@@ -611,15 +606,11 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
 	podName,
 	projectName string,
-	startedStreamingGoroutine chan bool,
-	cancelCtxFunc context.CancelFunc) {
+	startedStreamingGoroutine chan bool) {
 
 	// in case of a panic, remove this goroutine from the current state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
-
-		// cancel all other goroutines spawned from this one
-		defer cancelCtxFunc()
 
 		// remove this goroutine from in-current state
 		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {

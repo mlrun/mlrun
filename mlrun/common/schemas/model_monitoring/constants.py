@@ -144,8 +144,8 @@ class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
     STREAM = "stream"
-    STREAM_PARQUET = "stream_parquet"
-    BATCH_CONTROLLER_PARQUET = "stream_controller_parquet"
+    PARQUET = "parquet"
+    BATCH_CONTROLLER_PARQUET = "batch_controller_parquet"
     LOG_STREAM = "log_stream"
 
 

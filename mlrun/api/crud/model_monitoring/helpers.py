@@ -114,7 +114,7 @@ def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
 def get_monitoring_parquet_path(
     db_session: sqlalchemy.orm.Session,
     project: str,
-    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM_PARQUET,
+    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun

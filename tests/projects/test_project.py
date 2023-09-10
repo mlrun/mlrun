@@ -616,6 +616,26 @@ def test_set_function_with_tagged_key():
     assert func.metadata.tag == tag_v2
 
 
+def test_set_function_update_code():
+    project = mlrun.new_project("set-func-update-code", save=False)
+    for i in range(2):
+        func = project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name="handler",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+            tag="v1",
+        )
+
+        assert id(func) == id(
+            project.get_function("handler")
+        ), f"Function of index {i} was not set correctly"
+        assert id(func) == id(
+            project.get_function("handler:v1")
+        ), f"Function of index {i} was not set and tagged correctly"
+
+
 def test_set_function_with_relative_path(context):
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

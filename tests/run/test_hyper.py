@@ -119,23 +119,26 @@ def test_hyper_list_with_stop():
 
 
 def test_hyper_parallel_with_stop():
-    list_params = '{"p2": [2,3,7,4,5], "p3": [10,10,10,10,10]}'
+    p2 = [2, 3, 7, 4, 5]
+    p3 = [10, 10, 10, 10, 10]
+    list_params = f'{{"p2": {p2}, "p3": {p3}}}'
     mlrun.datastore.set_in_memory_item("params.json", list_params)
 
     run_spec = mlrun.new_task(params={"p1": 1})
     run_spec.with_hyper_params(
-        {"p2": [2, 3, 7, 4, 5], "p3": [10, 10, 10, 10, 10]},
+        {"p2": p2, "p3": p3},
         parallel_runs=2,
         selector="max.r1",
-        strategy="list",
+        strategy=mlrun.model.HyperParamStrategies.list,
         stop_condition="r1>=70",
     )
     run = new_function().run(run_spec, handler=hyper_func)
 
     verify_state(run)
-    # result: r1 = p2 * p3, r1 >= 70 lead to stop on third run
-    # may have one extra iterations in flight so checking both 4 or 5
-    assert len(run.status.iterations) in [4, 5], "wrong number of iterations"
+
+    # + 1 for results header
+    # len(p2) tho we will stop on 3rd, there might be inflight runs going on
+    assert len(run.status.iterations) <= len(p2) + 1, "wrong number of iterations"
     assert run.output("best_iteration") == 3, "wrong best iteration"
 
 

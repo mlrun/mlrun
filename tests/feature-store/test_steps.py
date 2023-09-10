@@ -75,7 +75,6 @@ def test_set_event_random_id(rundb_mock):
 
 @pytest.mark.parametrize("entities", [["id"], ["id", "name"]])
 @pytest.mark.parametrize("set_index_before", [True, False, 0])
-# TODO: ingest returns dataframe with different columns from the ones returned when pandas library is 1.4.4
 def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
     data, _ = get_data()
     data_to_ingest = data.copy()

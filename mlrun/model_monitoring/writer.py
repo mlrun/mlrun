@@ -33,6 +33,18 @@ RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
 
 
+class _WriterEventError:
+    pass
+
+
+class _WriterEventValueError(_WriterEventError, ValueError):
+    pass
+
+
+class _WriterEventTypeError(_WriterEventError, TypeError):
+    pass
+
+
 class ModelMonitoringWriter(StepToDict):
     """
     Write monitoring app events to V3IO KV storage
@@ -97,21 +109,31 @@ class ModelMonitoringWriter(StepToDict):
 
     @staticmethod
     def _reconstruct_event(event: RawEvent) -> AppResultEvent:
-        return AppResultEvent(
-            {
-                key: event[key]
-                for key in (
-                    WriterEvent.ENDPOINT_ID,
-                    WriterEvent.SCHEDULE_TIME,
-                    WriterEvent.APPLICATION_NAME,
-                    WriterEvent.RESULT_NAME,
-                    WriterEvent.RESULT_KIND,
-                    WriterEvent.RESULT_VALUE,
-                    WriterEvent.RESULT_STATUS,
-                    WriterEvent.RESULT_EXTRA_DATA,
-                )
-            }
-        )
+        try:
+            return AppResultEvent(
+                {
+                    key: event[key]
+                    for key in (
+                        WriterEvent.ENDPOINT_ID,
+                        WriterEvent.SCHEDULE_TIME,
+                        WriterEvent.APPLICATION_NAME,
+                        WriterEvent.RESULT_NAME,
+                        WriterEvent.RESULT_KIND,
+                        WriterEvent.RESULT_VALUE,
+                        WriterEvent.RESULT_STATUS,
+                        WriterEvent.RESULT_EXTRA_DATA,
+                    )
+                }
+            )
+        except KeyError as err:
+            raise _WriterEventValueError(
+                "The received event misses some keys compared to the expected "
+                "monitoring application event schema"
+            ) from err
+        except TypeError as err:
+            raise _WriterEventTypeError(
+                f"The event is of type: {type(event)}, expected a dictionary"
+            ) from err
 
     def do(self, event: RawEvent) -> None:
         event = self._reconstruct_event(event)

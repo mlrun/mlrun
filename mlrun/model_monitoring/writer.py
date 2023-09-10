@@ -32,6 +32,16 @@ _V3IO_ACCESS_KEY_NAME = "V3IO_ACCESS_KEY"
 RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
 
+_KEY_SEP = "_"
+
+
+def application_result_key(endpoint_id: str, app_name: str) -> str:
+    """
+    Combine an endpoint ID and a monitoring application name into a
+    unique key for the KV storage.
+    """
+    return f"{endpoint_id}{_KEY_SEP}{app_name}"
+
 
 class _WriterEventError:
     pass
@@ -83,8 +93,10 @@ class ModelMonitoringWriter(StepToDict):
     def _update_kv_db(self, event: AppResultEvent) -> None:
         event = AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
-        self._kv_db.update_model_endpoint(endpoint_id=endpoint_id, attributes=event)
-        logger.debug("Updated V3IO KV successfully", key=endpoint_id)
+        app_name = event.pop(WriterEvent.APPLICATION_NAME)
+        key = application_result_key(endpoint_id=endpoint_id, app_name=app_name)
+        self._kv_db.update_model_endpoint(endpoint_id=key, attributes=event)
+        logger.debug("Updated V3IO KV successfully", key=key)
 
     def _update_tsdb(self, event: AppResultEvent) -> None:
         try:
@@ -98,7 +110,7 @@ class ModelMonitoringWriter(StepToDict):
                     WriterEvent.APPLICATION_NAME,
                 ],
             )
-            logger.debug("Updated V3IO TSDB successfully")
+            logger.debug("Updated V3IO TSDB successfully", tsdb_path=self._tsdb_path)
         except V3IOFramesError as err:
             logger.warn(
                 "Could not write drift measures to TSDB",

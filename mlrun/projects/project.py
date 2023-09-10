@@ -1879,10 +1879,11 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("func must be a function url or object")
 
-        # if function name was not explicitly provided,
-        # we use the resolved name (from the function object) and add the tag
-        if tag and not name and ":" not in resolved_function_name:
-            resolved_function_name = f"{resolved_function_name}:{tag}"
+        if tag and not resolved_function_name.endswith(f":{tag}"):
+            # Update the tagged key as well for consistency
+            self.spec.set_function(
+                f"{resolved_function_name}:{tag}", function_object, func
+            )
 
         self.spec.set_function(resolved_function_name, function_object, func)
         return function_object

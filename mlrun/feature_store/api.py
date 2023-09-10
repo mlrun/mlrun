@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+from deprecated import deprecated
 
 import mlrun
 import mlrun.errors
@@ -768,7 +769,7 @@ def _run_ingestion_job(
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
 
-def deploy_ingestion_service(
+def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
@@ -797,6 +798,9 @@ def deploy_ingestion_service(
     :param name:          name for the job/function
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
     :param verbose:       verbose log
+
+    :return: URL to access the deployed ingestion service, and the function that was deployed (which may
+             differ from the function passed in via the run_config parameter).
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -849,7 +853,55 @@ def deploy_ingestion_service(
 
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
-    return function.deploy()
+    return function.deploy(), function
+
+
+@deprecated(
+    version="1.5.0",
+    reason="'deploy_ingestion_service' will be removed in 1.7.0, use 'deploy_ingestion_service_v2' instead",
+    category=FutureWarning,
+)
+def deploy_ingestion_service(
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    name: str = None,
+    run_config: RunConfig = None,
+    verbose=False,
+):
+    """Start real-time ingestion service using nuclio function
+
+    Deploy a real-time function implementing feature ingestion pipeline
+    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
+    example::
+
+        source = HTTPSource()
+        func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+        config = RunConfig(function=func)
+        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+
+    :param featureset:    feature set object or uri
+    :param source:        data source object describing the online or offline source
+    :param targets:       list of data target objects
+    :param name:          name for the job/function
+    :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+    :param verbose:       verbose log
+
+    :return: URL to access the deployed ingestion service
+    """
+    endpoint, function = deploy_ingestion_service_v2(
+        featureset=featureset,
+        source=source,
+        targets=targets,
+        name=name,
+        run_config=run_config,
+        verbose=verbose,
+    )
+    return endpoint
 
 
 def _ingest_with_spark(

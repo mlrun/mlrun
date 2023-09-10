@@ -636,6 +636,60 @@ def test_set_function_update_code():
         ), f"Function of index {i} was not set and tagged correctly"
 
 
+def test_set_function_with_conflicting_tag():
+    project = mlrun.new_project("set-func-conflicting-tag", save=False)
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name="handler:v2",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+            tag="v1",
+        )
+    assert "Tag parameter (v1) and tag in function name (handler:v2) must match" in str(
+        exc.value
+    )
+
+
+def test_set_function_from_object():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function = project.set_function(func)
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+
+def test_set_function_from_object_override_tag():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function_v2 = project.set_function(func, tag="v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v3 = project.set_function(func, name="other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    # assert original function was not changed
+    assert func.metadata.name == "handler"
+    assert func.metadata.tag == "v1"
+
+
 def test_set_function_with_relative_path(context):
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 

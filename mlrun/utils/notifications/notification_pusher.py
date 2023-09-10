@@ -508,6 +508,8 @@ class CustomNotificationPusher(object):
 def _sanitize_notification(notification: mlrun.model.Notification):
     notification_dict = notification.to_dict()
     notification_dict.pop("secret_params", None)
+    notification_dict.pop("message", None)
+    notification_dict.pop("params", None)
     return notification_dict
 
 

@@ -201,6 +201,8 @@ def make_kaniko_pod(
         dest,
         "--image-fs-extract-retry",
         config.httpdb.builder.kaniko_image_fs_extraction_retries,
+        "--push-retry",
+        config.httpdb.builder.kaniko_image_push_retry,
     ]
     for value, flag in [
         (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),

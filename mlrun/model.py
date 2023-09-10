@@ -563,6 +563,7 @@ class Notification(ModelObj):
         params=None,
         status=None,
         sent_time=None,
+        reason=None,
     ):
         self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
         self.name = name or ""
@@ -576,6 +577,7 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+        self.reason = reason or ""
 
         self.validate_notification()
 

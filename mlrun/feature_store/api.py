@@ -15,6 +15,7 @@ import copy
 import importlib.util
 import pathlib
 import sys
+import typing
 import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -37,7 +38,7 @@ from ..datastore.targets import (
     validate_target_paths_for_engine,
 )
 from ..model import DataSource, DataTargetBase
-from ..runtimes import RuntimeKinds
+from ..runtimes import BaseRuntime, RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import Response
 from ..utils import get_caller_globals, logger, normalize_name
@@ -776,7 +777,7 @@ def deploy_ingestion_service_v2(
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-):
+) -> typing.Tuple[str, BaseRuntime]:
     """Start real-time ingestion service using nuclio function
 
     Deploy a real-time function implementing feature ingestion pipeline
@@ -799,7 +800,7 @@ def deploy_ingestion_service_v2(
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
     :param verbose:       verbose log
 
-    :return: URL to access the deployed ingestion service, and the function that was deployed (which may
+    :return: URL to access the deployed ingestion service, and the function that was deployed (which will
              differ from the function passed in via the run_config parameter).
     """
     if isinstance(featureset, str):
@@ -868,7 +869,7 @@ def deploy_ingestion_service(
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-):
+) -> str:
     """Start real-time ingestion service using nuclio function
 
     Deploy a real-time function implementing feature ingestion pipeline
@@ -893,7 +894,7 @@ def deploy_ingestion_service(
 
     :return: URL to access the deployed ingestion service
     """
-    endpoint, function = deploy_ingestion_service_v2(
+    endpoint, _ = deploy_ingestion_service_v2(
         featureset=featureset,
         source=source,
         targets=targets,

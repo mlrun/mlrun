@@ -287,7 +287,7 @@ def load_project(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
@@ -428,7 +428,7 @@ def get_or_create_project(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
@@ -533,7 +533,7 @@ def _run_project_setup(
                 "src/trainer.py",
                 name="mpi-training",
                 kind="mpijob",
-                image="mlrun/ml-models",
+                image="mlrun/mlrun",
             )
             # Set the number of replicas for the training from the project parameter
             train_function.spec.replicas = project.spec.params.get("num_replicas", 1)
@@ -623,7 +623,11 @@ def _load_project_from_db(url, secrets, user_project=False):
     project_name = _add_username_to_project_name_if_needed(
         url.replace("db://", ""), user_project
     )
-    return db.get_project(project_name)
+    project = db.get_project(project_name)
+    if not project:
+        raise mlrun.errors.MLRunNotFoundError(f"Project {project_name} not found")
+
+    return project
 
 
 def _delete_project_from_db(project_name, secrets, deletion_strategy):
@@ -1356,7 +1360,7 @@ class MlrunProject(ModelObj):
     def register_artifacts(self):
         """register the artifacts in the MLRun DB (under this project)"""
         artifact_manager = self._get_artifact_manager()
-        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+        artifact_path = mlrun.utils.helpers.fill_project_path_template(
             self.spec.artifact_path or mlrun.mlconf.artifact_path, self.metadata.name
         )
         # TODO: To correctly maintain the list of artifacts from an exported project,
@@ -1476,7 +1480,7 @@ class MlrunProject(ModelObj):
         artifact_path = extend_artifact_path(
             artifact_path, self.spec.artifact_path or mlrun.mlconf.artifact_path
         )
-        artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+        artifact_path = mlrun.utils.helpers.fill_project_path_template(
             artifact_path, self.metadata.name
         )
         producer = ArtifactProducer(
@@ -2625,9 +2629,13 @@ class MlrunProject(ModelObj):
         :param requirements_file:   pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
-                                    e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to
-         add to existing parameters
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
         return build_function(
             function,
@@ -2657,6 +2665,8 @@ class MlrunProject(ModelObj):
         requirements: typing.Union[str, typing.List[str]] = None,
         overwrite_build_params: bool = False,
         requirements_file: str = None,
+        builder_env: dict = None,
+        extra_args: str = None,
     ):
         """specify builder configuration for the project
 
@@ -2669,12 +2679,14 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  overwrite existing build configuration (default False)
-        :param extra_args:              A string containing additional arguments in the format of command-line options,
-         e.g. extra_args="--skip-tls-verify --build-arg A=val""
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
-           * True: the existing params are replaced by the new ones
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
@@ -2690,6 +2702,8 @@ class MlrunProject(ModelObj):
             requirements=requirements,
             requirements_file=requirements_file,
             overwrite=overwrite_build_params,
+            builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         if set_as_default and image != self.default_image:
@@ -2726,12 +2740,13 @@ class MlrunProject(ModelObj):
         :param requirements_file:  pip requirements file path, defaults to None
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                                e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  overwrite existing build configuration (default False)
-
-           * False: the new params are merged with the existing (currently merge is applied to requirements and
-             commands)
-           * True: the existing params are replaced by the new ones
+            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+            requirements and commands)
+            * False: The new params are merged with the existing
+            * True: The existing params are replaced by the new ones
+        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+            e.g. extra_args="--skip-tls-verify --build-arg A=val"r
         """
 
         self.build_config(
@@ -3009,24 +3024,33 @@ class MlrunProject(ModelObj):
         )
 
     def register_datastore_profile(self, profile: DatastoreProfile):
-        project_ds_name_private = DatastoreProfile.generate_secret_key(
-            profile.name, self.name
-        )
         private_body = DatastoreProfile2Json.get_json_private(profile)
         public_body = DatastoreProfile2Json.get_json_public(profile)
-        # set project public data to DB
-        public_profile = mlrun.common.schemas.DatastoreProfile(
-            name=profile.name, type=profile.type, body=public_body, project=self.name
+        # send project data to DB
+        profile = mlrun.common.schemas.DatastoreProfile(
+            name=profile.name,
+            type=profile.type,
+            object=public_body,
+            private=private_body,
+            project=self.name,
         )
         mlrun.db.get_run_db(secrets=self._secrets).store_datastore_profile(
-            public_profile, self.name
+            profile, self.name
         )
-        # Set local environment variable
-        environ[project_ds_name_private] = private_body
-        # set project secret
-        self.set_secrets(
-            secrets={project_ds_name_private: private_body},
-            provider=mlrun.common.schemas.SecretProviderName.kubernetes,
+
+    def delete_datastore_profile(self, profile: str):
+        mlrun.db.get_run_db(secrets=self._secrets).delete_datastore_profile(
+            profile, self.name
+        )
+
+    def get_datastore_profile(self, profile: str) -> DatastoreProfile:
+        return mlrun.db.get_run_db(secrets=self._secrets).get_datastore_profile(
+            profile, self.name
+        )
+
+    def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
+            self.name
         )
 
     def get_custom_packagers(self) -> typing.List[typing.Tuple[str, bool]]:

@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import time
 import unittest.mock
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 from fastapi.testclient import TestClient
@@ -228,11 +229,13 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # Create runs
     projects = ["run-project-1", "run-project-2", "run-project-3"]
     run_names = ["run-name-1", "run-name-2", "run-name-3"]
+    suffixes = ["first", "second", "third"]
+    iterations = 3
     for project in projects:
         for name in run_names:
-            for suffix in ["first", "second", "third"]:
+            for suffix in suffixes:
                 uid = f"{name}-uid-{suffix}"
-                for iteration in range(3):
+                for iteration in range(iterations):
                     run = {
                         "metadata": {
                             "name": name,
@@ -244,30 +247,42 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                     mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)
 
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
-    runs = _list_and_assert_objects(
+    _list_and_assert_objects(
         client,
-        {},
-        81,
+        params={},
+        expected_number_of_runs=81,
         project="*",
     )
 
-    # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
-    runs = _list_and_assert_objects(
+    # basic list, specific project, only iteration 0, so 3 names = 3
+    _list_and_assert_objects(
         client,
-        {"iter": False},
-        9,
+        params={"iter": False},
+        expected_number_of_runs=3,
+        project=projects[0],
+    )
+
+    # adding start time from to make sure we get all runs (and not just latest)
+    # basic list, specific project, only iteration 0, so 3 names * 3 uids = 9
+    _list_and_assert_objects(
+        client,
+        params={
+            "iter": False,
+            "start_time_from": datetime.now() - timedelta(days=1),
+        },
+        expected_number_of_runs=9,
         project=projects[0],
     )
 
     # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
         client,
-        {
+        params={
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.created,
             "partition-order": mlrun.common.schemas.OrderType.asc,
         },
-        3,
+        expected_number_of_runs=3,
         project=projects[0],
     )
     # sorted by ascending created so only the first ones created
@@ -277,12 +292,12 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # partioned list, specific project, 1 row per partition by default, so 3 names * 1 row = 3
     runs = _list_and_assert_objects(
         client,
-        {
+        params={
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
         },
-        3,
+        expected_number_of_runs=3,
         project=projects[0],
     )
     # sorted by descending updated so only the third ones created
@@ -290,29 +305,29 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
         assert "third" in run["metadata"]["uid"]
 
     # partioned list, specific project, 5 row per partition, so 3 names * 5 row = 15
-    runs = _list_and_assert_objects(
+    _list_and_assert_objects(
         client,
-        {
+        params={
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
         },
-        15,
+        expected_number_of_runs=15,
         project=projects[0],
     )
 
     # partitioned list, specific project, 5 rows per partition, max of 2 partitions, so 2 names * 5 rows = 10
     runs = _list_and_assert_objects(
         client,
-        {
+        params={
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
             "partition-order": mlrun.common.schemas.OrderType.desc,
             "rows-per-partition": 5,
             "max-partitions": 2,
         },
-        10,
+        expected_number_of_runs=10,
         project=projects[0],
     )
     for run in runs:
@@ -322,7 +337,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
     # Complex query, with partitioning and filtering over iter==0
     runs = _list_and_assert_objects(
         client,
-        {
+        params={
             "iter": False,
             "partition-by": mlrun.common.schemas.RunPartitionByField.name,
             "partition-sort-by": mlrun.common.schemas.SortField.updated,
@@ -330,7 +345,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
             "rows-per-partition": 2,
             "max-partitions": 1,
         },
-        2,
+        expected_number_of_runs=2,
         project=projects[0],
     )
 
@@ -445,6 +460,65 @@ def test_delete_runs_without_permissions(db: Session, client: TestClient):
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
     runs = mlrun.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
+
+
+def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
+    notifications = [
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            "secret_params": {
+                "webhook": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+                "other_param": "other_value",
+            },
+            "severity": "info",
+            "when": ["error"],
+        },
+        {
+            "condition": "",
+            "kind": "slack",
+            "message": "completed",
+            "name": "notification-1",
+            # should not redact secrets
+            "params": {
+                "secret": "my-secret",
+            },
+            "severity": "info",
+            "when": ["completed"],
+        },
+    ]
+
+    masked_notifications = copy.deepcopy(notifications)
+    masked_notifications[0]["secret_params"]["webhook"] = "REDACTED"
+    masked_notifications[0]["secret_params"]["other_param"] = "REDACTED"
+
+    expected_response_params = {
+        "spec.notifications": masked_notifications,
+    }
+
+    uid = "1234567890"
+    project = "test-store-run-masking"
+    run = {
+        "metadata": {
+            "name": "unmasked-run",
+            "project": project,
+            "uid": uid,
+        },
+        "spec": {
+            "notifications": notifications,
+        },
+    }
+
+    mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+    resp = client.get(f"run/{project}/{uid}")
+    assert resp.status_code == HTTPStatus.OK.value
+
+    response_body = resp.json()["data"]
+    for param, expected_value in expected_response_params.items():
+        value = mlrun.utils.get_in(response_body, param)
+        assert value == expected_value
 
 
 def _store_run(db, uid, project="some-project"):

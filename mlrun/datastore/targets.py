@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import sqlalchemy
 
 import mlrun
 import mlrun.utils.helpers
@@ -600,7 +599,12 @@ class BaseStoreTarget(DataTargetBase):
 
     def get_target_path(self):
         path_object = self._target_path_object
-        return path_object.get_absolute_path() if path_object else None
+        project_name = self._resource.metadata.project if self._resource else None
+        return (
+            path_object.get_absolute_path(project_name=project_name)
+            if path_object
+            else None
+        )
 
     def get_target_path_with_credentials(self):
         return self.get_target_path()
@@ -1174,6 +1178,12 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         endpoint = endpoint or mlrun.mlconf.redis.url
         if endpoint.startswith("ds"):
             datastore_profile = datastore_profile_read(endpoint)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{endpoint}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
             endpoint = datastore_profile.url_with_credentials()
         else:
             parsed_endpoint = urlparse(endpoint)
@@ -1569,6 +1579,17 @@ class SQLTarget(BaseStoreTarget):
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         :param parse_dates :    all the field to be parsed as timestamp.
         """
+
+        # Validate sqlalchemy (not installed by default):
+        try:
+            import sqlalchemy
+
+            self.sqlalchemy = sqlalchemy
+        except (ModuleNotFoundError, ImportError) as exc:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+            ) from exc
+
         create_according_to_data = False  # TODO: open for user
         if time_fields:
             warnings.warn(
@@ -1676,7 +1697,7 @@ class SQLTarget(BaseStoreTarget):
         **kwargs,
     ):
         db_path, table_name, _, _, _, _ = self._parse_url()
-        engine = sqlalchemy.create_engine(db_path)
+        engine = self.sqlalchemy.create_engine(db_path)
         parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
             query, parse_dates = _generate_sql_query_with_time_filter(
@@ -1714,7 +1735,7 @@ class SQLTarget(BaseStoreTarget):
                 _,
             ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
-            engine = sqlalchemy.create_engine(
+            engine = self.sqlalchemy.create_engine(
                 db_path,
             )
             connection = engine.connect()
@@ -1744,23 +1765,23 @@ class SQLTarget(BaseStoreTarget):
             primary_key_for_check = primary_key
         except Exception:
             primary_key_for_check = [primary_key]
-        engine = sqlalchemy.create_engine(db_path)
+        engine = self.sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
-            metadata = sqlalchemy.MetaData()
+            metadata = self.sqlalchemy.MetaData()
             table_exists = engine.dialect.has_table(conn, table_name)
             if not table_exists and not create_table:
                 raise ValueError(f"Table named {table_name} is not exist")
 
             elif not table_exists and create_table:
                 TYPE_TO_SQL_TYPE = {
-                    int: sqlalchemy.Integer,
-                    str: sqlalchemy.String(self.attributes.get("varchar_len")),
-                    datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
-                    pd.Timestamp: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
-                    bool: sqlalchemy.Boolean,
-                    float: sqlalchemy.Float,
-                    datetime.timedelta: sqlalchemy.Interval,
-                    pd.Timedelta: sqlalchemy.Interval,
+                    int: self.sqlalchemy.Integer,
+                    str: self.sqlalchemy.String(self.attributes.get("varchar_len")),
+                    datetime.datetime: self.sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    pd.Timestamp: self.sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    bool: self.sqlalchemy.Boolean,
+                    float: self.sqlalchemy.Float,
+                    datetime.timedelta: self.sqlalchemy.Interval,
+                    pd.Timedelta: self.sqlalchemy.Interval,
                 }
                 # creat new table with the given name
                 columns = []
@@ -1769,12 +1790,12 @@ class SQLTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        sqlalchemy.Column(
+                        self.sqlalchemy.Column(
                             col, col_type, primary_key=(col in primary_key_for_check)
                         )
                     )
 
-                sqlalchemy.Table(table_name, metadata, *columns)
+                self.sqlalchemy.Table(table_name, metadata, *columns)
                 metadata.create_all(engine)
                 if_exists = "append"
                 self.path = (

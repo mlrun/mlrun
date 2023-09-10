@@ -16,6 +16,7 @@ import datetime
 import os
 from sys import executable
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -201,7 +202,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run()
         assert run.status.results["some-arg-by-handler"] == args[1]
         assert run.status.results["my-args"] == [
-            "/usr/local/bin/mlrun",
+            "/opt/conda/bin/mlrun",
             "run",
             "--name",
             "function-with-args-handler",
@@ -271,6 +272,30 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--some-arg",
             "val-with-artifact",
         ]
+
+    @pytest.mark.enterprise
+    @pytest.mark.parametrize("local", [True, False])
+    def test_log_artifact_with_run_function(self, local):
+        train_path = str(self.assets_path / "log_artifact.py")
+        function_parameter = 100
+        self.project.set_function(
+            train_path,
+            name="log-artifact",
+            image="mlrun/mlrun",
+            kind="job",
+            handler="train",
+        )
+        self.project.run_function(
+            "log-artifact", params={"i": function_parameter}, local=local
+        )
+        resource = self.project.get_store_resource(
+            f"store://datasets/{self.project_name}/log-artifact-train_df#0:latest"
+        ).to_dataitem()
+        expected_df = pd.DataFrame(
+            {f"col{function_parameter}": [function_parameter] * 10}
+        )
+        result_df = resource.as_df()
+        pd.testing.assert_frame_equal(result_df, expected_df)
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")
@@ -391,15 +416,16 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
 
     def test_function_with_builder_env(self):
         name = "test-build-env-vars"
-        builder_env_key = "ENV_VAR1"
+        builder_env_key = "ARG1"
         builder_env_val = "value1"
 
-        extra_args_env_key = "ENV_VAR2"
-        extra_args_env_value = "value2"
+        extra_args_env_key = "ARG2"
+        extra_args_env_val = "value2"
         extra_args_flag = "--skip-tls-verify"
+        expected_results = [builder_env_val, extra_args_env_val]
 
         extra_args = (
-            f"--build-arg {extra_args_env_key}={extra_args_env_value} {extra_args_flag}"
+            f"--build-arg {extra_args_env_key}={extra_args_env_val} {extra_args_flag}"
         )
         code_path = str(self.assets_path / "function_with_env_vars.py")
         project = mlrun.get_or_create_project(self.project_name, self.results_path)
@@ -411,7 +437,10 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             with_mlrun=False,
             base_image="mlrun/mlrun",
             requirements=["vaderSentiment"],
-            commands=["echo ${ENV_VAR1}", "echo ${ENV_VAR2}"],
+            commands=[
+                f"echo ${builder_env_key} > /tmp/args.txt",
+                f"echo ${extra_args_env_key} >> /tmp/args.txt",
+            ],
             builder_env={builder_env_key: builder_env_val},
             extra_args=extra_args,
         )
@@ -424,5 +453,5 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         )
 
         run = project.run_function(name)
-        assert run.status.results[builder_env_key] == builder_env_val
-        assert run.status.results[extra_args_env_key] == extra_args_env_value
+        results = run.status.results["results"]
+        assert results == expected_results

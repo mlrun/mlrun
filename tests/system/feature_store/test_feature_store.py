@@ -31,6 +31,7 @@ import pyarrow.parquet as pq
 import pytest
 import pytz
 import requests
+from databricks.sdk import WorkspaceClient
 from pandas.util.testing import assert_frame_equal
 from storey import MapClass
 
@@ -39,7 +40,10 @@ import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
-from mlrun.datastore.datastore_profile import DatastoreProfileRedis
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileRedis,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -64,6 +68,12 @@ from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
+from ...datastore.databricks_utils import (
+    MLRUN_ROOT_DIR,
+    is_databricks_configured,
+    setup_dbfs_dirs,
+    teardown_dbfs_dirs,
+)
 from .data_sample import quotes, stocks, trades
 
 
@@ -584,6 +594,40 @@ class TestFeatureStore(TestMLRunSystem):
         assert fset.status.targets[
             1
         ].get_path().get_absolute_path() == fset.get_target_path("nosql")
+
+    @pytest.mark.parametrize("local", [True, False])
+    def test_ingest_with_format_run_project(self, local):
+        source_path = str(self.assets_path / "testdata.csv")
+        if not local:
+            data = pd.read_csv(source_path)
+            source_path = (
+                f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/"
+                f"{uuid.uuid4()}/source.csv"
+            )
+            data.to_csv(source_path)
+        source = CSVSource("mycsv", path=source_path)
+        feature_set = fstore.FeatureSet(
+            name=f"fs-run_project-format-local-{local}",
+            entities=[Entity("patient_id")],
+            timestamp_key="timestamp",
+        )
+        artifact_path = mlrun.mlconf.artifact_path
+        targets = [
+            CSVTarget(name="labels", path=os.path.join(artifact_path, "file.csv"))
+        ]
+        feature_set.set_targets(targets=targets, with_defaults=False)
+        fstore.ingest(
+            featureset=feature_set,
+            source=source,
+            run_config=fstore.RunConfig(local=local),
+        )
+        target_dir_path = os.path.dirname(
+            os.path.dirname(feature_set.get_target_path())
+        )
+        assert (
+            artifact_path.replace("{{run.project}}", self.project_name)
+            == target_dir_path
+        )
 
     def test_feature_set_db(self):
         name = "stocks_test"
@@ -2157,11 +2201,10 @@ class TestFeatureStore(TestMLRunSystem):
             path=path,
         )
         if target_redis.startswith("ds://"):
-            project = mlrun.get_or_create_project(self.project_name)
             profile = DatastoreProfileRedis(
                 name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url
             )
-            project.register_datastore_profile(profile)
+            register_temporary_client_datastore_profile(profile)
 
         targets = [
             CSVTarget(),
@@ -2921,7 +2964,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3440,7 +3485,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3788,7 +3835,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3883,7 +3932,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4160,12 +4211,112 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
+    @pytest.mark.skipif(
+        not is_databricks_configured(),
+        reason="databricks storage parameters not configured",
+    )
+    @pytest.mark.parametrize(
+        "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
+        [
+            (
+                CSVSource,
+                CSVTarget,
+                "testdata_short.csv",
+                pd.read_csv,
+                {"parse_dates": ["date_of_birth"]},
+                False,
+            ),
+            (
+                ParquetSource,
+                ParquetTarget,
+                "testdata_short.parquet",
+                pd.read_parquet,
+                {},
+                True,
+            ),
+        ],
+    )
+    def test_ingest_with_dbfs(
+        self,
+        source_class,
+        target_class,
+        local_file_name,
+        reader,
+        reader_kwargs,
+        drop_index,
+    ):
+        local_source_path = os.path.relpath(str(self.assets_path / local_file_name))
+        drop_column = "number"
+        key = "name"
+        test_dir = "/test_feature_store"
+        expected = reader(local_source_path, **reader_kwargs).drop(drop_column, axis=1)
+
+        measurements = fstore.FeatureSet("measurements", entities=[Entity(key)])
+
+        workspace = WorkspaceClient()
+        base_filename, extension = os.path.splitext(local_file_name)
+        generated_uuid = uuid.uuid4()
+        setup_dbfs_dirs(
+            workspace=workspace,
+            specific_test_class_dir=test_dir,
+            subdirs=[f'/{extension.replace(".", "")}_{generated_uuid}'],
+        )
+        try:
+            dbfs_source_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/source_{base_filename}{extension}"
+            dbfs_target_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/target_{base_filename}{extension}"
+            with open(local_source_path, "rb") as source_file:
+                content = source_file.read()
+            with workspace.dbfs.open(dbfs_source_path, write=True, overwrite=True) as f:
+                f.write(content)
+            measurements.graph.to(DropFeatures(features=[drop_column]))
+            source = source_class("mycsv", dbfs_source_path, **reader_kwargs)
+
+            target = target_class(name="specified-path", path=dbfs_target_path)
+            fstore.ingest(measurements, source=source, targets=[target])
+
+            target_generated_dirs = list(
+                workspace.dbfs.list(
+                    f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}"
+                )
+            )
+            assert (
+                len(target_generated_dirs) == 2
+            )  # directory should have source csv file and target dir.
+            target_generated_dir_path = (
+                target_generated_dirs[0].path
+                if not target_generated_dirs[0].path.endswith(
+                    f"source_{base_filename}{extension}"
+                )
+                else target_generated_dirs[1].path
+            )
+            target_file_path = (
+                f"dbfs://{target_generated_dir_path}/target_{base_filename}{extension}"
+            )
+            result = reader(
+                target_file_path,
+                storage_options={
+                    "instance": os.environ.get("DATABRICKS_HOST"),
+                    "token": os.environ.get("DATABRICKS_TOKEN"),
+                },
+                **reader_kwargs,
+            )
+            if drop_index:
+                result.reset_index(inplace=True, drop=False)
+
+            assert_frame_equal(
+                expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+            )
+        finally:
+            teardown_dbfs_dirs(workspace=workspace, specific_test_class_dir=test_dir)
+
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_as_of_join_different_ts(self, engine):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4227,7 +4378,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True

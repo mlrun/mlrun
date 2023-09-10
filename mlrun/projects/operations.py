@@ -248,23 +248,25 @@ def build_function(
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
-    :param function:        name of the function (in the project) or function object
-    :param with_mlrun:      add the current mlrun package to the container build
-    :param skip_deployed:   skip the build if we already have an image for the function
-    :param image:           target image name/path
-    :param base_image:      base image name/path (commands and source code will be added to it)
-    :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
-    :param secret_name:     k8s secret for accessing the docker registry
-    :param requirements:    list of python packages, defaults to None
+    :param function:        Name of the function (in the project) or function object
+    :param with_mlrun:      Add the current mlrun package to the container build
+    :param skip_deployed:   Skip the build if we already have an image for the function
+    :param image:           Target image name/path
+    :param base_image:      Base image name/path (commands and source code will be added to it)
+    :param commands:        List of docker build (RUN) commands e.g. ['pip install pandas']
+    :param secret_name:     K8s secret for accessing the docker registry
+    :param requirements:    List of python packages, defaults to None
     :param requirements_file:    pip requirements file path, defaults to None
     :param mlrun_version_specifier:  which mlrun package version to include (if not current)
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param project_object:  override the project object to use, will default to the project set in the runtime context.
-    :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
-                            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-    :param overwrite_build_params:  overwrite the function build parameters with the provided ones, or attempt to add
-     to existing parameters
+        e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+    :param project_object:  Override the project object to use, will default to the project set in the runtime context.
+    :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
+        requirements and commands)
+        * False: The new params are merged with the existing
+        * True: The existing params are replaced by the new ones
+    :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+        e.g. extra_args="--skip-tls-verify --build-arg A=val"
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
@@ -295,7 +297,6 @@ def build_function(
             requirements=requirements,
             overwrite=overwrite_build_params,
             extra_args=extra_args,
-            builder_env=builder_env,
         )
         ready = function.deploy(
             watch=True,

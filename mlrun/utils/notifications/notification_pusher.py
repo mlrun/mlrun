@@ -15,6 +15,7 @@
 import asyncio
 import datetime
 import os
+import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
@@ -91,7 +92,13 @@ class NotificationPusher(object):
                 )
 
             # return exceptions to "best-effort" fire all notifications
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "Failed to push notification async",
+                        error=mlrun.errors.err_to_str(result),
+                    )
 
         logger.debug(
             "Pushing notifications",
@@ -161,9 +168,10 @@ class NotificationPusher(object):
         notification_type = NotificationTypes(
             notification_object.kind or NotificationTypes.console
         )
-        notification = notification_type.get_notification()(
-            name, notification_object.params
-        )
+        params = {}
+        params.update(notification_object.secret_params)
+        params.update(notification_object.params)
+        notification = notification_type.get_notification()(name, params)
         if notification.is_async:
             self._async_notifications.append((notification, run, notification_object))
         else:
@@ -218,10 +226,11 @@ class NotificationPusher(object):
             )
         except Exception as exc:
             logger.warning(
-                "Failed to send notification",
+                "Failed to send or update notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
             self._update_notification_status(
                 run.metadata.uid,
@@ -262,10 +271,11 @@ class NotificationPusher(object):
             )
         except Exception as exc:
             logger.warning(
-                "Failed to send notification",
+                "Failed to send or update notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
             await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
@@ -288,7 +298,7 @@ class NotificationPusher(object):
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
 
-        # There is no need to mask the params as the secrets are already loaded
+        # There is no need to mask the secret_params as the secrets are already loaded
         db.store_run_notifications(
             [notification],
             run_uid,
@@ -362,7 +372,9 @@ class CustomNotificationPusher(object):
             _sync_push()
 
     def add_notification(
-        self, notification_type: str, params: typing.Dict[str, str] = None
+        self,
+        notification_type: str,
+        params: typing.Dict[str, str] = None,
     ):
         if notification_type in self._async_notifications:
             self._async_notifications[notification_type].load_notification(params)
@@ -477,7 +489,7 @@ class CustomNotificationPusher(object):
 
 def _sanitize_notification(notification: mlrun.model.Notification):
     notification_dict = notification.to_dict()
-    notification_dict.pop("params", None)
+    notification_dict.pop("secret_params", None)
     return notification_dict
 
 

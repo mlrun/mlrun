@@ -26,18 +26,10 @@ import mlrun.errors
 from ..secrets import get_secret_or_env
 
 
-class PrivateValue(pydantic.BaseModel):
-    value: str
-
-    def get(self):
-        if self.value == "None":
-            return None
-        return ast.literal_eval(self.value)["value"]
-
-
 class DatastoreProfile(pydantic.BaseModel):
     type: str
     name: str
+    _private_attributes: typing.List = ()
 
     @pydantic.validator("name")
     def lower_case(cls, v):
@@ -47,7 +39,7 @@ class DatastoreProfile(pydantic.BaseModel):
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "-__-"
         full_key = (
-            "datastore-profiles"
+            "mlrun.datastore-profiles"
             + secret_name_separator
             + project
             + secret_name_separator
@@ -56,23 +48,39 @@ class DatastoreProfile(pydantic.BaseModel):
         return full_key
 
 
+class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
+    def __init__(self):
+        self._data = {}  # Initialize the dictionary
+
+    def add(self, profile: DatastoreProfile):
+        self._data[profile.name] = profile
+
+    def get(self, key):
+        return self._data.get(key, None)
+
+
+class DatastoreProfileBasic(DatastoreProfile):
+    type: str = pydantic.Field("basic")
+    _private_attributes = "private"
+    public: str
+    private: typing.Optional[str] = None
+
+
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
+    _private_attributes = ("username", "password")
     endpoint_url: str
-    username: typing.Optional[PrivateValue]
-    password: typing.Optional[PrivateValue]
-
-    @pydantic.validator("username", "password", pre=True)
-    def convert_to_private(cls, v):
-        return PrivateValue(value=v)
+    username: typing.Optional[str] = None
+    password: typing.Optional[str] = None
 
     def is_secured(self):
         return self.endpoint_url.startswith("rediss://")
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
-        username = self.username.get() if self.username else None
-        password = self.password.get() if self.password else None
+        username = self.username
+        password = self.password
+        netloc = parsed_url.hostname
         if username:
             if password:
                 netloc = f"{username}:{password}@{parsed_url.hostname}"
@@ -106,13 +114,21 @@ class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def get_json_public(profile: DatastoreProfile) -> str:
         return DatastoreProfile2Json._to_json(
-            {k: v for k, v in profile.dict().items() if not isinstance(v, dict)}
+            {
+                k: v
+                for k, v in profile.dict().items()
+                if not str(k) in profile._private_attributes
+            }
         )
 
     @staticmethod
     def get_json_private(profile: DatastoreProfile) -> str:
         return DatastoreProfile2Json._to_json(
-            {k: v for k, v in profile.dict().items() if isinstance(v, dict)}
+            {
+                k: v
+                for k, v in profile.dict().items()
+                if str(k) in profile._private_attributes
+            }
         )
 
     @staticmethod
@@ -123,9 +139,21 @@ class DatastoreProfile2Json(pydantic.BaseModel):
         decoded_dict = {
             k: base64.b64decode(str(v).encode()).decode() for k, v in attributes.items()
         }
+
+        def safe_literal_eval(value):
+            try:
+                return ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                return value
+
+        decoded_dict = {k: safe_literal_eval(v) for k, v in decoded_dict.items()}
         datastore_type = decoded_dict.get("type")
-        if datastore_type == "redis":
-            return DatastoreProfileRedis.parse_obj(decoded_dict)
+        ds_profile_factory = {
+            "redis": DatastoreProfileRedis,
+            "basic": DatastoreProfileBasic,
+        }
+        if datastore_type in ds_profile_factory:
+            return ds_profile_factory[datastore_type].parse_obj(decoded_dict)
         else:
             if datastore_type:
                 reason = f"unexpected type '{decoded_dict['type']}'"
@@ -145,6 +173,9 @@ def datastore_profile_read(url):
 
     profile_name = parsed_url.hostname
     project_name = parsed_url.username or mlrun.mlconf.default_project
+    datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+    if datastore:
+        return datastore
     public_profile = mlrun.db.get_run_db().get_datastore_profile(
         profile_name, project_name
     )
@@ -152,9 +183,19 @@ def datastore_profile_read(url):
         profile_name, project_name
     )
     private_body = get_secret_or_env(project_ds_name_private)
+    if not public_profile or not private_body:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Unable to retrieve the datastore profile '{url}' from either the server or local environment."
+            "Make sure the profile is registered correctly, or if running in a local environment,"
+            "use register_temporary_client_datastore_profile() to provide credentials locally."
+        )
 
     datastore = DatastoreProfile2Json.create_from_json(
         public_json=DatastoreProfile2Json.get_json_public(public_profile),
         private_json=private_body,
     )
     return datastore
+
+
+def register_temporary_client_datastore_profile(profile: DatastoreProfile):
+    TemporaryClientDatastoreProfiles().add(profile)

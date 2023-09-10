@@ -41,7 +41,9 @@ jobs:
             workflow_file_name: build.yaml
             ref: ${{ matrix.branch }}
             wait_interval: 60
-            client_payload: '{"skip_images": "models-gpu,models,base,tests", "build_from_cache": "false"}'
+
+            # models is removed on 1.5.x but still exists on 1.4.x and 1.3.x
+            client_payload: '{"skip_images": "models,tests", "build_from_cache": "false"}'
       - name: Re-Build UI Image
         if: matrix.repo == 'ui'
         uses: convictional/trigger-workflow-and-wait@v1.6.5

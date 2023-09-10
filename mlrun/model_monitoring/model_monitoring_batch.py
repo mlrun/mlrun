@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import abc
 import collections
 import dataclasses
 import datetime
 import json
 import os
 import re
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
+import requests
 import v3io
 import v3io.dataplane
 import v3io_frames
@@ -39,11 +41,9 @@ DriftResultType = Tuple[mlrun.common.schemas.model_monitoring.DriftStatus, float
 
 
 @dataclasses.dataclass
-class TotalVarianceDistance:
+class HistogramDistanceMetric(abc.ABC):
     """
-    Provides a symmetric drift distance between two periods t and u
-    Z - vector of random variables
-    Pt - Probability distribution over time span t
+    An abstract base class for distance metrics between histograms.
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
@@ -52,7 +52,24 @@ class TotalVarianceDistance:
     distrib_t: np.ndarray
     distrib_u: np.ndarray
 
-    NAME: ClassVar[str] = "tvd"
+    NAME: ClassVar[str]
+
+    # noinspection PyMethodOverriding
+    def __init_subclass__(cls, *, metric_name: str, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.NAME = metric_name
+
+    @abc.abstractmethod
+    def compute(self) -> float:
+        raise NotImplementedError
+
+
+class TotalVarianceDistance(HistogramDistanceMetric, metric_name="tvd"):
+    """
+    Provides a symmetric drift distance between two periods t and u
+    Z - vector of random variables
+    Pt - Probability distribution over time span t
+    """
 
     def compute(self) -> float:
         """
@@ -63,22 +80,13 @@ class TotalVarianceDistance:
         return np.sum(np.abs(self.distrib_t - self.distrib_u)) / 2
 
 
-@dataclasses.dataclass
-class HellingerDistance:
+class HellingerDistance(HistogramDistanceMetric, metric_name="hellinger"):
     """
     Hellinger distance is an f divergence measure, similar to the Kullback-Leibler (KL) divergence.
     It used to quantify the difference between two probability distributions.
     However, unlike KL Divergence the Hellinger divergence is symmetric and bounded over a probability space.
     The output range of Hellinger distance is [0,1]. The closer to 0, the more similar the two distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
-
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "hellinger"
 
     def compute(self) -> float:
         """
@@ -89,21 +97,29 @@ class HellingerDistance:
         return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
 
 
-@dataclasses.dataclass
-class KullbackLeiblerDivergence:
+class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):
     """
     KL Divergence (or relative entropy) is a measure of how one probability distribution differs from another.
     It is an asymmetric measure (thus it's not a metric) and it doesn't satisfy the triangle inequality.
     KL Divergence of 0, indicates two identical distributions.
-
-    :args distrib_t: array of distribution t (usually the latest dataset distribution)
-    :args distrib_u: array of distribution u (usually the sample dataset distribution)
     """
 
-    distrib_t: np.ndarray
-    distrib_u: np.ndarray
-
-    NAME: ClassVar[str] = "kld"
+    @staticmethod
+    def _calc_kl_div(
+        actual_dist: np.array, expected_dist: np.array, kld_scaling: float
+    ) -> float:
+        """Return the assymetric KL divergence"""
+        return np.sum(
+            np.where(
+                actual_dist != 0,
+                (actual_dist)
+                * np.log(
+                    actual_dist
+                    / np.where(expected_dist != 0, expected_dist, kld_scaling)
+                ),
+                0,
+            )
+        )
 
     def compute(self, capping: float = None, kld_scaling: float = 1e-4) -> float:
         """
@@ -111,30 +127,10 @@ class KullbackLeiblerDivergence:
                              the capping value which indicates a huge differences between the distributions.
         :param kld_scaling:  Will be used to replace 0 values for executing the logarithmic operation.
 
-        :returns: KL Divergence
+        :returns: symmetric KL Divergence
         """
-        t_u = np.sum(
-            np.where(
-                self.distrib_t != 0,
-                (self.distrib_t)
-                * np.log(
-                    self.distrib_t
-                    / np.where(self.distrib_u != 0, self.distrib_u, kld_scaling)
-                ),
-                0,
-            )
-        )
-        u_t = np.sum(
-            np.where(
-                self.distrib_u != 0,
-                (self.distrib_u)
-                * np.log(
-                    self.distrib_u
-                    / np.where(self.distrib_t != 0, self.distrib_t, kld_scaling)
-                ),
-                0,
-            )
-        )
+        t_u = self._calc_kl_div(self.distrib_t, self.distrib_u, kld_scaling)
+        u_t = self._calc_kl_div(self.distrib_u, self.distrib_t, kld_scaling)
         result = t_u + u_t
         if capping:
             return capping if result == float("inf") else result
@@ -173,10 +169,13 @@ class VirtualDrift:
         self.capping = inf_capping
 
         # Initialize objects of the current metrics
-        self.metrics = {
-            TotalVarianceDistance.NAME: TotalVarianceDistance,
-            HellingerDistance.NAME: HellingerDistance,
-            KullbackLeiblerDivergence.NAME: KullbackLeiblerDivergence,
+        self.metrics: Dict[str, Type[HistogramDistanceMetric]] = {
+            metric_class.NAME: metric_class
+            for metric_class in (
+                TotalVarianceDistance,
+                HellingerDistance,
+                KullbackLeiblerDivergence,
+            )
         }
 
     @staticmethod
@@ -470,6 +469,13 @@ def calculate_inputs_statistics(
                 counts.tolist(),
                 bins.tolist(),
             ]
+        elif "hist" in inputs_statistics[feature]:
+            # Comply with the other common features' histogram length
+            mlrun.common.model_monitoring.helpers.pad_hist(
+                mlrun.common.model_monitoring.helpers.Histogram(
+                    inputs_statistics[feature]["hist"]
+                )
+            )
 
     return inputs_statistics
 
@@ -756,11 +762,24 @@ class BatchProcessor:
                 )
                 or {}
             )
+
+            # For backwards compatibility first check if the old drift thresholds
+            # (both `possible drift and `drift_detected`) keys exist in the monitor configuration dict
+            # TODO: Remove the first get in 1.7.0
             possible_drift = monitor_configuration.get(
-                "possible_drift", self.default_possible_drift_threshold
+                "possible_drift",
+                monitor_configuration.get(
+                    mlrun.common.schemas.model_monitoring.EventFieldType.POSSIBLE_DRIFT_THRESHOLD,
+                    self.default_possible_drift_threshold,
+                ),
             )
+
             drift_detected = monitor_configuration.get(
-                "drift_detected", self.default_drift_detected_threshold
+                "drift_detected",
+                monitor_configuration.get(
+                    mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_DETECTED_THRESHOLD,
+                    self.default_drift_detected_threshold,
+                ),
             )
 
             # Check for possible drift based on the results of the statistical metrics defined above:
@@ -944,40 +963,54 @@ class BatchProcessor:
             )
         )
 
-        statistical_metrics = ["hellinger_mean", "tvd_mean", "kld_mean"]
-        metrics = []
-        for metric in statistical_metrics:
-            metrics.append(
-                {
-                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
-                    mlrun.common.schemas.model_monitoring.EventFieldType.METRIC: metric,
-                    mlrun.common.schemas.model_monitoring.EventFieldType.VALUE: drift_result[
-                        metric
-                    ],
-                }
-            )
-
         http_session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_post=True,
             verbose=True,
+            max_retries=1,
         )
+        try:
+            # Model monitoring stream http health check
+            http_session.request("GET", url=stream_http_path)
 
-        http_session.request(
-            method="POST",
-            url=stream_http_path + "/monitoring-batch-metrics",
-            data=json.dumps(metrics),
-        )
+            # Update statistical metrics
+            statistical_metrics = ["hellinger_mean", "tvd_mean", "kld_mean"]
+            metrics = []
+            for metric in statistical_metrics:
+                metrics.append(
+                    {
+                        mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+                        mlrun.common.schemas.model_monitoring.EventFieldType.METRIC: metric,
+                        mlrun.common.schemas.model_monitoring.EventFieldType.VALUE: drift_result[
+                            metric
+                        ],
+                    }
+                )
 
-        drift_status_dict = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
-            mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
-        }
+            http_session.request(
+                method="POST",
+                url=stream_http_path + "/monitoring-batch-metrics",
+                data=json.dumps(metrics),
+            )
 
-        http_session.request(
-            method="POST",
-            url=stream_http_path + "/monitoring-drift-status",
-            data=json.dumps(drift_status_dict),
-        )
+            # Update drift status
+            drift_status_dict = {
+                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+                mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
+            }
+
+            http_session.request(
+                method="POST",
+                url=stream_http_path + "/monitoring-drift-status",
+                data=json.dumps(drift_status_dict),
+            )
+
+        except requests.exceptions.ConnectionError as exc:
+            logger.warning(
+                "Can't push metrics to Prometheus registry."
+                "Monitoring stream pod is not found, probably not deployed. "
+                "To deploy, call set_tracking() on a serving function. exc: ",
+                exc=exc,
+            )
 
 
 def handler(context: mlrun.run.MLClientCtx):

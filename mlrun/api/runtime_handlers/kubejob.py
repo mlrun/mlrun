@@ -40,3 +40,4 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 class DatabricksRuntimeHandler(KubeRuntimeHandler):
     kind = "databricks"
     class_modes = {RuntimeClassMode.run: "databricks"}
+    pod_grace_period_seconds = 60

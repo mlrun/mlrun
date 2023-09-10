@@ -48,7 +48,7 @@ def get_stream_path(project: str = None, application_name: str = None):
 
 def get_monitoring_parquet_path(
     project: str,
-    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM_PARQUET,
+    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project and kind. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun

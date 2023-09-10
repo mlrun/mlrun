@@ -303,7 +303,7 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM_PARQUET,
+            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
             parquet_path,
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)

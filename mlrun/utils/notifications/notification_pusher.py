@@ -42,8 +42,8 @@ class NotificationPusher(object):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications = []
-        self._async_notifications = []
+        self._sync_notifications: typing.List[NotificationBase] = []
+        self._async_notifications: typing.List[NotificationBase] = []
 
         for run in self._runs:
             if isinstance(run, dict):
@@ -213,7 +213,7 @@ class NotificationPusher(object):
         update_notification_status_kwargs = {
             "run_uid": run.metadata.uid,
             "project": run.metadata.project,
-            "notification_object": notification_object,
+            "notification": notification_object,
             "status": mlrun.common.schemas.NotificationStatus.SENT,
         }
         try:

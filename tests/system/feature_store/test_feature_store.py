@@ -694,7 +694,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
         actual_stat = actual_stat.sort_index().sort_index(axis=1)
-        assert isinstance(actual_stat["top"]["booly"], bool)
+        # From pandas 2.0, top of a boolean column is string ("True" or "False"), not boolean
+        assert str(actual_stat["top"]["booly"]) == "True"
 
     def test_ingest_to_default_path(self):
         key = "patient_id"

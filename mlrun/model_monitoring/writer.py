@@ -64,6 +64,7 @@ class ModelMonitoringWriter(StepToDict):
 
     def __init__(self, project: str) -> None:
         self.project = project
+        self.name = project  # required for the deployment process
         self._kv_db = self._get_kv_db()
 
         self._v3io_access_key = os.getenv(_V3IO_ACCESS_KEY_NAME)

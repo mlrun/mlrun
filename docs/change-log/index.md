@@ -66,7 +66,7 @@
 ###  Closed issues
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML- |  |
+| ML-2380 | Spark runtime now sustains user actions. See doc updates:   |
 | ML- |  |
 | ML- |  |
 | ML- |  |
@@ -730,7 +730,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                                    | Workaround                           | Opened in | 
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
-| ML-3381 | Private repo is not supported as a marketplace hub             | See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo).                                     | v1.2.1 | 
+| ML-3206 | When get_or_create_project is called, and there is project.yaml in the dir, no new project is created (even of the project name is new). The existing project.yaml is loaded instead. | v1.2.1 | 
+| ML-3381 | Private repo is not supported as a marketplace hub   | See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo).                                     | v1.2.1 | 
 | ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
 | ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |

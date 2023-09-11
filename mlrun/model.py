@@ -577,7 +577,7 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
-        self.reason = reason or ""
+        self.reason = reason
 
         self.validate_notification()
 

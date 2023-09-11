@@ -18,6 +18,7 @@ import pathlib
 import socket
 import tempfile
 import time
+import typing
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -1199,7 +1200,9 @@ def download_object(url, target, secrets=None):
     stores.object(url=url).download(target_path=target)
 
 
-def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
+def wait_for_runs_completion(
+    runs: typing.Union[list, typing.ValuesView], sleep=3, timeout=0, silent=False
+):
     """wait for multiple runs to complete
 
     Note: need to use `watch=False` in `.run()` so the run will not wait for completion

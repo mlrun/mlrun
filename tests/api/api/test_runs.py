@@ -94,7 +94,8 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     ]:
         mlrun.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
-    mlrun.api.crud.RuntimeResources().delete_runtime_resources = unittest.mock.Mock()
+    runtime_resources = mlrun.api.crud.RuntimeResources()
+    runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
     response = client.patch(f"run/{project}/{run_completed_uid}", json=abort_body)
@@ -108,7 +109,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     # running is ok - should succeed
     response = client.patch(f"run/{project}/{run_in_progress_uid}", json=abort_body)
     assert response.status_code == HTTPStatus.OK.value
-    mlrun.api.crud.RuntimeResources().delete_runtime_resources.assert_called_once()
+    runtime_resources.delete_runtime_resources.assert_called_once()
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:

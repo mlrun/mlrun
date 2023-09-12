@@ -42,8 +42,16 @@ class NotificationPusher(object):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications: typing.List[NotificationBase] = []
-        self._async_notifications: typing.List[NotificationBase] = []
+        self._sync_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
+        self._async_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
 
         for run in self._runs:
             if isinstance(run, dict):

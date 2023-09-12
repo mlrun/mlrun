@@ -975,37 +975,9 @@ def _ingest_with_spark(
             )
 
             df_to_write = df
-
-            # If partitioning by time, add the necessary columns
-            if timestamp_key and "partitionBy" in spark_options:
-                from pyspark.sql.functions import (
-                    dayofmonth,
-                    hour,
-                    minute,
-                    month,
-                    second,
-                    year,
-                )
-
-                time_unit_to_op = {
-                    "year": year,
-                    "month": month,
-                    "day": dayofmonth,
-                    "hour": hour,
-                    "minute": minute,
-                    "second": second,
-                }
-                timestamp_col = df_to_write[timestamp_key]
-                for partition in spark_options["partitionBy"]:
-                    if (
-                        partition not in df_to_write.columns
-                        and partition in time_unit_to_op
-                    ):
-                        op = time_unit_to_op[partition]
-                        df_to_write = df_to_write.withColumn(
-                            partition, op(timestamp_col)
-                        )
-            df_to_write = target.prepare_spark_df(df_to_write, key_columns)
+            df_to_write = target.prepare_spark_df(
+                df_to_write, key_columns, timestamp_key, spark_options
+            )
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:

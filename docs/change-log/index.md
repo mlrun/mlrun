@@ -19,7 +19,7 @@
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-4366 | MLRun Models and GPU images management. Previous images mlrun/ml-models and mlrun/ml-models-gpu are replaced by mlrun/mlrun and mlrun/mlrun-gpu. All other required images are installed per demo. |
-
+| ML-3644 | Now supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
 ### Alerts
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -32,6 +32,12 @@
 | ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles    |
 | ML- | Add support for dbfs (Databricks file system). See [Databricks file system](store/datastore.html#Databricks file system
 
+
+### Documentation
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-2380 | **not in docs yet**  Enhanced description of Spark runtime. |
+
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -42,7 +48,7 @@
 ### Models
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4366 |
+| ML-4366 |  |
 
 
 ### UI
@@ -51,6 +57,7 @@
 | ML-2811 | New Batch inference wizard. |
 | ML-2815 | New Batch Run wizard. |
 | ML-3582 | The Projects > Models > Model Endpoints page now displays the Function Tag. |
+| ML-3584 | Function tag is now displayed in model endpoints. |
 
 ###  Closed issues
 | ID   | Description                                                    |

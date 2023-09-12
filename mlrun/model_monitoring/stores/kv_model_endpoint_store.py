@@ -16,7 +16,6 @@
 import json
 import os
 import typing
-import warnings
 
 import v3io.dataplane
 import v3io_frames
@@ -468,17 +467,12 @@ class KVModelEndpointStore(ModelEndpointStore):
         """
         Replace default null values for `error_count` and `metrics` for users that logged a model endpoint before 1.3.0.
         In addition, this function also validates that the key name of the endpoint unique id is `uid` and not
-         `endpoint_id` that has been used before 1.3.0.
+        `endpoint_id` that has been used before 1.3.0.
 
         Leaving here for backwards compatibility which related to the model endpoint schema.
 
         :param endpoint: An endpoint flattened dictionary.
         """
-        warnings.warn(
-            "This will be deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
 
         # Validate default value for `error_count`
         # For backwards compatibility reasons, we validate that the model endpoint includes the `error_count` key

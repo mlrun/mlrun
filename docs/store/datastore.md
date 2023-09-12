@@ -21,7 +21,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
 * **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
-   to register in memory data items (byte buffers or DataFrames). (Not supported by Spark ingestion)
+   to register in memory data items (byte buffers or DataFrames). (Not supported by Spark runtimes)
 
 ## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 

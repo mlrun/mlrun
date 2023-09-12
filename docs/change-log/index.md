@@ -48,12 +48,22 @@
 | ML-3501 | Add support for running Spark jobs on Databricks cluster. See {ref}`databricks`. |
 | ML-3784 | **not in docs yet** Now supports feature vector-defined feature-set relations and join-type (per-join). |
 
-
+### Function hub
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3370, ML-3381 | Users can now import functions from the MLRun Function hub and private repos, using the same syntax:</br>from MLRun function hub: hub://<function-name><':'tag></br>from private repo hub://<source-name + '/'><function-name><':'tag> |
 
 ### Models
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-4366 |  |
+
+
+
+### Runtimes
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-4059 | Adds support for adding env's or secret to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
 
 
 ### UI
@@ -77,7 +87,7 @@
 
 
 ### Deprecations
-See [Deprecations](#deprecations)
+See [Deprecations](#deprecations), [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).
 
 
 ###  Closed issues
@@ -748,7 +758,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ---- | -------------------------------------------------------------- | ------------------------------------ | ----------|      
 | ML-2014 | Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.) | Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set). |  v1.0.0  |
 | ML-3206 | When get_or_create_project is called, and there is project.yaml in the dir, no new project is created (even of the project name is new). The existing project.yaml is loaded instead. | v1.2.1 | 
-| ML-3381 | Private repo is not supported as a marketplace hub   | See [Import and run the function from your repo](../runtimes/git-repo-as-hub.html#import-and-run-the-function-from-your-repo).                                     | v1.2.1 | 
 | ML-3520 | MLRun does not decompress large Kubeflow pipelines | NA | v1.3.0 |
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
 | ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |
@@ -762,7 +771,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.0.0 | NA | MLRun / Nuclio do not support python 3.6.                             |
 | v1.3.0 | NA | [Deprecated and removed APIs](#apis-deprecated-and-removed-from-v1-3-0-code) and [Deprecated REST APIs](#rest-apis-deprecated-and-removed-from-v1-3-0-code), [APIs deprecated in v1.3.0, will be removed in v1.5.0](#apis-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0), [CLI Deprecated in v1.3.0, will be removed in v1.5.0.](#cli-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0) |
 | v1.4.0 | ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#rest-apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code).|
-| v1.5.0 | ML-4010 | Artifact types BokehArtifact, ChartArtifact are deprecated. |
+| v1.5.0 | ML-4010 | Artifact types that were unused BokehArtifact, ChartArtifact are deprecated. |
 | v1.5.0 | ML-4075 | python 3.7 is deprecated. |
 
 ## Future deprecations
@@ -825,7 +834,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
 
-### APIs deprecated in v1.3.0, will be removed in v1.5.0
+### APIs removed in v1.5.0 (deprecated in v1.3.0)
 These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0 and higher.
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
@@ -841,7 +850,7 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
 
-### CLI Deprecated in v1.3.0, will be removed in v1.5.0
+### CLI removed in v1.5.0 (deprecated in v1.3.0)
 
 The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
 

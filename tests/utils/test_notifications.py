@@ -118,6 +118,44 @@ def test_notification_should_notify(
     assert notification_pusher._should_notify(run, notification) == expected
 
 
+def test_notification_reason():
+    error_exc = Exception("Blew up")
+    run = mlrun.model.RunObject.from_dict({"status": {"state": "completed"}})
+    run.spec.notifications = [
+        mlrun.model.Notification.from_dict(
+            {
+                "kind": mlrun.common.schemas.notification.NotificationKind.console,
+                "status": "pending",
+                "message": "test-abc",
+            }
+        ),
+    ]
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+
+    # dont really update, just mock it for later assertions
+    notification_pusher._update_notification_status = unittest.mock.MagicMock()
+
+    # mock the push method to raise an exception
+    concrete_notification = notification_pusher._sync_notifications[0][0]
+    concrete_notification.push = unittest.mock.MagicMock(side_effect=error_exc)
+
+    # send notifications
+    with pytest.raises(Exception):
+        notification_pusher.push()
+
+    # asserts
+    notification_pusher._update_notification_status.assert_called_once()
+    concrete_notification.push.assert_called_once()
+
+    assert (
+        str(error_exc)
+        in notification_pusher._update_notification_status.call_args.kwargs["reason"]
+    )
+
+
 def test_condition_evaluation_timeout():
     condition = """
         {% for i in range(100000) %}

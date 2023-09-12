@@ -13,15 +13,25 @@
 
 ## v1.5.0 
 
+### Patching v1.5.0 on v3.5.2
 
+To support a platform running v3.5.2 with MLRun v1.5.0, you need to replace the spark-app & shell images by the images in v3.5.3.
+Run:
+```
+provctl patch appservice shell 3.5.3
+provctl patch appservice spark 3.5.3
+provctl patch appservice spark-operator 3.5.3 -TBD
+provctl patch appservice spark-app 3.5.3 - TBD (maybe this will be done as part of (2))
+provctl patch appservice mlrun 1.5.0
+install python 3.9 env on jupyters
+```
 
 ### Infrastructure
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-4366 | MLRun Models and GPU images management. Previous images mlrun/ml-models and mlrun/ml-models-gpu are replaced by mlrun/mlrun and mlrun/mlrun-gpu. All other required images are installed per demo. |
 | ML-3644 | Now supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
-| ML-3705 | An image with an entrypoint command now executes in MLRun (and not only in Nuclio). |
-
+| ML-4132 | Users can now use all requests.request parameters, in particular to set verify=False parameter while using the invoke method. |
 
 ### Alerts
 | ID    | Description                                                    |
@@ -32,8 +42,8 @@
 ### Data
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles    |
-| ML- | Add support for dbfs (Databricks file system). See [Databricks file system](store/datastore.html#Databricks file system
+| ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles)    |
+| ML- | Add support for dbfs (Databricks file system). See [Databricks file system](store/datastore.html#Databricks file system) |
 
 
 ### Documentation
@@ -41,6 +51,7 @@
 | --- | ----------------------------------------------------------------- |
 | ML-2380 | **not in docs yet**  Enhanced description of Spark runtime. |
 | ML-3763 | GPUs unavailable for v3io stream workers. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
+| ML-4420 | Added configuration of memory in Spark Operator. See |  
 
 ### Feature store
 | ID    | Description                                                    |
@@ -52,13 +63,6 @@
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3370, ML-3381 | Users can now import functions from the MLRun Function hub and private repos, using the same syntax:</br>from MLRun function hub: hub://<function-name><':'tag></br>from private repo hub://<source-name + '/'><function-name><':'tag> |
-
-### Models
-| ID    | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-4366 |  |
-
-
 
 ### Runtimes
 | ID    | Description                                                    |
@@ -72,19 +76,14 @@
 | ML-2811 | New Batch inference wizard. |
 | ML-2815 | New Batch Run wizard. |
 | ML-3582 | The Projects > Models > Model Endpoints page now displays the Function Tag. |
-| ML-3584 | Function tag is now displayed in model endpoints. |
-
-###  Closed issues
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3370 | Supports private repo for function hub. **Here or in features?   link to Doc**     |
+| ML-4167 | Projects page now has option to download the .yaml file. |
 
 
 ### Breaking changes
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format.
-
+| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format. |
+| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. |
 
 ### Deprecations
 See [Deprecations](#deprecations), [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).
@@ -94,24 +93,18 @@ ML-4075     Python 3.7 is not supported.
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-2380 | Spark runtime now sustains user actions. See doc updates:   |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
-| ML- |  |
+| ML-3370 | Supports private repo for function hub. **Here or in features?   link to Doc**     |
+| ML-3584 | Function tag is now displayed in model endpoints. || ML- |  |
+| ML-3705 | An image with an entrypoint command now executes in MLRun (and not only in Nuclio). |
+| ML-4188 | Deleting a project failed in the backend but was successfully deleted in UI.  |
+| ML-4212 | Pipeline filters that have no results not show the labels. |
+| ML-4214 | Scheduled workflows with "-" in the name are no longer truncated. |
+| ML-4232 | User attempts to create a consumer group with "-" now throws an error. |
+| ML-4316 | Fixed: `list_runs` fails with `Read timed out` during mlrun long run. |
+| ML-4323 | Fixed: pipeline step failed with "Read timed out.: get log |
+| ML-4391 | Consumer group UI now shows the right details. |
+| ML-4501 | Fixed: UI  shows error after deleting a function, then viewing a related job. |
+| ML-4533 | In the UI, ML functions can now be created with upper-case letters. |
 
 
 
@@ -737,8 +730,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID   | Description                                            | Workaround                                    | Opened in |
 | ---- | -------------------------------------------------------| --------------------------------------------- | ------ |
 | ML-1584 | Cannot run `code_to_function` when filename contains special characters | Do not use special characters in filenames | v1.0.0 |
+| ML-2030 |  Need means of moving artifacts from test to production Spark | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'` | 1.0.0 |
 | ML-2199 | Spark operator job fails with default requests args.       | NA                                         | v1.0.0 |
 | ML-2223 | Cannot deploy a function when notebook names contain "." (ModuleNotFoundError) | Do not use "." in notebook name | v1.0.0  |
+| ML-2380 | Spark runtime should sustain naive user actions | NA | 1.0.4 |
 | ML-2407 | Kafka ingestion service on an empty feature set returns an error. | Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records. | v1.1.0 |
 | ML-2489 | Cannot pickle a class inside an mlrun function. | Use cloudpickle instead of pickle | v1.2.0 |
 | [2621](https://github.com/mlrun/mlrun/issues/2621) | Running a workflow whose project has `init_git=True`, results in Project error | Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). | v1.1.0 |
@@ -747,10 +742,10 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
+| ML-3559 | Float, boolean, and timestamp entities ingested with pandas engine cannot be retrieved from online store. |
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
 | ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
-| ML-2030 |  Need means of moving artifacts from test to production Spark | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'` | 1.0.0 |
-| ML-2380 | Spark runtime should sustain naive user actions | NA | 1.0.4 |
+
     
 ## Limitations
 

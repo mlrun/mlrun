@@ -1580,15 +1580,6 @@ class SQLTarget(BaseStoreTarget):
         :param parse_dates :    all the field to be parsed as timestamp.
         """
 
-        # Validate sqlalchemy (not installed by default):
-        try:
-            import sqlalchemy
-
-        except (ModuleNotFoundError, ImportError) as exc:
-            raise mlrun.errors.MLRunMissingDependencyError(
-                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-            ) from exc
-
         create_according_to_data = False  # TODO: open for user
         if time_fields:
             warnings.warn(
@@ -1695,7 +1686,14 @@ class SQLTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
-        import sqlalchemy
+        # Validate sqlalchemy (not installed by default):
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+            ) from exc
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
@@ -1722,7 +1720,14 @@ class SQLTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
-        import sqlalchemy
+        # Validate sqlalchemy (not installed by default):
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+            ) from exc
 
         self._create_sql_table()
 
@@ -1763,7 +1768,14 @@ class SQLTarget(BaseStoreTarget):
             primary_key,
             create_table,
         ) = self._parse_url()
-        import sqlalchemy
+        # Validate sqlalchemy (not installed by default):
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            raise mlrun.errors.MLRunMissingDependencyError(
+                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+            ) from exc
 
         try:
             primary_key = ast.literal_eval(primary_key)

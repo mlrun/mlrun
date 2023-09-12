@@ -514,39 +514,43 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            partition_cols = []
-            if target_path.endswith(".parquet") or target_path.endswith(".pq"):
-                partition_cols = None
             target_df = df
-            if (
-                timestamp_key
-                and (self.partitioned or self.time_partitioning_granularity)
-                and partition_cols is not None
-            ):
-                target_df = df.copy(deep=False)
-                time_partitioning_granularity = self.time_partitioning_granularity
-                if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = (
-                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
-                    )
-                for unit, fmt in [
-                    ("year", "%Y"),
-                    ("month", "%m"),
-                    ("day", "%d"),
-                    ("hour", "%H"),
-                    ("minute", "%M"),
-                ]:
-                    partition_cols.append(unit)
-                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
-                        date_format=fmt
-                    )
-                    if unit == time_partitioning_granularity:
-                        break
-            partition_cols = (
-                partition_cols + self.partition_cols
-                if partition_cols
-                else self.partition_cols
-            )
+            partition_cols = []
+            if target_path.endswith(".parquet") or target_path.endswith(
+                ".pq"
+            ):  # single file
+                partition_cols = None
+            else:  # directory
+                if (
+                    timestamp_key
+                    and (self.partitioned or self.time_partitioning_granularity)
+                    and partition_cols is not None
+                ):
+                    target_df = df.copy(deep=False)
+                    time_partitioning_granularity = self.time_partitioning_granularity
+                    if not time_partitioning_granularity and self.partitioned:
+                        time_partitioning_granularity = (
+                            mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                        )
+                    for unit, fmt in [
+                        ("year", "%Y"),
+                        ("month", "%m"),
+                        ("day", "%d"),
+                        ("hour", "%H"),
+                        ("minute", "%M"),
+                    ]:
+                        partition_cols.append(unit)
+                        target_df[unit] = pd.DatetimeIndex(
+                            target_df[timestamp_key]
+                        ).format(date_format=fmt)
+                        if unit == time_partitioning_granularity:
+                            break
+                # partition will preform first on the timestamp and secondly on the other partition columns according to the given order
+                partition_cols = (
+                    partition_cols + self.partition_cols
+                    if partition_cols
+                    else self.partition_cols
+                )
             storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
                 target_df,

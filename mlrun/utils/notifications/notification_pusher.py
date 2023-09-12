@@ -42,8 +42,16 @@ class NotificationPusher(object):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications: typing.List[NotificationBase] = []
-        self._async_notifications: typing.List[NotificationBase] = []
+        self._sync_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
+        self._async_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
 
         for run in self._runs:
             if isinstance(run, dict):
@@ -74,11 +82,17 @@ class NotificationPusher(object):
 
         def _sync_push():
             for notification_data in self._sync_notifications:
-                self._push_notification_sync(
-                    notification_data[0],
-                    notification_data[1],
-                    notification_data[2],
-                )
+                try:
+                    self._push_notification_sync(
+                        notification_data[0],
+                        notification_data[1],
+                        notification_data[2],
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to push notification sync",
+                        error=mlrun.errors.err_to_str(exc),
+                    )
 
         async def _async_push():
             tasks = []
@@ -261,7 +275,7 @@ class NotificationPusher(object):
         update_notification_status_kwargs = {
             "run_uid": run.metadata.uid,
             "project": run.metadata.project,
-            "notification_object": notification_object,
+            "notification": notification_object,
             "status": mlrun.common.schemas.NotificationStatus.SENT,
         }
         try:

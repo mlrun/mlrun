@@ -1691,9 +1691,7 @@ class SQLTarget(BaseStoreTarget):
             import sqlalchemy
 
         except (ModuleNotFoundError, ImportError) as exc:
-            raise mlrun.errors.MLRunMissingDependencyError(
-                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-            ) from exc
+            self._raise_import_error(exc)
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
@@ -1725,9 +1723,7 @@ class SQLTarget(BaseStoreTarget):
             import sqlalchemy
 
         except (ModuleNotFoundError, ImportError) as exc:
-            raise mlrun.errors.MLRunMissingDependencyError(
-                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-            ) from exc
+            self._raise_import_error(exc)
 
         self._create_sql_table()
 
@@ -1773,9 +1769,7 @@ class SQLTarget(BaseStoreTarget):
             import sqlalchemy
 
         except (ModuleNotFoundError, ImportError) as exc:
-            raise mlrun.errors.MLRunMissingDependencyError(
-                "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
-            ) from exc
+            self._raise_import_error(exc)
 
         try:
             primary_key = ast.literal_eval(primary_key)
@@ -1820,6 +1814,11 @@ class SQLTarget(BaseStoreTarget):
                     f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key}//@{create_table}"
                 )
                 conn.close()
+
+    def _raise_import_error(self, exc):
+        raise mlrun.errors.MLRunMissingDependencyError(
+            "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+        ) from exc
 
 
 kind_to_driver = {

@@ -19,6 +19,7 @@ import tempfile
 import traceback
 import typing
 import uuid
+import warnings
 
 import kfp.compiler
 from kfp import dsl
@@ -76,18 +77,28 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args=None,
         name=None,
         handler=None,
+        # TODO: deprecated, remove in 1.6.0
+        ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
         image: str = None,
     ):
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
         self.engine = engine
         self.code = code
         self.path = path
         self.args = args
         self.name = name
         self.handler = handler
-        self.cleanup_ttl = cleanup_ttl
+        self.ttl = cleanup_ttl or ttl
+        self.cleanup_ttl = cleanup_ttl or ttl
         self.args_schema = args_schema
         self.run_local = False
         self._tmp_path = None
@@ -550,7 +561,7 @@ class _KFPRunner(_PipelineRunner):
 
         conf = new_pipe_metadata(
             artifact_path=artifact_path,
-            cleanup_ttl=workflow_spec.cleanup_ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
         compiler.Compiler().compile(pipeline, target, pipeline_conf=conf)
         workflow_spec.clear_tmp()
@@ -583,7 +594,7 @@ class _KFPRunner(_PipelineRunner):
             experiment=name or workflow_spec.name,
             namespace=namespace,
             artifact_path=artifact_path,
-            cleanup_ttl=workflow_spec.cleanup_ttl,
+            cleanup_ttl=workflow_spec.cleanup_ttl or workflow_spec.ttl,
         )
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
@@ -883,6 +894,8 @@ def load_and_run(
     namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
+    # TODO: deprecated, remove in 1.6.0
+    ttl: int = None,
     engine: str = None,
     local: bool = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
@@ -910,6 +923,8 @@ def load_and_run(
     :param namespace:           kubernetes namespace if other than default
     :param sync:                force functions sync before run
     :param dirty:               allow running the workflow when the git repo is dirty
+    :param ttl:                 pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
@@ -918,6 +933,14 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     """
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+            "This will be removed in 1.6.0",
+            # TODO: Remove this in 1.6.0
+            FutureWarning,
+        )
+
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",
@@ -969,7 +992,7 @@ def load_and_run(
         sync=sync,
         watch=False,  # Required for fetching the workflow_id
         dirty=dirty,
-        cleanup_ttl=cleanup_ttl,
+        cleanup_ttl=cleanup_ttl or ttl,
         engine=engine,
         local=local,
     )

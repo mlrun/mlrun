@@ -18,6 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
+import warnings
 from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
@@ -1411,6 +1412,8 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
+        # TODO: deprecated, remove in 1.6.0
+        ttl=None,
         cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
@@ -1423,9 +1426,18 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
+        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
+            and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -1433,7 +1445,7 @@ class HTTPRunDB(RunDBInterface):
             pipe_file = tempfile.NamedTemporaryFile(suffix=".yaml", delete=False).name
             conf = new_pipe_metadata(
                 artifact_path=artifact_path,
-                cleanup_ttl=cleanup_ttl,
+                cleanup_ttl=cleanup_ttl or ttl,
                 op_transformers=ops,
             )
             kfp.compiler.Compiler().compile(

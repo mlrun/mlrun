@@ -812,6 +812,18 @@ def new_pipe_metadata(
     return conf
 
 
+# TODO: remove in 1.6.0
+@deprecated(
+    version="1.3.0",
+    reason="'new_pipe_meta' will be removed in 1.6.0",
+    category=FutureWarning,
+)
+def new_pipe_meta(artifact_path=None, ttl=None, *args):
+    return new_pipe_metadata(
+        artifact_path=artifact_path, cleanup_ttl=ttl, op_transformers=args
+    )
+
+
 def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None

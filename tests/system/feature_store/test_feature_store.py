@@ -2400,7 +2400,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=myset, source=source, run_config=run_config
         )
         # push records to stream
@@ -2708,7 +2708,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset,
             source=v3io_source,
             run_config=run_config,
@@ -2916,7 +2916,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset, source=source, run_config=run_config, targets=targets
         )
 

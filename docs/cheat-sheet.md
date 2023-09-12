@@ -791,7 +791,7 @@ df = fstore.ingest(
 # Real-Time
 from mlrun.datastore.sources import HttpSource
 
-url = fstore.deploy_ingestion_service(
+url, _ = fstore.deploy_ingestion_service_v2(
     featureset=fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")]),
     source=HttpSource(key_field="ticker"),
     run_config=fstore.RunConfig(image='mlrun/mlrun', kind="serving")

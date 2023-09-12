@@ -60,6 +60,7 @@ class Notification(pydantic.BaseModel):
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None
     secret_params: typing.Optional[typing.Dict[str, typing.Any]] = None
+    reason: typing.Optional[str] = None
 
 
 class SetNotificationRequest(pydantic.BaseModel):

@@ -139,6 +139,9 @@ def make_notification(table):
         status = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        reason = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=True
+        )
 
     return Notification
 

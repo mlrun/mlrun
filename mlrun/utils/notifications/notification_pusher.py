@@ -310,6 +310,10 @@ class NotificationPusher(object):
         # fill reason only if failed
         if notification.status == mlrun.common.schemas.NotificationStatus.ERROR:
             notification.reason = reason or notification.reason
+
+            # limit reason to a max of 255 characters (for db reasons)
+            # but also for human readability reasons.
+            notification.reason = notification.reason[:255]
         else:
 
             # empty out the reason if the notification is in a non-error state

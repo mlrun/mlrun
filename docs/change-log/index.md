@@ -63,7 +63,7 @@
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4059 | Adds support for adding env's or secret to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
+| ML-4059 | Adds support for adding env vars or secrets to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
 
 
 ### UI
@@ -88,7 +88,7 @@
 
 ### Deprecations
 See [Deprecations](#deprecations), [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).
-
+ML-4075     Python 3.7 is not supported.
 
 ###  Closed issues
 | ID   | Description                                                    |

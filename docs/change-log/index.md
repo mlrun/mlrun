@@ -20,6 +20,9 @@
 | --- | ----------------------------------------------------------------- |
 | ML-4366 | MLRun Models and GPU images management. Previous images mlrun/ml-models and mlrun/ml-models-gpu are replaced by mlrun/mlrun and mlrun/mlrun-gpu. All other required images are installed per demo. |
 | ML-3644 | Now supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
+| ML-3705 | An image with an entrypoint command now executes in MLRun (and not only in Nuclio). |
+
+
 ### Alerts
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -37,11 +40,13 @@
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-2380 | **not in docs yet**  Enhanced description of Spark runtime. |
+| ML-3763 | GPUs unavailable for v3io stream workers. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
 
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3501 | Add support for running Spark jobs on Databricks cluster. See ../runtimes/databricks
+| ML-3501 | Add support for running Spark jobs on Databricks cluster. See {ref}`databricks`. |
+| ML-3784 | **not in docs yet** Now supports feature vector-defined feature-set relations and join-type (per-join). |
 
 
 
@@ -69,6 +74,11 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format.
+
+
+### Deprecations
+See [Deprecations](#deprecations)
+
 
 ###  Closed issues
 | ID   | Description                                                    |
@@ -749,10 +759,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
     
 | In   | ID |Description                                                      |
 |------ | ---- | --------------------------------------------------------------------|
-| v1.0.0 |  NA | MLRun / Nuclio do not support python 3.6.                             |
-| v1.3.0 |  NA | [Deprecated and removed APIs](#apis-deprecated-and-removed-from-v1-3-0-code) and [Deprecated REST APIs](#rest-apis-deprecated-and-removed-from-v1-3-0-code), [APIs deprecated in v1.3.0, will be removed in v1.5.0](#apis-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0), [CLI Deprecated in v1.3.0, will be removed in v1.5.0.](#cli-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0) |
-| v1.4.0 |  ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#rest-apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code).|
-
+| v1.0.0 | NA | MLRun / Nuclio do not support python 3.6.                             |
+| v1.3.0 | NA | [Deprecated and removed APIs](#apis-deprecated-and-removed-from-v1-3-0-code) and [Deprecated REST APIs](#rest-apis-deprecated-and-removed-from-v1-3-0-code), [APIs deprecated in v1.3.0, will be removed in v1.5.0](#apis-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0), [CLI Deprecated in v1.3.0, will be removed in v1.5.0.](#cli-deprecated-in-v1-3-0-will-be-removed-in-v1-5-0) |
+| v1.4.0 | ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#rest-apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code).|
+| v1.5.0 | ML-4010 | Artifact types BokehArtifact, ChartArtifact are deprecated. |
+| v1.5.0 | ML-4075 | python 3.7 is deprecated. |
 
 ## Future deprecations
 

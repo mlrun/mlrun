@@ -37,9 +37,9 @@ class DatastoreProfile(pydantic.BaseModel):
 
     @staticmethod
     def generate_secret_key(profile_name: str, project: str):
-        secret_name_separator = "-__-"
+        secret_name_separator = "."
         full_key = (
-            "mlrun.datastore-profiles"
+            "datastore-profiles"
             + secret_name_separator
             + project
             + secret_name_separator

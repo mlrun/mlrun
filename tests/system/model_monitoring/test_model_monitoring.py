@@ -88,6 +88,16 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert endpoint_before_update.status.state == "null"
 
+        # Check default drift thresholds
+        assert endpoint_before_update.spec.monitor_configuration == {
+            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
+
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
         current_stats = {

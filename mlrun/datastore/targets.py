@@ -518,8 +518,10 @@ class BaseStoreTarget(DataTargetBase):
             if target_path.endswith(".parquet") or target_path.endswith(".pq"):
                 partition_cols = None
             target_df = df
-            if timestamp_key and (
-                self.partitioned or self.time_partitioning_granularity
+            if (
+                timestamp_key
+                and (self.partitioned or self.time_partitioning_granularity)
+                and partition_cols is not None
             ):
                 target_df = df.copy(deep=False)
                 time_partitioning_granularity = self.time_partitioning_granularity

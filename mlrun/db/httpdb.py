@@ -18,7 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -666,6 +666,26 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
@@ -2161,7 +2181,7 @@ class HTTPRunDB(RunDBInterface):
         owner: str = None,
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        ] = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -2170,9 +2190,9 @@ class HTTPRunDB(RunDBInterface):
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
 
-            - ``full`` (default value) - Return full project objects.
+            - ``name_only`` (default value) - Return just the names of the projects.
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
-            - ``name_only`` - Return just the names of the projects.
+            - ``full``  - Return full project objects.
 
         :param labels: Filter by labels attached to the project.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
@@ -3314,12 +3334,26 @@ class HTTPRunDB(RunDBInterface):
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        self.api_call(method="DELETE", path=path)
+        return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str

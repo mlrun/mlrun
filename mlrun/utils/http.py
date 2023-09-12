@@ -52,7 +52,9 @@ class HTTPSessionWithRetry(requests.Session):
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
         ConnectionRefusedError,
         ConnectionAbortedError,
+        ConnectionError,
         # often happens when the server is overloaded and can't handle the load.
+        requests.exceptions.ConnectionError,
         requests.exceptions.ConnectTimeout,
         requests.exceptions.ReadTimeout,
         urllib3.exceptions.ReadTimeoutError,
@@ -166,12 +168,21 @@ class HTTPSessionWithRetry(requests.Session):
             )
             return False
 
+        def exception_is_retryable(exc, retryable_exceptions):
+            def err_chain(err):
+                while err:
+                    yield err
+                    err = err.__cause__
+
+            return any(
+                isinstance(err_in_chain, retryable_exc)
+                for retryable_exc in retryable_exceptions
+                for err_in_chain in err_chain(exc)
+            )
+
         # only retryable exceptions
-        exception_is_retryable = any(
-            msg in str(exc) for msg in self.HTTP_RETRYABLE_EXCEPTION_STRINGS
-        ) or any(
-            isinstance(exc, retryable_exc)
-            for retryable_exc in self.HTTP_RETRYABLE_EXCEPTIONS
+        exception_is_retryable = exception_is_retryable(
+            exc, self.HTTP_RETRYABLE_EXCEPTIONS
         )
 
         if not exception_is_retryable:

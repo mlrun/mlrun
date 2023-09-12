@@ -38,7 +38,7 @@ docker run \
 	-v "${ROOT_DIR}:/mlrun" \
 	-p 3306:3306 \
 	-e MYSQL_ROOT_PASSWORD="pass" \
-	-e MYSQL_ROOT_HOST=% \
+	-e MYSQL_ROOT_HOST="%" \
 	-e MYSQL_DATABASE="mlrun" \
 	-d \
 	mysql/mysql-server:8.0 \
@@ -56,6 +56,6 @@ while ! docker exec migration-db mysql --user=root --password=pass -e "status" >
 done
 
 
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" upgrade head
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "$(MLRUN_MIGRATION_MESSAGE)"
+alembic -c "${ROOT_DIR}/mlrun/api/alembic_mysql.ini" upgrade head
+alembic -c "${ROOT_DIR}/mlrun/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
 

@@ -186,9 +186,10 @@ class FunctionsDict:
         return self._functions.keys()
 
     def items(self):
-        return {
-            key: self.enrich(function, key) for key, function in self._functions.items()
-        }
+        return [
+            (key, self.enrich(function, key))
+            for key, function in self._functions.items()
+        ]
 
     def __len__(self):
         return len(self._functions)

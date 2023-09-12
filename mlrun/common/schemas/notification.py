@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import enum
 import typing
 
 import pydantic
@@ -42,6 +43,12 @@ class NotificationStatus(mlrun.common.types.StrEnum):
     ERROR = "error"
 
 
+class NotificationLimits(enum.Enum):
+    max_params_size = (
+        900 * 1024
+    )  # 900KB (k8s secret size limit is 1MB minus buffer for metadata)
+
+
 class Notification(pydantic.BaseModel):
     kind: NotificationKind
     name: str
@@ -52,6 +59,7 @@ class Notification(pydantic.BaseModel):
     params: typing.Dict[str, typing.Any] = None
     status: NotificationStatus = None
     sent_time: typing.Union[str, datetime.datetime] = None
+    secret_params: typing.Optional[typing.Dict[str, typing.Any]] = None
 
 
 class SetNotificationRequest(pydantic.BaseModel):

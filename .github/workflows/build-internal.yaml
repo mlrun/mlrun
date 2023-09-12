@@ -42,7 +42,7 @@ on:
         default: ''
         type: string
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,models-gpu,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,api,base,models,jupyter,test'
         default: ''
         type: string
       build_from_cache:

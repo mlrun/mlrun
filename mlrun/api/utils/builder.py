@@ -201,6 +201,8 @@ def make_kaniko_pod(
         dest,
         "--image-fs-extract-retry",
         config.httpdb.builder.kaniko_image_fs_extraction_retries,
+        "--push-retry",
+        config.httpdb.builder.kaniko_image_push_retry,
     ]
     for value, flag in [
         (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
@@ -334,6 +336,8 @@ def configure_kaniko_ecr_init_container(
         + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
     )
     init_container_env = {}
+
+    kpod.env = kpod.env or []
 
     if assume_instance_role:
 
@@ -622,11 +626,12 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
     if build.base_image:
+        # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
             "mlrun/mlrun",
+            "mlrun/mlrun-gpu",
             "mlrun/ml-base",
             "mlrun/ml-models",
-            "mlrun/ml-models-gpu",
         ]
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):

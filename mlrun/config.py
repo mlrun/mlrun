@@ -172,6 +172,7 @@ default_config = {
             "service_account": {"default": None},
         },
     },
+    # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -179,7 +180,7 @@ default_config = {
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
-            "mpijob": "mlrun/ml-models",
+            "mpijob": "mlrun/mlrun",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -285,7 +286,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "enabled",
+            "explicit_ack": "disabled",
         },
         "logs": {
             "decode": {
@@ -376,6 +377,8 @@ default_config = {
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
+            # kaniko sometimes fails to push image to registry due to network issues
+            "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -422,6 +425,9 @@ default_config = {
         "endpoint_store_connection": "",
     },
     "secret_stores": {
+        # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
+        # "secrets")
+        "test_mode_mock_secrets": False,
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
             # http://docker.for.mac.localhost:8200
@@ -494,6 +500,16 @@ default_config = {
     "default_function_pod_resources": {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
+    },
+    "default_spark_resources": {
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
     },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
@@ -905,7 +921,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():

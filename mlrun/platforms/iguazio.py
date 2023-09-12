@@ -249,11 +249,13 @@ def v3io_to_vol(name, remote="~/", access_key="", user="", secret=None):
 
     access_key = access_key or environ.get("V3IO_ACCESS_KEY")
     opts = {"accessKey": access_key}
+    user = user or environ.get("V3IO_USERNAME")
+    if user:
+        opts["dirsToCreate"] = f'[{{"name": "users//{user}", "permissions": 488}}]'
 
     remote = str(remote)
 
     if remote.startswith("~/"):
-        user = user or environ.get("V3IO_USERNAME")
         if not user:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 'user name/env must be specified when using "~" in path'

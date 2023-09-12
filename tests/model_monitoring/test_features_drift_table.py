@@ -19,10 +19,11 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import mlrun
 from mlrun.artifacts import Artifact
-from mlrun.data_types.infer import DFDataInfer
+from mlrun.data_types.infer import DFDataInfer, default_num_bins
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
 from mlrun.model_monitoring.model_monitoring_batch import (
     VirtualDrift,
@@ -125,3 +126,57 @@ def test_plot_produce(rundb_mock):
 
     # Clean up the temporary directory:
     output_path.cleanup()
+
+
+class TestCalculateInputsStatistics:
+    _HIST = "hist"
+    _DEFAULT_NUM_BINS = default_num_bins
+
+    @staticmethod
+    @pytest.fixture
+    def shared_feat() -> str:
+        return "orig_feat0"
+
+    @staticmethod
+    @pytest.fixture
+    def new_feat() -> str:
+        return "new_feat0"
+
+    @classmethod
+    @pytest.fixture
+    def sample_set_statistics(cls, shared_feat: str) -> dict:
+        return {
+            shared_feat: {
+                cls._HIST: [
+                    [0, *list(np.random.randint(10, size=cls._DEFAULT_NUM_BINS)), 0],
+                    [
+                        -10e20,
+                        *list(np.linspace(0, 1, cls._DEFAULT_NUM_BINS + 1)),
+                        10e20,
+                    ],
+                ]
+            }
+        }
+
+    @staticmethod
+    @pytest.fixture
+    def inputs_df(shared_feat: str, new_feat: str) -> pd.DataFrame:
+        return pd.DataFrame(
+            columns=[shared_feat, new_feat],
+            data=np.random.randint(-15, 20, size=(9, 2)),
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def input_statistics(sample_set_statistics: dict, inputs_df: pd.DataFrame) -> dict:
+        return calculate_inputs_statistics(
+            sample_set_statistics=sample_set_statistics, inputs=inputs_df
+        )
+
+    @classmethod
+    def test_histograms_length(
+        cls, shared_feat: str, new_feat: str, input_statistics: dict
+    ) -> None:
+        assert len(input_statistics[shared_feat][cls._HIST][0]) == len(
+            input_statistics[new_feat][cls._HIST][0]
+        ), "The lengths of the histograms do not match"

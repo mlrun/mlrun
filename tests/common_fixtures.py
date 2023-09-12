@@ -407,7 +407,10 @@ class RunDBMock:
             {
                 "flexVolume": {
                     "driver": "v3io/fuse",
-                    "options": {"accessKey": v3io_access_key},
+                    "options": {
+                        "accessKey": v3io_access_key,
+                        "dirsToCreate": f'[{{"name": "users//{v3io_user}", "permissions": 488}}]',
+                    },
                 },
                 "name": "v3io",
             }

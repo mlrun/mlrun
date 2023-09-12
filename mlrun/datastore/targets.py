@@ -964,6 +964,7 @@ class ParquetTarget(BaseStoreTarget):
                 if partition not in df.columns and partition in time_unit_to_op:
                     op = time_unit_to_op[partition]
                     df = df.withColumn(partition, op(timestamp_col))
+        return df
 
 
 class CSVTarget(BaseStoreTarget):

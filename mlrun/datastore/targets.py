@@ -515,16 +515,13 @@ class BaseStoreTarget(DataTargetBase):
                 if dir:
                     os.makedirs(dir, exist_ok=True)
             target_df = df
-            partition_cols = []
-            if target_path.endswith(".parquet") or target_path.endswith(
+            partition_cols = None  # single parquet file
+            if not target_path.endswith(".parquet") and not target_path.endswith(
                 ".pq"
-            ):  # single file
-                partition_cols = None
-            else:  # directory
-                if (
-                    timestamp_key
-                    and (self.partitioned or self.time_partitioning_granularity)
-                    and partition_cols is not None
+            ):  # directory
+                partition_cols = []
+                if timestamp_key and (
+                    self.partitioned or self.time_partitioning_granularity
                 ):
                     target_df = df.copy(deep=False)
                     time_partitioning_granularity = self.time_partitioning_granularity
@@ -545,8 +542,8 @@ class BaseStoreTarget(DataTargetBase):
                         ).format(date_format=fmt)
                         if unit == time_partitioning_granularity:
                             break
-                # partition will preform first on the timestamp and secondly on the other partition columns
-                # according to the given order
+                # Partitioning will be performed on timestamp_key and then on self.partition_cols
+                # (We might want to give the user control on this order as additional functionality)
                 partition_cols = (
                     partition_cols + (self.partition_cols or [])
                     if partition_cols

@@ -114,7 +114,7 @@ contents directly to the query engine.
 
 ### Databricks file system
 ```{Admonition} Note
-Spark ingestion does not support DBFS.
+Not supported by the spark and remote-spark runtimes.
 ```
 * `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
 * `DATABRICKS_TOKEN` &mdash; Databricks access token. 

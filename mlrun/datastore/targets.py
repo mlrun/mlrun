@@ -1584,7 +1584,6 @@ class SQLTarget(BaseStoreTarget):
         try:
             import sqlalchemy
 
-            self.sqlalchemy = sqlalchemy
         except (ModuleNotFoundError, ImportError) as exc:
             raise mlrun.errors.MLRunMissingDependencyError(
                 "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
@@ -1696,8 +1695,10 @@ class SQLTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
+        import sqlalchemy
+
         db_path, table_name, _, _, _, _ = self._parse_url()
-        engine = self.sqlalchemy.create_engine(db_path)
+        engine = sqlalchemy.create_engine(db_path)
         parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
         with engine.connect() as conn:
             query, parse_dates = _generate_sql_query_with_time_filter(
@@ -1721,6 +1722,8 @@ class SQLTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
+        import sqlalchemy
+
         self._create_sql_table()
 
         if hasattr(df, "rdd"):
@@ -1735,7 +1738,7 @@ class SQLTarget(BaseStoreTarget):
                 _,
             ) = self._parse_url()
             create_according_to_data = bool(create_according_to_data)
-            engine = self.sqlalchemy.create_engine(
+            engine = sqlalchemy.create_engine(
                 db_path,
             )
             connection = engine.connect()
@@ -1760,28 +1763,30 @@ class SQLTarget(BaseStoreTarget):
             primary_key,
             create_table,
         ) = self._parse_url()
+        import sqlalchemy
+
         try:
             primary_key = ast.literal_eval(primary_key)
             primary_key_for_check = primary_key
         except Exception:
             primary_key_for_check = [primary_key]
-        engine = self.sqlalchemy.create_engine(db_path)
+        engine = sqlalchemy.create_engine(db_path)
         with engine.connect() as conn:
-            metadata = self.sqlalchemy.MetaData()
+            metadata = sqlalchemy.MetaData()
             table_exists = engine.dialect.has_table(conn, table_name)
             if not table_exists and not create_table:
                 raise ValueError(f"Table named {table_name} is not exist")
 
             elif not table_exists and create_table:
                 TYPE_TO_SQL_TYPE = {
-                    int: self.sqlalchemy.Integer,
-                    str: self.sqlalchemy.String(self.attributes.get("varchar_len")),
-                    datetime.datetime: self.sqlalchemy.dialects.mysql.DATETIME(fsp=6),
-                    pd.Timestamp: self.sqlalchemy.dialects.mysql.DATETIME(fsp=6),
-                    bool: self.sqlalchemy.Boolean,
-                    float: self.sqlalchemy.Float,
-                    datetime.timedelta: self.sqlalchemy.Interval,
-                    pd.Timedelta: self.sqlalchemy.Interval,
+                    int: sqlalchemy.Integer,
+                    str: sqlalchemy.String(self.attributes.get("varchar_len")),
+                    datetime.datetime: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    pd.Timestamp: sqlalchemy.dialects.mysql.DATETIME(fsp=6),
+                    bool: sqlalchemy.Boolean,
+                    float: sqlalchemy.Float,
+                    datetime.timedelta: sqlalchemy.Interval,
+                    pd.Timedelta: sqlalchemy.Interval,
                 }
                 # creat new table with the given name
                 columns = []
@@ -1790,12 +1795,12 @@ class SQLTarget(BaseStoreTarget):
                     if col_type is None:
                         raise TypeError(f"{col_type} unsupported type")
                     columns.append(
-                        self.sqlalchemy.Column(
+                        sqlalchemy.Column(
                             col, col_type, primary_key=(col in primary_key_for_check)
                         )
                     )
 
-                self.sqlalchemy.Table(table_name, metadata, *columns)
+                sqlalchemy.Table(table_name, metadata, *columns)
                 metadata.create_all(engine)
                 if_exists = "append"
                 self.path = (

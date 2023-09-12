@@ -545,7 +545,8 @@ class BaseStoreTarget(DataTargetBase):
                         ).format(date_format=fmt)
                         if unit == time_partitioning_granularity:
                             break
-                # partition will preform first on the timestamp and secondly on the other partition columns according to the given order
+                # partition will preform first on the timestamp and secondly on the other partition columns
+                # according to the given order
                 partition_cols = (
                     partition_cols + self.partition_cols
                     if partition_cols

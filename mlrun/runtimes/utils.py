@@ -544,6 +544,7 @@ def enrich_function_from_dict(function, function_dict):
         "volume_mounts",
         "env",
         "resources",
+        "image",
         "image_pull_policy",
         "replicas",
         "node_name",

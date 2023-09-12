@@ -13,7 +13,7 @@ A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguaz
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
-* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by Spark ingestion)
+* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes "spark" and "remote-spark" )
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`

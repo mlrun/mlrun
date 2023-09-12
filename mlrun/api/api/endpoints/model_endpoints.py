@@ -13,8 +13,6 @@
 # limitations under the License.
 #
 import json
-import os
-import warnings
 from http import HTTPStatus
 from typing import List, Optional
 
@@ -30,60 +28,6 @@ import mlrun.common.schemas
 from mlrun.errors import MLRunConflictError
 
 router = APIRouter(prefix="/projects/{project}/model-endpoints")
-
-
-@router.put(
-    "/{endpoint_id}",
-    response_model=mlrun.common.schemas.ModelEndpoint,
-)
-async def create_or_patch(
-    project: str,
-    endpoint_id: str,
-    model_endpoint: mlrun.common.schemas.ModelEndpoint,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(
-        mlrun.api.api.deps.authenticate_request
-    ),
-    db_session: Session = Depends(mlrun.api.api.deps.get_db_session),
-) -> mlrun.common.schemas.ModelEndpoint:
-    """
-    Either create or update the record of a given `ModelEndpoint` object.
-    Leaving here for backwards compatibility.
-    """
-
-    warnings.warn(
-        "This PUT call is deprecated, please use POST for create or PATCH for update"
-        "This will be removed in 1.5.0",
-        # TODO: Remove this API in 1.5.0
-        FutureWarning,
-    )
-
-    await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.model_endpoint,
-        project,
-        endpoint_id,
-        mlrun.common.schemas.AuthorizationAction.store,
-        auth_info,
-    )
-    # get_access_key will validate the needed auth (which is used later) exists in the request
-    mlrun.api.crud.model_monitoring.helpers.get_access_key(auth_info)
-    if project != model_endpoint.metadata.project:
-        raise MLRunConflictError(
-            f"Can't store endpoint of project {model_endpoint.metadata.project} into project {project}"
-        )
-    if endpoint_id != model_endpoint.metadata.uid:
-        raise MLRunConflictError(
-            f"Mismatch between endpoint_id {endpoint_id} and ModelEndpoint.metadata.uid {model_endpoint.metadata.uid}."
-            f"\nMake sure the supplied function_uri, and model are configured as intended"
-        )
-    # Since the endpoint records are created automatically, at point of serving function deployment, we need to use
-    # V3IO_ACCESS_KEY here
-    return await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().create_or_patch,
-        db_session=db_session,
-        access_key=os.environ.get("V3IO_ACCESS_KEY"),
-        model_endpoint=model_endpoint,
-        auth_info=auth_info,
-    )
 
 
 @router.post(

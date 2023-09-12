@@ -548,7 +548,7 @@ class BaseStoreTarget(DataTargetBase):
                 # partition will preform first on the timestamp and secondly on the other partition columns
                 # according to the given order
                 partition_cols = (
-                    partition_cols + self.partition_cols
+                    partition_cols + (self.partition_cols or [])
                     if partition_cols
                     else self.partition_cols
                 )

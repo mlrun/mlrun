@@ -33,16 +33,6 @@ _V3IO_ACCESS_KEY_NAME = "V3IO_ACCESS_KEY"
 RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
 
-_KEY_SEP = "_"
-
-
-def application_result_key(endpoint_id: str, app_name: str) -> str:
-    """
-    Combine an endpoint ID and a monitoring application name into a
-    unique key for the KV storage.
-    """
-    return f"{endpoint_id}{_KEY_SEP}{app_name}"
-
 
 class _WriterEventError:
     pass

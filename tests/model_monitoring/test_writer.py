@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Type
-from uuid import UUID
 
 import pytest
 
@@ -23,19 +22,7 @@ from mlrun.model_monitoring.writer import (
     WriterEvent,
     _WriterEventTypeError,
     _WriterEventValueError,
-    application_result_key,
 )
-
-
-@pytest.mark.parametrize("endpoint_ids", [[UUID(int=4), "flsdkl2210kd"], ["justepid"]])
-@pytest.mark.parametrize("app_names", [["app_1", "app_2"]])
-def test_unique_kv_keys(endpoint_ids: list[str], app_names: list[str]) -> None:
-    keys = [
-        application_result_key(endpoint_id=ep_id, app_name=app_name)
-        for ep_id in endpoint_ids
-        for app_name in app_names
-    ]
-    assert len(set(keys)) == len(keys), "Some keys are not unique"
 
 
 @pytest.mark.parametrize(

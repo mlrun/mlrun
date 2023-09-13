@@ -173,7 +173,8 @@ jobs:
             --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ steps.computed_params.outputs.mlrun_docker_registry }}" \
             --set mlrun.api.extraEnvKeyValue.MLRUN_LOG_LEVEL="DEBUG" \
             --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
-            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100"
+            --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \ 
+            --set mlrun.api.extraEnvKeyValue.MLRUN_FEATURE_STORE__DEFAULT_TARGETS="parquet"
 
     - name: Prepare system tests env
       run: |

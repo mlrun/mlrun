@@ -27,6 +27,12 @@ from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
 
+# Fields to encode before storing in the KV table or to decode after retrieving
+fields_to_encode_decode = [
+    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS,
+    mlrun.common.schemas.model_monitoring.EventFieldType.CURRENT_STATS,
+]
+
 
 class KVModelEndpointStore(ModelEndpointStore):
     """
@@ -51,6 +57,11 @@ class KVModelEndpointStore(ModelEndpointStore):
         :param endpoint: model endpoint dictionary that will be written into the DB.
         """
 
+        for field in fields_to_encode_decode:
+            if field in endpoint:
+                # Encode to binary data
+                endpoint[field] = self._encode_decode_field(endpoint[field])
+
         self.client.kv.put(
             container=self.container,
             table_path=self.path,
@@ -69,6 +80,11 @@ class KVModelEndpointStore(ModelEndpointStore):
                            of the attributes dictionary should exist in the KV table.
 
         """
+
+        for field in fields_to_encode_decode:
+            if field in attributes:
+                # Encode to binary data
+                attributes[field] = self._encode_decode_field(attributes[field])
 
         self.client.kv.update(
             container=self.container,
@@ -116,6 +132,13 @@ class KVModelEndpointStore(ModelEndpointStore):
             access_key=self.access_key,
         )
         endpoint = endpoint.output.item
+
+        for field in fields_to_encode_decode:
+            if field in endpoint:
+                # Decode binary data
+                endpoint[field] = self._encode_decode_field(
+                    endpoint[field], encode=False
+                )
 
         if not endpoint:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -512,3 +535,15 @@ class KVModelEndpointStore(ModelEndpointStore):
             ] = endpoint[
                 mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID
             ]
+
+    @staticmethod
+    def _encode_decode_field(
+        field: typing.Union[str, bytes], encode: bool = True
+    ) -> typing.Union[str, bytes]:
+        """Encode or decode a provided field. Mainly used for storing (or retrieving) the data in the KV table"""
+
+        if encode and isinstance(field, str):
+            return field.encode("ascii")
+        elif not encode and isinstance(field, bytes):
+            return field.decode()
+        return field

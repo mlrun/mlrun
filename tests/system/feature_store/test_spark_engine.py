@@ -138,7 +138,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     @classmethod
     def _setup_remote_run(cls):
-        from mlrun import get_run_db
         from mlrun.run import new_function
         from mlrun.runtimes import RemoteSparkRuntime
 
@@ -158,14 +157,13 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 RemoteSparkRuntime.deploy_default_image()
             else:
                 sj = new_function(
-                    kind="remote-spark", name="remote-spark-default-image-deploy-temp"
+                    kind="remote-spark", name=RemoteSparkRuntime.default_image_function
                 )
 
                 sj.spec.build.image = RemoteSparkRuntime.default_image
                 sj.with_spark_service(spark_service="dummy-spark")
                 sj.spec.build.commands = ["pip install git+" + cls.test_branch]
                 sj.deploy(with_mlrun=False)
-                get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True
 
     @staticmethod

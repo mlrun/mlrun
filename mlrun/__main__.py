@@ -1027,7 +1027,7 @@ def logs(uid, project, offset, db, watch):
     "-os",
     is_flag=True,
     help="Deprecated (Saving schedules is now an upsert opertaion)."
-         " Overwrite a schedule when submitting a new one with the same name.",
+    " Overwrite a schedule when submitting a new one with the same name.",
 )
 @click.option(
     "--save-secrets",

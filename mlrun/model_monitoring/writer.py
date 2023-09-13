@@ -18,6 +18,7 @@ from typing import Any, NewType, Tuple
 import pandas as pd
 from v3io_frames.client import ClientBase
 from v3io_frames.errors import Error as V3IOFramesError
+from v3io.dataplane import Client as V3IOClient
 
 import mlrun.common.model_monitoring
 import mlrun.model_monitoring
@@ -65,7 +66,7 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(self, project: str) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._kv_db = self._get_kv_db()
+        self._kv_client = self._get_v3io_client().kv
 
         self._v3io_access_key = os.getenv(_V3IO_ACCESS_KEY_NAME)
         self._tsdb_path, self._frames_client = self._get_v3io_frames_client()
@@ -74,6 +75,8 @@ class ModelMonitoringWriter(StepToDict):
         return mlrun.model_monitoring.get_model_endpoint_store(project=self.project)
 
     def _get_v3io_frames_client(self) -> Tuple[str, ClientBase]:
+    def _get_v3io_client(self) -> V3IOClient:
+        return mlrun.utils.v3io_clients.get_v3io_client()
         tsdb_path = mlrun.mlconf.get_model_monitoring_file_target_path(
             project=self.project,
             kind=FileTargetKind.EVENTS,
@@ -95,9 +98,13 @@ class ModelMonitoringWriter(StepToDict):
         event = AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
-        key = application_result_key(endpoint_id=endpoint_id, app_name=app_name)
-        self._kv_db.update_model_endpoint(endpoint_id=key, attributes=event)
-        logger.debug("Updated V3IO KV successfully", key=key)
+        self._kv_client.put(
+            container=f"users/pipelines/project/{self.project}/monitoring-apps",
+            table_path=endpoint_id,
+            key=app_name,
+            attributes=event,
+        )
+        logger.debug("Updated V3IO KV successfully", key=app_name)
 
     def _update_tsdb(self, event: AppResultEvent) -> None:
         try:

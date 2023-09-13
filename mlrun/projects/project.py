@@ -1818,7 +1818,7 @@ class MlrunProject(ModelObj):
                                     the function object/yaml
         :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           add (clone) the current repo to the build source
-        :param tag:                 function version tag (none for current or 'latest')
+        :param tag:                 function version tag to set (none for current or 'latest')
                                     specifying a tag as a parameter will update the tagged function entry (myfunc:v1)
                                     and the untagged entry (myfunc) under the project
         :param requirements:        a list of python packages
@@ -1897,14 +1897,13 @@ class MlrunProject(ModelObj):
                 function_object.with_requirements(
                     requirements, requirements_file=requirements_file
                 )
-            if tag:
-                function_object.metadata.tag = tag
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
 
         else:
             raise ValueError("'func' parameter must be a function url or object")
 
+        function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
         # resolved_function_name is the name without the tag or the actual function name if it was not specified
         # if the name contains the tag we only update the tagged entry
         # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries

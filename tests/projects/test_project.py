@@ -669,17 +669,26 @@ def test_set_function_with_multiple_tags():
     )
 
 
-def test_set_function_untagged_name():
+@pytest.mark.parametrize(
+    "name, tag, expected_name, expected_tag",
+    [
+        ("handler:v2", None, "handler", "v2"),
+        ("handler", None, "handler", "latest"),
+        ("handler", "v2", "handler", "v2"),
+    ],
+)
+def test_set_function_name_and_tag(name, tag, expected_name, expected_tag):
     project = mlrun.new_project("set-func-untagged-name", save=False)
     func = project.set_function(
         func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
-        name="handler:v2",
+        name=name,
         kind="job",
         image="mlrun/mlrun",
         handler="myhandler",
+        tag=tag,
     )
-    assert func.metadata.name == "handler"
-    assert func.metadata.tag == "v2"
+    assert func.metadata.name == expected_name
+    assert func.metadata.tag == expected_tag
 
 
 def test_set_function_from_object():

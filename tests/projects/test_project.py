@@ -652,6 +652,23 @@ def test_set_function_with_conflicting_tag():
     )
 
 
+def test_set_function_with_multiple_tags():
+    project = mlrun.new_project("set-func-multi-tags", save=False)
+    name = "handler:v2:v3"
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name=name,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+        )
+    assert (
+        f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+        in str(exc.value)
+    )
+
+
 def test_set_function_from_object():
     project = mlrun.new_project("set-func-from-object", save=False)
     func = mlrun.code_to_function(
@@ -665,6 +682,12 @@ def test_set_function_from_object():
     project_function = project.set_function(func)
     assert project_function.metadata.name == "handler"
     assert project_function.metadata.tag == "v1"
+
+    project_function = project.get_function("handler")
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+    assert "handler:v1" not in project.spec._function_objects
 
 
 def test_set_function_from_object_override_tag():
@@ -681,9 +704,24 @@ def test_set_function_from_object_override_tag():
     assert project_function_v2.metadata.name == "handler"
     assert project_function_v2.metadata.tag == "v2"
 
+    project_function_v2 = project.get_function("handler")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v2 = project.get_function("handler:v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
     project_function_v3 = project.set_function(func, name="other-func:v3")
     assert project_function_v3.metadata.name == "other-func"
     assert project_function_v3.metadata.tag == "v3"
+
+    project_function_v3 = project.get_function("other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    # only name param (other-func:v3) should be set
+    assert "other-func" not in project.spec._function_objects
 
     # assert original function was not changed
     assert func.metadata.name == "handler"

@@ -1809,15 +1809,18 @@ class MlrunProject(ModelObj):
         :param func:                function object or spec/code url, None refers to current Notebook
         :param name:                name of the function (under the project), can be specified with a tag that matches
                                     the 'tag' parameter to support versions (e.g. myfunc:v1)
+                                    specifying a tag in the name will update the tagged function entry alone (myfunc:v1)
+                                    specifying a tag as a parameter will update the tagged function entry (myfunc:v1)
+                                    and the untagged entry (myfunc)
         :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
                                     default: job
         :param image:               docker image to be used, can also be specified in
                                     the function object/yaml
         :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
         :param with_repo:           add (clone) the current repo to the build source
-        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
-                                    if tag is specified and name is empty, the function key (under the project)
-                                    will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param tag:                 function version tag (none for current or 'latest')
+                                    specifying a tag as a parameter will update the tagged function entry (myfunc:v1)
+                                    and the untagged entry (myfunc) under the project
         :param requirements:        a list of python packages
         :param requirements_file:   path to a python requirements file
 
@@ -1838,9 +1841,11 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
+
+        name = mlrun.utils.normalize_name(name) if name else name
         untagged_name = name
         # validate tag in name if specified
-        if len(split_name := name.split(":", maxsplit=1)) > 1:
+        if len(split_name := name.split(":")) == 2:
             untagged_name, name_tag = split_name
             if tag and name_tag and tag != name_tag:
                 raise ValueError(
@@ -1848,8 +1853,11 @@ class MlrunProject(ModelObj):
                 )
 
             tag = tag or name_tag
+        elif len(split_name) > 2:
+            raise ValueError(
+                f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+            )
 
-        name = mlrun.utils.normalize_name(name) if name else name
         if isinstance(func, str):
 
             # in hub or db functions name defaults to the function name
@@ -1897,13 +1905,15 @@ class MlrunProject(ModelObj):
         else:
             raise ValueError("'func' parameter must be a function url or object")
 
-        if tag and not resolved_function_name.endswith(f":{tag}"):
-            # Update the tagged key as well for consistency
-            self.spec.set_function(
-                f"{resolved_function_name}:{tag}", function_object, func
-            )
+        # resolved_function_name is the name without the tag or the actual function name if it was not specified
+        # if the name contains the tag we only update the tagged entry
+        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
+        # for consistency
+        name = name or resolved_function_name
+        if tag and not name.endswith(f":{tag}"):
+            self.spec.set_function(f"{name}:{tag}", function_object, func)
 
-        self.spec.set_function(resolved_function_name, function_object, func)
+        self.spec.set_function(name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -3210,8 +3220,11 @@ def _init_function_from_obj(
         build.code_origin = origin
     if project.metadata.name:
         func.metadata.project = project.metadata.name
+
+    # TODO: deprecate project tag
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
+
     if name:
         func.metadata.name = name
     return func.metadata.name, func

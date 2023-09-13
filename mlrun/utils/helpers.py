@@ -713,6 +713,7 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
         return uri, is_hub_uri
 
     db = mlrun.get_run_db()
+
     name = uri.removeprefix(hub_prefix)
     tag = "latest"
     source_name = ""

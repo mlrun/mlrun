@@ -424,9 +424,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     assert len(project_function_objects) == len(expected_function_objects)
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
+        project_function = project_function_objects[function_name].to_dict()
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
-                project_function_objects[function_name].to_dict(),
+                project_function,
                 function_object.to_dict(),
                 ignore_order=True,
                 exclude_paths=["root['spec']['build']['code_origin']"],
@@ -555,14 +559,14 @@ def test_set_func_with_tag():
         image="mlrun/mlrun",
     )
     func = project.get_function("desc1")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc2",
         image="mlrun/mlrun",
     )
     func = project.get_function("desc2")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
 
 
 def test_set_function_with_tagged_key():

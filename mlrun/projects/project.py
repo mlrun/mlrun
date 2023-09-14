@@ -38,6 +38,7 @@ import requests
 import yaml
 from deprecated import deprecated
 
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.db
 import mlrun.errors
@@ -1811,29 +1812,30 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:                function object or spec/code url, None refers to current Notebook
-        :param name:                name of the function (under the project), can be specified with a tag to support
-                                    versions (e.g. myfunc:v1)
-        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    default: job
-        :param image:               docker image to be used, can also be specified in
-                                    the function object/yaml
-        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           add (clone) the current repo to the build source
-        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
-                                    if tag is specified and name is empty, the function key (under the project)
-                                    will be enriched with the tag value. (i.e. 'function-name:tag')
-        :param requirements:        a list of python packages
-        :param requirements_file:   path to a python requirements file
+        :param func:                Function object or spec/code url, None refers to current Notebook
+        :param name:                Name of the function (under the project), can be specified with a tag to support
+                                    Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
+                                    must match the tag parameter.
+                                    Specifying a tag in the name will update the project's tagged function (myfunc:v1)
+        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    Default: job
+        :param image:               Docker image to be used, can also be specified in the function object/yaml
+        :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           Add (clone) the current repo to the build source
+        :param tag:                 Function version tag to set (none for current or 'latest')
+                                    Specifying a tag as a parameter will update the project's tagged function
+                                    (myfunc:v1) and the untagged function (myfunc)
+        :param requirements:        A list of python packages
+        :param requirements_file:   Path to a python requirements file
 
-        :returns: project object
+        :returns: function object
         """
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if not is_ipython:
                 raise ValueError(
-                    "function path or module must be specified (when not running inside a Notebook)"
+                    "Function path or module must be specified (when not running inside a Notebook)"
                 )
             from IPython import get_ipython
 
@@ -1843,14 +1845,31 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
+
         name = mlrun.utils.normalize_name(name) if name else name
+        untagged_name = name
+        # validate tag in name if specified
+        if len(split_name := name.split(":")) == 2:
+            untagged_name, name_tag = split_name
+            if tag and name_tag and tag != name_tag:
+                raise ValueError(
+                    f"Tag parameter ({tag}) and tag in function name ({name}) must match"
+                )
+
+            tag = tag or name_tag
+        elif len(split_name) > 2:
+            raise ValueError(
+                f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+            )
+
         if isinstance(func, str):
+
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
-                raise ValueError("function name must be specified")
+                raise ValueError("Function name must be specified")
             function_dict = {
                 "url": func,
-                "name": name,
+                "name": untagged_name,
                 "kind": kind,
                 "image": image,
                 "handler": handler,
@@ -1863,13 +1882,14 @@ class MlrunProject(ModelObj):
                 func, self
             )
             func["name"] = resolved_function_name
+
         elif hasattr(func, "to_dict"):
             resolved_function_name, function_object = _init_function_from_obj(
-                func, self, name=name
+                func, self, name=untagged_name
             )
             if handler:
                 raise ValueError(
-                    "default handler cannot be set for existing function object"
+                    "Default handler cannot be set for existing function object"
                 )
             if image:
                 function_object.spec.image = image
@@ -1881,17 +1901,21 @@ class MlrunProject(ModelObj):
                     requirements, requirements_file=requirements_file
                 )
             if not resolved_function_name:
-                raise ValueError("function name must be specified")
+                raise ValueError("Function name must be specified")
+
         else:
-            raise ValueError("func must be a function url or object")
+            raise ValueError("'func' parameter must be a function url or object")
 
-        if tag and not resolved_function_name.endswith(f":{tag}"):
-            # Update the tagged key as well for consistency
-            self.spec.set_function(
-                f"{resolved_function_name}:{tag}", function_object, func
-            )
+        function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
+        # resolved_function_name is the name without the tag or the actual function name if it was not specified
+        # if the name contains the tag we only update the tagged entry
+        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
+        # for consistency
+        name = name or resolved_function_name
+        if tag and not name.endswith(f":{tag}"):
+            self.spec.set_function(f"{name}:{tag}", function_object, func)
 
-        self.spec.set_function(resolved_function_name, function_object, func)
+        self.spec.set_function(name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -3190,31 +3214,32 @@ def _init_function_from_dict(
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
-        raise ValueError("function missing a url or a spec or a module")
+        raise ValueError("Function missing a url or a spec or a module")
 
     relative_url = url
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f["spec"])
+        func = new_function(name, runtime=f, tag=tag)
+
     elif not url and has_module:
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
 
     elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
-        if tag:
-            raise ValueError(
-                "function with db:// or hub:// url or .yaml file, does not support tag value "
-            )
         func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
+        if tag:
+            func.spec.tag = tag
+
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
+
     elif url.endswith(".py"):
         if not image and not project.default_image and kind != "local":
             raise ValueError(
@@ -3239,8 +3264,9 @@ def _init_function_from_dict(
                 handler=handler,
                 tag=tag,
             )
+
     else:
-        raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
+        raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
         # mark source to be enriched before run with project source (enrich_function_object)
@@ -3248,7 +3274,7 @@ def _init_function_from_dict(
     if requirements:
         func.with_requirements(requirements)
 
-    return _init_function_from_obj(func, project, name)
+    return _init_function_from_obj(func, project)
 
 
 def _init_function_from_obj(
@@ -3267,9 +3293,14 @@ def _init_function_from_obj(
         build.code_origin = origin
     if project.metadata.name:
         func.metadata.project = project.metadata.name
+
+    # TODO: deprecate project tag
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
-    return name or func.metadata.name, func
+
+    if name:
+        func.metadata.name = name
+    return func.metadata.name, func
 
 
 def _has_module(handler, kind):

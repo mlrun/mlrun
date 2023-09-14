@@ -61,10 +61,11 @@ class ModelMonitoringWriter(StepToDict):
         self._create_tsdb_table()
 
     def _get_v3io_client(self) -> V3IOClient:
-        return mlrun.utils.v3io_clients.get_v3io_client()
+        return mlrun.utils.v3io_clients.get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
 
     def _get_v3io_frames_client(self) -> V3IOFramesClient:
         return mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
             container=self._v3io_container,
         )
 

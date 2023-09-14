@@ -1806,25 +1806,23 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:                function object or spec/code url, None refers to current Notebook
-        :param name:                name of the function (under the project), can be specified with a tag that matches
-                                    the 'tag' parameter to support versions (e.g. myfunc:v1)
-                                    specifying a tag in the name will update the tagged function entry alone (myfunc:v1)
-                                    specifying a tag as a parameter will update the tagged function entry (myfunc:v1)
-                                    and the untagged entry (myfunc)
-        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    default: job
-        :param image:               docker image to be used, can also be specified in
-                                    the function object/yaml
-        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           add (clone) the current repo to the build source
-        :param tag:                 function version tag to set (none for current or 'latest')
-                                    specifying a tag as a parameter will update the tagged function entry (myfunc:v1)
-                                    and the untagged entry (myfunc) under the project
-        :param requirements:        a list of python packages
-        :param requirements_file:   path to a python requirements file
+        :param func:                Function object or spec/code url, None refers to current Notebook
+        :param name:                Name of the function (under the project), can be specified with a tag to support
+                                    Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
+                                    must match the tag parameter.
+                                    Specifying a tag in the name will update the project's tagged function (myfunc:v1)
+        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    Default: job
+        :param image:               Docker image to be used, can also be specified in the function object/yaml
+        :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           Add (clone) the current repo to the build source
+        :param tag:                 Function version tag to set (none for current or 'latest')
+                                    Specifying a tag as a parameter will update the project's tagged function
+                                    (myfunc:v1) and the untagged function (myfunc)
+        :param requirements:        A list of python packages
+        :param requirements_file:   Path to a python requirements file
 
-        :returns: project object
+        :returns: function object
         """
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
@@ -1880,7 +1878,6 @@ class MlrunProject(ModelObj):
             func["name"] = resolved_function_name
 
         elif hasattr(func, "to_dict"):
-            func = func.copy()
             resolved_function_name, function_object = _init_function_from_obj(
                 func, self, name=untagged_name
             )

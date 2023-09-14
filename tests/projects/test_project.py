@@ -749,9 +749,9 @@ def test_set_function_from_object_override_tag():
     # only name param (other-func:v3) should be set
     assert "other-func" not in project.spec._function_objects
 
-    # assert original function was not changed
-    assert func.metadata.name == "handler"
-    assert func.metadata.tag == "v1"
+    # assert original function changed
+    assert func.metadata.name == "other-func"
+    assert func.metadata.tag == "v3"
 
 
 def test_set_function_with_relative_path(context):

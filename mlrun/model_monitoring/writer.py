@@ -28,6 +28,7 @@ from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
+_TSDB_RATE = "1/s"
 RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
 
@@ -74,6 +75,7 @@ class ModelMonitoringWriter(StepToDict):
             backend=_TSDB_BE,
             table=self._TSDB_TABLE,
             if_exists=IGNORE,
+            rate=_TSDB_RATE,
         )
 
     def _update_kv_db(self, event: AppResultEvent) -> None:

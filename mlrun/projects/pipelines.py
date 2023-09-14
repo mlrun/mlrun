@@ -776,7 +776,7 @@ class _RemoteRunner(_PipelineRunner):
         run_db = mlrun.get_run_db()
         try:
             logger.info(
-                f"Submitting remote workflow",
+                "Submitting remote workflow",
                 workflow_engine=workflow_spec.engine,
                 schedule=workflow_spec.schedule,
                 project_name=project.name,

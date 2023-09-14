@@ -1487,7 +1487,7 @@ class HTTPRunDB(RunDBInterface):
             raise OSError(f"Error: cannot cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"Failed submit pipeline", respones_text=resp.text)
+            logger.error("Failed submit pipeline", respones_text=resp.text)
             raise ValueError(f"Failed submit pipeline, {resp.text}")
 
         resp = resp.json()

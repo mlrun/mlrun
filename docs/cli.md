@@ -31,25 +31,25 @@ Usage: mlrun build [OPTIONS] FUNC_URL
 
 Example:  `mlrun build myfunc.yaml`
 
-| Flag                               | Description                                                                                                  |
-|------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;name                 | Function name                                                                                                |
-| &minus;&minus;project              | Project name                                                                                                 |
-| &minus;&minus;tag                  | Function tag                                                                                                 |
-| -i, &minus;&minus;image            | Target image path                                                                                            |
-| -s, &minus;&minus;source           | Path/URL of the function source code. A PY file, or if `-a                                                   |--archive`  is specified, a directory to archive. (Default: './') |
-| -b, &minus;&minus;base-image       | Base Docker image                                                                                            |
-| -c, &minus;&minus;command          | Build commands; for example, '-c pip install pandas'                                                         |
-| &minus;&minus;secret&minus;name    | Name of a container-registry secret                                                                          |
-| -a, &minus;&minus;archive          | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s |--source`) are archived into a TAR file and then extracted into the archive directory  |
-| &minus;&minus;silent               | Do not show build logs                                                                                       |
-| &minus;&minus;with&minus;mlrun     | Add the MLRun package ("mlrun")                                                                              |
-| &minus;&minus;db                   | Save the run results to path or DB url                                                                       |
-| -r, &minus;&minus;runtime          | Function spec dict, for pipeline usage                                                                       |
-| &minus;&minus;kfp                  | Running inside Kubeflow Piplines, do not use                                                                 |
-| &minus;&minus;skip                 | Skip if already deployed                                                                                     |
-| &minus;&minus;env&minus;file       | Path to .env file to load config/variables from                                                              |
-| &minus;&minus;ensure&minus;project | Ensure the project exists, if not, create project                                                            |
+| Flag                               | Description                                                                                                                                                                                        |
+|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| &minus;&minus;name                 | Function name                                                                                                                                                                                      |
+| &minus;&minus;project              | Project name                                                                                                                                                                                       |
+| &minus;&minus;tag                  | Function tag                                                                                                                                                                                       |
+| -i, &minus;&minus;image            | Target image path                                                                                                                                                                                  |
+| -s, &minus;&minus;source           | Path/URL of the function source code. A PY file, or if `-a/--archive`  is specified, a directory to archive. (Default: './')                                                                       |
+| -b, &minus;&minus;base-image       | Base Docker image                                                                                                                                                                                  |
+| -c, &minus;&minus;command          | Build commands; for example, '-c pip install pandas'                                                                                                                                               |
+| &minus;&minus;secret&minus;name    | Name of a container-registry secret                                                                                                                                                                |
+| -a, &minus;&minus;archive          | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s/--source`) are archived into a TAR file and then extracted into the archive directory |
+| &minus;&minus;silent               | Do not show build logs                                                                                                                                                                             |
+| &minus;&minus;with&minus;mlrun     | Add the MLRun package ("mlrun")                                                                                                                                                                    |
+| &minus;&minus;db                   | Save the run results to path or DB url                                                                                                                                                             |
+| -r, &minus;&minus;runtime          | Function spec dict, for pipeline usage                                                                                                                                                             |
+| &minus;&minus;kfp                  | Running inside Kubeflow Piplines, do not use                                                                                                                                                       |
+| &minus;&minus;skip                 | Skip if already deployed                                                                                                                                                                           |
+| &minus;&minus;env&minus;file       | Path to .env file to load config/variables from                                                                                                                                                    |
+| &minus;&minus;ensure&minus;project | Ensure the project exists, if not, create project                                                                                                                                                  |
 
 
 > **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.

@@ -197,9 +197,9 @@ class PackagersManager:
             if not isinstance(obj, dict):
                 raise MLRunInvalidArgumentError(
                     f"The log hint key '{log_hint_key}' has a dictionary unpacking prefix ('**') to log an arbitrary "
-                    f"number of objects within the dictionary, but a dictionary was not provided; the given object is "
-                    f"of type '{self._get_type_name(type(obj))}'. The object is currently ignored. To log it, "
-                    f"delete the '**' prefix from the key."
+                    f"number of objects within the dictionary, but a dictionary was not provided, the given object is "
+                    f"of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the "
+                    f"'**' prefix from the key."
                 )
             objects_to_pack = {
                 f"{log_hint_key[len('**'):]}{dict_key}": dict_obj
@@ -217,9 +217,9 @@ class PackagersManager:
             if not is_iterable:
                 raise MLRunInvalidArgumentError(
                     f"The log hint key '{log_hint_key}' has an iterable unpacking prefix ('*') to log arbitrary number "
-                    f"of objects within it (like a `list` or `set`), but an iterable object was not provided; the "
-                    f"given object is of type '{self._get_type_name(type(obj))}'. The object is currently ignored. To"
-                    f"log it, delete the '*' prefix from the key."
+                    f"of objects within it (like a `list` or `set`), but an iterable object was not provided, the "
+                    f"given object is of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, "
+                    f"please remove the '*' prefix from the key."
                 )
             objects_to_pack = {
                 f"{log_hint_key[len('*'):]}{i}": obj_i for i, obj_i in enumerate(obj)
@@ -595,9 +595,9 @@ class PackagersManager:
             logger.warn(
                 f"{artifact_key} was originally packaged by a packager of type '{packager_name}' but it "
                 f"was not found. Custom packagers should be added to the project running the function "
-                f"using the `add_custom_packager` method. Make sure the function was set in the project "
+                f"using the `add_custom_packager` method and make sure the function was set in the project "
                 f"with the attribute 'with_repo=True`.\n"
-                f"MLRun tries to unpack according to the provided type hint in the code."
+                f"MLRun will try to unpack according to the provided type hint in code."
             )
         elif type_hint is None:
             # User count on the type noted in the package, so we unpack it as is:
@@ -621,9 +621,9 @@ class PackagersManager:
                 # require different type, so we unpack as data item:
                 logger.warn(
                     f"{artifact_key} was originally packaged by '{packager_name}' but the type hint given to "
-                    f"unpack it as '{type_hint}' is not supported by it. MLRun tries to look for a matching "
-                    f"packager to the type hint instead. Note: It is not recommended to parse an object from type to "
-                    f"type using the unpacking mechanism of packagers. This can result in unexpected behavior."
+                    f"unpack it as '{type_hint}' is not supported by it. MLRun will try to look for a matching "
+                    f"packager to the type hint instead. Note: it is not recommended to parse an object from type to "
+                    f"type using the unpacking mechanism of packagers as unknown behavior might happen."
                 )
 
         # Unpack:

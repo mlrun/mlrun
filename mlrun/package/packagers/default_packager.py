@@ -568,9 +568,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             raise MLRunPackageUnpackingError(
                 f"The packager '{cls.__name__}' could not unpack the package due to missing instructions: "
                 f"{', '.join(missing_arguments)}. Missing instructions are likely due to an update in the packager's "
-                f"code that does not support the old implementation. This backward compatibility issue should not "
-                f"occur, but if it does, try to edit the instructions in the artifact's spec to enable unpacking "
-                f"it again."
+                f"code that not support the old implementation. This backward compatibility should not occur. To "
+                f"overcome it, try to edit the instructions in the artifact's spec to enable unpacking it again."
             )
 
         # Validate all given arguments are correct:

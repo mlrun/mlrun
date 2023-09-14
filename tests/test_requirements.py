@@ -142,7 +142,7 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
-        "azure-storage-blob": {">=12.13, <12.18"},
+        "azure-storage-blob": {">=12.13, !=12.18.0"},
     }
 
     for (

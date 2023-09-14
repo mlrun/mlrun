@@ -2278,7 +2278,7 @@ class MlrunProject(ModelObj):
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():
-            msg = "you seem to have uncommitted git changes, use .push()"
+            msg = "You seem to have uncommitted git changes, use .push()"
             if dirty or not need_repo:
                 logger.warning("WARNING!, " + msg)
             else:
@@ -2286,7 +2286,7 @@ class MlrunProject(ModelObj):
 
         if need_repo and self.spec.repo and not self.spec.source:
             raise ProjectError(
-                "remote repo is not defined, use .create_remote() + push()"
+                "Remote repo is not defined, use .create_remote() + push()"
             )
 
         self.sync_functions(always=sync)
@@ -2300,7 +2300,7 @@ class MlrunProject(ModelObj):
             if self.spec.workflows:
                 name = list(self.spec._workflows.keys())[0]
             else:
-                raise ValueError("workflow name or path must be specified")
+                raise ValueError("Workflow name or path must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
@@ -2350,7 +2350,7 @@ class MlrunProject(ModelObj):
         if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
-                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+                f"Started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:

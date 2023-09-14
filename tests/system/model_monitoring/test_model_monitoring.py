@@ -797,6 +797,9 @@ class TestBatchDrift(TestMLRunSystem):
                 ]
             ),
         )
+
+        train_set.loc[train_set["sepal_length_cm"] < 5, ["sepal_length_cm"]] = None
+
         model_name = "sklearn_RandomForestClassifier"
         # Upload the model through the projects API so that it is available to the serving function
         project.log_model(
@@ -850,6 +853,12 @@ class TestBatchDrift(TestMLRunSystem):
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
+
+        # Validate that hist exist for features with nan values records:
+        assert model_endpoint.status.feature_stats["sepal_length_cm"]["count"] < 150
+        assert model_endpoint.status.feature_stats["sepal_width_cm"]["count"] == 150
+        assert model_endpoint.status.feature_stats["petal_length_cm"]["count"] == 150
+        assert model_endpoint.status.feature_stats["petal_width_cm"]["count"] == 150
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

@@ -131,7 +131,7 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
         ) and pd.api.types.is_numeric_dtype(df[col]):
             # store histogram
             try:
-                hist, bins = np.histogram(df[col], bins=num_bins)
+                hist, bins = np.histogram(df[col].dropna(), bins=num_bins)
                 stats_dict["hist"] = [hist.tolist(), bins.tolist()]
             except Exception:
                 pass

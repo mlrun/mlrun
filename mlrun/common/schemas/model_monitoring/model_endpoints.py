@@ -130,7 +130,9 @@ class FeatureValues(BaseModel):
                 min=stats["min"],
                 mean=stats["mean"],
                 max=stats["max"],
-                histogram=Histogram(buckets=stats["hist"][1], counts=stats["hist"][0]),
+                histogram=Histogram(buckets=stats["hist"][1], counts=stats["hist"][0])
+                if "hist" in stats
+                else {},
             )
         else:
             return None

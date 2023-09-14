@@ -88,7 +88,7 @@ class ModelMonitoringWriter(StepToDict):
             key=app_name,
             attributes=event,
         )
-        logger.debug("Updated V3IO KV successfully", key=app_name)
+        logger.info("Updated V3IO KV successfully", key=app_name)
 
     def _update_tsdb(self, event: AppResultEvent) -> None:
         try:
@@ -102,7 +102,7 @@ class ModelMonitoringWriter(StepToDict):
                     WriterEvent.APPLICATION_NAME,
                 ],
             )
-            logger.debug("Updated V3IO TSDB successfully", table=self._TSDB_TABLE)
+            logger.info("Updated V3IO TSDB successfully", table=self._TSDB_TABLE)
         except V3IOFramesError as err:
             logger.warn(
                 "Could not write drift measures to TSDB",
@@ -141,7 +141,7 @@ class ModelMonitoringWriter(StepToDict):
 
     def do(self, event: RawEvent) -> None:
         event = self._reconstruct_event(event)
-        logger.debug("Starting to write event", event=event)
+        logger.info("Starting to write event", event=event)
         self._update_tsdb(event)
         self._update_kv_db(event)
-        logger.debug("Completed event DB writes")
+        logger.info("Completed event DB writes")

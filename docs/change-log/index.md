@@ -95,7 +95,6 @@ ML-4075     Python 3.7 is not supported.
 | ML-2380 | Spark runtime now sustains user actions. See doc updates:   |
 | ML-3370 | Supports private repo for function hub. **Here or in features?   link to Doc**     |
 | ML-3584 | Function tag is now displayed in model endpoints. || ML- |  |
-| ML-3705 | An image with an entrypoint command now executes in MLRun (and not only in Nuclio). |
 | ML-4188 | Deleting a project failed in the backend but was successfully deleted in UI.  |
 | ML-4212 | Pipeline filters that have no results not show the labels. |
 | ML-4214 | Scheduled workflows with "-" in the name are no longer truncated. |
@@ -783,22 +782,58 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | MLRunProject.clear_context() | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
-| MLRunProject object legacy parameters | metadata and spec instead |
+| MLRunProject object legacy parameters | metadata and spec  |
 | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | run_local | function.run(local=True) |
 
 ### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code
 | Deprecated                        | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path} instead |
-| GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path} instead |
-| DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid} instead |
-| GET /artifacts | /projects/{project}/artifacts instead |
-| DELETE /artifacts  | /projects/{project}/artifacts instead |
-| POST /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
-| GET /func/{project}/{name}  | /projects/{project}/functions/{name} instead |
-| GET /funcs  | /projects/{project}/functions instead |
+| POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path}  |
+| GET /projects/{project}/artifact/{key:path} | /projects/{project}/artifacts/{key:path}  |
+| DELETE /artifact/{project}/{uid} | /projects/{project}/artifacts/{uid}  |
+| GET /artifacts | /projects/{project}/artifacts  |
+| DELETE /artifacts  | /projects/{project}/artifacts  |
+| POST /func/{project}/{name}  | /projects/{project}/functions/{name}  |
+| GET /func/{project}/{name}  | /projects/{project}/functions/{name}  |
+| GET /funcs  | /projects/{project}/functions  |
 
+
+
+
+### APIs deprecated in v1.3.0, will be removed from v1.6.0 code
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| new_pipe_meta | new_pipe_metadata |
+| ttl param from pipeline | cleanup_ttl |
+| objects methods from artifacts list | to_objects |
+
+
+### CLIs deprecated in v1.3.0, will be removed from v1.6.0 code
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| dashboard (nuclio/deploy) | No longer supported on client side |
+|overwrite schedule (project) | Not relevant. Running a schedule is now an  operation |
+
+### APIs removed in v1.5.0 (deprecated in v1.3.0)
+These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0 and higher.
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
+| `KubeResource.gpus`                              | `with_limits`                 |
+| Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
+| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
+| Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
+| `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
+| `mount_v3io_extended`                            | `mount_v3io`                   |
+| `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
+| `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
+| The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
+| `run_pipeline`                                   | `project.run`                                     |
+
+### CLI removed in v1.5.0 (deprecated in v1.3.0)
+
+The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
 
 
 ### APIs deprecated and removed from v1.3.0 code
@@ -828,25 +863,3 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 - `get_pipeline_legacy` REST API
 - Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc.
 - httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object`
-
-### APIs removed in v1.5.0 (deprecated in v1.3.0)
-These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0 and higher.
-| Deprecated / to be removed                       | Use instead                                   |
-| ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
-| `KubeResource.gpus`                              | `with_limits`                 |
-| Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
-| `ExecutorTypes`                                  | `ParallelRunnerModes`         |
-| Spark runtime `gpus`                              | `with_driver_limits` / `with_executor_limits` |
-| `mount_v3io_legacy` (mount_v3io no longer calls it) | `mount_v3io`                       |
-| `mount_v3io_extended`                            | `mount_v3io`                   |
-| `LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`) | `Artifact` or other artifact classes that inherit from it |
-| `init_functions` in pipelines                    | Add the function initialization to the pipeline code instead |
-| The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
-| `run_pipeline`                                   | `project.run`                                     |
-
-### CLI removed in v1.5.0 (deprecated in v1.3.0)
-
-The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
-
-

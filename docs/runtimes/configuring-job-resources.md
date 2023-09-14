@@ -162,7 +162,8 @@ it would have to be designed so that the job/function state will be saved when s
 
 Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.
-- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
+- Constrain: The function pod only runs on spot nodes, and does not run if none is available. (To set a cluster with constrain 
+   mode, [contact customer support](mailto:support@iguazio.com).)
 - Prevent: Default. The function pod cannot run on a spot node. 
 
 ### UI configuration

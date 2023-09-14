@@ -4033,10 +4033,10 @@ class SQLDB(DBInterface):
         :returns: List of DatatoreProfile objects (only the public portion of it)
         """
         project = project or config.default_project
-        query_results = self._query(session, DatastoreProfile, project=project)
+        datastore_records = self._query(session, DatastoreProfile, project=project)
         return [
             self._transform_datastore_profile_model_to_schema(datastore_record)
-            for datastore_record in query_results
+            for datastore_record in datastore_records
         ]
 
     def delete_datastore_profiles(

@@ -126,7 +126,10 @@ def _generate_random_name():
     return random_name
 
 
-kafka_brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+test_environment = TestMLRunSystem._get_env_from_file()
+kafka_brokers = test_environment["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"] or os.getenv(
+    "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"
+)
 
 kafka_topic = "kafka_integration_test"
 
@@ -3128,11 +3131,10 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
-        project = mlrun.get_or_create_project(self.project_name)
         profile = DatastoreProfileKafkaTarget(
             name="dskafkatarget", bootstrap_servers=kafka_brokers, topic=kafka_topic
         )
-        project.register_datastore_profile(profile)
+        register_temporary_client_datastore_profile(profile)
 
         stocks = pd.DataFrame(
             {

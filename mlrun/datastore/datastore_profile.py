@@ -76,12 +76,12 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     kwargs_private: typing.Optional[typing.Dict]
 
     def attributes(self):
-        result = {"bootstrap_servers": self.bootstrap_servers}
+        attributes = {"bootstrap_servers": self.bootstrap_servers}
         if self.kwargs_public:
-            result = merge(result, self.kwargs_public)
+            attributes = merge(attributes, self.kwargs_public)
         if self.kwargs_private:
-            result = merge(result, self.kwargs_private)
-        return result
+            attributes = merge(attributes, self.kwargs_private)
+        return attributes
 
 
 class DatastoreProfileKafkaSource(DatastoreProfile):
@@ -104,10 +104,8 @@ class DatastoreProfileKafkaSource(DatastoreProfile):
         if self.kwargs_private:
             attributes = merge(attributes, self.kwargs_private)
 
-        if isinstance(self.topics, str):
-            topics = [self.topics]
-        if isinstance(self.brokers, str):
-            brokers = [self.brokers]
+        topics = [self.topics] if isinstance(self.topics, str) else self.topics
+        brokers = [self.brokers] if isinstance(self.brokers, str) else self.brokers
 
         attributes["brokers"] = brokers
         attributes["topics"] = topics
@@ -278,17 +276,11 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
 
 
 def datastore_profile_embed_url_scheme(url):
-    from urllib.parse import urlparse, urlunparse
-
     profile = datastore_profile_read(url)
     parsed_url = urlparse(url)
     scheme = profile.type
     # Add scheme as a password to the network location part
-    netloc = (
-        f"{parsed_url.username}:{scheme}@{parsed_url.netloc}"
-        if parsed_url.username
-        else f":{scheme}@{parsed_url.netloc}"
-    )
+    netloc = f"{parsed_url.username or ''}:{scheme}@{parsed_url.netloc}"
 
     # Construct the new URL
     new_url = urlunparse(

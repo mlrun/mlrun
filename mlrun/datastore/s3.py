@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import time
-from urllib.parse import urlparse
 
 import boto3
 
@@ -110,7 +109,8 @@ class S3Store(DataStore):
         if self._filesystem:
             return self._filesystem
         try:
-            import s3fs  # noqa
+            # noqa
+            from mlrun.datastore.s3fs_store import S3FileSystemWithDS
         except ImportError as exc:
             if not silent:
                 raise ImportError(
@@ -118,19 +118,15 @@ class S3Store(DataStore):
                 ) from exc
             return None
 
-        class S3withDS(s3fs.S3FileSystem):
-            @classmethod
-            def _strip_protocol(cls, url):
-                if url.startswith("ds://"):
-                    parsed_url = urlparse(url)
-                    url = parsed_url.path[1:]
-                return super()._strip_protocol(url)
-
-        self._filesystem = S3withDS(**self.get_storage_options())
+        self._filesystem = S3FileSystemWithDS(**self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):
         if self.kind == "ds":
+            # If it's a datastore profile, 'self.name' holds the URL path to the item, e.g.,
+            # 'ds://some_profile/s3bucket/path/to/object'
+            # The function 'datastore_profile_read()' derives the profile name from this URL,
+            # reads the profile, and fetches the credentials.
             datastore_profile = datastore_profile_read(self.name)
             endpoint_url = datastore_profile.endpoint_url
             force_non_anonymous = datastore_profile.force_non_anonymous
@@ -169,7 +165,7 @@ class S3Store(DataStore):
 
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]
-        if self.endpoint != "":
+        if self.endpoint:
             return self.endpoint, path
         directories = path.split("/")
         bucket = directories[0]

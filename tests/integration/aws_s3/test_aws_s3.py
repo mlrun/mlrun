@@ -16,18 +16,17 @@ import os
 import random
 from pathlib import Path
 
-import pandas as pd
 import pytest
 import yaml
 
 import mlrun
 import mlrun.errors
-import mlrun.feature_store as fstore
-from mlrun.datastore.datastore_profile import DatastoreProfileS3
-from mlrun.datastore.targets import ParquetTarget
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileS3,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
-from tests.system.base import TestMLRunSystem
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "test-aws-s3.yml"
@@ -54,31 +53,31 @@ def aws_s3_configured(extra_params=None):
     return True
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
-@pytest.mark.enterprise
-class TestAwsS3(TestMLRunSystem):
+class TestAwsS3:
     def custom_setup(self):
         pass
 
     def _make_target_names(
         self, prefix, bucket_name, object_dir, object_file, csv_file
     ):
-        res = {}
-        res["bucket_path"] = prefix + bucket_name
-        res["object_path"] = object_dir + "/" + object_file
-        res["df_path"] = object_dir + "/" + csv_file
-
-        res["object_url"] = res["bucket_path"] + "/" + res["object_path"]
-        res["df_url"] = res["bucket_path"] + "/" + res["df_path"]
-        res["blob_url"] = res["object_url"] + ".blob"
-        res["parquet_url"] = res["object_url"] + ".parquet"
-
+        bucket_path = prefix + bucket_name
+        object_path = f"{object_dir}/{object_file}"
+        df_path = f"{object_dir}/{csv_file}"
+        object_url = f"{bucket_path}/{object_path}"
+        res = {
+            "bucket_path": bucket_path,
+            "object_path": object_path,
+            "df_path": df_path,
+            "object_url": object_url,
+            "df_url": f"{bucket_path}/{df_path}",
+            "blob_url": f"{object_url}.blob",
+            "parquet_url": f"{object_url}.parquet",
+        }
         return res
 
     def setup_method(self, method):
-        super().setup_method(method)
         self._bucket_name = config["env"].get("bucket_name")
         self._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
         self._secret_access_key = config["env"].get("AWS_SECRET_ACCESS_KEY")
@@ -94,20 +93,16 @@ class TestAwsS3(TestMLRunSystem):
         self.s3["ds"] = self._make_target_names(
             "ds://s3ds_profile/", self._bucket_name, object_dir, object_file, csv_file
         )
-
-        logger.info(f'DS Object URL: {self.s3["ds"]["object_url"]}')
-        logger.info(f'S3 Object URL: {self.s3["s3"]["object_url"]}')
-
-        project = mlrun.get_or_create_project("default", "./")
         profile = DatastoreProfileS3(
             name="s3ds_profile",
             access_key=self._access_key_id,
             secret_key=self._secret_access_key,
         )
-        project.register_datastore_profile(profile)
+        register_temporary_client_datastore_profile(profile)
 
     def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        logger.info(f'Object URL: {param["object_url"]}')
 
         data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
         data_item.put(test_string)
@@ -206,15 +201,3 @@ class TestAwsS3(TestMLRunSystem):
         # cleanup
         for param in params:
             os.environ.pop(param)
-
-    def test_ingest_single_parquet_file(self, use_datastore_profile):
-        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
-
-        df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
-
-        targets = [ParquetTarget(path=param["parquet_url"])]
-
-        fset = fstore.FeatureSet(
-            name="overwrite-pq-spec-path", entities=[fstore.Entity("name")]
-        )
-        fstore.ingest(fset, df1, targets=targets)

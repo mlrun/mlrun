@@ -778,7 +778,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,

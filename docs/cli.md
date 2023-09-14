@@ -31,25 +31,25 @@ Usage: mlrun build [OPTIONS] FUNC_URL
 
 Example:  `mlrun build myfunc.yaml`
 
-| Flag   &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;                                                                                                   | Description                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;name TEXT                                                                                                                     | Function name                                                                                                |
-| &minus;&minus;project TEXT                                                                                                                  | Project name                                                                                                 |
-| &minus;&minus;tag TEXT                                                                                                                      | Function tag                                                                                                 |
-| -i, &minus;&minus;image TEXT                                                                                                                | Target image path                                                                                            |
-| -s, &minus;&minus;source TEXT                                                                                                               | Path/URL of the function source code. A PY file, or if `-a                                                   |--archive`  is specified, a directory to archive. (Default: './') |
-| -b, &minus;&minus;base-image TEXT &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Base Docker image                                                                                            |
-| -c, &minus;&minus;command TEXT                                                                                                              | Build commands; for example, '-c pip install pandas'                                                         |
-| &minus;&minus;secret&minus;name TEXT                                                                                                        | Name of a container-registry secret                                                                          |
-| -a, &minus;&minus;archive TEXT                                                                                                              | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s |--source`) are archived into a TAR file and then extracted into the archive directory  |
-| &minus;&minus;silent                                                                                                                        | Do not show build logs                                                                                       |
-| &minus;&minus;with&minus;mlrun                                                                                                              | Add the MLRun package ("mlrun")                                                                              |
-| &minus;&minus;db TEXT                                                                                                                       | Save the run results to path or DB url                                                                       |
-| -r, &minus;&minus;runtime TEXT                                                                                                              | Function spec dict, for pipeline usage                                                                       |
-| &minus;&minus;kfp                                                                                                                           | Running inside Kubeflow Piplines, do not use                                                                 |
-| &minus;&minus;skip                                                                                                                          | Skip if already deployed                                                                                     |
-| &minus;&minus;env&minus;file                                                                                                                | Path to .env file to load config/variables from                                                              |
-| &minus;&minus;ensure&minus;project                                                                                                          | Ensure the project exists, if not, create project                                                            |
+| Flag                               | Description                                                                                                  |
+|------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| &minus;&minus;name                 | Function name                                                                                                |
+| &minus;&minus;project              | Project name                                                                                                 |
+| &minus;&minus;tag                  | Function tag                                                                                                 |
+| -i, &minus;&minus;image            | Target image path                                                                                            |
+| -s, &minus;&minus;source           | Path/URL of the function source code. A PY file, or if `-a                                                   |--archive`  is specified, a directory to archive. (Default: './') |
+| -b, &minus;&minus;base-image       | Base Docker image                                                                                            |
+| -c, &minus;&minus;command          | Build commands; for example, '-c pip install pandas'                                                         |
+| &minus;&minus;secret&minus;name    | Name of a container-registry secret                                                                          |
+| -a, &minus;&minus;archive          | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s |--source`) are archived into a TAR file and then extracted into the archive directory  |
+| &minus;&minus;silent               | Do not show build logs                                                                                       |
+| &minus;&minus;with&minus;mlrun     | Add the MLRun package ("mlrun")                                                                              |
+| &minus;&minus;db                   | Save the run results to path or DB url                                                                       |
+| -r, &minus;&minus;runtime          | Function spec dict, for pipeline usage                                                                       |
+| &minus;&minus;kfp                  | Running inside Kubeflow Piplines, do not use                                                                 |
+| &minus;&minus;skip                 | Skip if already deployed                                                                                     |
+| &minus;&minus;env&minus;file       | Path to .env file to load config/variables from                                                              |
+| &minus;&minus;ensure&minus;project | Ensure the project exists, if not, create project                                                            |
 
 
 > **Note:** For information about using the `-a|--archive` option to create a function-sources archive, see [Using a Sources Archive](#sources-archive) later in this tutorial.
@@ -68,18 +68,18 @@ Examples:
 - Clean resources for specific job (by uid):  `mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b`
 
 
-| Flag   &nbsp; &nbsp; &nbsp;                                  | Description                                                                                                                                                                                                                                                          |
+| Flag                                                         | Description                                                                                                                                                                                                                                                          |
 |--------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | &minus;&minus;kind &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Clean resources for all runs of a specific kind (e.g. job).                                                                                                                                                                                                          |
 | &minus;&minus;id &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;   | Delete the resources of the mlrun object twith this identifier. For most function runtimes, runtime resources are per Run, and the identifier is the Run’s UID. For DASK runtime, the runtime resources are per Function, and the identifier is the Function’s name. |
 
   
-| Options                                                                                                    | Description                                                                                                                                         |
-|------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;api                                                                                          | URL of the mlrun-api service.                                                                                                                       |
-| &minus;ls, &minus;&minus;label&minus;selector &nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp;&nbsp; &nbsp; &nbsp; | Delete only runtime resources matching the label selector.                                                                                          |
-| &minus;f, &minus;&minus;force                                                                              | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
-| &minus;gp, &minus;&minus;grace&minus;period &nbsp; &nbsp; &nbsp;  &nbsp; &nbsp; &nbsp;                     | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
+| Options                                       | Description                                                                                                                                         |
+|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| &minus;&minus;api                             | URL of the mlrun-api service.                                                                                                                       |
+| &minus;ls, &minus;&minus;label&minus;selector | Delete only runtime resources matching the label selector.                                                                                          |
+| &minus;f, &minus;&minus;force                 | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
+| &minus;gp, &minus;&minus;grace&minus;period   | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
 
 <a id="cli-cmd-config"></a>
 ### `config` 
@@ -134,13 +134,13 @@ Usage: logs [OPTIONS] uid
 
 Example:  `mlrun logs ba409c0cb4904d60aa8f8d1c05b40a75 --project getting-started-admin`
 
-| Flag                           | Description                                                                                                                                                                                                                                                                   |
-|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;uid TEXT         | UID of the run to get logs for                                                                                                                                                                                                                                                |
-| -p, &minus;&minus;project TEXT | Project name                                                                                                                                                                                                                                                                  |
-| &minus;&minus;offset INTEGER   | Retrieve partial log, get up to size bytes starting at the offset from beginning of log                                                                                                                                                                                       |
-| &minus;&minus;db TEXT          | API service url                                                                                                                                                                                                                                                               |
-| -w, &minus;&minus;watch        | Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
+| Flag                      | Description                                                                                                                                                                                                                                                                   |
+|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| &minus;&minus;uid         | UID of the run to get logs for                                                                                                                                                                                                                                                |
+| -p, &minus;&minus;project | Project name                                                                                                                                                                                                                                                                  |
+| &minus;&minus;offset      | Retrieve partial log, get up to size bytes starting at the offset from beginning of log                                                                                                                                                                                       |
+| &minus;&minus;db          | API service url                                                                                                                                                                                                                                                               |
+| -w, &minus;&minus;watch   | Retrieve logs of a running process, and watch the progress of the execution until it completes. Prints out the logs and continues to periodically poll for, and print, new logs as long as the state of the runtime that generates this log is either `pending` or `running`. |
 
 
 <a id="cli-cmd-project"></a>
@@ -256,12 +256,12 @@ Examples:
 - `mlrun watch-stream v3io:///users/my-test-stream -s 1 -s 2`
 - `mlrun watch-stream v3io:///users/my-test-stream -s 1 -s 2 --seek EARLIEST`
 
-| Flag      | Description |
-| ----------- | ----------- | 
-|  -s, &minus;&minus;shard-ids | Shard id to listen on (can be multiple). |  
-|  --seek TEXT     | Where to start/seek (EARLIEST or LATEST)  |
-|  -i, &minus;&minus;interval  | Interval in seconds. Default = 3 |
-|  -j, &minus;&minus;is-json   | Indicates that the payload is json (will be deserialized). |
+| Flag                        | Description                                                |
+|-----------------------------|------------------------------------------------------------| 
+| -s, &minus;&minus;shard-ids | Shard id to listen on (can be multiple).                   |  
+| &minus;&minus;seek          | Where to start/seek (EARLIEST or LATEST)                   |
+| -i, &minus;&minus;interval  | Interval in seconds. Default = 3                           |
+| -j, &minus;&minus;is-json   | Indicates that the payload is json (will be deserialized). |
     
 <a id="git-func"></a>
 ## Building and running a function from a Git repository

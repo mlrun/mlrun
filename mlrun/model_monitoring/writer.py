@@ -23,6 +23,7 @@ from v3io_frames.frames_pb2 import IGNORE
 import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
+from mlrun.common.schemas.model_monitoring import EventFieldType
 from mlrun.common.schemas.model_monitoring.constants import WriterEvent
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -91,6 +92,11 @@ class ModelMonitoringWriter(StepToDict):
         logger.info("Updated V3IO KV successfully", key=app_name)
 
     def _update_tsdb(self, event: AppResultEvent) -> None:
+        event = AppResultEvent(event.copy())
+        event[WriterEvent.SCHEDULE_TIME] = pd.to_datetime(
+            event[WriterEvent.SCHEDULE_TIME],
+            format=EventFieldType.TIME_FORMAT,
+        )
         try:
             self._tsdb_client.write(
                 backend=_TSDB_BE,
@@ -108,7 +114,7 @@ class ModelMonitoringWriter(StepToDict):
                 "Could not write drift measures to TSDB",
                 err=err,
                 table=self._TSDB_TABLE,
-                endpoint=event[WriterEvent.ENDPOINT_ID],
+                event=event,
             )
 
     @staticmethod

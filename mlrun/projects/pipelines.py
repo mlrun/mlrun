@@ -775,6 +775,13 @@ class _RemoteRunner(_PipelineRunner):
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
+            logger.info(
+                f"Submitting remote workflow",
+                workflow_engine=workflow_spec.engine,
+                schedule=workflow_spec.schedule,
+                project_name=project.name,
+            )
+
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
@@ -787,6 +794,10 @@ class _RemoteRunner(_PipelineRunner):
                 namespace=namespace,
             )
             if workflow_spec.schedule:
+                logger.info(
+                    "Workflow scheduled successfully",
+                    workflow_response=workflow_response,
+                )
                 return
 
             # Getting workflow id from run:

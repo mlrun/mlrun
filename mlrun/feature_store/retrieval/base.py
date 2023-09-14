@@ -146,7 +146,9 @@ class BaseMerger(abc.ABC):
             self._target.set_resource(self.vector)
             size = self._target.write_dataframe(
                 self._result_df,
-                timestamp_key=timestamp_key if not self._drop_indexes else None,
+                timestamp_key=timestamp_key
+                if not self._drop_indexes and timestamp_key not in self._drop_columns
+                else None,
             )
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)

@@ -60,7 +60,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         for field in fields_to_encode_decode:
             if field in endpoint:
                 # Encode to binary data
-                endpoint[field] = self._encode_decode_field(endpoint[field])
+                endpoint[field] = self._encode_field(endpoint[field])
 
         self.client.kv.put(
             container=self.container,
@@ -84,7 +84,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         for field in fields_to_encode_decode:
             if field in attributes:
                 # Encode to binary data
-                attributes[field] = self._encode_decode_field(attributes[field])
+                attributes[field] = self._encode_field(attributes[field])
 
         self.client.kv.update(
             container=self.container,
@@ -136,9 +136,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         for field in fields_to_encode_decode:
             if field in endpoint:
                 # Decode binary data
-                endpoint[field] = self._encode_decode_field(
-                    endpoint[field], encode=False
-                )
+                endpoint[field] = self._decode_field(endpoint[field])
 
         if not endpoint:
             raise mlrun.errors.MLRunNotFoundError(f"Endpoint {endpoint_id} not found")
@@ -537,13 +535,17 @@ class KVModelEndpointStore(ModelEndpointStore):
             ]
 
     @staticmethod
-    def _encode_decode_field(
-        field: typing.Union[str, bytes], encode: bool = True
-    ) -> typing.Union[str, bytes]:
-        """Encode or decode a provided field. Mainly used for storing (or retrieving) the data in the KV table"""
+    def _encode_field(field: typing.Union[str, bytes]) -> typing.Union[str, bytes]:
+        """Encode a provided field. Mainly used when storing data in the KV table."""
 
-        if encode and isinstance(field, str):
+        if isinstance(field, str):
             return field.encode("ascii")
-        elif not encode and isinstance(field, bytes):
+        return field
+
+    @staticmethod
+    def _decode_field(field: typing.Union[str, bytes]) -> typing.Union[str, bytes]:
+        """Decode a provided field. Mainly used when retrieving data from the KV table."""
+
+        if isinstance(field, bytes):
             return field.decode()
         return field

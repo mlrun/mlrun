@@ -535,7 +535,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             ]
 
     @staticmethod
-    def _encode_field(field: typing.Union[str, bytes]) -> typing.Union[bytes]:
+    def _encode_field(field: typing.Union[str, bytes]) -> bytes:
         """Encode a provided field. Mainly used when storing data in the KV table."""
 
         if isinstance(field, str):
@@ -543,7 +543,7 @@ class KVModelEndpointStore(ModelEndpointStore):
         return field
 
     @staticmethod
-    def _decode_field(field: typing.Union[str, bytes]) -> typing.Union[str]:
+    def _decode_field(field: typing.Union[str, bytes]) -> str:
         """Decode a provided field. Mainly used when retrieving data from the KV table."""
 
         if isinstance(field, bytes):

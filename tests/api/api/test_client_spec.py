@@ -57,6 +57,10 @@ def test_client_spec(
         feature_store_data_prefix_redisnosql
     )
 
+    feature_set_default_targets = ["parquet", "csv"]
+
+    mlrun.mlconf.feature_store.default_targets = feature_set_default_targets
+
     tolerations = [
         kubernetes.client.V1Toleration(
             effect="NoSchedule",
@@ -125,6 +129,9 @@ def test_client_spec(
     )
     assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
+
+    assert response_body['feature_store_default_targets'] == feature_set_default_targets
+
 
 
 def test_client_spec_response_based_on_client_version(

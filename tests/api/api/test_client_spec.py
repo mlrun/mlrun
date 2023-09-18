@@ -58,7 +58,6 @@ def test_client_spec(
     )
 
     feature_set_default_targets = ["parquet", "csv"]
-
     mlrun.mlconf.feature_store.default_targets = feature_set_default_targets
 
     tolerations = [

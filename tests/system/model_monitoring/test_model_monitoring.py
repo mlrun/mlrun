@@ -846,12 +846,16 @@ class TestBatchDrift(TestMLRunSystem):
         assert model_endpoint.status.current_stats
         assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
 
-        assert model_endpoint.spec.model_uri == f"store://models/{project.metadata.name}/{model_name}:latest"
-
         # Validate that the artifacts were logged under the generated context
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
+
+        # Validate that model_uri is based on models prefix
+        assert (
+            model_endpoint.spec.model_uri
+            == f"store://models/{project.metadata.name}/{model_name}:latest"
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

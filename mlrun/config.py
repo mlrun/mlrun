@@ -286,7 +286,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "disabled",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {

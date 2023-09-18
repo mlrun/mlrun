@@ -37,7 +37,7 @@ class DatastoreProfiles(
     def _store_secret(self, project, profile_name, profile_secret_json):
         if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "MLRun is not configured with k8s, hub source credentials cannot be stored securely"
+                "MLRun is not configured with k8s, datastore profile credentials cannot be stored securely"
             )
 
         adjusted_secret = {
@@ -56,7 +56,7 @@ class DatastoreProfiles(
     def _delete_secret(self, project, profile_name):
         if not self._in_k8s():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "MLRun is not configured with k8s, hub source credentials cannot be stored securely"
+                "MLRun is not configured with k8s, datastore profile credentials cannot be deleted"
             )
 
         adjusted_secret = dsp.generate_secret_key(profile_name, project)

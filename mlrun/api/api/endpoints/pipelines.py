@@ -129,9 +129,11 @@ async def get_pipeline(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         mlrun.api.api.deps.authenticate_request
     ),
+    db_session: Session = Depends(deps.get_db_session),
 ):
     pipeline = await run_in_threadpool(
         mlrun.api.crud.Pipelines().get_pipeline,
+        db_session,
         run_id,
         project,
         namespace,
@@ -143,7 +145,7 @@ async def get_pipeline(
         # legacy flow in which we first get the pipeline, resolve the project out of it, and only then query permissions
         # we don't use the return value from this function since the user may have asked for a different format than
         # summary which is the one used inside
-        await _get_pipeline_without_project(auth_info, run_id, namespace)
+        await _get_pipeline_without_project(db_session, auth_info, run_id, namespace)
     else:
         await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.pipeline,
@@ -156,6 +158,7 @@ async def get_pipeline(
 
 
 async def _get_pipeline_without_project(
+    db_session: Session,
     auth_info: mlrun.common.schemas.AuthInfo,
     run_id: str,
     namespace: str,
@@ -167,6 +170,7 @@ async def _get_pipeline_without_project(
     """
     run = await run_in_threadpool(
         mlrun.api.crud.Pipelines().get_pipeline,
+        db_session,
         run_id,
         namespace=namespace,
         # minimal format that includes the project

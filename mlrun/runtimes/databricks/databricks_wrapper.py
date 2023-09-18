@@ -19,31 +19,49 @@ import uuid
 from base64 import b64decode
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
-from databricks.sdk.service.jobs import Run, SparkPythonTask, SubmitTask
+from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTask
 
 import mlrun
+from mlrun.errors import MLRunRuntimeError
+
+
+def get_task(databricks_run: Run) -> RunTask:
+    if len(databricks_run.tasks) == 0:
+        raise MLRunRuntimeError(
+            "Cannot find tasks related to the Databricks job run ID in Databricks environment."
+        )
+    elif len(databricks_run.tasks) > 1:
+        raise MLRunRuntimeError(
+            "More than one task related to the Databricks job run ID has been found."
+            " Did you manually run any tasks from this job?"
+        )
+    return databricks_run.tasks[0]
 
 
 def run_mlrun_databricks_job(
     context,
-    mlrun_internal_code,
-    token_key="DATABRICKS_TOKEN",
-    timeout_minutes=20,
+    task_parameters: dict,
     **kwargs,
 ):
+    spark_app_code = task_parameters["spark_app_code"]
+    token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
+    timeout_minutes = task_parameters.get("timeout_minutes", 20)
+    number_of_workers = task_parameters.get("number_of_workers", 1)
+    new_cluster_spec = task_parameters.get("new_cluster_spec")
 
     logger = context.logger
     workspace = WorkspaceClient(token=mlrun.get_secret_or_env(key=token_key))
-    run_id = uuid.uuid4()
+    mlrun_databricks_job_id = uuid.uuid4()
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
-        f"mlrun_task_{run_id}.py"
+        f"mlrun_task_{mlrun_databricks_job_id}.py"
     )
 
-    code = b64decode(mlrun_internal_code).decode("utf-8")
+    spark_app_code = b64decode(spark_app_code).decode("utf-8")
     with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
-        f.write(code.encode("utf-8"))
+        f.write(spark_app_code.encode("utf-8"))
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]
@@ -57,18 +75,21 @@ def run_mlrun_databricks_job(
             submit_task_kwargs["existing_cluster_id"] = cluster_id
         else:
             logger.info("run with new cluster_id")
-            submit_task_kwargs["new_cluster"] = ClusterSpec(
-                spark_version=workspace.clusters.select_spark_version(
+            cluster_spec_kwargs = {
+                "spark_version": workspace.clusters.select_spark_version(
                     long_term_support=True
                 ),
-                node_type_id=workspace.clusters.select_node_type(local_disk=True),
-                num_workers=1,
-            )
+                "node_type_id": workspace.clusters.select_node_type(local_disk=True),
+                "num_workers": number_of_workers,
+            }
+            if new_cluster_spec:
+                cluster_spec_kwargs.update(new_cluster_spec)
+            submit_task_kwargs["new_cluster"] = ClusterSpec(**cluster_spec_kwargs)
         waiter = workspace.jobs.submit(
-            run_name=f"py-sdk-run-{run_id}",
+            run_name=f"py-sdk-run-{mlrun_databricks_job_id}",
             tasks=[
                 SubmitTask(
-                    task_key=f"hello_world-{run_id}",
+                    task_key=f"hello_world-{mlrun_databricks_job_id}",
                     spark_python_task=SparkPythonTask(
                         python_file=f"dbfs:{script_path_on_dbfs}",
                         parameters=[json.dumps(kwargs)],
@@ -78,12 +99,23 @@ def run_mlrun_databricks_job(
             ],
         )
         logger.info(f"starting to poll: {waiter.run_id}")
-        run = waiter.result(
-            timeout=datetime.timedelta(minutes=timeout_minutes), callback=print_status
-        )
-
-        run_output = workspace.jobs.get_run_output(run.tasks[0].run_id)
-        context.log_result("databricks_runtime task:", run_output)
+        try:
+            run = waiter.result(
+                timeout=datetime.timedelta(minutes=timeout_minutes),
+                callback=print_status,
+            )
+        except OperationFailed:
+            databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
+            task_run_id = get_task(databricks_run=databricks_run).run_id
+            error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
+            error_trace = error_dict.pop("error_trace", "")
+            custom_error = "error information and metadata:\n"
+            custom_error += json.dumps(error_dict, indent=1)
+            custom_error += "\nerror trace from databricks:\n" if error_trace else ""
+            custom_error += error_trace
+            raise MLRunRuntimeError(custom_error)
+        run_output = workspace.jobs.get_run_output(get_task(run).run_id)
+        context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
 

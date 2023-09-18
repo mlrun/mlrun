@@ -24,6 +24,7 @@ import pytest
 import tabulate
 
 import mlrun.api.api.utils
+import mlrun.api.constants
 import mlrun.api.crud
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
@@ -347,7 +348,6 @@ async def test_webhook_notification(monkeypatch, test_method):
             "headers": test_headers,
         },
     )
-
     await webhook_notification.push(test_message, test_severity, test_runs_info)
 
     requests_mock.assert_called_once_with(
@@ -358,6 +358,7 @@ async def test_webhook_notification(monkeypatch, test_method):
             "severity": test_severity,
             "runs": test_runs_info,
         },
+        ssl=None,
     )
 
     webhook_notification.params["override_body"] = test_override_body
@@ -368,6 +369,7 @@ async def test_webhook_notification(monkeypatch, test_method):
         test_url,
         headers=test_headers,
         json=test_override_body,
+        ssl=None,
     )
 
 
@@ -425,7 +427,9 @@ def test_notification_params_masking_on_run(monkeypatch):
             ]
         },
     }
-    mlrun.api.api.utils.mask_notification_params_on_task(run)
+    mlrun.api.api.utils.mask_notification_params_on_task(
+        run, mlrun.api.constants.MaskOperations.CONCEAL
+    )
     assert "sensitive" not in run["spec"]["notifications"][0]["params"]
     assert "secret" in run["spec"]["notifications"][0]["params"]
     assert (

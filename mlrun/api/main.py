@@ -177,6 +177,7 @@ async def move_api_to_online():
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
     ):
+        mlrun.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
@@ -369,7 +370,7 @@ async def _start_log_for_run(
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+            runtime_handler: mlrun.api.runtime_handlers.BaseRuntimeHandler = (
                 await fastapi.concurrency.run_in_threadpool(
                     get_runtime_handler, run_kind
                 )

@@ -200,9 +200,7 @@ class BaseMerger(abc.ABC):
 
         if entity_rows is not None:
             if entity_rows.index.names[0]:
-                entity_rows.reset_index(
-                    inplace=True,
-                )
+                entity_rows = entity_rows.reset_index()
             entity_rows_keys = list(entity_rows.columns)
         else:
             entity_rows_keys = None

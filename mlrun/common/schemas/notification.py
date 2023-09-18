@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import enum
 import typing
 
 import pydantic
@@ -40,6 +41,12 @@ class NotificationStatus(mlrun.common.types.StrEnum):
     PENDING = "pending"
     SENT = "sent"
     ERROR = "error"
+
+
+class NotificationLimits(enum.Enum):
+    max_params_size = (
+        900 * 1024
+    )  # 900KB (k8s secret size limit is 1MB minus buffer for metadata)
 
 
 class Notification(pydantic.BaseModel):

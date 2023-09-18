@@ -432,7 +432,9 @@ class FeatureSet(ModelObj):
             target = get_online_target(self, name)
 
         if target:
-            return target.get_path().get_absolute_path()
+            return target.get_path().get_absolute_path(
+                project_name=self.metadata.project
+            )
 
     def set_targets(
         self,

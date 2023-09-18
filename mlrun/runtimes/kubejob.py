@@ -112,8 +112,8 @@ class KubejobRuntime(KubeResource):
         verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
-        extra_args=None,
         builder_env=None,
+        extra_args=None,
     ):
         """specify builder configuration for the deploy operation
 
@@ -144,20 +144,20 @@ class KubejobRuntime(KubeResource):
 
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
-            image,
-            base_image,
-            commands,
-            secret,
-            source,
-            extra,
-            load_source_on_run,
-            with_mlrun,
-            auto_build,
-            requirements,
-            requirements_file,
-            overwrite,
-            extra_args,
-            builder_env,
+            image=image,
+            base_image=base_image,
+            commands=commands,
+            secret=secret,
+            source=source,
+            extra=extra,
+            load_source_on_run=load_source_on_run,
+            with_mlrun=with_mlrun,
+            auto_build=auto_build,
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=overwrite,
+            builder_env=builder_env,
+            extra_args=extra_args,
         )
 
         if verify_base_image or prepare_image_for_deploy:
@@ -377,7 +377,7 @@ def func_to_pod(image, runtime, extra_env, command, args, workdir):
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
-        command=[command],
+        command=[command] if command else None,
         args=args,
         working_dir=workdir,
         image_pull_policy=runtime.spec.image_pull_policy,

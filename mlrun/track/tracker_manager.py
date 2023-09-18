@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from os import environ
-from typing import Type, Union
+from typing import Type, Union, List
 
 from mlrun.execution import MLClientCtx
 from mlrun.utils import logger
@@ -22,40 +22,48 @@ from .tracker import Tracker
 
 
 class TrackerManager:
-    def __init__(self):
-        self._trackers = []
+    """
+    A class for handling multiple `Tracker` instances during a run. The manager is a singleton class and should be
+    retrieved using the `mlrun.track.get_trackers_manager` function.
+    """
+
+    def __init__(self, _stale: bool = False):
+        """
+        Initialize a new empty tracker manager.
+
+        :param _stale: An inner attribute to init a trackers manager in a specific staleness state.
+        """
+        self._trackers: List[Type[Tracker]] = []
+        self._stale = _stale
 
     def add_tracker(self, tracker: Type[Tracker]):
         """
-        adds a Tracker to tracking list
+        Adds a Tracker to trackers list.
+
         :param tracker: The tracker class to add
         """
-        self._trackers.append(tracker())
+        self._trackers.append(tracker)
         logger.debug("Added tracker", tracker=tracker)
-
-    def clear_trackers(self):
-        """
-        removes all trackers from the tracking list
-        """
-        self._trackers.clear()
 
     def pre_run(self, context: MLClientCtx):
         """
-        goes over all trackers and calls their pre_run function
-        :param context: current mlrun context
-        """
-        logger.debug("Number of trackers", Number=len(self._trackers))
-        for tracker_num, tracker in enumerate(self._trackers):
-            if tracker.is_enabled():
-                logger.debug("Tracking run number", number=tracker_num)
-                env = tracker.pre_run(context=context)
-                environ.update(env)  # needed in order to set 3rd party experiment id
+        Goes over all the managed trackers and calls their `pre_run` method.
 
-    def post_run(self, context: Union[MLClientCtx, dict]):
+        :param context: Active mlrun context.
         """
-        goes over all trackers and calls their post_run function
-        :param context: current mlrun context
+        for tracker in self._trackers:
+            tracker.pre_run(context=context)
+
+    def post_run(self, context: Union[MLClientCtx, dict]) -> Union[MLClientCtx, dict]:
         """
+        Goes over all the managed trackers and calls their `post_run` method.
+
+        :param context: Active mlrun context.
+
+        :return: The context updated with the trackers products.
+        """
+        # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
+
         is_context_dict = False
         if isinstance(context, dict):
             is_context_dict = True
@@ -63,15 +71,24 @@ class TrackerManager:
                 context, include_status=True, store_run=False
             )
 
-        if self._trackers:
-            for tracker in self._trackers:
-                if tracker.is_enabled():
-                    tracker.post_run(context)
+        # Go over the trackers and call the `post_run` method:
+        for tracker in self._trackers:
+            tracker.post_run(context)
 
-            context.commit()
-            self.clear_trackers()
+        # Commit changes:
+        context.commit()
+
+        # Mark the manager as stale, so it can be re-initialized next run:
+        self._stale = True
+
+        # Return the context (cast to dict if received as a dict):
         return context.to_dict() if is_context_dict else context
 
-    @property
-    def trackers(self):
-        return self._trackers
+    def is_stale(self) -> bool:
+        """
+        Get the manager's staleness to check if a new one should be initialized instead.
+
+        :return: The staleness property.
+        """
+        return self._stale
+

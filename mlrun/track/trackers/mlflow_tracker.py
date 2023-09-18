@@ -14,181 +14,351 @@
 import os
 import pathlib
 import tempfile
+from typing import List, Union
+import zipfile
 
-from mlrun.execution import MLClientCtx
+import mlflow
+import mlflow.environment_variables
+import mlflow.entities
+import mlflow.types
+
 from mlrun.features import Feature
-from mlrun.track.base_tracker import BaseTracker
-from mlrun.track.utils import convert_np_dtype_to_value_type, zip_folder
-from mlrun.utils import logger
+from mlrun.projects import MlrunProject
+from mlrun import mlconf, MLClientCtx
+from mlrun.model import RunObject
+from mlrun.artifacts import Artifact, ModelArtifact
+
+from ..tracker import Tracker
 
 
-class MLFlowTracker(BaseTracker):
+class MLFlowTracker(Tracker):
     """
-    specific tracker to log artifacts, parameters and metrics collected by MLFlow
+    A class for detecting and logging MLFlow runs into MLRun. Notice, only the last active MLFlow run is logged.
     """
 
-    TRACKED_MODULE_NAME = "mlflow"
-
-    def __init__(self):
-        super().__init__()
-        self._mlflow_experiment = None
-        self._track_uri = 0
-        self._client = None
-
-    def pre_run(self, context: MLClientCtx) -> dict:
-        env = {}
-        experiment = self._tracked_platform.get_experiment_by_name(context.name)
-        if experiment:  # check if exists, if not create
-            experiment_id = experiment.experiment_id
-        else:
-            experiment_id = self._tracked_platform.create_experiment(context.name)
-        env["MLFLOW_RUN_CONTEXT"] = '{"mlrun_runid": "%s", "mlrun_project": "%s"}' % (
-            context.uid,
-            context.project,
-        )
-        env["MLFLOW_EXPERIMENT_ID"] = experiment_id
-        self._mlflow_experiment = experiment_id
-        return env
-
-    def _apply_post_run_tasks(
-        self,
-        context: MLClientCtx,
-    ):
+    @classmethod
+    def is_enabled(cls) -> bool:
         """
-        Performs post-run tasks of logging 3rd party artifacts generated during the run.
-        :param context: current mlrun context
+        Checks if tracker is enabled.
+
+        :return: True if the tracking configuration is enabled, False otherwise.
         """
-        experiment_id = self._mlflow_experiment
-        runs = self._client.search_runs(
-            experiment_id, filter_string=f'tags.mlrun_runid="{context.uid}"'
+        return (
+            getattr(
+                mlconf.external_platform_tracking, mlflow.__name__
+            ).enabled
         )
-        if not runs:
-            logger.debug("No runs from mlflow client, searching in experiments")
-            experiments = [
-                experiment.experiment_id
-                for experiment in self._client.search_experiments()
-            ]
-            runs = self._client.search_runs(
-                experiments, filter_string=f'tags.mlrun_runid="{context.uid}"'
+
+    @classmethod
+    def pre_run(cls, context: MLClientCtx):
+        """
+        Initializes the MLFlow tracker, setting the experiment name as configured by the user.
+
+        :param context: Current mlrun context
+        """
+        # Check for a user set experiment name via the environment variable:
+        experiment_name = mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
+
+        # Check if the user configured for matching the experiment name with the context name:
+        if getattr(mlconf.external_platform_tracking, mlflow.__name__).match_experiment_to_runtime:
+            if experiment_name is not None:
+                context.logger.warn(
+                    f"`mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime` is set to True but the "
+                    f"MLFlow experiment name environment variable ('MLFLOW_EXPERIMENT_NAME') is set for using the "
+                    f"name: '{experiment_name}'. This name will be overriden "
+                    f"with MLRun's runtime name as set in the MLRun configuration: '{context.name}'."
+                )
+            experiment_name = context.name
+            mlflow.set_experiment(experiment_name=experiment_name)
+
+    @classmethod
+    def post_run(cls, context: MLClientCtx):
+        """
+        Performs post-run tasks for logging MLFlow artifacts generated during the run.
+
+        :param context: Current mlrun context
+        """
+        # Get the last run (None means no run was created or found):
+        run = mlflow.last_active_run()
+        if run is None:
+            return
+
+        # Log the run:
+        MLFlowTracker._log_run(context=context, run=run)
+
+    @classmethod
+    def import_run(
+        cls,
+        project: MlrunProject,
+        pointer: str,
+        function_name: str = None,
+    ) -> RunObject:
+        """
+        Import a previous MLFlow experiment run to MLRun.
+
+        :param project:       The MLRun project to import the run to.
+        :param pointer:       The MLFlow `run_id` to import.
+        :param function_name: The MLRun function to assign this run to.
+
+        :return: The newly imported run object.
+        """
+        # Validate function name was given:
+        if function_name is None:
+            raise ValueError(
+                "For importing a MLFlow experiment run, a MLRun function name must be provided."
             )
 
-        if runs:
-            for run in runs:  # each run gets logged separately
-                logger.debug("Logging run", run=run)
-                self._log_run(context, run)
-        else:
-            logger.debug("No runs found to log")
-
-    def _log_run(self, context: MLClientCtx, run):
-        """
-        after mlrun function's run is done, copy all data logged by third party app tracker
-        :param context: current mlrun context
-        :param run: mlflow run to log
-        """
-        model_paths = []
-        logger.debug("Logging MLFlow params")
-        for key, val in run.data.params.items():
-            context._parameters[key] = val
-        logger.debug("Finished to log MLFlow params")
-        self._metrics_result_key = (
-            "mlflow-run-metrics}"  # todo: define unique internal keys
+        # Get the MLFlow run object:
+        run = mlflow.search_runs(
+            search_all_experiments=True,
+            filter_string=f"attributes.run_id = '{pointer}'",
+            output_format="list"
         )
-        context.log_results({self._metrics_result_key: run.data.metrics})
-        context.set_label("mlflow-runid", run.info.run_id)
-        context.set_label("mlflow-experiment", run.info.experiment_id)
-        logger.debug("Starting to log MLFlow artifacts")
-        for artifact in self._client.list_artifacts(run.info.run_id):
-            full_path = self._tracked_platform.artifacts.download_artifacts(
+        if not run:
+            raise ValueError(
+                "The provided run id was not found in the set MLFlow registry. Try to set the registry using "
+                "MLFlow's environment variables."
+            )
+        run = run[0]  # We are using a run id, so only one will be returned in the list.
+
+        # TODO: Create a fake MLRun run by initializing a `RunObject` with the relevant metadata and spec, then passing
+        #       it into the `get_or_create_ctx` function for creating a context where we can use with the `_log_run`
+        #       method to copy all the parameters, results, artifacts and models.
+
+    @classmethod
+    def import_model(
+        cls,
+        project: MlrunProject,
+        pointer: str,
+        key: str = None,
+        metrics: dict = None,
+        extra_data: dict = None
+    ) -> ModelArtifact:
+        """
+        Import a model from MLFlow to MLRun.
+
+        :param project:    The MLRun project to import the model to.
+        :param pointer:    The MLFlow model uri to import.
+        :param key:        The model key to be used in MLRun. Mandatory for importing.
+        :param metrics:    The model's metrics.
+        :param extra_data: Extra artifacts and files to log with the model.
+
+        :return: The newly imported model artifact.
+        """
+        # Validate key is given:
+        if key is None:
+            raise ValueError(
+                "MLFlow models require a key to import into MLRun - the key of the model artifact to be created."
+            )
+
+        # Setup defaults:
+        metrics = metrics or {}
+        extra_data = extra_data or {}
+
+        # Log and return the model:
+        return cls._log_model(
+            context_or_project=project,
+            model_uri=pointer,
+            key=key,
+            metrics=metrics,
+            extra_data=extra_data
+        )
+
+    @classmethod
+    def import_artifact(cls, project: MlrunProject, pointer: str, key: str = None) -> Artifact:
+        """
+        Import an artifact from MLFlow to MLRun.
+
+        :param project: The MLRun project to import the artifact to.
+        :param pointer: The MLFlow artifact uri to import.
+        :param key:     The artifact key to be used in MLRun. Mandatory for importing.
+
+        :return: The newly imported artifact.
+        """
+        # Validate key is given:
+        if key is None:
+            raise ValueError(
+                "MLFlow artifacts require a key to import into MLRun - the key of the artifact to be created."
+            )
+
+        # Import the artifact:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Download the artifact to local temp:
+            local_path = mlflow.artifacts.download_artifacts(artifact_uri=pointer, dst_path=tmp_dir)
+
+            # Log and return the artifact:
+            return cls._log_artifact(context_or_project=project, key=key, local_path=local_path)
+
+    @staticmethod
+    def _log_run(context: MLClientCtx, run: mlflow.entities.Run):
+        """
+        Log the given MLFlow run to MLRun.
+
+        :param context: Current MLRun context or project.
+        :param run:                MLFlow run to log. Can be given as a `Run` object or as a run id.
+        """
+        client = mlflow.MlflowClient()
+
+        # Set new MLRun related tags to the MLFlow run:
+        client.set_tag(run_id=run.info.run_id, key="mlrun-context-id", value=context.uid)
+        client.set_tag(run_id=run.info.run_id, key="mlrun-project-name", value=context.project)
+
+        # Get the MLFlow run's tags and save them as labels:
+        context._labels.update(run.data.tags)
+        context.set_label(key="mlflow-run-id", value=run.info.run_id)
+        context.set_label(key="mlflow-experiment-id", value=run.info.experiment_id)
+
+        # Get the MLFlow run's parameters and save as job parameters:
+        context._parameters.update(run.data.params)
+
+        # Get the MLFlow run's metrics and log them as results:
+        results = run.data.metrics
+        context.log_results(results=results)
+
+        # Import the MLFlow run's artifacts to MLRun (model are logged after the rest of artifacts so the artifacts can
+        # be registered as extra data in the models):
+        artifacts = {}
+        model_paths = []
+        for artifact in client.list_artifacts(run_id=run.info.run_id):
+            # Get the artifact's local path (MLFlow suggests that if the artifact is already in the local filesystem
+            # its local path will be returned:
+            artifact_local_path = mlflow.artifacts.download_artifacts(
                 run_id=run.info.run_id, artifact_path=artifact.path
             )
-            if artifact.is_dir and os.path.exists(os.path.join(full_path, "MLmodel")):
-                model_paths.append(
-                    full_path
-                )  # this is the model folder, we log it after logging all artifacts
+            # Check if the artifact is a model (will be logged after the artifacts):
+            if artifact.is_dir and os.path.exists(os.path.join(artifact_local_path, "MLmodel")):
+                model_paths.append(artifact_local_path)
             else:
-                self.log_artifact(context, full_path, artifact)
-        logger.debug("Finished to log MLFlow artifacts")
+                # Log the artifact:
+                artifact = MLFlowTracker._log_artifact(
+                    context_or_project=context,
+                    key=pathlib.Path(artifact.path).name.replace(".", "_"),
+                    local_path=artifact_local_path
+                )
+                artifacts[artifact.key] = artifact
         if model_paths:
-            logger.debug("Starting to log MLFlow model")
-            for path in model_paths:
-                self.log_model(path, context)
-            logger.debug("Finished to log MLFlow model")
+            for model_path in model_paths:
+                MLFlowTracker._log_model(
+                    context_or_project=context,
+                    model_uri=model_path,
+                    key=pathlib.Path(model_path).stem,
+                    metrics=results,
+                    extra_data=artifacts
+                )
 
-    def log_model(
-        self,
+    @staticmethod
+    def _log_model(
+        context_or_project: Union[MLClientCtx, MlrunProject],
         model_uri: str,
-        context: MLClientCtx,
+        key: str,
+        metrics: dict,
+        extra_data: dict,
     ):
+        """
+        Log the given produced model from MLFlow as a model artifact in MLRun.
 
-        model_info = self._tracked_platform.models.get_model_info(model_uri=model_uri)
+        :param context_or_project: The MLRun context or project to log to.
+        :param key:                The model artifact's key.
+        :param model_uri:          The local path to the model (an MLFlow model directory locally downloaded).
+        """
+        # Get the model info from MLFlow:
+        model_info = mlflow.models.get_model_info(model_uri=model_uri)
+
+        # Create a temporary directory to store the archived model directory:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            model_zip = "model.zip"
-            zip_folder(model_uri, os.path.join(tmp_dir, model_zip))
-            key = model_info.artifact_path
-            inputs = outputs = None
+            # Prepare the archive path:
+            model_uri = pathlib.Path(model_uri)
+            archive_path = pathlib.Path(tmp_dir) / f"{model_uri.stem}.zip"
 
+            # Zip the artifact:
+            with zipfile.ZipFile(archive_path, "w") as zip_file:
+                for path in model_uri.rglob("*"):
+                    zip_file.write(filename=path, arcname=path.relative_to(model_uri))
+
+            # Get inputs and outputs info:
+            inputs = outputs = None
             if model_info.signature is not None:
                 if model_info.signature.inputs is not None:
-                    inputs = schema_to_feature(model_info.signature.inputs)
+                    inputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.inputs)
                 if model_info.signature.outputs is not None:
-                    outputs = schema_to_feature(model_info.signature.outputs)
-            context.log_model(
-                key,
+                    outputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.outputs)
+
+            # Log the model:
+            return context_or_project.log_model(
+                key=key,
                 framework="mlflow",
-                model_file=model_zip,
+                model_file=str(archive_path),
                 model_dir=tmp_dir,
-                metrics=context.results.get("mlflow_run_metrics"),
-                parameters=model_info.flavors,
+                metrics=metrics,
                 labels={
                     "mlflow_run_id": model_info.run_id,
                     "mlflow_version": model_info.mlflow_version,
-                    "model_uuid": model_info.model_uuid,
+                    "mlflow_model_uuid": model_info.model_uuid,
                 },
-                extra_data=self._artifacts,
+                extra_data=extra_data,
                 inputs=inputs,
                 outputs=outputs,
             )
 
-    # todo add mlflow.artifact hint
-    def log_artifact(self, context: MLClientCtx, local_path: str, artifact):
-        artifact = context.log_artifact(
-            item=pathlib.Path(artifact.path).name.replace(".", "_"),
-            local_path=local_path,
-        )
-        self._artifacts[artifact.key] = artifact
+    @staticmethod
+    def _log_artifact(context_or_project: Union[MLClientCtx, MlrunProject], key: str, local_path: str) -> Artifact:
+        """
+        Log the given produced file from MLFlow as a run artifact in MLRun.
 
-    def post_run(self, context: MLClientCtx):
-        self._client = self._tracked_platform.MlflowClient()
-        self._apply_post_run_tasks(context=context)
+        :param context_or_project: The MLRun context or project to log to.
+        :param key:                The artifact's key.
+        :param local_path:         The local path to the artifact.
+        """
+        # Create a temporary directory in case the artifact is a directory:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # Check if the artifact is a directory for archiving it:
+            if pathlib.Path(local_path).is_dir():
+                # Prepare the archive path:
+                archive_path = pathlib.Path(tmp_dir) / f"{key}.zip"
+                local_path = pathlib.Path(local_path)
+                # Zip the artifact:
+                with zipfile.ZipFile(archive_path, "w") as zip_file:
+                    for path in local_path.rglob("*"):
+                        zip_file.write(filename=path, arcname=path.relative_to(local_path))
+                # Set the local path to the archive file:
+                local_path = str(archive_path)
 
-    # todo actually implement this
-    def log_dataset(self, dataset_path, context):
-        pass
-
-
-def schema_to_feature(schema) -> list:  # todo add hints here
-    """
-    changes the features from a scheme (usually tensor) to a list
-    :param schema: features as made by mlflow
-
-    :return: list of features to log
-    """
-    converter = convert_np_dtype_to_value_type()
-    is_tensor = schema.is_tensor_spec()
-    features = []
-    for i, item in enumerate(schema.inputs):
-        name = item.name or str(i)
-        shape = None
-        if is_tensor:
-            value_type = item.type
-            shape = list(item.shape) if item.shape else None
-        else:
-            value_type = item.type.to_numpy()
-        features.append(
-            Feature(
-                converter(value_type),
-                shape,
-                name=name,
+            # Log and return the artifact in the local path:
+            return context_or_project.log_artifact(
+                item=key,
+                local_path=local_path,
             )
-        )
-    return features
+
+    @staticmethod
+    def _schema_to_feature(schema: mlflow.types.Schema) -> List[Feature]:
+        """
+        Cast MLFlow schema to MLRun features.
+
+        :param schema: The MLFlow schema.
+
+        :return: List of MLRun features representing the schema.
+        """
+        # Import here due to circular dependencies:
+        from mlrun.frameworks._common import CommonUtils
+
+        is_tensor = schema.is_tensor_spec()
+
+        features = []
+
+        for i, item in enumerate(schema.inputs):
+            name = item.name or str(i)
+            shape = None
+            if is_tensor:
+                value_type = item.type
+                shape = list(item.shape) if item.shape else None
+            else:
+                value_type = item.type.to_numpy()
+            features.append(
+                Feature(
+                    CommonUtils.convert_np_dtype_to_value_type(value_type),
+                    shape,
+                    name=name,
+                )
+            )
+
+        return features

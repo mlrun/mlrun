@@ -74,6 +74,8 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
+    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
 
 
 class EventLiveStats:

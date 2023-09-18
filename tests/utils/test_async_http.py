@@ -15,6 +15,7 @@
 
 import http.server
 import typing
+from contextlib import nullcontext as does_not_raise
 from unittest import mock
 
 import aioresponses
@@ -168,3 +169,52 @@ async def test_headers_filtering(
     )
     assert response.headers["y"] == "z", "header should not have been filtered"
     assert "x" not in response.headers, "header with 'None' value was not filtered"
+
+
+def raise_exception():
+    try:
+        raise ConnectionError("This is an ErrorA")
+    except ConnectionError as e1:
+        try:
+            raise Exception from e1
+        except Exception as e2:
+            return e2
+
+
+@pytest.mark.parametrize(
+    "exception,expected",
+    [
+        # Test error cases that occur twice,
+        # and are retryable errors, so we expect no Exception to be raised
+        (ConnectionError("This is an ConnectionErr"), does_not_raise()),
+        (ConnectionRefusedError("This is an ConnectionRefusedErr"), does_not_raise()),
+        (
+            ClientConnectorError(mock.MagicMock(code=500), ConnectionResetError()),
+            does_not_raise(),
+        ),
+        # Test a custom exception with a root cause that is included in our retryable exceptions list,
+        # should not raise an exception
+        (raise_exception(), does_not_raise()),
+        # Test a non-retryable error and ensure it fails immediately and is not retried
+        (TypeError("TypeErr"), pytest.raises(TypeError)),
+    ],
+)
+@pytest.mark.asyncio
+async def test_session_retry(
+    async_client: AsyncClientWithRetry,
+    aioresponses_mock: aioresponses_mock,
+    exception,
+    expected,
+):
+    max_retries = 3
+    for i in range(max_retries - 1):
+        aioresponses_mock.get(
+            "http://localhost:30678",
+            exception=exception,
+        )
+        aioresponses_mock.get(
+            "http://localhost:30678",
+            status=200,
+        )
+    with expected:
+        await async_client.get("http://localhost:30678")

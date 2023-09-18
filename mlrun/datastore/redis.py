@@ -36,6 +36,12 @@ class RedisStore(DataStore):
         self.endpoint = self.endpoint or mlrun.mlconf.redis.url
         if schema == "ds":
             datastore_profile = datastore_profile_read(name)
+            if not datastore_profile:
+                raise ValueError(f"Failed to load datastore profile '{name}'")
+            if datastore_profile.type != "redis":
+                raise ValueError(
+                    f"Trying to use profile of type '{datastore_profile.type}' as redis datastore"
+                )
             self._redis_url = datastore_profile.url_with_credentials()
             self.secure = datastore_profile.is_secured()
         else:
@@ -74,12 +80,8 @@ class RedisStore(DataStore):
 
     @classmethod
     def build_redis_key(cls, key, prefix_only=False):
-        if key.startswith("redis://"):
-            start = len("redis://")
-        elif key.startswith("rediss://"):
-            start = key[len("redis://") :]
-        else:
-            start = 0
+        prefixes = ["redis://", "rediss://", "ds://"]
+        start = next((len(prefix) for prefix in prefixes if key.startswith(prefix)), 0)
         # skip over user/pass, host, port
         start = key.find("/", start)
         # insert the prefix '{' hashtag to the key as stored in redis

@@ -92,6 +92,7 @@ class ExponentialRetryOverride(ExponentialRetry):
         # "Connection aborted" and "Connection refused" happen when the server doesn't respond at all.
         ConnectionRefusedError,
         ConnectionAbortedError,
+        ConnectionError,
         # aiohttp exceptions that can be raised during connection establishment
         aiohttp.ClientConnectionError,
         aiohttp.ServerDisconnectedError,
@@ -268,4 +269,7 @@ class _CustomRequestContext(_RequestContext):
             if isinstance(exc, aiohttp.ClientConnectorError):
                 if isinstance(exc.os_error, exc_type):
                     return
-        raise exc
+        if exc.__cause__:
+            return self.verify_exception_type(exc.__cause__)
+        else:
+            raise exc

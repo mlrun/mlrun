@@ -31,7 +31,7 @@ from mlrun.secrets import SecretsStore
 from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
-from ..utils import get_class
+from ..utils import get_class, is_explicit_ack_supported
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -72,7 +72,13 @@ class BaseSourceDriver(DataSource):
                 f"{type(self).__name__} does not support storey engine"
             )
 
-        return storey.SyncEmitSource(context=context)
+        explicit_ack = (
+            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+        )
+        return storey.SyncEmitSource(
+            context=context,
+            explicit_ack=explicit_ack,
+        )
 
     def get_table_object(self):
         """get storey Table object"""
@@ -788,12 +794,14 @@ class OnlineSource(BaseSourceDriver):
             else storey.SyncEmitSource
         )
         source_args = self.attributes.get("source_args", {})
-
+        explicit_ack = (
+            is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+        )
         src_class = source_class(
             context=context,
             key_field=self.key_field,
             full_event=True,
-            explicit_ack=mlrun.mlconf.is_explicit_ack(),
+            explicit_ack=explicit_ack,
             **source_args,
         )
 
@@ -861,6 +869,15 @@ class StreamSource(OnlineSource):
             raise_for_status=v3io.dataplane.RaiseForStatus.never,
         )
         res.raise_for_status([409, 204])
+
+        kwargs = {}
+        engine = "async"
+        if hasattr(function.spec, "graph") and function.spec.graph.engine:
+            engine = function.spec.graph.engine
+        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+            kwargs["explicit_ack_mode"] = "explicitOnly"
+            kwargs["workerAllocationMode"] = "static"
+
         function.add_v3io_stream_trigger(
             self.path,
             self.name,
@@ -868,6 +885,7 @@ class StreamSource(OnlineSource):
             self.attributes["seek_to"],
             self.attributes["shards"],
             extra_attributes=self.attributes.get("extra_attributes", {}),
+            **kwargs,
         )
         return function
 
@@ -936,12 +954,23 @@ class KafkaSource(OnlineSource):
     def add_nuclio_trigger(self, function):
         extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
+        explicit_ack_mode = None
+        engine = "async"
+        if hasattr(function.spec, "graph") and function.spec.graph.engine:
+            engine = function.spec.graph.engine
+        if mlrun.mlconf.is_explicit_ack() and engine == "async":
+            explicit_ack_mode = "explicitOnly"
+            extra_attributes["workerAllocationMode"] = extra_attributes.get(
+                "workerAllocationMode", "static"
+            )
+
         trigger = KafkaTrigger(
             brokers=extra_attributes.pop("brokers"),
             topics=extra_attributes.pop("topics"),
             partitions=partitions,
             consumer_group=extra_attributes.pop("group"),
             initial_offset=extra_attributes.pop("initial_offset"),
+            explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
         )
         func = function.add_trigger("kafka", trigger)

@@ -38,7 +38,7 @@ on:
         type: choice
         options: [ 'bump-rc', 'stable' ]
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,models,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:
@@ -90,7 +90,7 @@ jobs:
             echo "Using version from input: $version"; \
           fi
 
-          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version) " >> $GITHUB_OUTPUT
+          echo "is_stable_version=$(python ./automation/version/version_file.py is-stable $version)" >> $GITHUB_OUTPUT
           echo "is_feature_branch=$(python ./automation/version/version_file.py is-feature-branch)" >> $GITHUB_OUTPUT
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
@@ -248,6 +248,7 @@ jobs:
           body: ${{ steps.resolve-release-notes.outputs.body }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
 
   update-tutorials:
     name: Bundle tutorials
@@ -265,3 +266,4 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

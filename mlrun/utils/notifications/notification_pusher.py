@@ -15,6 +15,7 @@
 import asyncio
 import datetime
 import os
+import traceback
 import typing
 from concurrent.futures import ThreadPoolExecutor
 
@@ -91,7 +92,13 @@ class NotificationPusher(object):
                 )
 
             # return exceptions to "best-effort" fire all notifications
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception):
+                    logger.warning(
+                        "Failed to push notification async",
+                        error=mlrun.errors.err_to_str(result),
+                    )
 
         logger.debug(
             "Pushing notifications",
@@ -218,10 +225,11 @@ class NotificationPusher(object):
             )
         except Exception as exc:
             logger.warning(
-                "Failed to send notification",
+                "Failed to send or update notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
             self._update_notification_status(
                 run.metadata.uid,
@@ -262,10 +270,11 @@ class NotificationPusher(object):
             )
         except Exception as exc:
             logger.warning(
-                "Failed to send notification",
+                "Failed to send or update notification",
                 notification=_sanitize_notification(notification_object),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
+                traceback=traceback.format_exc(),
             )
             await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,

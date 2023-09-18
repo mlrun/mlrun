@@ -36,16 +36,16 @@ Example:  `mlrun build myfunc.yaml`
 | &minus;&minus;name                 | Function name                                                                                                                                                                                      |
 | &minus;&minus;project              | Project name                                                                                                                                                                                       |
 | &minus;&minus;tag                  | Function tag                                                                                                                                                                                       |
-| -i, &minus;&minus;image            | Target image path                                                                                                                                                                                  |
-| -s, &minus;&minus;source           | Path/URL of the function source code. A PY file, or if `-a/--archive`  is specified, a directory to archive. (Default: './')                                                                       |
-| -b, &minus;&minus;base-image       | Base Docker image                                                                                                                                                                                  |
-| -c, &minus;&minus;command          | Build commands; for example, '-c pip install pandas'                                                                                                                                               |
+| &minusi, &minus;&minus;image       | Target image path                                                                                                                                                                                  |
+| &minuss, &minus;&minus;source      | Path/URL of the function source code. A PY file, or if `-a/--archive`  is specified, a directory to archive. (Default: './')                                                                       |
+| &minusb, &minus;&minus;base-image  | Base Docker image                                                                                                                                                                                  |
+| &minusc, &minus;&minus;command     | Build commands; for example, '-c pip install pandas'                                                                                                                                               |
 | &minus;&minus;secret&minus;name    | Name of a container-registry secret                                                                                                                                                                |
-| -a, &minus;&minus;archive          | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s/--source`) are archived into a TAR file and then extracted into the archive directory |
+| &minusa, &minus;&minus;archive     | Path/URL of a target function-sources archive directory: as part of the build, the function sources (see `-s/--source`) are archived into a TAR file and then extracted into the archive directory |
 | &minus;&minus;silent               | Do not show build logs                                                                                                                                                                             |
 | &minus;&minus;with&minus;mlrun     | Add the MLRun package ("mlrun")                                                                                                                                                                    |
 | &minus;&minus;db                   | Save the run results to path or DB url                                                                                                                                                             |
-| -r, &minus;&minus;runtime          | Function spec dict, for pipeline usage                                                                                                                                                             |
+| &minusr, &minus;&minus;runtime     | Function spec dict, for pipeline usage                                                                                                                                                             |
 | &minus;&minus;kfp                  | Running inside Kubeflow Piplines, do not use                                                                                                                                                       |
 | &minus;&minus;skip                 | Skip if already deployed                                                                                                                                                                           |
 | &minus;&minus;env&minus;file       | Path to .env file to load config/variables from                                                                                                                                                    |
@@ -68,16 +68,16 @@ Examples:
 - Clean resources for specific job (by uid):  `mlrun clean mpijob 15d04c19c2194c0a8efb26ea3017254b`
 
 
-| Flag                                                         | Description                                                                                                                                                                                                                                                          |
-|--------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| &minus;&minus;kind &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; | Clean resources for all runs of a specific kind (e.g. job).                                                                                                                                                                                                          |
-| &minus;&minus;id &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;   | Delete the resources of the mlrun object twith this identifier. For most function runtimes, runtime resources are per Run, and the identifier is the Run’s UID. For DASK runtime, the runtime resources are per Function, and the identifier is the Function’s name. |
+| Flag               | Description                                                                                                                                                                                                                                                         |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| &minus;&minus;kind | Clean resources for all runs of a specific kind (e.g. job).                                                                                                                                                                                                         |
+| &minus;&minus;id   | Delete the resources of the mlrun object with this identifier. For most function runtimes, runtime resources are per run, and the identifier is the run’s UID. For DASK runtime, the runtime resources are per function, and the identifier is the function’s name. |
 
   
 | Options                                       | Description                                                                                                                                         |
 |-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
 | &minus;&minus;api                             | URL of the mlrun-api service.                                                                                                                       |
-| &minus;ls, &minus;&minus;label&minus;selector | Delete only runtime resources matching the label selector.                                                                                          |
+| &minus;ls, &minus;&minus;label&minus;selector | Delete only the runtime resources matching the label selector.                                                                                      |
 | &minus;f, &minus;&minus;force                 | Delete the runtime resource even if they're not in terminal state or if the grace period didn’t pass.                                               |
 | &minus;gp, &minus;&minus;grace&minus;period   | Grace period, in seconds, given to the runtime resource before they are actually removed, counted from the moment they moved to the terminal state. |
 
@@ -234,7 +234,7 @@ Examples:
 | &minus;&minus;verbose                          | Verbose log                                                                                             |
 | &minus;&minus;scrape&minus;metrics             | Whether to add the `mlrun/scrape-metrics` label to this run's resources                                 |
 | &minus;&minus;env&minus;file                   | Path to .env file to load config/variables from                                                         |
-| &minus;&minus;auto&minus;build                 | When set functions will be built prior to run if needed                                                 |
+| &minus;&minus;auto&minus;build                 | When set, the function image will be built prior to run if needed                                       |
 | &minus;&minus;ensure&minus;project             | Ensure the project exists, if not, create project                                                       |
 | &minus;&minus;returns                          | Logging configurations for the handler's returning values                                               |
 

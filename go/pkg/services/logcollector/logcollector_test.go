@@ -200,11 +200,14 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	pod, err := suite.kubeClientSet.CoreV1().Pods(suite.namespace).Create(suite.ctx, &fakePod, metav1.CreateOptions{})
 	suite.Require().NoError(err, "Failed to create pod")
 
-	ctx, cancel := context.WithCancel(suite.ctx)
 	startedChan := make(chan bool)
 
 	// stream pod logs
-	go suite.logCollectorServer.startLogStreaming(ctx, runId, pod.Name, suite.projectName, startedChan, cancel)
+	go suite.logCollectorServer.startLogStreaming(context.WithoutCancel(suite.ctx),
+		runId,
+		pod.Name,
+		suite.projectName,
+		startedChan)
 
 	// wait for log streaming to start
 	started := <-startedChan

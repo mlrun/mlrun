@@ -180,6 +180,26 @@ def mock_failed_get_func(status_code: int):
     return mock_get
 
 
+# Mock class used for tests involving native gitpython functionality
+class GitRepoMock:
+    def __init__(self, remotes: dict):
+        self.remotes = {}
+        for k in remotes:
+            mock = Mock()
+            mock.url = remotes[k]
+            self.remotes[k] = mock
+
+
+@pytest.fixture
+def mock_git_repo():
+    return GitRepoMock(
+        remotes={
+            "origin": "https://git.server/my-repo",
+            "organization": "https://another.git.server/my-repo",
+        }
+    )
+
+
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
 class RunDBMock:
     def __init__(self):

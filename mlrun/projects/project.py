@@ -2030,7 +2030,6 @@ class MlrunProject(ModelObj):
                 )
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
-
         else:
             raise ValueError("'func' parameter must be a function url or object")
 

@@ -776,7 +776,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",  # TODO: delete this deprecated parameter once it's removed
+            parse_dates="timestamp",
         )
         resp = fstore.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
@@ -984,7 +984,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
+            parse_dates="timestamp",
         )
 
         expected = source.to_dataframe().set_index("patient_id")

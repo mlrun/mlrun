@@ -51,8 +51,6 @@ MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
 # sql db path string for test_sql_db - e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
 MLRUN_SQL__URL:
 
-# AWS bucket name
 AWS_BUCKET_NAME: 
-# Access key parameters as created by AWS IAM secret key mechanism
 AWS_ACCESS_KEY_ID:
 AWS_SECRET_ACCESS_KEY:

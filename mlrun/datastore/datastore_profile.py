@@ -68,7 +68,7 @@ class DatastoreProfileBasic(DatastoreProfile):
 
 
 class DatastoreProfileKafkaTarget(DatastoreProfile):
-    type: str = pydantic.Field("kafkaTarget")
+    type: str = pydantic.Field("kafka_target")
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
     topic: str
@@ -85,7 +85,7 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
 
 
 class DatastoreProfileKafkaSource(DatastoreProfile):
-    type: str = pydantic.Field("kafkaSource")
+    type: str = pydantic.Field("kafka_source")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, typing.List[str]]
     topics: typing.Union[str, typing.List[str]]
@@ -223,8 +223,8 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "s3": DatastoreProfileS3,
             "redis": DatastoreProfileRedis,
             "basic": DatastoreProfileBasic,
-            "kafkaTarget": DatastoreProfileKafkaTarget,
-            "kafkaSource": DatastoreProfileKafkaSource,
+            "kafka_target": DatastoreProfileKafkaTarget,
+            "kafka_source": DatastoreProfileKafkaSource,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

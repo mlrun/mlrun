@@ -127,7 +127,7 @@ def _generate_random_name():
 
 
 test_environment = TestMLRunSystem._get_env_from_file()
-kafka_brokers = test_environment["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"] or os.getenv(
+kafka_brokers = test_environment.get("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS") or os.getenv(
     "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"
 )
 
@@ -264,7 +264,9 @@ class TestFeatureStore(TestMLRunSystem):
         )
         resp = fstore.get_offline_features(
             vector,
-            entity_rows=trades,
+            entity_rows=trades.set_index(
+                "ticker"
+            ),  # test when the relation keys are indexes.
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
         )

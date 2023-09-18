@@ -28,23 +28,24 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.utils import logger
 from tests.system.base import TestMLRunSystem
 
-# Used to test dataframe functionality (will be saved as csv)
-test_df_string = "col1,col2,col3\n1,2,3"
-
 test_environment = TestMLRunSystem._get_env_from_file()
-aws_keys = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_BUCKET_NAME"]
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
-    not all(test_environment[key] for key in aws_keys),
-    reason=f"one of {aws_keys} keys is not set, skipping until testing against real aws",
+    not test_environment.get("AWS_ACCESS_KEY_ID"),
+    reason="AWS_ACCESS_KEY_ID is not set",
+)
+@pytest.mark.skipif(
+    not test_environment.get("AWS_SECRET_ACCESS_KEY"),
+    reason="AWS_SECRET_ACCESS_KEY is not set",
+)
+@pytest.mark.skipif(
+    not test_environment.get("AWS_BUCKET_NAME"),
+    reason="AWS_BUCKET_NAME is not set",
 )
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestAwsS3(TestMLRunSystem):
-    def custom_setup(self):
-        pass
-
     def _make_target_names(
         self, prefix, bucket_name, object_dir, object_file, csv_file
     ):
@@ -73,13 +74,18 @@ class TestAwsS3(TestMLRunSystem):
         object_file = f"file_{random.randint(0, 1000)}.txt"
         csv_file = f"file_{random.randint(0,1000)}.csv"
 
-        self.s3 = {}
-        self.s3["s3"] = self._make_target_names(
-            "s3://", self._bucket_name, object_dir, object_file, csv_file
-        )
-        self.s3["ds"] = self._make_target_names(
-            "ds://s3ds_profile/", self._bucket_name, object_dir, object_file, csv_file
-        )
+        self.s3 = {
+            "s3": self._make_target_names(
+                "s3://", self._bucket_name, object_dir, object_file, csv_file
+            ),
+            "ds": self._make_target_names(
+                "ds://s3ds_profile/",
+                self._bucket_name,
+                object_dir,
+                object_file,
+                csv_file,
+            ),
+        }
 
         mlrun.get_or_create_project(self.project_name)
         profile = DatastoreProfileS3(

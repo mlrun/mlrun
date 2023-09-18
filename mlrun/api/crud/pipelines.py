@@ -99,6 +99,57 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
+    @staticmethod
+    def _get_project_from_experiment_name(name: str) -> str:
+        try:
+            return name.partition("-")[0]
+        except RuntimeError as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{name} is not a valid experiment name"
+            ) from e
+
+    def list_experiments(self, project: str, list_filter: dict = {}):
+        kfp_client = self.initialize_kfp_client()
+
+        experiments = []
+        page_token = ""
+        while True:
+            response = kfp_client.list_experiments(
+                filter=json.dumps(list_filter) if not page_token else "",
+                page_token=page_token,
+            )
+            experiments.extend(response.experiments or [])
+            page_token = response.next_page_token
+            if not page_token:
+                break
+
+        return [
+            e
+            for e in experiments
+            if self._get_project_from_experiment_name(e.name) == project
+        ]
+
+    def delete_experiments(self, project: str):
+        kfp_client = self.initialize_kfp_client()
+        experiments = self.list_experiments(project=project)
+        if experiments:
+            logger.debug(
+                "Detected experiments for project, deleting them",
+                project=project,
+                pipeline_run_ids=[e.id for e in experiments],
+            )
+        for experiment in experiments:
+            try:
+                kfp_client._experiment_api.delete_experiment(id=experiment.id)
+            except RuntimeError as e:
+                logger.warning(
+                    "Failed to delete an experiment",
+                    project=project,
+                    experiment_id=experiment.id,
+                    exc_info=e,
+                )
+        logger.debug("Finished deleting experiments", project=project)
+
     def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project: str):
         _, _, project_pipeline_runs = self.list_pipelines(
             db_session=db_session,

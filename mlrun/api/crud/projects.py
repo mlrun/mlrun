@@ -161,9 +161,11 @@ class Projects(
         )
         if mlrun.mlconf.resolve_kfp_url():
             logger.debug("Removing KFP pipelines runs for project", project=name)
-            mlrun.api.crud.pipelines.Pipelines().delete_pipelines_runs(
+            pipelines = mlrun.api.crud.pipelines.Pipelines()
+            pipelines.delete_pipelines_runs(
                 db_session=session, project=name
             )
+            pipelines.delete_experiments(project=name)
 
         # log collector service will delete the logs, so we don't need to do it here
         if (

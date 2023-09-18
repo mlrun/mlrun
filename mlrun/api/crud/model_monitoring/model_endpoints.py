@@ -238,6 +238,12 @@ class ModelEndpoints:
                         name=feature.name, value_type=feature.value_type
                     )
                 )
+            for feature in model_obj.spec.outputs:
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature.name, value_type=feature.value_type
+                    )
+                )
         # Check if features can be found within the feature vector
         elif model_obj.spec.feature_vector:
             _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
@@ -267,7 +273,8 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET, parquet_path
+            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+            parquet_path,
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
 

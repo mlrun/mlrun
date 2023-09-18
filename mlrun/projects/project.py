@@ -40,6 +40,7 @@ from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
@@ -53,7 +54,12 @@ from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifa
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
+from ..model_monitoring.application import (
+    ModelMonitoringApplication,
+    PushToMonitoringWriter,
+)
 from ..run import code_to_function, get_object, import_function, new_function
+from ..runtimes.function import RemoteRuntime
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -1774,6 +1780,102 @@ class MlrunProject(ModelObj):
         )
         return _run_project_setup(self, setup_file_path, save)
 
+    def set_model_monitoring_application(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        name: str = None,
+        image: str = None,
+        handler=None,
+        with_repo: bool = None,
+        tag: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
+        **application_kwargs,
+    ) -> mlrun.runtimes.BaseRuntime:
+        """
+        update or add a monitoring application to the project & deploy it.
+        examples::
+            project.set_model_monitoring_application(application_class_name="MyApp",
+                                                 image="davesh0812/mlrun-api:1.5.0", name="myApp")
+        :param func:                    function object or spec/code url, None refers to current Notebook
+        :param name:                    name of the function (under the project), can be specified with a tag to support
+                                        versions (e.g. myfunc:v1)
+                                        default: job
+        :param image:                   docker image to be used, can also be specified in
+                                        the function object/yaml
+        :param handler:                 default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:               add (clone) the current repo to the build source
+        :param tag:                     function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                        if tag is specified and name is empty, the function key (under the project)
+                                        will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param requirements:            a list of python packages
+        :param requirements_file:       path to a python requirements file
+        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_kwargs:      Additional keyword arguments to be passed to the
+                                        monitoring application's constructor.
+        """
+
+        function_object: RemoteRuntime = None
+        kind = None
+        if (isinstance(func, str) or func is None) and application_class is not None:
+            kind = "serving"
+            func = mlrun.code_to_function(
+                name=name,
+                project=self.metadata.name,
+                tag=tag,
+                kind=kind,
+                image=image,
+                requirements=requirements,
+                requirements_file=requirements_file,
+            )
+            graph = func.set_topology("flow")
+            if isinstance(application_class, str):
+                first_step = graph.to(
+                    class_name=application_class, **application_kwargs
+                )
+            else:
+                first_step = graph.to(class_name=application_class)
+            first_step.to(
+                class_name=PushToMonitoringWriter(
+                    project=self.metadata.name,
+                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                    stream_uri=None,
+                ),
+            ).respond()
+        elif isinstance(func, str) and isinstance(handler, str):
+            kind = "nuclio"
+
+        resolved_function_name, function_object, func = self._resolved_function(
+            func,
+            name,
+            kind,
+            image,
+            handler,
+            with_repo,
+            tag,
+            requirements,
+            requirements_file,
+        )
+        models_names = "all"
+        function_object.set_label(
+            mm_constants.ModelMonitoringAppTag.KEY,
+            mm_constants.ModelMonitoringAppTag.VAL,
+        )
+        function_object.set_label("models", models_names)
+
+        if not mlrun.mlconf.is_ce_mode():
+            function_object.apply(mlrun.mount_v3io())
+        # Deploy & Add stream triggers
+        self.deploy_function(
+            function_object,
+        )
+
+        # save to project spec
+        self.spec.set_function(resolved_function_name, function_object, func)
+
+        return function_object
+
     def set_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
@@ -1830,6 +1932,32 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
+        resolved_function_name, function_object, func = self._resolved_function(
+            func,
+            name,
+            kind,
+            image,
+            handler,
+            with_repo,
+            tag,
+            requirements,
+            requirements_file,
+        )
+        self.spec.set_function(resolved_function_name, function_object, func)
+        return function_object
+
+    def _resolved_function(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        name: str = "",
+        kind: str = "",
+        image: str = None,
+        handler=None,
+        with_repo: bool = None,
+        tag: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
+    ):
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
@@ -1902,7 +2030,6 @@ class MlrunProject(ModelObj):
                 )
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
-
         else:
             raise ValueError("'func' parameter must be a function url or object")
 
@@ -1916,7 +2043,7 @@ class MlrunProject(ModelObj):
             self.spec.set_function(f"{name}:{tag}", function_object, func)
 
         self.spec.set_function(name, function_object, func)
-        return function_object
+        return name, function_object, func
 
     def remove_function(self, name):
         """remove a function from a project
@@ -1924,6 +2051,24 @@ class MlrunProject(ModelObj):
         :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
+
+    def remove_model_monitoring_application(self, name):
+        """remove a function from a project and from the db.
+
+        :param name: name of the function (under the project)
+        """
+        application = self.get_function(key=name)
+        if (
+            application.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
+            == mm_constants.ModelMonitoringAppTag.VAL
+        ):
+            self.remove_function(name=name)
+            mlrun.db.get_run_db().delete_function(name=name.lower())
+            logger.info(f"{name} application has been removed from {self.name} project")
+        else:
+            raise logger.error(
+                f"There is no model monitoring application with {name} name"
+            )
 
     def get_function(
         self,
@@ -3023,6 +3168,18 @@ class MlrunProject(ModelObj):
         if functions:
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
+
+    def list_model_monitoring_applications(self):
+        """Retrieve a list of alll the model monitoring application.
+        example::
+            functions = project.list_model_monitoring_applications()
+        :returns: List of function objects.
+        """
+        return self.list_functions(
+            labels=[
+                f"{mm_constants.ModelMonitoringAppTag.KEY}={mm_constants.ModelMonitoringAppTag.VAL}"
+            ]
+        )
 
     def list_runs(
         self,

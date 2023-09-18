@@ -26,7 +26,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
-from typing import Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import dotenv
 import git
@@ -38,6 +38,7 @@ import requests
 import yaml
 from deprecated import deprecated
 
+import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
 import mlrun.db
 import mlrun.errors
@@ -62,7 +63,13 @@ from ..utils import (
     logger,
     update_in,
 )
-from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
+from ..utils.clones import (
+    add_credentials_git_remote_url,
+    clone_git,
+    clone_tgz,
+    clone_zip,
+    get_repo_url,
+)
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -1805,29 +1812,30 @@ class MlrunProject(ModelObj):
             # by providing a path to a pip requirements file
             proj.set_function('my.py', requirements="requirements.txt")
 
-        :param func:                function object or spec/code url, None refers to current Notebook
-        :param name:                name of the function (under the project), can be specified with a tag to support
-                                    versions (e.g. myfunc:v1)
-        :param kind:                runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    default: job
-        :param image:               docker image to be used, can also be specified in
-                                    the function object/yaml
-        :param handler:             default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           add (clone) the current repo to the build source
-        :param tag:                 function version tag (none for 'latest', can only be set with .py/.ipynb files)
-                                    if tag is specified and name is empty, the function key (under the project)
-                                    will be enriched with the tag value. (i.e. 'function-name:tag')
-        :param requirements:        a list of python packages
-        :param requirements_file:   path to a python requirements file
+        :param func:                Function object or spec/code url, None refers to current Notebook
+        :param name:                Name of the function (under the project), can be specified with a tag to support
+                                    Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
+                                    must match the tag parameter.
+                                    Specifying a tag in the name will update the project's tagged function (myfunc:v1)
+        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
+                                    Default: job
+        :param image:               Docker image to be used, can also be specified in the function object/yaml
+        :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:           Add (clone) the current repo to the build source
+        :param tag:                 Function version tag to set (none for current or 'latest')
+                                    Specifying a tag as a parameter will update the project's tagged function
+                                    (myfunc:v1) and the untagged function (myfunc)
+        :param requirements:        A list of python packages
+        :param requirements_file:   Path to a python requirements file
 
-        :returns: project object
+        :returns: function object
         """
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
             if not is_ipython:
                 raise ValueError(
-                    "function path or module must be specified (when not running inside a Notebook)"
+                    "Function path or module must be specified (when not running inside a Notebook)"
                 )
             from IPython import get_ipython
 
@@ -1837,14 +1845,31 @@ class MlrunProject(ModelObj):
                 func = path.relpath(func, self.spec.context)
 
         func = func or ""
+
         name = mlrun.utils.normalize_name(name) if name else name
+        untagged_name = name
+        # validate tag in name if specified
+        if len(split_name := name.split(":")) == 2:
+            untagged_name, name_tag = split_name
+            if tag and name_tag and tag != name_tag:
+                raise ValueError(
+                    f"Tag parameter ({tag}) and tag in function name ({name}) must match"
+                )
+
+            tag = tag or name_tag
+        elif len(split_name) > 2:
+            raise ValueError(
+                f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+            )
+
         if isinstance(func, str):
+
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
-                raise ValueError("function name must be specified")
+                raise ValueError("Function name must be specified")
             function_dict = {
                 "url": func,
-                "name": name,
+                "name": untagged_name,
                 "kind": kind,
                 "image": image,
                 "handler": handler,
@@ -1857,13 +1882,14 @@ class MlrunProject(ModelObj):
                 func, self
             )
             func["name"] = resolved_function_name
+
         elif hasattr(func, "to_dict"):
             resolved_function_name, function_object = _init_function_from_obj(
-                func, self, name=name
+                func, self, name=untagged_name
             )
             if handler:
                 raise ValueError(
-                    "default handler cannot be set for existing function object"
+                    "Default handler cannot be set for existing function object"
                 )
             if image:
                 function_object.spec.image = image
@@ -1875,17 +1901,21 @@ class MlrunProject(ModelObj):
                     requirements, requirements_file=requirements_file
                 )
             if not resolved_function_name:
-                raise ValueError("function name must be specified")
+                raise ValueError("Function name must be specified")
+
         else:
-            raise ValueError("func must be a function url or object")
+            raise ValueError("'func' parameter must be a function url or object")
 
-        if tag and not resolved_function_name.endswith(f":{tag}"):
-            # Update the tagged key as well for consistency
-            self.spec.set_function(
-                f"{resolved_function_name}:{tag}", function_object, func
-            )
+        function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
+        # resolved_function_name is the name without the tag or the actual function name if it was not specified
+        # if the name contains the tag we only update the tagged entry
+        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
+        # for consistency
+        name = name or resolved_function_name
+        if tag and not name.endswith(f":{tag}"):
+            self.spec.set_function(f"{name}:{tag}", function_object, func)
 
-        self.spec.set_function(resolved_function_name, function_object, func)
+        self.spec.set_function(name, function_object, func)
         return function_object
 
     def remove_function(self, name):
@@ -1969,19 +1999,29 @@ class MlrunProject(ModelObj):
         """get a list of all the project function names"""
         return [func["name"] for func in self.spec.functions]
 
-    def pull(self, branch=None, remote=None):
+    def pull(
+        self,
+        branch: str = None,
+        remote: str = None,
+        secrets: Union[SecretsStore, dict] = None,
+    ):
         """pull/update sources from git or tar into the context dir
 
         :param branch:  git branch, if not the current one
         :param remote:  git remote, if other than origin
+        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
         """
         url = self.spec.origin_url
         if url and url.startswith("git://"):
             if not self.spec.repo:
                 raise ValueError("repo was not initialized, use load_project()")
-            branch = branch or self.spec.repo.active_branch.name
             remote = remote or "origin"
-            self.spec.repo.git.pull(remote, branch)
+            self._run_authenticated_git_action(
+                action=self.spec.repo.git.pull,
+                remote=remote,
+                args=[remote, branch or self.spec.repo.active_branch.name],
+                secrets=secrets or {},
+            )
         elif url and url.endswith(".tar.gz"):
             clone_tgz(url, self.spec.context, self._secrets)
         elif url and url.endswith(".zip"):
@@ -2008,19 +2048,38 @@ class MlrunProject(ModelObj):
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
-    def push(self, branch, message=None, update=True, remote=None, add: list = None):
+    def push(
+        self,
+        branch,
+        message=None,
+        update=True,
+        remote: str = None,
+        add: list = None,
+        author_name: str = None,
+        author_email: str = None,
+        secrets: Union[SecretsStore, dict] = None,
+    ):
         """update spec and push updates to remote git repo
 
-        :param branch:  target git branch
-        :param message: git commit message
-        :param update:  update files (git add update=True)
-        :param remote:  git remote, default to origin
-        :param add:     list of files to add
+        :param branch:       target git branch
+        :param message:      git commit message
+        :param update:       update files (git add update=True)
+        :param remote:       git remote, default to origin
+        :param add:          list of files to add
+        :param author_name:  author's git user name to be used on this commit
+        :param author_email: author's git user email to be used on this commit
+        :param secrets:      dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
         """
         repo = self.spec.repo
         if not repo:
             raise ValueError("git repo is not set/defined")
         self.save()
+
+        with repo.config_writer() as config:
+            if author_name:
+                config.set_value("user", "name", author_name)
+            if author_email:
+                config.set_value("user", "email", author_email)
 
         add = add or []
         add.append("project.yaml")
@@ -2035,8 +2094,9 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        "Git is not configured, please run the following commands and run git push from the terminal "
-                        "once to store your credentials:\n"
+                        'Git is not configured. Either use "author_name", "author_email" and "secrets" parameters or '
+                        "run the following commands from the terminal and run git push once to store "
+                        "your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
@@ -2048,7 +2108,14 @@ class MlrunProject(ModelObj):
 
         if not branch:
             raise ValueError("please specify the remote branch")
-        repo.git.push(remote or "origin", branch)
+
+        remote = remote or "origin"
+        self._run_authenticated_git_action(
+            action=repo.git.push,
+            remote=remote,
+            args=[remote, branch],
+            secrets=secrets or {},
+        )
 
     def sync_functions(self, names: list = None, always=True, save=False):
         """reload function objects from specs and files"""
@@ -2254,7 +2321,7 @@ class MlrunProject(ModelObj):
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
         if self.spec.repo and self.spec.repo.is_dirty():
-            msg = "you seem to have uncommitted git changes, use .push()"
+            msg = "You seem to have uncommitted git changes, use .push()"
             if dirty or not need_repo:
                 logger.warning("WARNING!, " + msg)
             else:
@@ -2262,7 +2329,7 @@ class MlrunProject(ModelObj):
 
         if need_repo and self.spec.repo and not self.spec.source:
             raise ProjectError(
-                "remote repo is not defined, use .create_remote() + push()"
+                "Remote repo is not defined, use .create_remote() + push()"
             )
 
         self.sync_functions(always=sync)
@@ -2276,7 +2343,7 @@ class MlrunProject(ModelObj):
             if self.spec.workflows:
                 name = list(self.spec._workflows.keys())[0]
             else:
-                raise ValueError("workflow name or path must be specified")
+                raise ValueError("Workflow name or path must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
@@ -2324,7 +2391,7 @@ class MlrunProject(ModelObj):
         if not workflow_spec.schedule:
             # Failure and schedule messages already logged
             logger.info(
-                f"started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
+                f"Started run workflow {name} with run id = '{run.run_id}' by {workflow_engine.engine} engine"
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
@@ -3090,6 +3157,40 @@ class MlrunProject(ModelObj):
         """
         self.spec.remove_custom_packager(packager=packager)
 
+    def _run_authenticated_git_action(
+        self,
+        action: Callable,
+        remote: str,
+        args: list = [],
+        kwargs: dict = {},
+        secrets: Union[SecretsStore, dict] = None,
+    ):
+        """Run an arbitrary Git routine while the remote is enriched with secrets
+        Enrichment of the remote URL is undone before this method returns
+        If no secrets are provided, remote remains untouched
+
+        :param action:  git callback that may require authentication
+        :param remote:  git remote to be temporarily enriched with secrets
+        :param args:    positional arguments to be passed along to action
+        :param kwargs:  keyword arguments to be passed along to action
+        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
+        """
+        clean_remote = self.spec.repo.remotes[remote].url
+        enriched_remote, is_remote_enriched = add_credentials_git_remote_url(
+            clean_remote, secrets=secrets or {}
+        )
+        try:
+            if is_remote_enriched:
+                self.spec.repo.remotes[remote].set_url(enriched_remote, clean_remote)
+            action(*args, **kwargs)
+        except RuntimeError as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to run Git action: {action}"
+            ) from e
+        finally:
+            if is_remote_enriched:
+                self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
+
 
 def _set_as_current_default_project(project: MlrunProject):
     mlrun.mlconf.default_project = project.metadata.name
@@ -3113,31 +3214,32 @@ def _init_function_from_dict(
     has_module = _has_module(handler, kind)
     if not url and "spec" not in f and not has_module:
         # function must point to a file or a module or have a spec
-        raise ValueError("function missing a url or a spec or a module")
+        raise ValueError("Function missing a url or a spec or a module")
 
     relative_url = url
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f["spec"])
+        func = new_function(name, runtime=f, tag=tag)
+
     elif not url and has_module:
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
 
     elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
-        if tag:
-            raise ValueError(
-                "function with db:// or hub:// url or .yaml file, does not support tag value "
-            )
         func = import_function(url, new_name=name)
         if image:
             func.spec.image = image
+        if tag:
+            func.spec.tag = tag
+
     elif url.endswith(".ipynb"):
         # not defaulting kind to job here cause kind might come from magic annotations in the notebook
         func = code_to_function(
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
+
     elif url.endswith(".py"):
         if not image and not project.default_image and kind != "local":
             raise ValueError(
@@ -3162,8 +3264,9 @@ def _init_function_from_dict(
                 handler=handler,
                 tag=tag,
             )
+
     else:
-        raise ValueError(f"unsupported function url:handler {url}:{handler} or no spec")
+        raise ValueError(f"Unsupported function url:handler {url}:{handler} or no spec")
 
     if with_repo:
         # mark source to be enriched before run with project source (enrich_function_object)
@@ -3171,7 +3274,7 @@ def _init_function_from_dict(
     if requirements:
         func.with_requirements(requirements)
 
-    return _init_function_from_obj(func, project, name)
+    return _init_function_from_obj(func, project)
 
 
 def _init_function_from_obj(
@@ -3190,9 +3293,14 @@ def _init_function_from_obj(
         build.code_origin = origin
     if project.metadata.name:
         func.metadata.project = project.metadata.name
+
+    # TODO: deprecate project tag
     if project.spec.tag:
         func.metadata.tag = project.spec.tag
-    return name or func.metadata.name, func
+
+    if name:
+        func.metadata.name = name
+    return func.metadata.name, func
 
 
 def _has_module(handler, kind):

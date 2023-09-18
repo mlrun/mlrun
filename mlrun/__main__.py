@@ -917,7 +917,9 @@ def version():
 
 @main.command()
 @click.argument("uid", type=str)
-@click.option("--project", "-p", help="project name")
+@click.option(
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+)
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
 @click.option("--watch", "-w", is_flag=True, help="watch/follow log")

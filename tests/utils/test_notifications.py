@@ -118,13 +118,23 @@ def test_notification_should_notify(
     assert notification_pusher._should_notify(run, notification) == expected
 
 
-def test_notification_reason():
+@pytest.mark.parametrize(
+    "notification_kind",
+    [
+        mlrun.common.schemas.notification.NotificationKind.console,
+        mlrun.common.schemas.notification.NotificationKind.slack,
+        mlrun.common.schemas.notification.NotificationKind.git,
+        mlrun.common.schemas.notification.NotificationKind.webhook,
+        mlrun.common.schemas.notification.NotificationKind.ipython,
+    ],
+)
+def test_notification_reason(notification_kind):
     error_exc = Exception("Blew up")
     run = mlrun.model.RunObject.from_dict({"status": {"state": "completed"}})
     run.spec.notifications = [
         mlrun.model.Notification.from_dict(
             {
-                "kind": mlrun.common.schemas.notification.NotificationKind.console,
+                "kind": notification_kind,
                 "status": "pending",
                 "message": "test-abc",
             }
@@ -139,12 +149,18 @@ def test_notification_reason():
     notification_pusher._update_notification_status = unittest.mock.MagicMock()
 
     # mock the push method to raise an exception
-    concrete_notification = notification_pusher._sync_notifications[0][0]
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
+    if asyncio.iscoroutinefunction(notification_kind_type.push):
+        concrete_notification = notification_pusher._async_notifications[0][0]
+    else:
+        concrete_notification = notification_pusher._sync_notifications[0][0]
+
     concrete_notification.push = unittest.mock.MagicMock(side_effect=error_exc)
 
     # send notifications
-    with pytest.raises(Exception):
-        notification_pusher.push()
+    notification_pusher.push()
 
     # asserts
     notification_pusher._update_notification_status.assert_called_once()

@@ -160,7 +160,7 @@ class CSVSource(BaseSourceDriver):
         **kwargs,
     ):
         super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
-        if not isinstance(parse_dates, list):
+        if parse_dates and not isinstance(parse_dates, list):
             parse_dates = [parse_dates]
         self._parse_dates = parse_dates
 

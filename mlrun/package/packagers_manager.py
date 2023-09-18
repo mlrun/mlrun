@@ -156,7 +156,7 @@ class PackagersManager:
             # Validate the class given is a `Packager` type:
             if not issubclass(packager, Packager):
                 raise MLRunPackageCollectionError(
-                    f"The packager '{packager.__name__}' could not be collected as it is not `mlrun.Packager`."
+                    f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
             # Set default priority in case it is not set in the packager's class:
             if packager.PRIORITY is ...:
@@ -558,8 +558,8 @@ class PackagersManager:
                 f"this warning. Otherwise, make sure the interpreter has the required module to import the type.\n"
                 f"If it does, you probably implemented the class at the same file of your MLRun function, making "
                 f"Python collect it twice: one from the object's own Packager class and another from the function "
-                f"code. When MLRun is converting code to a MLRun function, it counts on it to able to be imported "
-                f"as a standalone file. If other classes (like the packager who imports it) require objects declared "
+                f"code. When MLRun is converting code to a MLRun function, it counts on it to be able to be imported "
+                f"as a stand alone file. If other classes (like the packager who imports it) require objects declared "
                 f"in this file, it is no longer stand alone. For example:\n\n"
                 f""
                 f"Let us look at a file '/src/my_module/my_file.py':"
@@ -575,7 +575,7 @@ class PackagersManager:
                 f"as a stand alone module, making the same class to be imported twice: one time as `my_file.MyClass` "
                 f"from the stand alone function, and another from the packager who has the correct full module path: "
                 f"`src.my_module.my_file.MyClass`. This will cause both classes, although the same, to be not equal "
-                f"and the first one to be not even be importable outside the scope of 'my_file.py' - yielding this "
+                f"and the first one to be not even importable outside the scope of 'my_file.py' - yielding this "
                 f"warning."
             )
         artifact_type = packaging_instructions[self._InstructionsNotesKey.ARTIFACT_TYPE]

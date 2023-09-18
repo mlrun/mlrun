@@ -26,7 +26,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import dotenv
 import git
@@ -69,13 +69,7 @@ from ..utils import (
     logger,
     update_in,
 )
-from ..utils.clones import (
-    add_credentials_git_remote_url,
-    clone_git,
-    clone_tgz,
-    clone_zip,
-    get_repo_url,
-)
+from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (

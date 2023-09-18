@@ -14,20 +14,20 @@
 #
 """adding artifacts_v2 table
 
-Revision ID: 540c2a87b740
-Revises: b1d1e7ab5dec
-Create Date: 2023-08-02 14:49:02.538629
+Revision ID: 228c65170b93
+Revises: eefc169f7633
+Create Date: 2023-09-18 18:33:35.390842
 
 """
 import sqlalchemy as sa
-import sqlalchemy.dialects.mysql
 from alembic import op
+from sqlalchemy.dialects import mysql
 
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
-revision = "540c2a87b740"
-down_revision = "b1d1e7ab5dec"
+revision = "228c65170b93"
+down_revision = "eefc169f7633"
 branch_labels = None
 depends_on = None
 
@@ -65,9 +65,9 @@ def upgrade():
         ),
         sa.Column("iteration", sa.Integer(), nullable=True),
         sa.Column("best_iteration", sa.BOOLEAN(), nullable=True, index=True),
-        sa.Column("object", sqlalchemy.dialects.mysql.MEDIUMBLOB(), nullable=True),
-        sa.Column("created", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
-        sa.Column("updated", sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3), nullable=True),
+        sa.Column("object", mysql.MEDIUMBLOB(), nullable=True),
+        sa.Column("created", mysql.TIMESTAMP(fsp=3), nullable=True),
+        sa.Column("updated", mysql.TIMESTAMP(fsp=3), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
     )

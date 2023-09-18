@@ -14,20 +14,19 @@
 #
 """adding artifacts_v2 table
 
-Revision ID: 2194b6211779
-Revises: 6e0c9531edc7
-Create Date: 2023-08-02 14:50:27.454341
+Revision ID: e0f559b26a75
+Revises: 114b2c80710f
+Create Date: 2023-09-18 18:37:42.342834
 
 """
 import sqlalchemy as sa
-import sqlalchemy.dialects.mysql
 from alembic import op
 
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
-revision = "2194b6211779"
-down_revision = "6e0c9531edc7"
+revision = "e0f559b26a75"
+down_revision = "114b2c80710f"
 branch_labels = None
 depends_on = None
 

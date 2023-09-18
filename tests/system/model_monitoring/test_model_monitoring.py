@@ -846,7 +846,7 @@ class TestBatchDrift(TestMLRunSystem):
         assert model_endpoint.status.current_stats
         assert model_endpoint.status.drift_status == "DRIFT_DETECTED"
 
-        assert model_endpoint.spec.model_uri == 'store://models/pr-batch-drift/sklearn_RandomForestClassifier:latest'
+        assert model_endpoint.spec.model_uri == f"store://models/{project.metadata.name}/{model_name}:latest"
 
         # Validate that the artifacts were logged under the generated context
         artifacts = context.artifacts

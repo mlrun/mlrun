@@ -68,9 +68,8 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 _last_notification_push_time: datetime.datetime = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
-# The key is the run uid and the value is the number of consecutive start log requests for that run.
-# We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a run
-# which keeps failing.
+# We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
+# that keep failing start logs requests.
 _run_uid_start_log_request_counters: typing.Dict[str, int] = {}
 
 
@@ -321,7 +320,7 @@ async def _start_log_and_update_runs(
     # the max number of consecutive start log requests for a run before we mark it as requested logs collection
     # basically represents the grace period before the run's resources are deleted
     max_consecutive_start_log_requests = int(
-        int(config.runtime_resources_deletion_grace_period)
+        int(config.log_collector.failed_runs_grace_period)
         / int(config.log_collector.periodic_start_log_interval)
     )
 
@@ -380,7 +379,7 @@ async def _start_log_and_update_runs(
 
         # remove the counters for the runs we updated
         for run_uid in runs_to_mark_as_requested_logs:
-            del _run_uid_start_log_request_counters[run_uid]
+            _run_uid_start_log_request_counters.pop(run_uid, None)
 
 
 async def _start_log_for_run(

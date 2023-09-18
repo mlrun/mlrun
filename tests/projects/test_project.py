@@ -424,9 +424,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     assert len(project_function_objects) == len(expected_function_objects)
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
+        project_function = project_function_objects[function_name].to_dict()
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
-                project_function_objects[function_name].to_dict(),
+                project_function,
                 function_object.to_dict(),
                 ignore_order=True,
                 exclude_paths=["root['spec']['build']['code_origin']"],
@@ -555,14 +559,14 @@ def test_set_func_with_tag():
         image="mlrun/mlrun",
     )
     func = project.get_function("desc1")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc2",
         image="mlrun/mlrun",
     )
     func = project.get_function("desc2")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
 
 
 def test_set_function_with_tagged_key():
@@ -634,6 +638,120 @@ def test_set_function_update_code():
         assert id(func) == id(
             project.get_function("handler:v1")
         ), f"Function of index {i} was not set and tagged correctly"
+
+
+def test_set_function_with_conflicting_tag():
+    project = mlrun.new_project("set-func-conflicting-tag", save=False)
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name="handler:v2",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+            tag="v1",
+        )
+    assert "Tag parameter (v1) and tag in function name (handler:v2) must match" in str(
+        exc.value
+    )
+
+
+def test_set_function_with_multiple_tags():
+    project = mlrun.new_project("set-func-multi-tags", save=False)
+    name = "handler:v2:v3"
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name=name,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+        )
+    assert (
+        f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+        in str(exc.value)
+    )
+
+
+@pytest.mark.parametrize(
+    "name, tag, expected_name, expected_tag",
+    [
+        ("handler:v2", None, "handler", "v2"),
+        ("handler", None, "handler", "latest"),
+        ("handler", "v2", "handler", "v2"),
+    ],
+)
+def test_set_function_name_and_tag(name, tag, expected_name, expected_tag):
+    project = mlrun.new_project("set-func-untagged-name", save=False)
+    func = project.set_function(
+        func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        name=name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag=tag,
+    )
+    assert func.metadata.name == expected_name
+    assert func.metadata.tag == expected_tag
+
+
+def test_set_function_from_object():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function = project.set_function(func)
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+    project_function = project.get_function("handler")
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+    assert "handler:v1" not in project.spec._function_objects
+
+
+def test_set_function_from_object_override_tag():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function_v2 = project.set_function(func, tag="v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v2 = project.get_function("handler")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v2 = project.get_function("handler:v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v3 = project.set_function(func, name="other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    project_function_v3 = project.get_function("other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    # only name param (other-func:v3) should be set
+    assert "other-func" not in project.spec._function_objects
+
+    # assert original function changed
+    assert func.metadata.name == "other-func"
+    assert func.metadata.tag == "v3"
 
 
 def test_set_function_with_relative_path(context):
@@ -1120,6 +1238,51 @@ def test_set_secrets_file_not_found():
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         project.set_secrets(file_path=file_name)
     assert f"{file_name} does not exist" in str(excinfo.value)
+
+
+def test_authenticated_git_action_with_remote_cleanup(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy, remote="origin", secrets={"GIT_TOKEN": "my-token"}
+    )
+
+    expected_calls = [
+        unittest.mock.call(
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+            "https://git.server/my-repo",
+        ),
+        unittest.mock.call(
+            "https://git.server/my-repo",
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+        ),
+    ]
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["origin"].set_url.assert_has_calls(
+        expected_calls,
+        any_order=False,
+    )
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+
+
+def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy,
+        remote="organization",
+    )
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+    project.spec.repo.remotes["origin"].set_url.assert_not_called()
 
 
 def test_get_or_create_project_no_db():

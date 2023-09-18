@@ -99,15 +99,6 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
-    @staticmethod
-    def _get_project_from_experiment_name(name: str) -> str:
-        try:
-            return name.partition("-")[0]
-        except RuntimeError as e:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"{name} is not a valid experiment name"
-            ) from e
-
     def list_experiments(self, project: str, list_filter: dict = {}):
         kfp_client = self.initialize_kfp_client()
 
@@ -418,3 +409,12 @@ class Pipelines(
                     raise NotImplementedError(f"Unknown action: {action}")
 
         return mlrun.mlconf.default_project
+
+    @staticmethod
+    def _get_project_from_experiment_name(name: str) -> str:
+        try:
+            return name.partition("-")[0]
+        except RuntimeError as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"{name} is not a valid experiment name"
+            ) from e

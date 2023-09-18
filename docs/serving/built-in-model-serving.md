@@ -1,18 +1,19 @@
 (using_built_in_model_serving_classes)=
 # Using built-in model serving classes
 
-MLRun includes built-in classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, it is often not necessary to write one if you use these standard classes.
+MLRun includes built-in classes for commonly used frameworks. While you can {ref}`create your own class <custom-model-serving-class>`, 
+it is often not necessary to write one if you use these standard classes.
 
-The following table specifies, for each framework, the relevant pre-integrated image and the corresponding MLRun `ModelServer` serving class:
+The following table specifies, for each framework, the corresponding MLRun `ModelServer` serving class and its dependencies:
 
-|framework       |image          |serving class                               |
-|:---------------|:--------------|:-------------------------------------------|
-|Scikit-learn    |mlrun/mlrun    |mlrun.frameworks.sklearn.SklearnModelServer |
-|TensorFlow.Keras|mlrun/ml-models|mlrun.frameworks.tf_keras.TFKerasModelServer|
-|ONNX            |mlrun/ml-models|mlrun.frameworks.onnx.ONNXModelServer       |
-|XGBoost         |mlrun/ml-models|mlrun.frameworks.xgboost.XGBoostModelServer | 
-|LightGBM        |mlrun/ml-models|mlrun.frameworks.lgbm.LGBMModelServer       |
-|PyTorch         |mlrun/ml-models|mlrun.frameworks.pytorch.PyTorchModelServer |
+|framework       |serving class                               |dependencies    |
+|:---------------|:-------------------------------------------|:---------------|
+|Scikit-learn    |mlrun.frameworks.sklearn.SklearnModelServer |scikit-learn    |
+|TensorFlow.Keras|mlrun.frameworks.tf_keras.TFKerasModelServer|tensorflow      |
+|ONNX            |mlrun.frameworks.onnx.ONNXModelServer       |onnxruntime     |
+|XGBoost         |mlrun.frameworks.xgboost.XGBoostModelServer |xgboost         |
+|LightGBM        |mlrun.frameworks.lgbm.LGBMModelServer       |lightgbm        |
+|PyTorch         |mlrun.frameworks.pytorch.PyTorchModelServer |torch           |
 
 For GPU support, use the `mlrun/mlrun-gpu` image (adding GPU drivers and support).
 

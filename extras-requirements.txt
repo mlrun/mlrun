@@ -14,8 +14,8 @@ s3fs>=2023.1,<2023.7
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
 msrest~=0.6.21
 azure-core~=1.24
-# Upperbound added due to https://github.com/Azure/azure-sdk-for-python/issues/32056
-azure-storage-blob>=12.13, <12.18
+# Excluding 12.18.0 due to https://github.com/Azure/azure-sdk-for-python/issues/32056
+azure-storage-blob>=12.13, !=12.18.0
 adlfs>=2022.2,<2023.5
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2

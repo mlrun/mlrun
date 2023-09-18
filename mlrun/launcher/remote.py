@@ -89,7 +89,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
 
             else:
                 raise mlrun.errors.MLRunRuntimeError(
-                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
+                    "Function image is not built/ready, set auto_build=True or use .deploy() method first"
                 )
 
         if runtime.verbose:
@@ -122,11 +122,11 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
                 action = resp.pop("action", "created")
-                logger.info(f"task schedule {action}", **resp)
+                logger.info(f"Task schedule {action}", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:
-            logger.error(f"got remote run err, {mlrun.errors.err_to_str(err)}")
+            logger.error("Failed remote run", error=mlrun.errors.err_to_str(err))
 
             if isinstance(err, requests.HTTPError):
                 runtime._handle_submit_job_http_error(err)

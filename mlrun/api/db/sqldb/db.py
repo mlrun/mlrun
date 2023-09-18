@@ -304,7 +304,9 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run uid {uid} of project {project} not found"
+            )
         return run.struct
 
     def list_runs(

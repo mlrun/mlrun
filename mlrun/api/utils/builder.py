@@ -673,10 +673,8 @@ def build_runtime(
     base_image: str = (
         build.base_image or runtime.spec.image or config.default_base_image
     )
-    enriched_base_image = mlrun.utils.enrich_image_url(
-        base_image,
-        client_version,
-        client_python_version,
+    enriched_base_image = runtime.full_image_path(
+        base_image, client_version, client_python_version
     )
     mlrun.utils.logger.info(
         "Building runtime image",

@@ -326,14 +326,31 @@ async def _start_log_and_update_runs(
     )
 
     global _run_uid_start_log_request_counters
+    runs_to_mark_as_requested_logs = []
     start_logs_for_runs = []
     for run in runs:
+        run_uid = run.get("metadata", {}).get("uid", None)
+
+        # if we requested logs for the same run more times than the threshold, we mark it as requested logs collection,
+        # so the API and the log collector won't be stuck in an endless loop of trying to collect logs for it
+        if (
+            run_uid in _run_uid_start_log_request_counters
+            and _run_uid_start_log_request_counters[run_uid]
+            >= max_consecutive_start_log_requests
+        ):
+            logger.warning(
+                "Run reached max consecutive start log requests, marking it as requested logs collection",
+                run_uid=run_uid,
+                requests_count=_run_uid_start_log_request_counters[run_uid],
+            )
+            runs_to_mark_as_requested_logs.append(run_uid)
+            continue
+
         start_logs_for_runs.append(
             _start_log_for_run(
                 run, start_logs_limit, raise_on_error=False, best_effort=best_effort
             )
         )
-        run_uid = run.get("metadata", {}).get("uid", None)
         if run_uid:
             _run_uid_start_log_request_counters.setdefault(run_uid, 0)
             _run_uid_start_log_request_counters[run_uid] += 1
@@ -342,37 +359,27 @@ async def _start_log_and_update_runs(
     # if it's None it means something went wrong, and we should skip it
     # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
     results = await asyncio.gather(*start_logs_for_runs)
-    runs_to_update_requested_logs = [result for result in results if result]
-
-    # if we requested logs for the same run more than the threshold, we mark it as requested logs collection,
-    # so it won't be stuck in an endless loop of trying to collect logs for it
-    for run_uid in list(_run_uid_start_log_request_counters.keys()):
-        requests_count = _run_uid_start_log_request_counters[run_uid]
-        if requests_count >= max_consecutive_start_log_requests:
-            logger.warning(
-                "Run reached max consecutive start log requests, marking it as requested logs collection",
-                run_uid=run_uid,
-                requests_count=requests_count,
-            )
-            runs_to_update_requested_logs.append(run_uid)
+    successful_run_uids = [result for result in results if result]
 
     # distinct the runs uids
-    runs_to_update_requested_logs = list(set(runs_to_update_requested_logs))
+    runs_to_mark_as_requested_logs = list(
+        set(runs_to_mark_as_requested_logs + successful_run_uids)
+    )
 
-    if len(runs_to_update_requested_logs) > 0:
+    if len(runs_to_mark_as_requested_logs) > 0:
         logger.debug(
             "Updating runs to indicate that we requested logs collection for them",
-            runs_uids=runs_to_update_requested_logs,
+            runs_uids=runs_to_mark_as_requested_logs,
         )
         # update the runs to indicate that we have requested log collection for them
         await fastapi.concurrency.run_in_threadpool(
             get_db().update_runs_requested_logs,
             db_session,
-            uids=runs_to_update_requested_logs,
+            uids=runs_to_mark_as_requested_logs,
         )
 
         # remove the counters for the runs we updated
-        for run_uid in runs_to_update_requested_logs:
+        for run_uid in runs_to_mark_as_requested_logs:
             del _run_uid_start_log_request_counters[run_uid]
 
 

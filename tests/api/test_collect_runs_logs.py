@@ -298,13 +298,14 @@ class TestCollectRunSLogs:
                 BaseLogCollectorResponse(True, ""),
                 # failure response for the third call (failure_uid)
                 BaseLogCollectorResponse(False, "some error"),
+                BaseLogCollectorResponse(False, "some error"),
             ]
         )
         mlrun.api.utils.singletons.db.get_db().update_runs_requested_logs = (
             unittest.mock.Mock()
         )
 
-        for i in range(2):
+        for i in range(3):
             await mlrun.api.main._initiate_logs_collection(self.start_log_limit)
 
         assert (

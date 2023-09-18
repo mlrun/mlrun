@@ -1780,6 +1780,102 @@ class MlrunProject(ModelObj):
         )
         return _run_project_setup(self, setup_file_path, save)
 
+    def set_model_monitoring_application(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        name: str = None,
+        image: str = None,
+        handler=None,
+        with_repo: bool = None,
+        tag: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
+        **application_kwargs,
+    ) -> mlrun.runtimes.BaseRuntime:
+        """
+        update or add a monitoring application to the project & deploy it.
+        examples::
+            project.set_model_monitoring_application(application_class_name="MyApp",
+                                                 image="davesh0812/mlrun-api:1.5.0", name="myApp")
+        :param func:                    function object or spec/code url, None refers to current Notebook
+        :param name:                    name of the function (under the project), can be specified with a tag to support
+                                        versions (e.g. myfunc:v1)
+                                        default: job
+        :param image:                   docker image to be used, can also be specified in
+                                        the function object/yaml
+        :param handler:                 default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:               add (clone) the current repo to the build source
+        :param tag:                     function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                        if tag is specified and name is empty, the function key (under the project)
+                                        will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param requirements:            a list of python packages
+        :param requirements_file:       path to a python requirements file
+        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_kwargs:      Additional keyword arguments to be passed to the
+                                        monitoring application's constructor.
+        """
+
+        function_object: RemoteRuntime = None
+        kind = None
+        if (isinstance(func, str) or func is None) and application_class is not None:
+            kind = "serving"
+            func = mlrun.code_to_function(
+                name=name,
+                project=self.metadata.name,
+                tag=tag,
+                kind=kind,
+                image=image,
+                requirements=requirements,
+                requirements_file=requirements_file,
+            )
+            graph = func.set_topology("flow")
+            if isinstance(application_class, str):
+                first_step = graph.to(
+                    class_name=application_class, **application_kwargs
+                )
+            else:
+                first_step = graph.to(class_name=application_class)
+            first_step.to(
+                class_name=PushToMonitoringWriter(
+                    project=self.metadata.name,
+                    writer_application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                    stream_uri=None,
+                ),
+            ).respond()
+        elif isinstance(func, str) and isinstance(handler, str):
+            kind = "nuclio"
+
+        resolved_function_name, function_object, func = self._resolved_function(
+            func,
+            name,
+            kind,
+            image,
+            handler,
+            with_repo,
+            tag,
+            requirements,
+            requirements_file,
+        )
+        models_names = "all"
+        function_object.set_label(
+            mm_constants.ModelMonitoringAppTag.KEY,
+            mm_constants.ModelMonitoringAppTag.VAL,
+        )
+        function_object.set_label("models", models_names)
+
+        if not mlrun.mlconf.is_ce_mode():
+            function_object.apply(mlrun.mount_v3io())
+        # Deploy & Add stream triggers
+        self.deploy_function(
+            function_object,
+        )
+
+        # save to project spec
+        self.spec.set_function(resolved_function_name, function_object, func)
+
+        return function_object
+
     def set_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
@@ -3073,6 +3169,18 @@ class MlrunProject(ModelObj):
         if functions:
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
+
+    def list_model_monitoring_applications(self):
+        """Retrieve a list of alll the model monitoring application.
+        example::
+            functions = project.list_model_monitoring_applications()
+        :returns: List of function objects.
+        """
+        return self.list_functions(
+            labels=[
+                f"{mm_constants.ModelMonitoringAppTag.KEY}={mm_constants.ModelMonitoringAppTag.VAL}"
+            ]
+        )
 
     def list_runs(
         self,

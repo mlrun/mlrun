@@ -156,7 +156,7 @@ class PackagersManager:
             # Validate the class given is a `Packager` type:
             if not issubclass(packager, Packager):
                 raise MLRunPackageCollectionError(
-                    f"The packager '{packager.__name__}' could not be collected as it is not an `mlrun.Packager`."
+                    f"The packager '{packager.__name__}' could not be collected as it is not `mlrun.Packager`."
                 )
             # Set default priority in case it is not set in the packager's class:
             if packager.PRIORITY is ...:
@@ -196,7 +196,7 @@ class PackagersManager:
             # pack with their keys:
             if not isinstance(obj, dict):
                 raise MLRunInvalidArgumentError(
-                    f"The log hint key '{log_hint_key}' has a dictionary unpacking prefix ('**') to log an arbitrary "
+                    f"The log hint key '{log_hint_key}' has a dictionary unpacking prefix ('**') to log arbitrary "
                     f"number of objects within the dictionary, but a dictionary was not provided, the given object is "
                     f"of type '{self._get_type_name(type(obj))}'. The object is ignored, to log it, please remove the "
                     f"'**' prefix from the key."
@@ -554,28 +554,28 @@ class PackagersManager:
                 f"Could not import the original type "
                 f"('{packaging_instructions[self._InstructionsNotesKey.OBJECT_TYPE]}') of the input artifact "
                 f"'{artifact_key}' due to a `ModuleNotFoundError`.\n"
-                f"Note: If you want to parse the input to a different type (which is not recommended) you can ignore "
+                f"Note: If you wish to parse the input to a different type (which is not recommended) you may ignore "
                 f"this warning. Otherwise, make sure the interpreter has the required module to import the type.\n"
-                f"If it does, you probably implemented the class in the same file of your MLRun function, making "
+                f"If it does, you probably implemented the class at the same file of your MLRun function, making "
                 f"Python collect it twice: one from the object's own Packager class and another from the function "
-                f"code. When MLRun is converting code to an MLRun function, it assumes it can be imported "
-                f"as a standalone file. If other classes (like the packager that imports it) require objects declared "
-                f"in this file, it is no longer standalone. For example:\n\n"
+                f"code. When MLRun is converting code to a MLRun function, it counts on it to able to be imported "
+                f"as a standalone file. If other classes (like the packager who imports it) require objects declared "
+                f"in this file, it is no longer stand alone. For example:\n\n"
                 f""
-                f"Look at a file '/src/my_module/my_file.py':"
+                f"Let us look at a file '/src/my_module/my_file.py':"
                 f"\tclass MyClass:\n"
                 f"\t\tpass\n\n"
                 f"\tclass MyClassPackager(Packager):\n"
                 f"\t\tPACKABLE_OBJECT_TYPE = MyClass\n\n"
                 f""
-                f"The packager of this class has the class variable `PACKABLE_OBJECT_TYPE=MyClass` where "
+                f"The packager of this class will have the class variable `PACKABLE_OBJECT_TYPE=MyClass` where "
                 f"`MyClass`'s module is `src.my_module.my_file.MyClass` because it is being collected from the repo "
                 f"downloaded with the project.\n"
-                f"But, if creating an MLRun function of '/src/my_module/my_file.py', then 'my_file.py' is imported "
-                f"as a standalone module, resulting in importing the same class twice: one time as `my_file.MyClass` "
-                f"from the standalone function, and another from the packager that has the correct full module path: "
-                f"`src.my_module.my_file.MyClass`. This causes both classes, although the same, to be not equal "
-                f"and the first one to not even be importable outside the scope of 'my_file.py' - yielding this "
+                f"But, if creating a MLRun function of '/src/my_module/my_file.py', then 'my_file.py' will be imported "
+                f"as a stand alone module, making the same class to be imported twice: one time as `my_file.MyClass` "
+                f"from the stand alone function, and another from the packager who has the correct full module path: "
+                f"`src.my_module.my_file.MyClass`. This will cause both classes, although the same, to be not equal "
+                f"and the first one to be not even be importable outside the scope of 'my_file.py' - yielding this "
                 f"warning."
             )
         artifact_type = packaging_instructions[self._InstructionsNotesKey.ARTIFACT_TYPE]

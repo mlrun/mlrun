@@ -63,6 +63,7 @@ class TrackerManager:
         :return: The context updated with the trackers products.
         """
         # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
+
         is_context_dict = False
         if isinstance(context, dict):
             is_context_dict = True
@@ -90,3 +91,4 @@ class TrackerManager:
         :return: The staleness property.
         """
         return self._stale
+

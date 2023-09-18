@@ -93,5 +93,6 @@ class Tracker(ABC):
         :param pointer: The pointer to the artifact to import.
 
         :return: The newly imported artifact.
+
         """
         pass

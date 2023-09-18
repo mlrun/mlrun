@@ -111,6 +111,14 @@ class ModelEndpointSpec(ObjectSpec):
             ),
         }
 
+    @validator("model_uri")
+    def validate_model_uri(cls, model_uri):
+        """Validate that the model uri includes the required prefix"""
+        prefix, _ = mlrun.datastore.parse_store_uri(model_uri)
+        if prefix and prefix != "models":
+            return model_uri.replace(prefix, "models", 1)
+        return model_uri
+
 
 class Histogram(BaseModel):
     buckets: List[float]

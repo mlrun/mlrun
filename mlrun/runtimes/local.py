@@ -34,6 +34,7 @@ from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
+import mlrun.track
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -167,8 +168,12 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
+        # Running tracking services pre run to detect if some of them should be used and update the env accordingly:
+        trackers_manager = mlrun.track.get_trackers_manager()
+        trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
+        context = trackers_manager.post_run(context)
         return context.to_dict()
 
 
@@ -251,6 +256,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             os.chdir(execution._old_workdir)
 
     def _run(self, runobj: RunObject, execution: MLClientCtx):
+        # we define a tmp file for mlrun to log its run, for easy access later
         environ["MLRUN_EXEC_CONFIG"] = runobj.to_json()
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False).name
         environ["MLRUN_META_TMPFILE"] = tmp
@@ -275,11 +281,18 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
+                # Running tracking services pre run to detect if some of them should be used
+                # and update the env accordingly:
+                trackers_manager = mlrun.track.get_trackers_manager()
+                trackers_manager.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
+                # If trackers where used, this is where we log all data collected to MLRun
+                context = trackers_manager.post_run(context)
                 return context.to_dict()
+
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
             except RunError as err:
@@ -322,7 +335,10 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     arg = arg.format(**runobj.spec.parameters)
                     new_args.append(arg)
                 args = new_args
-
+            # Running tracking services pre run to detect if some of them should be used
+            # and update the env accordingly:
+            trackers_manager = mlrun.track.get_trackers_manager()
+            trackers_manager.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
@@ -331,11 +347,17 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     resp = fp.read()
                 remove(tmp)
                 if resp:
-                    return json.loads(resp)
+                    runobj_dict = json.loads(resp)
+                    # If trackers where used, this is where we log all data collected to MLRun
+                    runobj_dict = trackers_manager.post_run(runobj_dict)
+                    return runobj_dict
                 logger.error("empty context tmp file")
             except FileNotFoundError:
                 logger.info("no context file found")
-            return runobj.to_dict()
+            runobj_dict = runobj.to_dict()
+            # If trackers where used, this is where we log all data collected to MLRun
+            runobj_dict = trackers_manager.post_run(runobj_dict)
+            return runobj_dict
 
 
 def load_module(file_name, handler, context):

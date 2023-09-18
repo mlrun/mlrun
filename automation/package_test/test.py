@@ -39,6 +39,7 @@ class PackageTester:
         google_cloud_storage_import = "import mlrun.datastore.google_cloud_storage"
         targets_import = "import mlrun.datastore.targets"
         redis_import = "import redis"
+        mlflow_import = "import mlflow"
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
@@ -70,6 +71,7 @@ class PackageTester:
                 + f"{azure_key_vault_import}; {google_cloud_storage_import}; {redis_import}; {targets_import}",
                 "perform_vulnerability_check": True,
             },
+            "[mlflow]": {"import_test_command": f"{basic_import}; {mlflow_import}"},
         }
 
     def run(self):

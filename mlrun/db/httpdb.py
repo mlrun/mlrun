@@ -13,7 +13,6 @@
 # limitations under the License.
 import enum
 import http
-import json
 import re
 import tempfile
 import time

@@ -49,8 +49,8 @@ from mlrun.api.db.sqldb.helpers import (
 from mlrun.api.db.sqldb.models import (
     Artifact,
     ArtifactV2,
-    Base,
     BackgroundTask,
+    Base,
     DatastoreProfile,
     DataVersion,
     Entity,

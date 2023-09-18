@@ -111,35 +111,31 @@ class Pipelines(
     def list_experiments(self, project: str, list_filter: dict = {}):
         kfp_client = self.initialize_kfp_client()
 
-        experiments = []
         page_token = ""
         while True:
             response = kfp_client.list_experiments(
                 filter=json.dumps(list_filter) if not page_token else "",
                 page_token=page_token,
             )
-            experiments.extend(response.experiments or [])
+            experiments = response.experiments or []
+            yield from [
+                e
+                for e in experiments
+                if self._get_project_from_experiment_name(e.name) == project
+            ]
             page_token = response.next_page_token
             if not page_token:
                 break
 
-        return [
-            e
-            for e in experiments
-            if self._get_project_from_experiment_name(e.name) == project
-        ]
-
     def delete_experiments(self, project: str):
         kfp_client = self.initialize_kfp_client()
-        experiments = self.list_experiments(project=project)
-        if experiments:
-            logger.debug(
-                "Detected experiments for project, deleting them",
-                project=project,
-                pipeline_run_ids=[e.id for e in experiments],
-            )
-        for experiment in experiments:
+        for experiment in self.list_experiments(project=project):
             try:
+                logger.debug(
+                    f"Detected experiment for project {project} and deleting it",
+                    project=project,
+                    experiment_id=experiment.id,
+                )
                 kfp_client._experiment_api.delete_experiment(id=experiment.id)
             except RuntimeError as e:
                 logger.warning(

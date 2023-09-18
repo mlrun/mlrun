@@ -12,10 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-# for backwards compatibility
 
-from .helpers import get_stream_path
-from .model_endpoint import ModelEndpoint
-from .stores import ModelEndpointStore, ModelEndpointStoreType, get_model_endpoint_store
-from .tracking_policy import TrackingPolicy
+import mlrun
+from mlrun.model_monitoring.batch_application import BatchApplicationProcessor
+
+
+def handler(context: mlrun.run.MLClientCtx):
+    """
+    RunS model monitoring batch application
+
+    :param context: the MLRun context
+    """
+    batch_processor = BatchApplicationProcessor(
+        context=context,
+        project=context.project,
+    )
+    batch_processor.run()
+    if batch_processor.endpoints_exceptions:
+        print(batch_processor.endpoints_exceptions)

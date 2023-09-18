@@ -28,9 +28,9 @@ from mlrun.common.schemas.model_monitoring import EventFieldType, ModelMonitorin
 from mlrun.data_types.infer import InferOptions, get_df_stats
 from mlrun.utils import logger
 
+from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
 from .model_endpoint import ModelEndpoint
-from .model_monitoring_batch import VirtualDrift
 
 # A union of all supported dataset types:
 DatasetType = typing.Union[

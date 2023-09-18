@@ -724,16 +724,7 @@ class DataFrameSource:
 
     support_storey = True
 
-    def __init__(
-        self, df, key_field=None, time_field=None, context=None, iterator=False
-    ):
-        if time_field:
-            warnings.warn(
-                "DataFrameSource's time_field parameter has no effect. "
-                "It is deprecated in 1.3.0 and will be removed in 1.5.0",
-                FutureWarning,
-            )
-
+    def __init__(self, df, key_field=None, context=None, iterator=False):
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]

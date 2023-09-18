@@ -4588,7 +4588,7 @@ def verify_ingest(
 def prepare_feature_set(
     name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
-    df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
+    df_source = mlrun.datastore.sources.DataFrameSource(data, entity)
 
     feature_set = fstore.FeatureSet(
         name, entities=[fstore.Entity(entity)], timestamp_key=timestamp_key

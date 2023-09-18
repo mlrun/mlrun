@@ -130,8 +130,7 @@ def test_client_spec(
     assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
 
-    assert response_body['feature_store_default_targets'] == feature_set_default_targets
-
+    assert response_body["feature_store_default_targets"] == feature_set_default_targets
 
 
 def test_client_spec_response_based_on_client_version(

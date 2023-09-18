@@ -138,7 +138,6 @@ class CSVSource(BaseSourceDriver):
     :parameter path: path to CSV file
     :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
         (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
-    :parameter time_field: DEPRECATED. Use parse_dates to parse timestamps.
     :parameter schedule: string to configure scheduling of the ingestion job.
     :parameter attributes: additional parameters to pass to storey. For example:
         attributes={"timestamp_format": '%Y%m%d%H'}
@@ -156,29 +155,13 @@ class CSVSource(BaseSourceDriver):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
-        time_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, List[int], List[str]] = None,
         **kwargs,
     ):
-        super().__init__(
-            name, path, attributes, key_field, time_field, schedule, **kwargs
-        )
-        if time_field is not None:
-            warnings.warn(
-                "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use parse_dates instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            if isinstance(parse_dates, (int, str)):
-                parse_dates = [parse_dates]
-
-            if parse_dates is None:
-                parse_dates = [time_field]
-            elif time_field not in parse_dates:
-                parse_dates = copy(parse_dates)
-                parse_dates.append(time_field)
+        super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
+        if parse_dates and not isinstance(parse_dates, list):
+            parse_dates = [parse_dates]
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):

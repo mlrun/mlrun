@@ -197,7 +197,7 @@ def verify_field_regex(
         return False
 
 
-def exclude_notification_params_from_run_object(run_object: mlrun.model.RunTemplate):
+def exclude_notification_params_from_run_object(run_object):
     run_object_json = run_object.to_json()
     for notification in run_object_json.spec.notifications:
         if hasattr(notification, "params"):

@@ -131,6 +131,7 @@ class RuntimeKinds(object):
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
             RuntimeKinds.databricks,
+            RuntimeKinds.local,
         ]
 
     @staticmethod

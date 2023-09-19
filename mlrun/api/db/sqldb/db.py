@@ -310,7 +310,9 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run uid {uid} of project {project} not found"
+            )
         return run.struct
 
     def list_runs(
@@ -2110,7 +2112,6 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         next_run_time: datetime = None,
     ) -> mlrun.common.schemas.ScheduleRecord:
-
         schedule_record = self._create_schedule_db_record(
             project=project,
             name=name,
@@ -4181,6 +4182,7 @@ class SQLDB(DBInterface):
         notification_status = {
             "status": notification_spec.pop("status", None),
             "sent_time": notification_spec.pop("sent_time", None),
+            "reason": notification_spec.pop("reason", None),
         }
         return notification_spec, notification_status
 
@@ -4199,6 +4201,7 @@ class SQLDB(DBInterface):
             params=notification_record.params,
             status=notification_record.status,
             sent_time=notification_record.sent_time,
+            reason=notification_record.reason,
         )
 
     def _move_and_reorder_table_items(
@@ -4636,6 +4639,7 @@ class SQLDB(DBInterface):
                 or mlrun.common.schemas.NotificationStatus.PENDING
             )
             notification.sent_time = notification_model.sent_time
+            notification.reason = notification_model.reason
 
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",

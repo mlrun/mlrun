@@ -776,7 +776,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",  # TODO: delete this deprecated parameter once it's removed
+            parse_dates="timestamp",
         )
         resp = fstore.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
@@ -984,7 +984,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
+            parse_dates="timestamp",
         )
 
         expected = source.to_dataframe().set_index("patient_id")
@@ -2400,7 +2400,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=myset, source=source, run_config=run_config
         )
         # push records to stream
@@ -2708,7 +2708,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset,
             source=v3io_source,
             run_config=run_config,
@@ -2916,7 +2916,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset, source=source, run_config=run_config, targets=targets
         )
 
@@ -4588,7 +4588,7 @@ def verify_ingest(
 def prepare_feature_set(
     name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
-    df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
+    df_source = mlrun.datastore.sources.DataFrameSource(data, entity)
 
     feature_set = fstore.FeatureSet(
         name, entities=[fstore.Entity(entity)], timestamp_key=timestamp_key

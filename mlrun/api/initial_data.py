@@ -631,6 +631,70 @@ def _delete_default_hub_source(db_session: sqlalchemy.orm.Session):
         logger.info("Default hub source not found")
 
 
+def _add_data_version(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
+        data_version = _resolve_current_data_version(db, db_session)
+        logger.info(
+            "No data version, setting data version",
+            data_version=data_version,
+        )
+        db.create_data_version(db_session, data_version)
+
+
+def _resolve_current_data_version(
+    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+):
+    try:
+        return int(db.get_current_data_version(db_session))
+    except (
+        sqlalchemy.exc.ProgrammingError,
+        sqlalchemy.exc.OperationalError,
+        pymysql.err.ProgrammingError,
+        pymysql.err.OperationalError,
+        mlrun.errors.MLRunNotFoundError,
+    ) as exc:
+        try:
+            projects = db.list_projects(
+                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
+            )
+        except (
+            sqlalchemy.exc.ProgrammingError,
+            sqlalchemy.exc.OperationalError,
+            pymysql.err.ProgrammingError,
+            pymysql.err.OperationalError,
+        ):
+            projects = None
+
+        # heuristic - if there are no projects it's a new DB - data version is latest
+        if not projects or not projects.projects:
+            logger.info(
+                "No projects in DB, assuming latest data version",
+                exc=exc,
+                latest_data_version=latest_data_version,
+            )
+            return latest_data_version
+        elif "no such table" in str(exc) or (
+            "Table" in str(exc) and "doesn't exist" in str(exc)
+        ):
+            logger.info(
+                "Data version table does not exist, assuming prior version",
+                exc=err_to_str(exc),
+                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
+            )
+            return data_version_prior_to_table_addition
+        elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
+            logger.info(
+                "Data version table exist without version, assuming prior version",
+                exc=exc,
+                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
+            )
+            return data_version_prior_to_table_addition
+
+        raise exc
+
+
 def _migrate_artifacts_table_v2(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
@@ -917,70 +981,6 @@ def _mark_best_iteration_artifacts(
         artifacts_to_commit.append(artifact)
 
     db._commit(db_session, artifacts_to_commit)
-
-
-def _add_data_version(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    if db.get_current_data_version(db_session, raise_on_not_found=False) is None:
-        data_version = _resolve_current_data_version(db, db_session)
-        logger.info(
-            "No data version, setting data version",
-            data_version=data_version,
-        )
-        db.create_data_version(db_session, data_version)
-
-
-def _resolve_current_data_version(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    try:
-        return int(db.get_current_data_version(db_session))
-    except (
-        sqlalchemy.exc.ProgrammingError,
-        sqlalchemy.exc.OperationalError,
-        pymysql.err.ProgrammingError,
-        pymysql.err.OperationalError,
-        mlrun.errors.MLRunNotFoundError,
-    ) as exc:
-        try:
-            projects = db.list_projects(
-                db_session, format_=mlrun.common.schemas.ProjectsFormat.name_only
-            )
-        except (
-            sqlalchemy.exc.ProgrammingError,
-            sqlalchemy.exc.OperationalError,
-            pymysql.err.ProgrammingError,
-            pymysql.err.OperationalError,
-        ):
-            projects = None
-
-        # heuristic - if there are no projects it's a new DB - data version is latest
-        if not projects or not projects.projects:
-            logger.info(
-                "No projects in DB, assuming latest data version",
-                exc=exc,
-                latest_data_version=latest_data_version,
-            )
-            return latest_data_version
-        elif "no such table" in str(exc) or (
-            "Table" in str(exc) and "doesn't exist" in str(exc)
-        ):
-            logger.info(
-                "Data version table does not exist, assuming prior version",
-                exc=err_to_str(exc),
-                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
-            )
-            return data_version_prior_to_table_addition
-        elif isinstance(exc, mlrun.errors.MLRunNotFoundError):
-            logger.info(
-                "Data version table exist without version, assuming prior version",
-                exc=exc,
-                data_version_prior_to_table_addition=data_version_prior_to_table_addition,
-            )
-            return data_version_prior_to_table_addition
-
-        raise exc
 
 
 def _get_migration_state():

@@ -631,7 +631,7 @@ class FeatureVector(ModelObj):
             feature_set_fields:  list of field (name, alias) per featureset
         """
         processed_features = {}  # dict of name to (featureset, feature object)
-        feature_set_objects = {}
+        feature_set_objects = self.feature_set_objects or {}
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)

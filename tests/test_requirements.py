@@ -94,7 +94,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.4.2,<2.6"},
-        "storey": {"~=1.5.5"},
+        "storey": {"~=1.5.6"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -142,6 +142,7 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
+        "azure-storage-blob": {">=12.13, !=12.18.0"},
     }
 
     for (

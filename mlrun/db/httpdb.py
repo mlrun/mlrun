@@ -1471,15 +1471,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(

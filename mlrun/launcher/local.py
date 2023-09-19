@@ -273,4 +273,4 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         # Only push from jupyter, not from the CLI.
         # "handler" and "dask" kinds are special cases of local runs which don't set local=True
         if self._is_run_local or runtime.kind in ["handler", "dask"]:
-            mlrun.utils.notifications.NotificationPusher([runobj]).push()
+            mlrun.utils.notifications.RunNotificationPusher([runobj]).push()

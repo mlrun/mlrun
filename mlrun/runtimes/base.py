@@ -404,9 +404,6 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
         if runobj:
-            # Since the `params` attribute within each notification object can be large,
-            # it has the potential to cause errors and is unnecessary for the notification functionality.
-            # Therefore, in this section, we remove the `params` attribute from each notification object.
             runtime_env[
                 "MLRUN_EXEC_CONFIG"
             ] = exclude_notification_params_from_run_object(runobj)

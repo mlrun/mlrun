@@ -29,7 +29,7 @@ install python 3.9 env on jupyters
 ### Infrastructure
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4366 | MLRun Models and GPU images management. The images `mlrun/ml-models` and `mlrun/ml-models-gpu` used previously are replaced by `mlrun/mlrun` and `mlrun/mlrun-gpu`. Additional dependencies must be installed on an as-need basis. See [MLRun images](/runtimes/images.html#mlrun-images). |
+| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` are replaced by `mlrun/mlrun` and `mlrun/mlrun-gpu`. Additional dependencies must be installed on an as-need basis. See [MLRun images](/runtimes/images.html#mlrun-images). |
 | ML-3644 | Now supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
 | ML-4132 | Users can now use all `requests.request` parameters, in particular to set verify=False parameter while using the invoke method. |
 
@@ -91,7 +91,8 @@ install python 3.9 env on jupyters
 | --- | ----------------------------------------------------------------- |
 |ML-4075  | Python 3.7 is not supported.|
 | NA | [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).  |
-| ML-4042 | [APIs deprecated in v1.5.0](##apis-deprecated-in-v1-5-0-removed-in-v1-6-0) and [CLIs removed in v1.5.0](##cli-deprecated-in-v1-5-0-removed-in-v1-6-0).  |  |
+| ML-4042 | [APIs deprecated in v1.5.0](##apis-deprecated-in-v1-5-0-removed-in-v1-6-0) and [CLIs removed in v1.5.0](##cli-deprecated-in-v1-5-0-removed-in-v1-6-0).  | 
+|  | 
 
 ###  Closed issues
 | ID   | Description                                                    |
@@ -744,7 +745,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3445 | `project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x. | Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` | v1.3.0|
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
-| ML-3559 | Float, boolean, and timestamp entities ingested with pandas engine cannot be retrieved from online store. |
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
 | ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
 

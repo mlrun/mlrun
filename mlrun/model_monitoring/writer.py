@@ -119,6 +119,10 @@ class ModelMonitoringWriter(StepToDict):
 
     @staticmethod
     def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
+        """
+        Modify the raw event into the expected monitoring application event
+        schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
+        """
         try:
             return _AppResultEvent(
                 {

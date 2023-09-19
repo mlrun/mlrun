@@ -548,13 +548,13 @@ class BaseStoreTarget(DataTargetBase):
                     partition_cols + (self.partition_cols or [])
                     if partition_cols
                     else self.partition_cols
-                )
+                ) or []
             storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
                 target_df,
                 self.storage_options or storage_options,
                 target_path,
-                partition_cols=partition_cols or [],
+                partition_cols=partition_cols,
                 **kwargs,
             )
             try:

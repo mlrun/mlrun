@@ -1,22 +1,8 @@
-# Copyright 2023 Iguazio
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
 """adding artifacts_v2 table
 
-Revision ID: e0f559b26a75
-Revises: 114b2c80710f
-Create Date: 2023-09-18 18:37:42.342834
+Revision ID: 65947af8923b
+Revises: 27ed4ecb734c
+Create Date: 2023-09-19 13:11:51.826942
 
 """
 import sqlalchemy as sa
@@ -25,8 +11,8 @@ from alembic import op
 from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 # revision identifiers, used by Alembic.
-revision = "e0f559b26a75"
-down_revision = "114b2c80710f"
+revision = "65947af8923b"
+down_revision = "27ed4ecb734c"
 branch_labels = None
 depends_on = None
 

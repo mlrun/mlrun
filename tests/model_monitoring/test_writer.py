@@ -18,8 +18,8 @@ import pytest
 
 from mlrun.model_monitoring.writer import (
     ModelMonitoringWriter,
-    RawEvent,
     WriterEvent,
+    _RawEvent,
     _WriterEventTypeError,
     _WriterEventValueError,
 )
@@ -32,6 +32,6 @@ from mlrun.model_monitoring.writer import (
         ({WriterEvent.ENDPOINT_ID: "ep2211"}, _WriterEventValueError),
     ],
 )
-def test_reconstruct_event_error(event: RawEvent, exception: Type[Exception]) -> None:
+def test_reconstruct_event_error(event: _RawEvent, exception: Type[Exception]) -> None:
     with pytest.raises(exception):
         ModelMonitoringWriter._reconstruct_event(event)

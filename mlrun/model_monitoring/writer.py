@@ -31,8 +31,8 @@ from mlrun.utils import logger
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
 _TSDB_TABLE = "app-results"
-RawEvent = dict[str, Any]
-AppResultEvent = NewType("AppResultEvent", RawEvent)
+_RawEvent = dict[str, Any]
+_AppResultEvent = NewType("_AppResultEvent", _RawEvent)
 
 
 class _WriterEventError:
@@ -79,8 +79,8 @@ class ModelMonitoringWriter(StepToDict):
             rate=_TSDB_RATE,
         )
 
-    def _update_kv_db(self, event: AppResultEvent) -> None:
-        event = AppResultEvent(event.copy())
+    def _update_kv_db(self, event: _AppResultEvent) -> None:
+        event = _AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
         self._kv_client.put(
@@ -91,8 +91,8 @@ class ModelMonitoringWriter(StepToDict):
         )
         logger.info("Updated V3IO KV successfully", key=app_name)
 
-    def _update_tsdb(self, event: AppResultEvent) -> None:
-        event = AppResultEvent(event.copy())
+    def _update_tsdb(self, event: _AppResultEvent) -> None:
+        event = _AppResultEvent(event.copy())
         event[WriterEvent.SCHEDULE_TIME] = pd.to_datetime(
             event[WriterEvent.SCHEDULE_TIME],
             format=EventFieldType.TIME_FORMAT,
@@ -118,9 +118,9 @@ class ModelMonitoringWriter(StepToDict):
             )
 
     @staticmethod
-    def _reconstruct_event(event: RawEvent) -> AppResultEvent:
+    def _reconstruct_event(event: _RawEvent) -> _AppResultEvent:
         try:
-            return AppResultEvent(
+            return _AppResultEvent(
                 {
                     key: event[key]
                     for key in (
@@ -145,7 +145,7 @@ class ModelMonitoringWriter(StepToDict):
                 f"The event is of type: {type(event)}, expected a dictionary"
             ) from err
 
-    def do(self, event: RawEvent) -> None:
+    def do(self, event: _RawEvent) -> None:
         event = self._reconstruct_event(event)
         logger.info("Starting to write event", event=event)
         self._update_tsdb(event)

@@ -679,7 +679,6 @@ def _process_runtime(command, runtime, kind):
     if not runtime:
         runtime = {}
     update_in(runtime, "spec.command", command)
-    runtime["kind"] = kind
     if kind != RuntimeKinds.remote:
         if command:
             update_in(runtime, "spec.command", command)

@@ -132,6 +132,8 @@ class RuntimeKinds(object):
             RuntimeKinds.mpijob,
             RuntimeKinds.databricks,
             RuntimeKinds.local,
+            RuntimeKinds.handler,
+            "",
         ]
 
     @staticmethod

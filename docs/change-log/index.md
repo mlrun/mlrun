@@ -29,9 +29,9 @@ install python 3.9 env on jupyters
 ### Infrastructure
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4366 | MLRun Models and GPU images management. Previous images mlrun/ml-models and mlrun/ml-models-gpu are replaced by mlrun/mlrun and mlrun/mlrun-gpu. All other required images are installed per demo. |
+| ML-4366 | MLRun Models and GPU images management. The images `mlrun/ml-models` and `mlrun/ml-models-gpu` used previously are replaced by `mlrun/mlrun` and `mlrun/mlrun-gpu`. Additional dependencies must be installed on an as-need basis. See [MLRun images](/runtimes/images.html#mlrun-images). |
 | ML-3644 | Now supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
-| ML-4132 | Users can now use all requests.request parameters, in particular to set verify=False parameter while using the invoke method. |
+| ML-4132 | Users can now use all `requests.request` parameters, in particular to set verify=False parameter while using the invoke method. |
 
 ### Alerts
 | ID    | Description                                                    |
@@ -42,8 +42,8 @@ install python 3.9 env on jupyters
 ### Data
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles)    |
-| ML- | Add support for dbfs (Databricks file system). See [Databricks file system](store/datastore.html#Databricks file system) |
+| ML- | Add datastore profiles, for managing datastore credentials. See [Using data store profiles](../store/datastore.html#Using data store profiles). |
+| ML- | Add support for dbfs data store(Databricks file system) data store. See [Databricks file system](store/datastore.html#Databricks file system). |
 
 
 ### Documentation
@@ -51,7 +51,7 @@ install python 3.9 env on jupyters
 | --- | ----------------------------------------------------------------- |
 | ML-2380 | **not in docs yet**  Enhanced description of Spark runtime. |
 | ML-3763 | GPUs unavailable for v3io stream workers. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
-| ML-4420 | Added configuration of memory in Spark Operator. See |  
+| ML-4420 | Added configuration of memory in Spark Operator. See [Spark Operator runtime](/runtimes/spark-operator.html) |  
 
 ### Feature store
 | ID    | Description                                                    |
@@ -62,12 +62,12 @@ install python 3.9 env on jupyters
 ### Function hub
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3370, ML-3381 | Users can now import functions from the MLRun Function hub and private repos, using the same syntax:</br>from MLRun function hub: hub://<function-name><':'tag></br>from private repo hub://<source-name + '/'><function-name><':'tag> |
+| ML-3370, ML-3381 | **not in docs yet** Users can now import functions from the MLRun Function hub and private repos, using the same syntax:</br>from MLRun function hub: hub://<function-name><':'tag></br>from private repo hub://<source-name + '/'><function-name><':'tag> |
 
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4059 | Adds support for adding env vars or secrets to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
+| ML-4059 | **not in docs yet** Adds support for adding env vars or secrets to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
 
 
 ### UI
@@ -86,15 +86,18 @@ install python 3.9 env on jupyters
 | ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. |
 
 ### Deprecations
-See [Deprecations](#deprecations), [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).
-ML-4075     Python 3.7 is not supported.
+
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+|ML-4075  | Python 3.7 is not supported.|
+| NA | [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).  |
+| ML-4042 | [APIs deprecated in v1.5.0](##apis-deprecated-in-v1-5-0-removed-in-v1-6-0) and [CLIs removed in v1.5.0](##cli-deprecated-in-v1-5-0-removed-in-v1-6-0).  |  |
 
 ###  Closed issues
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-2380 | Spark runtime now sustains user actions. See doc updates:   |
-| ML-3370 | Supports private repo for function hub. **Here or in features?   link to Doc**     |
-| ML-3584 | Function tag is now displayed in model endpoints. || ML- |  |
+| ML-3584 | Function tag is now displayed in model endpoints. |
 | ML-4188 | Deleting a project failed in the backend but was successfully deleted in UI.  |
 | ML-4212 | Pipeline filters that have no results not show the labels. |
 | ML-4214 | Scheduled workflows with "-" in the name are no longer truncated. |

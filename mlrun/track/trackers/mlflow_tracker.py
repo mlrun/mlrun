@@ -14,19 +14,19 @@
 import os
 import pathlib
 import tempfile
-from typing import List, Union
 import zipfile
+from typing import List, Union
 
 import mlflow
-import mlflow.environment_variables
 import mlflow.entities
+import mlflow.environment_variables
 import mlflow.types
 
-from mlrun.features import Feature
-from mlrun.projects import MlrunProject
-from mlrun import mlconf, MLClientCtx
-from mlrun.model import RunObject
+from mlrun import MLClientCtx, mlconf
 from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.features import Feature
+from mlrun.model import RunObject
+from mlrun.projects import MlrunProject
 
 from ..tracker import Tracker
 
@@ -43,11 +43,7 @@ class MLFlowTracker(Tracker):
 
         :return: True if the tracking configuration is enabled, False otherwise.
         """
-        return (
-            getattr(
-                mlconf.external_platform_tracking, mlflow.__name__
-            ).enabled
-        )
+        return getattr(mlconf.external_platform_tracking, mlflow.__name__).enabled
 
     @classmethod
     def pre_run(cls, context: MLClientCtx):
@@ -60,7 +56,9 @@ class MLFlowTracker(Tracker):
         experiment_name = mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
 
         # Check if the user configured for matching the experiment name with the context name:
-        if getattr(mlconf.external_platform_tracking, mlflow.__name__).match_experiment_to_runtime:
+        if getattr(
+            mlconf.external_platform_tracking, mlflow.__name__
+        ).match_experiment_to_runtime:
             if experiment_name is not None:
                 context.logger.warn(
                     f"`mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime` is set to True but the "
@@ -112,7 +110,7 @@ class MLFlowTracker(Tracker):
         run = mlflow.search_runs(
             search_all_experiments=True,
             filter_string=f"attributes.run_id = '{pointer}'",
-            output_format="list"
+            output_format="list",
         )
         if not run:
             raise ValueError(
@@ -132,7 +130,7 @@ class MLFlowTracker(Tracker):
         pointer: str,
         key: str = None,
         metrics: dict = None,
-        extra_data: dict = None
+        extra_data: dict = None,
     ) -> ModelArtifact:
         """
         Import a model from MLFlow to MLRun.
@@ -161,11 +159,13 @@ class MLFlowTracker(Tracker):
             model_uri=pointer,
             key=key,
             metrics=metrics,
-            extra_data=extra_data
+            extra_data=extra_data,
         )
 
     @classmethod
-    def import_artifact(cls, project: MlrunProject, pointer: str, key: str = None) -> Artifact:
+    def import_artifact(
+        cls, project: MlrunProject, pointer: str, key: str = None
+    ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
 
@@ -184,10 +184,14 @@ class MLFlowTracker(Tracker):
         # Import the artifact:
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Download the artifact to local temp:
-            local_path = mlflow.artifacts.download_artifacts(artifact_uri=pointer, dst_path=tmp_dir)
+            local_path = mlflow.artifacts.download_artifacts(
+                artifact_uri=pointer, dst_path=tmp_dir
+            )
 
             # Log and return the artifact:
-            return cls._log_artifact(context_or_project=project, key=key, local_path=local_path)
+            return cls._log_artifact(
+                context_or_project=project, key=key, local_path=local_path
+            )
 
     @staticmethod
     def _log_run(context: MLClientCtx, run: mlflow.entities.Run):
@@ -195,13 +199,17 @@ class MLFlowTracker(Tracker):
         Log the given MLFlow run to MLRun.
 
         :param context: Current MLRun context or project.
-        :param run:                MLFlow run to log. Can be given as a `Run` object or as a run id.
+        :param run: MLFlow run to log. Can be given as a `Run` object or as a run id.
         """
         client = mlflow.MlflowClient()
 
         # Set new MLRun related tags to the MLFlow run:
-        client.set_tag(run_id=run.info.run_id, key="mlrun-context-id", value=context.uid)
-        client.set_tag(run_id=run.info.run_id, key="mlrun-project-name", value=context.project)
+        client.set_tag(
+            run_id=run.info.run_id, key="mlrun-context-id", value=context.uid
+        )
+        client.set_tag(
+            run_id=run.info.run_id, key="mlrun-project-name", value=context.project
+        )
 
         # Get the MLFlow run's tags and save them as labels:
         context._labels.update(run.data.tags)
@@ -226,14 +234,16 @@ class MLFlowTracker(Tracker):
                 run_id=run.info.run_id, artifact_path=artifact.path
             )
             # Check if the artifact is a model (will be logged after the artifacts):
-            if artifact.is_dir and os.path.exists(os.path.join(artifact_local_path, "MLmodel")):
+            if artifact.is_dir and os.path.exists(
+                os.path.join(artifact_local_path, "MLmodel")
+            ):
                 model_paths.append(artifact_local_path)
             else:
                 # Log the artifact:
                 artifact = MLFlowTracker._log_artifact(
                     context_or_project=context,
                     key=pathlib.Path(artifact.path).name.replace(".", "_"),
-                    local_path=artifact_local_path
+                    local_path=artifact_local_path,
                 )
                 artifacts[artifact.key] = artifact
         if model_paths:
@@ -243,7 +253,7 @@ class MLFlowTracker(Tracker):
                     model_uri=model_path,
                     key=pathlib.Path(model_path).stem,
                     metrics=results,
-                    extra_data=artifacts
+                    extra_data=artifacts,
                 )
 
     @staticmethod
@@ -279,9 +289,13 @@ class MLFlowTracker(Tracker):
             inputs = outputs = None
             if model_info.signature is not None:
                 if model_info.signature.inputs is not None:
-                    inputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.inputs)
+                    inputs = MLFlowTracker._schema_to_feature(
+                        schema=model_info.signature.inputs
+                    )
                 if model_info.signature.outputs is not None:
-                    outputs = MLFlowTracker._schema_to_feature(schema=model_info.signature.outputs)
+                    outputs = MLFlowTracker._schema_to_feature(
+                        schema=model_info.signature.outputs
+                    )
 
             # Log the model:
             return context_or_project.log_model(
@@ -301,7 +315,9 @@ class MLFlowTracker(Tracker):
             )
 
     @staticmethod
-    def _log_artifact(context_or_project: Union[MLClientCtx, MlrunProject], key: str, local_path: str) -> Artifact:
+    def _log_artifact(
+        context_or_project: Union[MLClientCtx, MlrunProject], key: str, local_path: str
+    ) -> Artifact:
         """
         Log the given produced file from MLFlow as a run artifact in MLRun.
 
@@ -319,7 +335,9 @@ class MLFlowTracker(Tracker):
                 # Zip the artifact:
                 with zipfile.ZipFile(archive_path, "w") as zip_file:
                     for path in local_path.rglob("*"):
-                        zip_file.write(filename=path, arcname=path.relative_to(local_path))
+                        zip_file.write(
+                            filename=path, arcname=path.relative_to(local_path)
+                        )
                 # Set the local path to the archive file:
                 local_path = str(archive_path)
 

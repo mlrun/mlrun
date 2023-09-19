@@ -15,10 +15,10 @@
 from abc import ABC, abstractmethod
 from typing import Union
 
-from mlrun.execution import MLClientCtx
-from mlrun.projects import MlrunProject
-from mlrun.model import RunObject
 from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.execution import MLClientCtx
+from mlrun.model import RunObject
+from mlrun.projects import MlrunProject
 
 
 class Tracker(ABC):
@@ -73,7 +73,9 @@ class Tracker(ABC):
         pass
 
     @classmethod
-    def import_model(cls, project: MlrunProject, pointer: str, **kwargs) -> ModelArtifact:
+    def import_model(
+        cls, project: MlrunProject, pointer: str, **kwargs
+    ) -> ModelArtifact:
         """
         Import a model from a 3rd party vendor to MLRun.
 

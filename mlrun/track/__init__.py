@@ -14,7 +14,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 import importlib
 import inspect
-from typing import Type, List
+from typing import List, Type
 
 from mlrun.config import config as mlconf
 
@@ -47,7 +47,9 @@ def _collect_available_trackers():
     for tracker_module_name in _TRACKERS:
         # Try to import:
         try:
-            tracker_module = importlib.import_module(f"mlrun.track.tracker.{tracker_module_name}_tracker")
+            tracker_module = importlib.import_module(
+                f"mlrun.track.trackers.{tracker_module_name}_tracker"
+            )
         except ModuleNotFoundError:
             continue
         # Look for `Tracker` classes inside:

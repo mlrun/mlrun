@@ -34,7 +34,6 @@ from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
-import mlrun.track
 from mlrun.lists import RunList
 
 from ..errors import err_to_str
@@ -49,6 +48,16 @@ from .utils import RunError, global_context, log_std
 
 
 class ParallelRunner:
+    def _get_trackers_manager(self):
+        """
+        used to import and call get_trackers_manager from mlrun.track in order to avoid circular imports
+        or imports in multiple spots mid-code
+        :return: trackers_manager
+        """
+        from ..track import get_trackers_manager
+
+        return get_trackers_manager()
+
     def _get_handler(self, handler, context):
         return handler
 
@@ -169,7 +178,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         )
         global_context.set(context)
         # Running tracking services pre run to detect if some of them should be used and update the env accordingly:
-        trackers_manager = mlrun.track.get_trackers_manager()
+        trackers_manager = self._get_trackers_manager()
         trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
         log_std(self._db_conn, runobj, sout, serr, show=False)
@@ -283,7 +292,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 global_context.set(context)
                 # Running tracking services pre run to detect if some of them should be used
                 # and update the env accordingly:
-                trackers_manager = mlrun.track.get_trackers_manager()
+                trackers_manager = self._get_trackers_manager()
                 trackers_manager.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
                 log_std(
@@ -337,7 +346,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 args = new_args
             # Running tracking services pre run to detect if some of them should be used
             # and update the env accordingly:
-            trackers_manager = mlrun.track.get_trackers_manager()
+            trackers_manager = self._get_trackers_manager()
             trackers_manager.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
             log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)

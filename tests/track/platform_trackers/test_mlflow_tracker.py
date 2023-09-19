@@ -18,6 +18,7 @@ from random import randint, random
 import lightgbm as lgb
 import matplotlib as mpl
 import mlflow
+import mlflow.environment_variables
 import mlflow.xgboost
 import pytest
 import xgboost as xgb
@@ -34,21 +35,21 @@ mpl.use("Agg")
 # simple general mlflow example of hand logging
 def simple_run(context):
     mlflow.set_tracking_uri(context.artifact_path)
-    # Log some random params and metrics
-    mlflow.log_param("param1", randint(0, 100))
-    mlflow.log_metric("foo", random())
-    mlflow.log_metric("foo", random() + 1)
-    mlflow.log_metric("foo", random() + 2)
-    # Create an artifact and log it
-    with tempfile.TemporaryDirectory() as test_dir:
-        with open(f"{test_dir}/test.txt", "w") as f:
-            f.write("hello world!")
-            mlflow.log_artifacts(test_dir)
+    with mlflow.start_run():
+        # Log some random params and metrics
+        mlflow.log_param("param1", randint(0, 100))
+        mlflow.log_metric("foo", random())
+        mlflow.log_metric("foo", random() + 1)
+        mlflow.log_metric("foo", random() + 2)
+        # Create an artifact and log it
+        with tempfile.TemporaryDirectory() as test_dir:
+            with open(f"{test_dir}/test.txt", "w") as f:
+                f.write("hello world!")
+                mlflow.log_artifacts(test_dir)
 
 
 def lgb_run(context):
     mlflow.set_tracking_uri(context.artifact_path)
-
     # prepare train and test data
     iris = datasets.load_iris()
     X = iris.data
@@ -136,9 +137,7 @@ def test_is_enabled(rundb_mock, enable_tracking):
     mlflow_tracker = MLFlowTracker()
     # check all the stuff we check in is_enabled
     enabled = (
-        mlflow_tracker._tracked_platform is not None
-        and getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).mode
-        == "enabled"
+        getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).enabled is True
     )
     assert mlflow_tracker.is_enabled() == enabled
 
@@ -146,6 +145,7 @@ def test_is_enabled(rundb_mock, enable_tracking):
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_track_run(rundb_mock, handler):
     mlrun.mlconf.external_platform_tracking.enabled = True
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)
 
@@ -180,7 +180,7 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
     run_to_comp = None
     for run_list in runs:
         for mlflow_run in run_list:
-            if mlflow_run.info.run_id == run.metadata.labels["mlflow-runid"]:
+            if mlflow_run.info.run_id == run.metadata.labels["mlflow-run-id"]:
                 run_to_comp = mlflow_run
     if not run_to_comp:
         assert False, "Run not found, test failed"
@@ -188,10 +188,7 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
     for param in run_to_comp.data.params:
         assert run_to_comp.data.params[param] == run.spec.parameters[param]
     for metric in run_to_comp.data.metrics:
-        assert (
-            run_to_comp.data.metrics[metric]
-            == run.status.results["mlflow-run-metrics}"][metric]
-        )
+        assert run_to_comp.data.metrics[metric] == run.status.results[metric]
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))

@@ -153,6 +153,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                     "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
                     "requests": {"cpu": "200m", "memory": "32Mi"},
                 },
+                "image": "my/image:tag",
                 "image_pull_policy": "Always",
                 "replicas": "3",
                 "node_name": "k8s-node1",
@@ -262,6 +263,10 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             ignore_order=True,
         )
         == {}
+    )
+    assert (
+        parsed_function_object.spec.image
+        == submit_job_body["function"]["spec"]["image"]
     )
     assert (
         parsed_function_object.spec.image_pull_policy
@@ -509,7 +514,7 @@ def test_ensure_function_has_auth_set(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     assert (
         function.metadata.credentials.access_key
         == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
@@ -584,7 +589,7 @@ def test_ensure_function_has_auth_set(
     ensure_function_has_auth_set(
         function, mlrun.common.schemas.AuthInfo(username=username)
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert (
         DeepDiff(
@@ -692,7 +697,7 @@ def test_mask_v3io_access_key_env_var(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, v3io_access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, v3io_access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, v3io_access_key)
     _assert_env_var_from_secret(
         function,
@@ -748,7 +753,7 @@ def test_mask_v3io_volume_credentials(
     username = "volume-username"
     access_key = "volume-access-key"
     v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
-        "some-v3io-volume-name", "", access_key
+        "some-v3io-volume-name", "", access_key, user=username
     )
     v3io_volume_mount = kubernetes.client.V1VolumeMount(
         mount_path="some-v3io-mount-path",
@@ -869,7 +874,7 @@ def test_mask_v3io_volume_credentials(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
@@ -894,7 +899,7 @@ def test_mask_v3io_volume_credentials(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name

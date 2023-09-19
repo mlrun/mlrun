@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 name: Scheduled Re-Build Images
 
 on:
@@ -20,13 +21,36 @@ on:
   - cron: "0 2 * * *"
 
 jobs:
+  resolve-branch-to-rebuild:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-branch.outputs.matrix }}
+    steps:
+      - name: Resolve Branch to Re-Build
+        id: set-branch
+        run: |
+          
+          # take mlrun branches, find branches that are in format of 9.9.x (where 9 could by any number)
+          # sort them - so latest version would be last
+          # take last 2 elements (aka last 2 versions)
+          # wrap each name with "" and join with ,
+          # join with development
+          branches=$(curl --retry 3 --retry-all-errors --silent https://api.github.com/repos/mlrun/mlrun/branches \
+            | jq -r 'map(select(.name | test("^\\d+.\\d+.x$"))) | sort_by(.name) | .[-2:] | map(.name | tostring | "\"" + . + "\"") | join(",")' \
+          )
+          # output would be like
+          # 1.3.x,1.4.x,development
+          branches="$branches,\"development\""
+
+          matrix="{\"repo\": [\"mlrun\",\"ui\"], \"branch\": [$branches]}"
+          echo "matrix=$(echo $matrix)" >> $GITHUB_OUTPUT
+
   re-build-images:
     if: github.repository == 'mlrun/mlrun'
+    needs: resolve-branch-to-rebuild
     strategy:
       fail-fast: false
-      matrix:
-        repo: ["mlrun","ui"]
-        branch: ["development","1.4.x", "1.3.x"]
+      matrix: ${{fromJson(needs.resolve-branch-to-rebuild.outputs.matrix)}}
     runs-on: ubuntu-latest
     steps:
 
@@ -41,7 +65,9 @@ jobs:
             workflow_file_name: build.yaml
             ref: ${{ matrix.branch }}
             wait_interval: 60
-            client_payload: '{"skip_images": "models-gpu,models,base,tests", "build_from_cache": "false"}'
+
+            # models is removed on 1.5.x but still exists on 1.4.x and 1.3.x
+            client_payload: '{"skip_images": "models,tests", "build_from_cache": "false"}'
       - name: Re-Build UI Image
         if: matrix.repo == 'ui'
         uses: convictional/trigger-workflow-and-wait@v1.6.5

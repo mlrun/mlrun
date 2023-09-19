@@ -13,13 +13,12 @@
 # limitations under the License.
 import enum
 import http
-import json
 import re
 import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -440,17 +439,18 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
             )
+            config.model_endpoint_monitoring.endpoint_store_connection = (
+                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
+                or config.model_endpoint_monitoring.endpoint_store_connection
+            )
             config.packagers = server_cfg.get("packagers") or config.packagers
-            data_prefixes = server_cfg.get("feature_store_data_prefixes", {})
-            config.feature_store.data_prefixes.default = data_prefixes.get(
-                "default", config.feature_store.data_prefixes.default
-            )
-            config.feature_store.data_prefixes.nosql = data_prefixes.get(
-                "nosql", config.feature_store.data_prefixes.nosql
-            )
-            config.feature_store.data_prefixes.redisnosql = data_prefixes.get(
-                "default", config.feature_store.data_prefixes.redisnosql
-            )
+            server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
+            for prefix in ["default", "nosql", "redisnosql"]:
+                server_prefix_value = server_data_prefixes.get(prefix)
+                if server_prefix_value is not None:
+                    setattr(
+                        config.feature_store.data_prefixes, prefix, server_prefix_value
+                    )
 
         except Exception as exc:
             logger.warning(
@@ -666,6 +666,26 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
@@ -1451,15 +1471,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(
@@ -1676,7 +1698,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-
         partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
@@ -2162,7 +2183,7 @@ class HTTPRunDB(RunDBInterface):
         owner: str = None,
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        ] = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -2171,9 +2192,9 @@ class HTTPRunDB(RunDBInterface):
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
 
-            - ``full`` (default value) - Return full project objects.
+            - ``name_only`` (default value) - Return just the names of the projects.
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
-            - ``name_only`` - Return just the names of the projects.
+            - ``full``  - Return full project objects.
 
         :param labels: Filter by labels attached to the project.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
@@ -2189,7 +2210,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-
             # projects is just a list of strings
             return response.json()["projects"]
 
@@ -2298,7 +2318,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2322,7 +2344,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,
@@ -3302,24 +3324,38 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
 
         res = self.api_call(method="GET", path=path)
-        if res and res._content:
-            public_wrapper = json.loads(res._content)
+        if res:
+            public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
-                public_json=public_wrapper["body"]
+                public_json=public_wrapper["object"]
             )
             return datastore
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        self.api_call(method="DELETE", path=path)
+        return None
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
@@ -3329,9 +3365,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles")
+        path = self._path_of("projects", project, "datastore-profiles")
 
-        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
+        self.api_call(method="PUT", path=path, json=profile.dict())
 
 
 def _as_json(obj):

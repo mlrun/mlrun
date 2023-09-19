@@ -18,13 +18,13 @@ import typing
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
-import sqlalchemy
 
 import mlrun.datastore
 
 
 def store_path_to_spark(path):
-    if path.startswith("redis://") or path.startswith("rediss://"):
+    schemas = ["redis://", "rediss://", "ds://"]
+    if any(path.startswith(schema) for schema in schemas):
         url = urlparse(path)
         if url.path:
             path = url.path
@@ -142,12 +142,19 @@ def select_columns_generator(
 
 def _generate_sql_query_with_time_filter(
     table_name: str,
-    engine: sqlalchemy.engine.Engine,
+    engine: "sqlalchemy.engine.Engine",  # noqa: F821,
     time_column: str,
     parse_dates: typing.List[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
 ):
+    # Validate sqlalchemy (not installed by default):
+    try:
+        import sqlalchemy
+    except (ModuleNotFoundError, ImportError) as exc:
+        raise mlrun.errors.MLRunMissingDependencyError(
+            "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+        ) from exc
     table = sqlalchemy.Table(
         table_name,
         sqlalchemy.MetaData(),

@@ -34,6 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.api.crud.model_monitoring.deployment
 import mlrun.api.crud.runtimes.nuclio.function
 import mlrun.api.db.session
@@ -46,8 +47,8 @@ import mlrun.api.utils.singletons.project_member
 import mlrun.common.model_monitoring
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.api.api import deps
-from mlrun.api.api.utils import get_run_db_instance, log_and_raise, log_path
 from mlrun.api.crud.secrets import Secrets, SecretsClientType
 from mlrun.api.utils.builder import build_runtime
 from mlrun.api.utils.singletons.scheduler import get_scheduler
@@ -97,7 +98,9 @@ async def store_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.debug("Storing function", project=project, name=name, tag=tag)
     hash_key = await run_in_threadpool(
@@ -265,9 +268,11 @@ async def build_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
-    logger.info(f"build_function:\n{data}")
+    logger.info("Building function", data=data)
     function = data.get("function")
     project = function.get("metadata", {}).get("project", mlrun.mlconf.default_project)
     function_name = function.get("metadata", {}).get("name")
@@ -347,7 +352,9 @@ async def start_function(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     logger.info("Got request to start function", body=data)
 
@@ -388,7 +395,9 @@ async def function_status(
     try:
         data = await request.json()
     except ValueError:
-        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value, reason="bad JSON body"
+        )
 
     resp = await _get_function_status(data, auth_info)
     return {
@@ -422,7 +431,9 @@ async def build_status(
         mlrun.api.crud.Functions().get_function, db_session, name, project, tag
     )
     if not fn:
-        log_and_raise(HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag)
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.NOT_FOUND.value, name=name, project=project, tag=tag
+        )
 
     # nuclio deploy status
     if fn.get("kind") in RuntimeKinds.nuclio_runtimes():
@@ -484,7 +495,7 @@ def _handle_job_deploy_status(
         )
 
     # read from log file
-    log_file = log_path(project, f"build_{name}__{tag or 'latest'}")
+    log_file = mlrun.api.api.utils.log_path(project, f"build_{name}__{tag or 'latest'}")
     if (
         function_state in mlrun.common.schemas.FunctionState.terminal_states()
         and log_file.exists()
@@ -701,18 +712,22 @@ def _build_function(
         fn = new_function(runtime=function)
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: {err_to_str(err)}",
         )
     try:
         # connect to run db
-        run_db = get_run_db_instance(db_session)
+        run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
 
-        # enrich runtime with project defaults
-        launcher = mlrun.api.launcher.ServerSideLauncher()
-        launcher.enrich_runtime(runtime=fn)
+        is_nuclio_runtime = fn.kind in RuntimeKinds.nuclio_runtimes()
+
+        # Enrich runtime with project defaults
+        launcher = mlrun.api.launcher.ServerSideLauncher(auth_info=auth_info)
+        # When runtime is nuclio, building means we deploy the function and not just build its image
+        # so we need full enrichment
+        launcher.enrich_runtime(runtime=fn, full=is_nuclio_runtime)
 
         fn.save(versioned=False)
         if fn.kind in RuntimeKinds.nuclio_runtimes():
@@ -720,35 +735,26 @@ def _build_function(
                 fn,
                 auth_info,
             )
-
-            if fn.kind == RuntimeKinds.serving:
-                # Handle model monitoring
+            monitoring_application = (
+                fn.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
+                == mm_constants.ModelMonitoringAppTag.VAL
+            )
+            serving_to_monitor = (
+                fn.kind == RuntimeKinds.serving and fn.spec.track_models
+            )
+            if serving_to_monitor or monitoring_application:
                 try:
-                    if fn.spec.track_models:
-                        logger.info("Tracking enabled, initializing model monitoring")
-
-                        # Generating model monitoring access key
+                    if not mlrun.mlconf.is_ce_mode():
+                        model_monitoring_access_key = process_model_monitoring_secret(
+                            db_session,
+                            fn.metadata.project,
+                            mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                        )
+                    else:
                         model_monitoring_access_key = None
-                        if not mlrun.mlconf.is_ce_mode():
-                            model_monitoring_access_key = process_model_monitoring_secret(
-                                db_session,
-                                fn.metadata.project,
-                                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
-                            )
-
-                            stream_path = (
-                                mlrun.api.crud.model_monitoring.get_stream_path(
-                                    project=fn.metadata.project
-                                )
-                            )
-
-                            if stream_path.startswith("v3io://"):
-                                # Initialize model monitoring V3IO stream
-                                _create_model_monitoring_stream(
-                                    project=fn.metadata.project,
-                                    function=fn,
-                                    stream_path=stream_path,
-                                )
+                    if serving_to_monitor:
+                        # Handle model monitoring
+                        logger.info("Tracking enabled, initializing model monitoring")
 
                         if fn.spec.tracking_policy:
                             # Convert to `TrackingPolicy` object as `fn.spec.tracking_policy` is provided as a dict
@@ -759,7 +765,32 @@ def _build_function(
                             # Initialize tracking policy with default values
                             fn.spec.tracking_policy = TrackingPolicy()
 
-                        # deploy both model monitoring stream and model monitoring batch job
+                        if not mlrun.mlconf.is_ce_mode():
+                            # create v3io stream for model_monitoring_stream
+                            _create_model_monitoring_stream(
+                                project=fn.metadata.project,
+                                function=fn,
+                                monitoring_application=monitoring_application,
+                                stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=fn.metadata.project,
+                                    application_name=mm_constants.MonitoringFunctionNames.STREAM,
+                                ),
+                            )
+                            if fn.spec.tracking_policy.application_batch:
+                                # create v3io stream for  model_monitoring_writer | model monitoring application
+                                _create_model_monitoring_stream(
+                                    project=fn.metadata.project,
+                                    function=fn,
+                                    monitoring_application=monitoring_application,
+                                    stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                        project=fn.metadata.project,
+                                        application_name=mm_constants.MonitoringFunctionNames.WRITER,
+                                    ),
+                                    access_key=model_monitoring_access_key,
+                                )
+
+                        # deploy model monitoring stream, model monitoring batch job,
+                        # model monitoring batch application job and model monitoring writer
                         mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment().deploy_monitoring_functions(
                             project=fn.metadata.project,
                             db_session=db_session,
@@ -767,9 +798,32 @@ def _build_function(
                             tracking_policy=fn.spec.tracking_policy,
                             model_monitoring_access_key=model_monitoring_access_key,
                         )
+
+                    if monitoring_application:
+                        if not mlrun.mlconf.is_ce_mode():
+                            # create v3io stream for model monitoring application
+                            _create_model_monitoring_stream(
+                                project=fn.metadata.project,
+                                function=fn,
+                                monitoring_application=monitoring_application,
+                                stream_path=mlrun.api.crud.model_monitoring.get_stream_path(
+                                    project=fn.metadata.project,
+                                    application_name=fn.metadata.name,
+                                ),
+                                access_key=model_monitoring_access_key,
+                            )
+                        # apply stream trigger to monitoring application
+                        fn = mlrun.api.crud.model_monitoring.deployment.MonitoringDeployment()._apply_stream_trigger(
+                            project=fn.metadata.project,
+                            function=fn,
+                            model_monitoring_access_key=model_monitoring_access_key,
+                            function_name=fn.metadata.name,
+                            auth_info=auth_info,
+                        )
                 except Exception as exc:
                     logger.warning(
-                        "Failed deploying model monitoring infrastructure for the project",
+                        f"Failed deploying model monitoring infrastructure for the "
+                        f"{'project' if serving_to_monitor else f'{fn.metadata.name} application'}",
                         project=fn.metadata.project,
                         exc=exc,
                         traceback=traceback.format_exc(),
@@ -785,7 +839,7 @@ def _build_function(
             # deploy only start the process, the get status API is used to check readiness
             ready = False
         else:
-            log_file = log_path(
+            log_file = mlrun.api.api.utils.log_path(
                 fn.metadata.project,
                 f"build_{fn.metadata.name}__{fn.metadata.tag or 'latest'}",
             )
@@ -807,7 +861,7 @@ def _build_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: {err_to_str(err)}",
         )
@@ -817,7 +871,7 @@ def _build_function(
 def _parse_start_function_body(db_session, data):
     url = data.get("functionUrl")
     if not url:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="runtime error: functionUrl not specified",
         )
@@ -827,7 +881,7 @@ def _parse_start_function_body(db_session, data):
         db_session, name, project, tag, hash_key
     )
     if not runtime:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"runtime error: function {url} not found",
         )
@@ -843,28 +897,27 @@ def _start_function(
 ):
     db_session = mlrun.api.db.session.create_session()
     try:
-        try:
-            run_db = get_run_db_instance(db_session)
-            function.set_db_connection(run_db)
-            mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
-                function,
-                auth_info,
-            )
+        run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
+        function.set_db_connection(run_db)
+        mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
+            function,
+            auth_info,
+        )
 
-            mlrun.api.crud.Functions().start_function(
-                function, client_version, client_python_version
-            )
-            logger.info("Fn:\n %s", function.to_yaml())
+        mlrun.api.crud.Functions().start_function(
+            function, client_version, client_python_version
+        )
+        logger.info("Fn:\n %s", function.to_yaml())
 
-        except mlrun.errors.MLRunBadRequestError:
-            raise
+    except mlrun.errors.MLRunBadRequestError:
+        raise
 
-        except Exception as err:
-            logger.error(traceback.format_exc())
-            log_and_raise(
-                HTTPStatus.BAD_REQUEST.value,
-                reason=f"Runtime error: {err_to_str(err)}",
-            )
+    except Exception as err:
+        logger.error(traceback.format_exc())
+        mlrun.api.api.utils.log_and_raise(
+            HTTPStatus.BAD_REQUEST.value,
+            reason=f"Runtime error: {err_to_str(err)}",
+        )
     finally:
         mlrun.api.db.session.close_session(db_session)
 
@@ -874,7 +927,7 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
     selector = data.get("selector")
     kind = data.get("kind")
     if not selector or not kind:
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason="Runtime error: selector or runtime kind not specified",
         )
@@ -901,39 +954,52 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
 
     except Exception as err:
         logger.error(traceback.format_exc())
-        log_and_raise(
+        mlrun.api.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {err_to_str(err)}",
         )
 
 
-def _create_model_monitoring_stream(project: str, function, stream_path):
-    _init_serving_function_stream_args(fn=function)
+def _create_model_monitoring_stream(
+    project: str,
+    function,
+    monitoring_application: bool,
+    stream_path: str,
+    access_key: str = None,
+):
+    if stream_path.startswith("v3io://"):
+        _init_serving_function_stream_args(fn=function)
 
-    _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
+        _, container, stream_path = parse_model_endpoint_store_prefix(stream_path)
 
-    # TODO: How should we configure sharding here?
-    logger.info(
-        "Creating model endpoint stream for project",
-        project=project,
-        stream_path=stream_path,
-        container=container,
-        endpoint=config.v3io_api,
-    )
+        # TODO: How should we configure sharding here?
+        logger.info(
+            "Creating model endpoint stream for project",
+            project=project,
+            stream_path=stream_path,
+            container=container,
+            endpoint=config.v3io_api,
+        )
 
-    v3io_client = v3io.dataplane.Client(
-        endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
-    )
-    response = v3io_client.create_stream(
-        container=container,
-        path=stream_path,
-        shard_count=config.model_endpoint_monitoring.serving_stream_args.shard_count,
-        retention_period_hours=config.model_endpoint_monitoring.serving_stream_args.retention_period_hours,
-        raise_for_status=v3io.dataplane.RaiseForStatus.never,
-    )
+        v3io_client = v3io.dataplane.Client(
+            endpoint=config.v3io_api, access_key=os.environ.get("V3IO_ACCESS_KEY")
+        )
+        stream_args = (
+            config.model_endpoint_monitoring.application_stream_args
+            if monitoring_application
+            else config.model_endpoint_monitoring.serving_stream_args
+        )
+        response = v3io_client.create_stream(
+            container=container,
+            path=stream_path,
+            shard_count=stream_args.shard_count,
+            retention_period_hours=stream_args.retention_period_hours,
+            raise_for_status=v3io.dataplane.RaiseForStatus.never,
+            access_key=access_key,
+        )
 
-    if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
-        response.raise_for_status([409, 204])
+        if not (response.status_code == 400 and "ResourceInUse" in str(response.body)):
+            response.raise_for_status([409, 204])
 
 
 def _init_serving_function_stream_args(fn: ServingRuntime):

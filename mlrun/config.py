@@ -176,6 +176,7 @@ default_config = {
             "service_account": {"default": None},
         },
     },
+    # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -183,7 +184,7 @@ default_config = {
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
-            "mpijob": "mlrun/ml-models",
+            "mpijob": "mlrun/mlrun",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -289,7 +290,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "enabled",
+            "explicit_ack": "disabled",
         },
         "logs": {
             "decode": {
@@ -380,6 +381,8 @@ default_config = {
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
+            # kaniko sometimes fails to push image to registry due to network issues
+            "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -404,6 +407,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -418,6 +422,7 @@ default_config = {
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
@@ -426,6 +431,9 @@ default_config = {
         "endpoint_store_connection": "",
     },
     "secret_stores": {
+        # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
+        # "secrets")
+        "test_mode_mock_secrets": False,
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
             # http://docker.for.mac.localhost:8200
@@ -457,7 +465,8 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
+            # "authority" is optional and generalizes [userinfo "@"] host [":" port]
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -498,6 +507,16 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
+    "default_spark_resources": {
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
+    },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
         # encoded empty dict
@@ -537,6 +556,7 @@ default_config = {
         "mode": "legacy",
         # interval for collecting and sending runs which require their logs to be collected
         "periodic_start_log_interval": 10,
+        "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
@@ -908,7 +928,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():
@@ -968,20 +988,22 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
+        application_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
-        :param project:        Project name.
-        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
-        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
-                               path for the provided kind. If it doesn't exist, use the default path.
-                               If the target path is offline and the offline path is already a full path in the
-                               configuration, then the result will be that path as-is. If the offline path is a
-                               relative path, then the result will be based on the project artifact path and the offline
-                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
-                               path instead.
-        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
-                               relative artifact path will be taken from the global MLRun artifact path.
+        :param project:         Project name.
+        :param kind:            Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:          Can be either online or offline. If the target is online, then we try to get a specific
+                                path for the provided kind. If it doesn't exist, use the default path.
+                                If the target path is offline and the offline path is already a full path in the
+                                configuration, then the result will be that path as-is. If the offline path is a
+                                relative path, then the result will be based on the project artifact path and the
+                                offline relative path. If project artifact path wasn't provided, then we use MLRun
+                                artifact path instead.
+        :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
+                                relative artifact path will be taken from the global MLRun artifact path.
+        :param application_name:Application name, None for model_monitoring_stream.
 
         :return: Full configured path for the provided kind.
         """
@@ -993,8 +1015,22 @@ class Config:
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project)
+
+            if (
+                application_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+            ):
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project,
+                    kind=kind
+                    if application_name is None
+                    else f"{kind}-{application_name.lower()}",
+                )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project, kind=kind
+                project=project,
+                kind=kind
+                if application_name is None
+                else f"{kind}-{application_name.lower()}",
             )
 
         # Get the current offline path from the configuration
@@ -1014,7 +1050,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_artifact_path_template(
+            return mlrun.utils.helpers.fill_project_path_template(
                 artifact_path=artifact_path + file_path, project=project
             )
 

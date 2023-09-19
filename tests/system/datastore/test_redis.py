@@ -17,7 +17,10 @@ import os
 import pytest
 
 import mlrun.datastore
-from mlrun.datastore.datastore_profile import DatastoreProfileRedis
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileRedis,
+    register_temporary_client_datastore_profile,
+)
 from tests.system.base import TestMLRunSystem
 
 redis_endpoints = ["redis://", "redis://localhost:6379"]
@@ -73,13 +76,11 @@ class TestRedisDataStore(TestMLRunSystem):
         expected = "abcde" * 100
         with open("temp_upload", "w") as f:
             f.write(expected)
-        project = mlrun.get_or_create_project(name="my-project", context="./")
-
         if use_datastore_profile:
             profile = DatastoreProfileRedis(
                 name="dsname", endpoint_url=mlrun.mlconf.redis.url
             )
-            project.register_datastore_profile(profile)
+            register_temporary_client_datastore_profile(profile)
             redis_path = f"ds://dsname/{redis_object}"
         else:
             redis_path = f"redis:///{redis_object}"

@@ -474,7 +474,8 @@ class ServingRuntime(RemoteRuntime):
                 child_function = self._spec.function_refs[function_name]
                 trigger_args = stream.trigger_args or {}
 
-                if mlrun.mlconf.is_explicit_ack():
+                engine = self.spec.graph.engine or "async"
+                if mlrun.mlconf.is_explicit_ack() and engine == "async":
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
@@ -637,6 +638,9 @@ class ServingRuntime(RemoteRuntime):
             self.spec.secret_sources = self._secrets.to_serial()
 
         if self._spec.function_refs:
+            # ensure the function is available to the UI while deploying the child functions
+            self.save(versioned=False)
+
             # deploy child functions
             self._add_ref_triggers()
             self._deploy_function_refs()

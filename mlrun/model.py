@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+import json
 import pathlib
 import re
 import time
@@ -32,6 +33,7 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
+    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
@@ -412,8 +414,8 @@ class ImageBuilder(ModelObj):
         requirements=None,
         requirements_file=None,
         overwrite=False,
-        extra_args=None,
         builder_env=None,
+        extra_args=None,
     ):
         if image:
             self.image = image
@@ -435,10 +437,10 @@ class ImageBuilder(ModelObj):
             self.with_mlrun = with_mlrun
         if auto_build:
             self.auto_build = auto_build
-        if extra_args:
-            self.extra_args = extra_args
         if builder_env:
             self.builder_env = builder_env
+        if extra_args:
+            self.extra_args = extra_args
 
     def with_commands(
         self,
@@ -557,9 +559,11 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
+        reason=None,
     ):
         self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
         self.name = name or ""
@@ -569,9 +573,11 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+        self.reason = reason
 
         self.validate_notification()
 
@@ -582,6 +588,17 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc
+
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
+        # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        if (
+            len(json.dumps(self.secret_params))
+            > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification params size exceeds max size of 1 MB"
+            )
 
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
@@ -641,22 +658,22 @@ class HyperParamOptions(ModelObj):
     """Hyper Parameter Options
 
     Parameters:
-        param_file (str):       hyper params input file path/url, instead of inline
-        strategy (str):         hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
-        stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
-        dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
-        max_iterations (int):   max number of runs (in random strategy)
-        max_errors (int):       max number of child runs errors for the overall job to fail
-        teardown_dask (bool):   kill the dask cluster pods after the runs
+        param_file (str):                   hyper params input file path/url, instead of inline
+        strategy (HyperParamStrategies):    hyper param strategy - grid, list or random
+        selector (str):                     selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
+        stop_condition (str):               early stop condition e.g. "accuracy > 0.9"
+        parallel_runs (int):                number of param combinations to run in parallel (over Dask)
+        dask_cluster_uri (str):             db uri for a deployed dask cluster function, e.g. db://myproject/dask
+        max_iterations (int):               max number of runs (in random strategy)
+        max_errors (int):                   max number of child runs errors for the overall job to fail
+        teardown_dask (bool):               kill the dask cluster pods after the runs
     """
 
     def __init__(
         self,
         param_file=None,
-        strategy=None,
-        selector: HyperParamStrategies = None,
+        strategy: typing.Optional[HyperParamStrategies] = None,
+        selector=None,
         stop_condition=None,
         parallel_runs=None,
         dask_cluster_uri=None,
@@ -1580,11 +1597,12 @@ class TargetPathObject:
     def get_templated_path(self):
         return self.full_path_template
 
-    def get_absolute_path(self):
-        if self.run_id:
-            return self.full_path_template.format(run_id=self.run_id)
-        else:
-            return self.full_path_template
+    def get_absolute_path(self, project_name=None):
+        path = fill_project_path_template(
+            artifact_path=self.full_path_template,
+            project=project_name,
+        )
+        return path.format(run_id=self.run_id) if self.run_id else path
 
 
 class DataSource(ModelObj):

@@ -361,8 +361,6 @@ def v2_serving_handler(context, event, get_body=False):
         # Workaround for a Nuclio bug where it sometimes passes b'' instead of None due to dirty memory
         if event.body == b"":
             event.body = None
-    else:
-        event.path = "/"  # fix the issue that non http returns "Unsupported"
 
     return context._server.run(event, context, get_body)
 
@@ -467,6 +465,10 @@ class GraphContext:
         if nuclio_context:
             self.logger = nuclio_context.logger
             self.Response = nuclio_context.Response
+            if hasattr(nuclio_context, "trigger") and hasattr(
+                nuclio_context.trigger, "kind"
+            ):
+                self.trigger = nuclio_context.trigger.kind
             self.worker_id = nuclio_context.worker_id
             if hasattr(nuclio_context, "platform"):
                 self.platform = nuclio_context.platform

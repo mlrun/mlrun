@@ -18,6 +18,7 @@ import pathlib
 import socket
 import tempfile
 import time
+import typing
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -55,7 +56,7 @@ from .runtimes import (
     Spark3Runtime,
     get_runtime_class,
 )
-from .runtimes.databricks.databricks import DatabricksRuntime
+from .runtimes.databricks_job.databricks_runtime import DatabricksRuntime
 from .runtimes.funcdoc import update_function_entry_points
 from .runtimes.serving import serving_subkind
 from .runtimes.utils import add_code_metadata, global_context
@@ -347,6 +348,7 @@ def get_or_create_ctx(
     rundb: str = "",
     project: str = "",
     upload_artifacts=False,
+    labels: dict = None,
 ):
     """called from within the user program to obtain a run context
 
@@ -365,7 +367,7 @@ def get_or_create_ctx(
     :param project:  project to initiate the context in (by default mlrun.mlctx.default_project)
     :param upload_artifacts:  when using local context (not as part of a job/run), upload artifacts to the
                               system default artifact path location
-
+    :param labels:      dict of the context labels
     :return: execution context
 
     Examples::
@@ -420,7 +422,7 @@ def get_or_create_ctx(
     if not newspec:
         newspec = {}
         if upload_artifacts:
-            artifact_path = mlrun.utils.helpers.fill_artifact_path_template(
+            artifact_path = mlrun.utils.helpers.fill_project_path_template(
                 mlconf.artifact_path, project or mlconf.default_project
             )
             update_in(newspec, ["spec", run_keys.output_path], artifact_path)
@@ -441,6 +443,9 @@ def get_or_create_ctx(
     ctx = MLClientCtx.from_dict(
         newspec, rundb=out, autocommit=autocommit, tmp=tmp, host=socket.gethostname()
     )
+    labels = labels or {}
+    for key, val in labels.items():
+        ctx.set_label(key=key, value=val)
     global_context.set(ctx)
     return ctx
 
@@ -578,10 +583,10 @@ def new_function(
     :param args:     command line arguments (override the ones in command)
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
-    :param mode:     runtime mode, "args" mode will push params into command template, example:
-                      command=`mycode.py --x {xparam}` will substitute the `{xparam}` with the value of the xparam param
-                     "pass" mode will run the command as is in the container (not wrapped by mlrun), the command can use
-                      `{}` for parameters like in the "args" mode
+    :param mode:     runtime mode:
+            * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
+                     params substitutions like {xparam} and will be replaced with the value of the xparam param
+                     if a command is not specified, then image entrypoint shall be used.
     :param handler:  The default function handler to call for the job or nuclio function, in batch functions
                      (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
                      the entire file will be executed (as main).
@@ -614,7 +619,7 @@ def new_function(
         else:
             supported_runtimes = ",".join(RuntimeKinds.all())
             raise Exception(
-                f"unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
+                f"Unsupported runtime ({kind}) or missing command, supported runtimes: {supported_runtimes}"
             )
 
     if not name:
@@ -1199,7 +1204,9 @@ def download_object(url, target, secrets=None):
     stores.object(url=url).download(target_path=target)
 
 
-def wait_for_runs_completion(runs: list, sleep=3, timeout=0, silent=False):
+def wait_for_runs_completion(
+    runs: typing.Union[list, typing.ValuesView], sleep=3, timeout=0, silent=False
+):
     """wait for multiple runs to complete
 
     Note: need to use `watch=False` in `.run()` so the run will not wait for completion

@@ -29,7 +29,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         projects = mlrun.get_run_db().list_projects()
         assert len(projects) == 1
-        assert projects[0].metadata.name == project_name
+        assert projects[0] == project_name
 
     def test_create_project_failure_already_exists(self):
         project_name = "some-project"
@@ -107,7 +107,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
                 project=project.metadata.name,
             )
 
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -138,7 +138,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         old_creation_time = projects[0].metadata.created
 
         mlrun.new_project(project_name, overwrite=True)
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -153,7 +153,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         db = mlrun.get_run_db()
 
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -163,7 +163,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # overwrite empty project
         mlrun.new_project(project_name, overwrite=True)
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
 
@@ -177,7 +177,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.new_project(project_name)
         db = mlrun.get_run_db()
 
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
         old_creation_time = projects[0].metadata.created
@@ -187,7 +187,7 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
             mlrun.new_project(project_name, from_template="bla", overwrite=True)
 
         # ensure project was not deleted
-        projects = db.list_projects()
+        projects = db.list_projects(format_=mlrun.common.schemas.ProjectsFormat.full)
         assert len(projects) == 1
         assert projects[0].metadata.name == project_name
         assert projects[0].metadata.created == old_creation_time
@@ -241,6 +241,18 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert project.spec.artifacts == []
         assert project.spec.conda == ""
 
+    def test_set_project_secrets(self):
+        # A basic test verifying that we can access (mocked) project-secrets functionality in integration tests.
+        project_name = "some-project"
+        project_object = mlrun.get_or_create_project(project_name)
+
+        secrets = {"secret1": "value1", "secret2": "value2"}
+        project_object.set_secrets(secrets)
+        secret_keys = (
+            mlrun.get_run_db().list_project_secret_keys(project_name).secret_keys
+        )
+        assert secret_keys == list(secrets.keys())
+
 
 def _assert_projects(expected_project, project):
     assert (
@@ -265,9 +277,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     assert len(project_function_objects) == len(expected_function_objects)
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
+        project_function = project_function_objects[function_name].to_dict()
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
-                project_function_objects[function_name].to_dict(),
+                project_function,
                 function_object.to_dict(),
                 ignore_order=True,
                 exclude_paths=["root['spec']['build']['code_origin']"],

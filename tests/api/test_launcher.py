@@ -17,12 +17,15 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+from fastapi.testclient import TestClient
 
 import mlrun.api.api.utils
 import mlrun.api.launcher
+import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+import tests.api.api.utils
 
 
 @pytest.mark.parametrize(
@@ -45,11 +48,21 @@ def test_create_server_side_launcher(is_remote, local, expectation):
         assert isinstance(launcher, mlrun.api.launcher.ServerSideLauncher)
 
 
-def test_enrich_and_validate_with_auth_info():
+def test_enrich_runtime_with_auth_info(
+    monkeypatch, k8s_secrets_mock, client: TestClient
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    monkeypatch.setattr(
+        mlrun.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         access_key="access_key",
         username="username",
     )
+    tests.api.api.utils.create_project(client, mlrun.mlconf.default_project)
+
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
         is_remote=True,
@@ -61,14 +74,12 @@ def test_enrich_and_validate_with_auth_info():
         name="launcher-test",
         kind="job",
     )
+    function.metadata.credentials.access_key = (
+        mlrun.model.Credentials.generate_access_key
+    )
 
-    with unittest.mock.patch(
-        "mlrun.api.api.utils.apply_enrichment_and_validation_on_function",
-        unittest.mock.Mock(),
-    ) as apply_enrichment_and_validation_on_function:
-
-        launcher.enrich_runtime(function)
-        apply_enrichment_and_validation_on_function.assert_called_once_with(
-            function,
-            auth_info,
-        )
+    launcher.enrich_runtime(function)
+    assert (
+        function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
+        == "secret-ref-username-access_key"
+    )

@@ -1095,7 +1095,7 @@ def _create_resources_of_all_kinds(
     ds_profile = mlrun.common.schemas.DatastoreProfile(
         name="datastore_test_profile_name",
         type="datastore_test_profile_type",
-        body="datastore_test_profile_body",
+        object="datastore_test_profile_body",
         project=project,
     )
     # create a datasource profile
@@ -1179,7 +1179,6 @@ def _assert_db_resources_in_project(
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
-        # ArtifactV2 is new and not in use yet
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1187,8 +1186,8 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
-            or cls.__name__ == "ArtifactV2"
             or cls.__name__ == "Log"
+            or cls.__name__ == "ArtifactV2"
             or (
                 cls.__tablename__ == "projects_labels"
                 and project_member_mode == "follower"

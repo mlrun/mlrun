@@ -17,15 +17,12 @@ from typing import Dict
 
 from sqlalchemy.orm import Session
 
+import mlrun.api.api.utils
 import mlrun.common.schemas
 import mlrun.utils.singleton
-from mlrun.api.api.utils import (
-    apply_enrichment_and_validation_on_function,
-    get_run_db_instance,
-    get_scheduler,
-)
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
+from mlrun.utils import fill_project_path_template
 
 
 class WorkflowRunners(
@@ -59,12 +56,12 @@ class WorkflowRunners(
             image=image,
         )
 
-        runner.set_db_connection(get_run_db_instance(db_session))
+        runner.set_db_connection(mlrun.api.api.utils.get_run_db_instance(db_session))
 
         # Enrichment and validation requires access key
         runner.metadata.credentials.access_key = Credentials.generate_access_key
 
-        apply_enrichment_and_validation_on_function(
+        mlrun.api.api.utils.apply_enrichment_and_validation_on_function(
             function=runner,
             auth_info=auth_info,
         )
@@ -110,7 +107,7 @@ class WorkflowRunners(
             "schedule": schedule,
         }
 
-        get_scheduler().store_schedule(
+        mlrun.api.api.utils.get_scheduler().store_schedule(
             db_session=db_session,
             auth_info=auth_info,
             project=project.metadata.name,
@@ -155,13 +152,18 @@ class WorkflowRunners(
                     engine=workflow_spec.engine,
                     local=workflow_spec.run_local,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                     subpath=project.spec.subpath,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=(
-                    workflow_request.artifact_path or config.artifact_path
-                ).replace("{{run.uid}}", meta_uid),
+                output_path=fill_project_path_template(
+                    (workflow_request.artifact_path or config.artifact_path).replace(
+                        "{{run.uid}}", meta_uid
+                    ),
+                    project.metadata.name,
+                ),
             ),
             metadata=RunMetadata(
                 uid=meta_uid, name=workflow_spec.name, project=project.metadata.name
@@ -276,6 +278,8 @@ class WorkflowRunners(
                     project_name=project.metadata.name,
                     load_only=load_only,
                     save=save,
+                    # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
+                    dirty=save,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

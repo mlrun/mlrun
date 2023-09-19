@@ -95,7 +95,7 @@ class Pipelines(
             runs = [run.to_dict() for run in response.runs or []]
             total_size = response.total_size
             next_page_token = response.next_page_token
-        runs = self._format_runs(runs, format_)
+        runs = self._format_runs(db_session, runs, format_)
 
         return total_size, next_page_token, runs
 
@@ -131,6 +131,7 @@ class Pipelines(
 
     def get_pipeline(
         self,
+        db_session: sqlalchemy.orm.Session,
         run_id: str,
         project: typing.Optional[str] = None,
         namespace: typing.Optional[str] = None,
@@ -148,7 +149,9 @@ class Pipelines(
                         raise mlrun.errors.MLRunNotFoundError(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
-                run = self._format_run(run, format_, api_run_detail.to_dict())
+                run = self._format_run(
+                    db_session, run, format_, api_run_detail.to_dict()
+                )
         except kfp_server_api.ApiException as exc:
             mlrun.errors.raise_for_status_code(int(exc.status), err_to_str(exc))
         except mlrun.errors.MLRunHTTPStatusError:
@@ -225,16 +228,18 @@ class Pipelines(
 
     def _format_runs(
         self,
+        db_session: sqlalchemy.orm.Session,
         runs: typing.List[dict],
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
     ) -> typing.List[dict]:
         formatted_runs = []
         for run in runs:
-            formatted_runs.append(self._format_run(run, format_))
+            formatted_runs.append(self._format_run(db_session, run, format_))
         return formatted_runs
 
     def _format_run(
         self,
+        db_session: sqlalchemy.orm.Session,
         run: dict,
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         api_run_detail: typing.Optional[dict] = None,
@@ -252,8 +257,9 @@ class Pipelines(
                 raise mlrun.errors.MLRunRuntimeError(
                     "The full kfp api_run_detail object is needed to generate the summary format"
                 )
+            run_db = mlrun.api.api.utils.get_run_db_instance(db_session)
             return mlrun.kfpops.format_summary_from_kfp_run(
-                api_run_detail, run["project"]
+                api_run_detail, run["project"], run_db=run_db
             )
         else:
             raise NotImplementedError(

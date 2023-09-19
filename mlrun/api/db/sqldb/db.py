@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import and_, distinct, func, or_
+from sqlalchemy import Integer, and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
@@ -3109,6 +3109,7 @@ class SQLDB(DBInterface):
                 and_(
                     Artifact.key.like(f"%-{exact_name}", escape="\\"),
                     func.length(Artifact.key) < len(name) + 5,
+                    func.cast(func.substr(Artifact.key, 1, 1), Integer),
                 ),
             )
         )

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import collections
 import concurrent.futures
 import datetime
 import traceback
@@ -70,7 +71,7 @@ _last_notification_push_time: datetime.datetime = None
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
 # that keep failing start logs requests.
-_run_uid_start_log_request_counters: typing.Dict[str, int] = {}
+_run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 app = fastapi.FastAPI(
@@ -357,7 +358,7 @@ async def _start_log_and_update_runs(
     # each result contains either run_uid or None
     # if it's None it means something went wrong, and we should skip it
     # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
-    results = await asyncio.gather(*start_logs_for_runs)
+    results = await asyncio.gather(*start_logs_for_runs, return_exceptions=True)
     successful_run_uids = [result for result in results if result]
 
     # distinct the runs uids

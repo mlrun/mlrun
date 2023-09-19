@@ -40,16 +40,13 @@ class PackagersManager:
     A packager manager holds the project's packagers and sends them objects to pack, and data items to unpack.
 
     It prepares the instructions / log hint configurations and then looks for the first packager that fits the task.
-    When the manager collects its packagers, it first collects builtin MLRun packagers and only then the
-    user's custom packagers. In this way, the user's custom packagers have higher priority.
     """
 
     def __init__(self, default_packager: Type[Packager] = None):
         """
         Initialize a packagers manager.
 
-        :param default_packager: The default packager should be a packager that fits all types. It is the first
-                                 packager in the manager's packagers (meaning it is used at lowest priority). It
+        :param default_packager: The default packager should be a packager that fits all types. It
                                  should fit any packagers that are managed by the manager that do not fit an
                                  object or data item. Default to ``mlrun.DefaultPackager``.
         """
@@ -88,7 +85,7 @@ class PackagersManager:
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
         `Packager`. If it's needed to import all packagers from a module, use the module path with an asterisk
-        "*" at the end. (A packager with a name that starts with a '_' is not collected.)
+        "*" at the end. (A packager with a name that starts with an underscore '_' is not collected.)
 
         Notice: Only packagers that are declared in the module are collected (packagers imported in the module scope
         aren't collected). For example::

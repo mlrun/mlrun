@@ -245,7 +245,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
           artifact.spec.extra_data = {key: ... for key in extra_data}
 
     * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted after
-      logging the artifact is complete. The packager can mark paths of files and directories to delete after
+      the artifact is logged. The packager can mark paths of files and directories to delete after
       logging using the class method ``add_future_clearing_path``.
 
       For example, in the following packager's ``pack`` method, you can write a text file, create an artifact, and then

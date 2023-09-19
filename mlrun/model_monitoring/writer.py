@@ -30,6 +30,7 @@ from mlrun.utils import logger
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
+_TSDB_TABLE = "app-results"
 RawEvent = dict[str, Any]
 AppResultEvent = NewType("AppResultEvent", RawEvent)
 
@@ -52,7 +53,6 @@ class ModelMonitoringWriter(StepToDict):
     """
 
     kind = "monitoring_application_stream_pusher"
-    _TSDB_TABLE = "app-results"
 
     def __init__(self, project: str) -> None:
         self.project = project
@@ -74,7 +74,7 @@ class ModelMonitoringWriter(StepToDict):
     def _create_tsdb_table(self) -> None:
         self._tsdb_client.create(
             backend=_TSDB_BE,
-            table=self._TSDB_TABLE,
+            table=_TSDB_TABLE,
             if_exists=IGNORE,
             rate=_TSDB_RATE,
         )
@@ -100,7 +100,7 @@ class ModelMonitoringWriter(StepToDict):
         try:
             self._tsdb_client.write(
                 backend=_TSDB_BE,
-                table=self._TSDB_TABLE,
+                table=_TSDB_TABLE,
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
                     WriterEvent.SCHEDULE_TIME,
@@ -108,12 +108,12 @@ class ModelMonitoringWriter(StepToDict):
                     WriterEvent.APPLICATION_NAME,
                 ],
             )
-            logger.info("Updated V3IO TSDB successfully", table=self._TSDB_TABLE)
+            logger.info("Updated V3IO TSDB successfully", table=_TSDB_TABLE)
         except V3IOFramesError as err:
             logger.warn(
                 "Could not write drift measures to TSDB",
                 err=err,
-                table=self._TSDB_TABLE,
+                table=_TSDB_TABLE,
                 event=event,
             )
 

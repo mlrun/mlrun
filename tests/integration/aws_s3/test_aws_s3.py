@@ -56,9 +56,6 @@ def aws_s3_configured(extra_params=None):
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
-    def custom_setup(self):
-        pass
-
     def _make_target_names(
         self, prefix, bucket_name, object_dir, object_file, csv_file
     ):

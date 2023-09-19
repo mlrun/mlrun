@@ -57,7 +57,7 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(self, project: str) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._v3io_container = f"users/pipelines/project/{self.name}/monitoring-apps"
+        self._v3io_container = f"users/pipelines/{self.name}/monitoring-apps"
         self._kv_client = self._get_v3io_client().kv
         self._tsdb_client = self._get_v3io_frames_client()
         self._create_tsdb_table()

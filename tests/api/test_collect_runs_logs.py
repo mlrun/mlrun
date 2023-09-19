@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import time
 import unittest.mock
 
 import deepdiff
@@ -23,6 +24,7 @@ import mlrun.api.crud
 import mlrun.api.main
 import mlrun.api.utils.clients.log_collector
 import mlrun.api.utils.singletons.db
+import mlrun.config
 from tests.api.utils.clients.test_log_collector import BaseLogCollectorResponse
 
 
@@ -165,6 +167,137 @@ class TestCollectRunSLogs:
             )
             == {}
         )
+
+    @pytest.mark.asyncio
+    async def test_collect_logs_for_old_runs_on_startup(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        project_name = "some-project"
+        new_uid = "new_uid"
+        old_uid = "old_uid"
+
+        # create first run
+        _create_new_run(
+            db,
+            project_name,
+            uid=old_uid,
+            name=old_uid,
+            kind="job",
+            state=mlrun.runtimes.constants.RunStates.completed,
+        )
+
+        # sleep for 3 seconds to make sure the runs are not created at the same time
+        time.sleep(3)
+
+        # create second run
+        _create_new_run(
+            db,
+            project_name,
+            uid=new_uid,
+            name=new_uid,
+            kind="job",
+            state=mlrun.runtimes.constants.RunStates.completed,
+        )
+
+        # verify that we have 2 runs
+        runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[False],
+            only_uids=False,
+        )
+        assert len(runs) == 2
+
+        # change mlrun config so that the old run will be considered as old
+        mlrun.config.config.runtime_resources_deletion_grace_period = 2
+
+        log_collector_call_mock = unittest.mock.AsyncMock(
+            return_value=BaseLogCollectorResponse(True, "")
+        )
+        monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            mlrun.api.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+
+        await mlrun.api.main._verify_log_collection_started_on_startup(
+            self.start_log_limit
+        )
+
+        assert update_runs_requested_logs_mock.call_count == 1
+        assert len(update_runs_requested_logs_mock.call_args[1]["uids"]) == 1
+        assert update_runs_requested_logs_mock.call_args[1]["uids"][0] == new_uid
+
+    @pytest.mark.asyncio
+    async def test_collect_logs_consecutive_failures(
+        self,
+        db: sqlalchemy.orm.session.Session,
+        client: fastapi.testclient.TestClient,
+        monkeypatch,
+    ):
+        log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+
+        project_name = "some-project"
+        success_uid = "success_uid"
+        failure_uid = "failure_uid"
+
+        for run_uid in [success_uid, failure_uid]:
+            _create_new_run(
+                db,
+                project_name,
+                uid=run_uid,
+                name=run_uid,
+                kind="job",
+                state=mlrun.runtimes.constants.RunStates.completed,
+            )
+
+        # verify that we have 2 runs
+        runs = mlrun.api.utils.singletons.db.get_db().list_distinct_runs_uids(
+            db,
+            requested_logs_modes=[False],
+            only_uids=False,
+        )
+        assert len(runs) == 2
+
+        # change the max_consecutive_start_log_requests to 2, as per the following calculation:
+        # max_consecutive_start_log_requests = int(
+        #         int(config.log_collector.failed_runs_grace_period)
+        #         / int(config.log_collector.periodic_start_log_interval)
+        #     )
+        mlrun.config.config.log_collector.failed_runs_grace_period = 20
+        mlrun.config.config.log_collector.periodic_start_log_interval = 10
+
+        log_collector_call_mock = unittest.mock.AsyncMock(
+            side_effect=[
+                # failure response for the first call (failure_uid)
+                BaseLogCollectorResponse(False, "some error"),
+                # success response for the second call (success_uid)
+                BaseLogCollectorResponse(True, ""),
+                # failure response for the third call (failure_uid)
+                BaseLogCollectorResponse(False, "some error"),
+                BaseLogCollectorResponse(False, "some error"),
+            ]
+        )
+        monkeypatch.setattr(log_collector, "_call", log_collector_call_mock)
+        update_runs_requested_logs_mock = unittest.mock.Mock()
+        monkeypatch.setattr(
+            mlrun.api.utils.singletons.db.get_db(),
+            "update_runs_requested_logs",
+            update_runs_requested_logs_mock,
+        )
+
+        for i in range(3):
+            await mlrun.api.main._initiate_logs_collection(self.start_log_limit)
+
+        assert update_runs_requested_logs_mock.call_count == 2
+        # verify that `failure_uid` is also updated in the second call
+        assert failure_uid in update_runs_requested_logs_mock.call_args[1]["uids"]
 
     @pytest.mark.asyncio
     async def test_collect_logs_with_runs_fails(

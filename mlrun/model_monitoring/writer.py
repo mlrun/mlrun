@@ -24,9 +24,11 @@ import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.common.schemas.model_monitoring.constants import WriterEvent
+from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
+from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
+from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
 _TSDB_BE = "tsdb"
 _TSDB_RATE = "1/s"
@@ -47,6 +49,50 @@ class _WriterEventTypeError(_WriterEventError, TypeError):
     pass
 
 
+class _Notifier:
+    def __init__(
+        self,
+        event: _AppResultEvent,
+        notification_pusher: CustomNotificationPusher,
+        severity: NotificationSeverity = NotificationSeverity.WARNING,
+    ) -> None:
+        """
+        Event notifier - send push notification when appropriate to the notifiers in
+        `notification pusher`.
+        Note that if you use a Slack App webhook, you need to define it as an MLRun secret
+        `SLACK_WEBHOOK`.
+        """
+        self._event = event
+        self._custom_notifier = notification_pusher
+        self._severity = severity
+
+    def _should_send_event(self) -> bool:
+        return self._event[WriterEvent.RESULT_STATUS] >= ResultStatusApp.detected
+
+    def _generate_message(self) -> str:
+        return f"""\
+The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
+of kind `{self._event[WriterEvent.RESULT_KIND]}` \
+detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
+at time `{self._event[WriterEvent.SCHEDULE_TIME]}`.
+
+Result data:
+Name: `{self._event[WriterEvent.RESULT_NAME]}`
+Value: `{self._event[WriterEvent.RESULT_VALUE]}`
+Status: `{self._event[WriterEvent.RESULT_STATUS]}`
+Extra data: `{self._event[WriterEvent.RESULT_EXTRA_DATA]}`\
+"""
+
+    def notify(self) -> None:
+        """Send notification if appropriate"""
+        if not self._should_send_event():
+            logger.debug("Not sending a notification")
+            return
+        message = self._generate_message()
+        self._custom_notifier.push(message=message, severity=self._severity)
+        logger.debug("A notification should have been sent")
+
+
 class ModelMonitoringWriter(StepToDict):
     """
     Write monitoring app events to V3IO KV storage
@@ -60,6 +106,9 @@ class ModelMonitoringWriter(StepToDict):
         self._v3io_container = f"users/pipelines/{self.name}/monitoring-apps"
         self._kv_client = self._get_v3io_client().kv
         self._tsdb_client = self._get_v3io_frames_client()
+        self._custom_notifier = CustomNotificationPusher(
+            notification_types=[NotificationKind.slack]
+        )
         self._create_tsdb_table()
 
     def _get_v3io_client(self) -> V3IOClient:
@@ -154,4 +203,5 @@ class ModelMonitoringWriter(StepToDict):
         logger.info("Starting to write event", event=event)
         self._update_tsdb(event)
         self._update_kv_db(event)
+        _Notifier(event=event, notification_pusher=self._custom_notifier).notify()
         logger.info("Completed event DB writes")

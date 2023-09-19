@@ -16,7 +16,6 @@ import getpass
 import http
 import re
 import warnings
-from copy import deepcopy
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
@@ -44,6 +43,7 @@ from ..utils import (
     dict_to_json,
     dict_to_yaml,
     enrich_image_url,
+    exclude_notification_params_from_run_object,
     get_in,
     get_parsed_docker_registry,
     logger,
@@ -407,10 +407,9 @@ class BaseRuntime(ModelObj):
             # Since the `params` attribute within each notification object can be large,
             # it has the potential to cause errors and is unnecessary for the notification functionality.
             # Therefore, in this section, we remove the `params` attribute from each notification object.
-            runobj_for_exec_config = deepcopy(runobj)
-            for notification in runobj_for_exec_config.spec.notifications:
-                notification.params = {}
-            runtime_env["MLRUN_EXEC_CONFIG"] = runobj_for_exec_config.to_json()
+            runtime_env[
+                "MLRUN_EXEC_CONFIG"
+            ] = exclude_notification_params_from_run_object(runobj)
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:

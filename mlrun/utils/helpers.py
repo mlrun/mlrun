@@ -197,6 +197,14 @@ def verify_field_regex(
         return False
 
 
+def exclude_notification_params_from_run_object(run_object: mlrun.model.RunTemplate):
+    run_object_json = run_object.to_json()
+    for notification in run_object_json.spec.notifications:
+        if hasattr(notification, "params"):
+            del notification.params
+    return run_object_json
+
+
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: str = None
 ):

@@ -16,6 +16,7 @@ import getpass
 import http
 import re
 import warnings
+from copy import deepcopy
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
@@ -403,7 +404,13 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
         if runobj:
-            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json()
+            # Since the `params` attribute within each notification object can be large,
+            # it has the potential to cause errors and is unnecessary for the notification functionality.
+            # Therefore, in this section, we remove the `params` attribute from each notification object.
+            runobj_for_exec_config = deepcopy(runobj)
+            for notification in runobj_for_exec_config.spec.notifications:
+                notification.params = {}
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj_for_exec_config.to_json()
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:

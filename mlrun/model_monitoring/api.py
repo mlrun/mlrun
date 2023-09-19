@@ -415,8 +415,8 @@ def _generate_model_endpoint(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Please provide either a function name or a valid MLRun context"
             )
-        # Get the function hash from the provided context
-        (_, _, _, function_name,) = mlrun.common.helpers.parse_versioned_object_uri(
+        # Get the function name from the provided context
+        (_, function_name, _, _,) = mlrun.common.helpers.parse_versioned_object_uri(
             context.to_dict()["spec"]["function"]
         )
 

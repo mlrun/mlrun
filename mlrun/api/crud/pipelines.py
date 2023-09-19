@@ -99,7 +99,7 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
-    def list_experiments(self, project: str, list_filter: dict = {}):
+    def list_experiments(self, project_name: str, list_filter: dict = {}):
         kfp_client = self.initialize_kfp_client()
 
         page_token = ""
@@ -112,30 +112,39 @@ class Pipelines(
             yield from [
                 e
                 for e in experiments
-                if self._get_project_from_experiment_name(e.name) == project
+                if self._get_project_from_experiment_name(e.name) == project_name
             ]
             page_token = response.next_page_token
             if not page_token:
                 break
 
-    def delete_experiments(self, project: str):
+    def delete_experiments(self, project_name: str):
         kfp_client = self.initialize_kfp_client()
-        for experiment in self.list_experiments(project=project):
+        succeeded = 0
+        failed = 0
+        for experiment in self.list_experiments(project_name=project_name):
             try:
                 logger.debug(
-                    f"Detected experiment for project {project} and deleting it",
-                    project=project,
+                    f"Detected experiment for project {project_name} and deleting it",
+                    project_name=project_name,
                     experiment_id=experiment.id,
                 )
                 kfp_client._experiment_api.delete_experiment(id=experiment.id)
-            except RuntimeError as e:
+                succeeded += 1
+            except Exception as exc:
+                failed += 1
                 logger.warning(
                     "Failed to delete an experiment",
-                    project=project,
+                    project=project_name,
                     experiment_id=experiment.id,
-                    exc_info=e,
+                    exc_info=err_to_str(exc),
                 )
-        logger.debug("Finished deleting experiments", project=project)
+        logger.debug(
+            "Finished deleting project experiments",
+            project_name=project_name,
+            succeeded=succeeded,
+            failed=failed,
+        )
 
     def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project: str):
         _, _, project_pipeline_runs = self.list_pipelines(
@@ -414,7 +423,7 @@ class Pipelines(
     def _get_project_from_experiment_name(name: str) -> str:
         try:
             return name.partition("-")[0]
-        except RuntimeError as e:
+        except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
                 f"{name} is not a valid experiment name"
-            ) from e
+            ) from exc

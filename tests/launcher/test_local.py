@@ -66,7 +66,7 @@ def test_create_local_function_for_execution():
     assert runtime.metadata.project == "default"
     assert runtime.metadata.name == "test"
     assert run.spec.handler == handler
-    assert runtime.kind == ""
+    assert runtime.kind == "local"
     assert runtime._is_run_local
 
 
@@ -91,7 +91,7 @@ def test_create_local_function_for_execution_with_enrichment():
     assert runtime.metadata.name == "other_name"
     assert runtime.spec.workdir == "some_workdir"
     assert run.spec.handler == "handler_v2"
-    assert runtime.kind == ""
+    assert runtime.kind == "local"
     assert runtime._is_run_local
     assert runtime.spec.allow_empty_resources
 

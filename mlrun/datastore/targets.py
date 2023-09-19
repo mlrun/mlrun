@@ -554,7 +554,7 @@ class BaseStoreTarget(DataTargetBase):
                 target_df,
                 self.storage_options or storage_options,
                 target_path,
-                partition_cols=partition_cols,
+                partition_cols=partition_cols or [],
                 **kwargs,
             )
             try:

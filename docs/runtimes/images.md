@@ -21,7 +21,7 @@ Every release of MLRun includes several images for different usages. All images 
 The images are:
 
 `mlrun/mlrun`: The most basic (and smallest) image, can be used for simple jobs,  including Open MPI. This is simply MLRun installed on top of a python image.
-`mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. (Available for MLRun >= 1.5.0.)
+`mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
 `mlrun/ml-base`: The image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like `lrun/mlrun` with the addition of Miniconda and other python packages.
 `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
 `mlrun/mlrun-api`: The image used for running the MLRun API.

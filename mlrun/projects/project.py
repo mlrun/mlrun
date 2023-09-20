@@ -1286,7 +1286,7 @@ class MlrunProject(ModelObj):
             )
 
         if image and engine not in ["remote"]:
-            logger.debug("Image is only relevant for remote workflows, ignoring it")
+            logger.warning("Image is only relevant for remote workflows, ignoring it")
 
         if embed:
             if (

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import datetime
-import unittest.mock
 
 import deepdiff
 import pytest

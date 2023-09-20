@@ -1285,6 +1285,9 @@ class MlrunProject(ModelObj):
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
 
+        if image and engine not in ["remote"]:
+            logger.warning("Image is only relevant for remote workflows, ignoring it")
+
         if embed:
             if (
                 self.context

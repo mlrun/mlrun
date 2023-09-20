@@ -405,22 +405,17 @@ def _generate_model_endpoint(
 
     :return `mlrun.model_monitoring.model_endpoint.ModelEndpoint` object.
     """
-
     model_endpoint = ModelEndpoint()
     model_endpoint.metadata.project = project
     model_endpoint.metadata.uid = endpoint_id
-
-    if not function_name:
-        if not context:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Please provide either a function name or a valid MLRun context"
-            )
-        # Get the function hash from the provided context
-        (_, _, _, function_name,) = mlrun.common.helpers.parse_versioned_object_uri(
-            context.to_dict()["spec"]["function"]
+    if function_name:
+        model_endpoint.spec.function_uri = project + "/" + function_name
+    elif not context:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Please provide either a function name or a valid MLRun context"
         )
-
-    model_endpoint.spec.function_uri = project + "/" + function_name
+    else:
+        model_endpoint.spec.function_uri = context.to_dict()["spec"]["function"]
     model_endpoint.spec.model_uri = model_path
     model_endpoint.spec.model = model_endpoint_name
     model_endpoint.spec.model_class = "drift-analysis"

@@ -11,18 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
-from copy import deepcopy
-
-from kubernetes import client
-
-import mlrun.runtimes.pod
-from mlrun.config import config as mlconf
-from mlrun.execution import MLClientCtx
-from mlrun.model import RunObject
 from mlrun.runtimes.constants import MPIJobCRDVersions, MPIJobV1CleanPodPolicies
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime, MPIResourceSpec
-from mlrun.utils import get_in, update_in
 
 
 class MPIV1ResourceSpec(MPIResourceSpec):

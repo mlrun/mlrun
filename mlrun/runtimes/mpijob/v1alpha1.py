@@ -11,19 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
-from copy import deepcopy
-
 from deprecated import deprecated
-from kubernetes import client
 
-import mlrun.runtimes.pod
-from mlrun.config import config as mlconf
-from mlrun.execution import MLClientCtx
-from mlrun.model import RunObject
 from mlrun.runtimes.constants import MPIJobCRDVersions
 from mlrun.runtimes.mpijob.abstract import AbstractMPIJobRuntime
-from mlrun.utils import get_in, update_in
 
 
 # TODO: Remove in 1.7.0

@@ -16,7 +16,6 @@ import json
 import os
 import re
 import typing
-from copy import deepcopy
 from io import StringIO
 from sys import stderr
 

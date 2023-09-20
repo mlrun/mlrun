@@ -41,6 +41,7 @@ class WebhookNotification(NotificationBase):
         method = self.params.get("method", "post").lower()
         headers = self.params.get("headers", {})
         override_body = self.params.get("override_body", None)
+        verify_ssl = self.params.get("verify_ssl", None)
 
         request_body = {
             "message": message,
@@ -54,8 +55,15 @@ class WebhookNotification(NotificationBase):
         if override_body:
             request_body = override_body
 
+        # Specify the `verify_ssl` parameter value only for HTTPS urls.
+        # The `ClientSession` allows using `ssl=None` for the default SSL check,
+        # and `ssl=False` to skip SSL certificate validation.
+        # We maintain the default as `None`, so if the user sets `verify_ssl=True`,
+        # we automatically handle it as `ssl=None` for their convenience.
+        verify_ssl = verify_ssl and None if url.startswith("https") else None
+
         async with aiohttp.ClientSession() as session:
             response = await getattr(session, method)(
-                url, headers=headers, json=request_body
+                url, headers=headers, json=request_body, ssl=verify_ssl
             )
             response.raise_for_status()

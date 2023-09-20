@@ -9,9 +9,11 @@ This section lists the data stores, development tools, services, platforms, etc.
 - Files, NFS 
 - Pandas/Spark DF 
 - BigQuery 
-- Snowflake 
+- Snowflake
+- Databricks
 - Redis 
-- Iguazio V3IO object/key-value 
+- Iguazio V3IO object/key-value
+- SQL sources
 
 ## Event sources 
 

@@ -8,19 +8,19 @@ We recommend using [pyenv](https://github.com/pyenv/pyenv#installation) to manag
 Once you have pyenv installed, you can create a new environment by running:
 
 ```bash
-pyenv install 3.9.13
+pyenv install 3.9
 ```
 
 To activate the environment, run:
 
 ```bash
-pyenv shell 3.9.13
+pyenv shell 3.9
 ```
 
 Or, set as default by running:
 
 ```bash
-pyenv global 3.9.13
+pyenv global 3.9
 ```
 
 
@@ -257,9 +257,9 @@ have the correct dependencies installed. You can manage and switch venvs through
 e.g.:
 
 ```bash
-pyenv shell 3.9.13
-python -m venv venv
+pyenv shell 3.9
+pyenv virtualenv mlrun
 
-pyenv shell 3.7.12
-python -m venv venv37
+pyenv shell 3.7
+pyenv virtualenv mlrun37
 ```

@@ -16,6 +16,8 @@ import typing
 
 import sqlalchemy.orm
 
+import mlrun.api.api.utils
+import mlrun.api.constants
 import mlrun.api.utils.projects.remotes.follower
 import mlrun.api.utils.singletons.db
 import mlrun.api.utils.singletons.project_member
@@ -41,6 +43,13 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
+
+        # Some runtimes do not use the submit job flow, so their notifications are not masked.
+        # Redact notification params if not concealed with a secret
+        mlrun.api.api.utils.mask_notification_params_on_task(
+            data, mlrun.api.constants.MaskOperations.REDACT
+        )
+
         mlrun.api.utils.singletons.db.get_db().store_run(
             db_session,
             data,
@@ -130,27 +139,27 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         return mlrun.api.utils.singletons.db.get_db().list_runs(
-            db_session,
-            name,
-            uid,
-            project,
-            labels,
-            states,
-            sort,
-            last,
-            iter,
-            start_time_from,
-            start_time_to,
-            last_update_time_from,
-            last_update_time_to,
-            partition_by,
-            rows_per_partition,
-            partition_sort_by,
-            partition_order,
-            max_partitions,
-            requested_logs,
-            return_as_run_structs,
-            with_notifications,
+            session=db_session,
+            name=name,
+            uid=uid,
+            project=project,
+            labels=labels,
+            states=states,
+            sort=sort,
+            last=last,
+            iter=iter,
+            start_time_from=start_time_from,
+            start_time_to=start_time_to,
+            last_update_time_from=last_update_time_from,
+            last_update_time_to=last_update_time_to,
+            partition_by=partition_by,
+            rows_per_partition=rows_per_partition,
+            partition_sort_by=partition_sort_by,
+            partition_order=partition_order,
+            max_partitions=max_partitions,
+            requested_logs=requested_logs,
+            return_as_run_structs=return_as_run_structs,
+            with_notifications=with_notifications,
         )
 
     def delete_run(

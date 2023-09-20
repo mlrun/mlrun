@@ -1096,7 +1096,7 @@ def _create_resources_of_all_kinds(
     ds_profile = mlrun.common.schemas.DatastoreProfile(
         name="datastore_test_profile_name",
         type="datastore_test_profile_type",
-        body="datastore_test_profile_body",
+        object="datastore_test_profile_body",
         project=project,
     )
     # create a datasource profile
@@ -1180,7 +1180,6 @@ def _assert_db_resources_in_project(
         # Features and Entities are not directly linked to project since they are sub-entity of feature-sets
         # Logs are saved as files, the DB table is not really in use
         # in follower mode the DB project tables are irrelevant
-        # ArtifactV2 is new and not in use yet
         if (
             cls.__name__ == "User"
             or cls.__tablename__ == "runs_tags"
@@ -1284,14 +1283,6 @@ def _assert_db_resources_in_project(
             raise NotImplementedError(
                 "You excluded an object from the regular handling but forgot to add special handling"
             )
-        print(
-            "class_name",
-            cls.__name__,
-            "class_table",
-            cls.__tablename__,
-            "number_of_cls_records",
-            number_of_cls_records,
-        )
         if assert_no_resources:
             assert (
                 number_of_cls_records == 0

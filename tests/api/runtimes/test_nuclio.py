@@ -288,6 +288,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                         "accessKey": self.v3io_access_key,
                         "container": container,
                         "subPath": path,
+                        "dirsToCreate": f'[{{"name": "users//{self.v3io_user}", "permissions": 488}}]',
                     },
                 },
                 "name": "v3io",

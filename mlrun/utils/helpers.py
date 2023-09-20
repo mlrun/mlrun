@@ -1302,7 +1302,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_artifact_path_template(artifact_path, project):
+def fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (
@@ -1537,10 +1537,7 @@ class DeprecationHelper(object):
 
 
 def normalize_workflow_name(name, project_name):
-    workflow_name = (
-        name.lstrip(project_name).lstrip("-") if project_name in name else name
-    )
-    return workflow_name
+    return name.removeprefix(project_name + "-")
 
 
 # run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
@@ -1550,3 +1547,13 @@ async def run_in_threadpool(func, *args, **kwargs):
         # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
     return await anyio.to_thread.run_sync(func, *args)
+
+
+def is_explicit_ack_supported(context):
+    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
+    return hasattr(context, "trigger") and context.trigger in [
+        "v3io-stream",
+        "v3ioStream",
+        "kafka-cluster",
+        "kafka",
+    ]

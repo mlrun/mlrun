@@ -102,7 +102,7 @@ class PackagersManager:
         Only "YPackager" will be collected as it is declared in the module, but not "XPackager" which is only imported.
 
         :param packagers:        List of packagers to add.
-        :param default_priority:
+        :param default_priority: The default priority to set for the packagers with not set priority (equals to ...).
 
         :raise MLRunPackageCollectingError: In case the packager could not be collected.
         """
@@ -403,20 +403,24 @@ class PackagersManager:
         self,
         obj: Any,
         artifact_type: str = None,
+        configurations: dict = None,
     ) -> Union[Type[Packager], None]:
         """
         Look for a packager that can pack the provided object as the provided artifact type.
 
         If a packager was not found None will be returned.
 
-        :param obj:           The object to pack.
-        :param artifact_type: The artifact type the packager to get should pack / unpack as.
+        :param obj:            The object to pack.
+        :param artifact_type:  The artifact type the packager to get should pack / unpack as.
+        :param configurations: The log hint configurations passed by the user.
 
         :return: The found packager or None if it wasn't found.
         """
         # Look for a packager for the combination of object nad artifact type:
         for packager in self._packagers:
-            if packager.is_packable(obj=obj, artifact_type=artifact_type):
+            if packager.is_packable(
+                obj=obj, artifact_type=artifact_type, configurations=configurations
+            ):
                 return packager
 
         # No packager was found:
@@ -458,16 +462,19 @@ class PackagersManager:
 
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
         """
-        # Get the artifact type (if user didn't pass any, the packager will use its configured default):
+        # Get the artifact type (if user didn't pass any, the packager will use its configured default) and key:
         artifact_type = log_hint.pop(LogHintKey.ARTIFACT_TYPE, None)
+        key = log_hint.pop(LogHintKey.KEY, None)
 
         # Get a packager:
-        packager = self._get_packager_for_packing(obj=obj, artifact_type=artifact_type)
+        packager = self._get_packager_for_packing(
+            obj=obj, artifact_type=artifact_type, configurations=log_hint
+        )
         if packager is None:
-            if self._default_packager.is_packable(obj=obj, artifact_type=artifact_type):
-                logger.info(
-                    f"Using the default packager to pack the object '{log_hint[LogHintKey.KEY]}'"
-                )
+            if self._default_packager.is_packable(
+                obj=obj, artifact_type=artifact_type, configurations=log_hint
+            ):
+                logger.info(f"Using the default packager to pack the object '{key}'")
                 packager = self._default_packager
             else:
                 raise MLRunPackagePackingError(
@@ -477,7 +484,7 @@ class PackagersManager:
 
         # Use the packager to pack the object:
         packed_object = packager.pack(
-            obj=obj, artifact_type=artifact_type, configurations=log_hint
+            obj=obj, key=key, artifact_type=artifact_type, configurations=log_hint
         )
 
         # If the packed object is a result, return it as is:
@@ -489,7 +496,7 @@ class PackagersManager:
         # It is an artifact, continue with the packaging:
         artifact, instructions = packed_object
 
-        # Prepare the manager's unpackagingg intructions notes:
+        # Prepare the manager's unpackaging instructions:
         unpackaging_instructions = {
             self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
             self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),

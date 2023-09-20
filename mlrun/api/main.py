@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import collections
 import concurrent.futures
 import datetime
 import traceback
@@ -67,6 +68,11 @@ V2_API_PREFIX = f"{API_PREFIX}/v2"
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
 _last_notification_push_time: datetime.datetime = None
+
+# This is a dictionary which holds the number of consecutive start log requests for each run uid.
+# We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
+# that keep failing start logs requests.
+_run_uid_start_log_request_counters: collections.Counter = collections.Counter()
 
 
 app = fastapi.FastAPI(
@@ -179,15 +185,16 @@ async def move_api_to_online():
         config.httpdb.clusterization.role
         == mlrun.common.schemas.ClusterizationRole.chief
     ):
+        mlrun.api.initial_data.update_default_configuration_data()
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster
         if get_k8s_helper(silent=True).is_running_inside_kubernetes_cluster():
             _start_periodic_cleanup()
             _start_periodic_runs_monitoring()
-            await _start_logs_collection()
+            await _start_periodic_logs_collection()
             await _start_periodic_stop_logs()
 
 
-async def _start_logs_collection():
+async def _start_periodic_logs_collection():
     if config.log_collector.mode == mlrun.common.schemas.LogsCollectorMode.legacy:
         logger.info(
             "Using legacy logs collection method, skipping logs collection periodic function",
@@ -261,7 +268,7 @@ async def _verify_log_collection_started_on_startup(
     )
     if runs:
         logger.debug(
-            "Found runs which require logs collection",
+            "Found runs which require logs collection on startup",
             runs_uids=[run.get("metadata", {}).get("uid", None) for run in runs],
         )
 
@@ -313,33 +320,69 @@ async def _start_log_and_update_runs(
     if not runs:
         return
 
-    # each result contains either run_uid or None
-    # if it's None it means something went wrong, and we should skip it
-    # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
-    results = await asyncio.gather(
-        *[
+    # the max number of consecutive start log requests for a run before we mark it as requested logs collection
+    # basically represents the grace period before the run's resources are deleted
+    max_consecutive_start_log_requests = int(
+        int(config.log_collector.failed_runs_grace_period)
+        / int(config.log_collector.periodic_start_log_interval)
+    )
+
+    global _run_uid_start_log_request_counters
+    runs_to_mark_as_requested_logs = []
+    start_logs_for_runs = []
+    for run in runs:
+        run_uid = run.get("metadata", {}).get("uid", None)
+
+        # if we requested logs for the same run more times than the threshold, we mark it as requested logs collection,
+        # so the API and the log collector won't be stuck in an endless loop of trying to collect logs for it
+        if (
+            run_uid in _run_uid_start_log_request_counters
+            and _run_uid_start_log_request_counters[run_uid]
+            >= max_consecutive_start_log_requests
+        ):
+            logger.warning(
+                "Run reached max consecutive start log requests, marking it as requested logs collection",
+                run_uid=run_uid,
+                requests_count=_run_uid_start_log_request_counters[run_uid],
+            )
+            runs_to_mark_as_requested_logs.append(run_uid)
+            continue
+
+        start_logs_for_runs.append(
             _start_log_for_run(
                 run, start_logs_limit, raise_on_error=False, best_effort=best_effort
             )
-            for run in runs
-        ]
-    )
-    runs_to_update_requested_logs = [result for result in results if result]
+        )
+        if run_uid:
+            _run_uid_start_log_request_counters.setdefault(run_uid, 0)
+            _run_uid_start_log_request_counters[run_uid] += 1
+
+    # each result contains either run_uid or None
+    # if it's None it means something went wrong, and we should skip it
+    # if it's run_uid it means we requested logs collection for it and we should update it's requested_logs field
+    results = await asyncio.gather(*start_logs_for_runs, return_exceptions=True)
+    successful_run_uids = [result for result in results if result]
 
     # distinct the runs uids
-    runs_to_update_requested_logs = list(set(runs_to_update_requested_logs))
+    runs_to_mark_as_requested_logs = list(
+        set(runs_to_mark_as_requested_logs + successful_run_uids)
+    )
 
-    if len(runs_to_update_requested_logs) > 0:
+    if len(runs_to_mark_as_requested_logs) > 0:
         logger.debug(
             "Updating runs to indicate that we requested logs collection for them",
-            runs_uids=runs_to_update_requested_logs,
+            runs_uids=runs_to_mark_as_requested_logs,
         )
         # update the runs to indicate that we have requested log collection for them
         await fastapi.concurrency.run_in_threadpool(
             get_db().update_runs_requested_logs,
             db_session,
-            uids=runs_to_update_requested_logs,
+            uids=runs_to_mark_as_requested_logs,
         )
+
+        # remove the counters for the runs we updated
+        for run_uid in runs_to_mark_as_requested_logs:
+            _run_uid_start_log_request_counters.pop(run_uid, None)
 
 
 async def _start_log_for_run(
@@ -371,7 +414,7 @@ async def _start_log_for_run(
             # we mark the run as requested logs collection so we won't iterate over it again
             return run_uid
         try:
-            runtime_handler: mlrun.runtimes.BaseRuntimeHandler = (
+            runtime_handler: mlrun.api.runtime_handlers.BaseRuntimeHandler = (
                 await fastapi.concurrency.run_in_threadpool(
                     get_runtime_handler, run_kind
                 )
@@ -450,7 +493,7 @@ async def _verify_log_collection_stopped_on_startup():
     in terminal state.
     """
     logger.debug(
-        "Getting all runs which have reached terminal state and have logs requested",
+        "Getting all runs which have reached terminal state and already have logs requested",
     )
     db_session = await fastapi.concurrency.run_in_threadpool(create_session)
     try:

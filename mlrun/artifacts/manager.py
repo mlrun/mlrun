@@ -16,6 +16,7 @@ import typing
 from os.path import isdir
 
 import mlrun.config
+from mlrun.utils.helpers import fill_project_path_template
 
 from ..utils import (
     is_legacy_artifact,
@@ -212,7 +213,8 @@ class ArtifactManager:
             item.labels.update({"workflow-id": item.producer.get("workflow")})
 
         item.iter = producer.iteration
-        item.project = producer.project
+        project = producer.project
+        item.project = project
 
         # if target_path is provided and not relative, then no need to upload the artifact as it already exists
         if target_path:
@@ -247,7 +249,9 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-
+        target_path = fill_project_path_template(
+            artifact_path=target_path, project=project
+        )
         item.target_path = target_path
 
         item.before_log()

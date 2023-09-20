@@ -186,9 +186,10 @@ class FunctionsDict:
         return self._functions.keys()
 
     def items(self):
-        return {
-            key: self.enrich(function, key) for key, function in self._functions.items()
-        }
+        return [
+            (key, self.enrich(function, key))
+            for key, function in self._functions.items()
+        ]
 
     def __len__(self):
         return len(self._functions)
@@ -375,7 +376,7 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
 
 
 def enrich_function_object(
-    project, function, decorator=None, copy_function=True
+    project, function, decorator=None, copy_function=True, try_auto_mount=True
 ) -> mlrun.runtimes.BaseRuntime:
     if hasattr(function, "_enriched"):
         return function
@@ -409,11 +410,12 @@ def enrich_function_object(
     if decorator:
         decorator(f)
 
-    if (
-        decorator and AutoMountType.is_auto_modifier(decorator)
-    ) or project.spec.disable_auto_mount:
-        f.spec.disable_auto_mount = True
-    f.try_auto_mount_based_on_config()
+    if try_auto_mount:
+        if (
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
+            f.spec.disable_auto_mount = True
+        f.try_auto_mount_based_on_config()
 
     return f
 
@@ -762,6 +764,13 @@ class _RemoteRunner(_PipelineRunner):
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
+            logger.info(
+                "Submitting remote workflow",
+                workflow_engine=workflow_spec.engine,
+                schedule=workflow_spec.schedule,
+                project_name=project.name,
+            )
+
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
@@ -774,6 +783,10 @@ class _RemoteRunner(_PipelineRunner):
                 namespace=namespace,
             )
             if workflow_spec.schedule:
+                logger.info(
+                    "Workflow scheduled successfully",
+                    workflow_response=workflow_response,
+                )
                 return
 
             # Getting workflow id from run:

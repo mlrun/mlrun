@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.datastore_profile import TemporaryClientDatastoreProfiles
 from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
@@ -179,11 +180,6 @@ class StoreManager:
             )
 
         store, subpath = self.get_or_create_store(url, secrets=secrets)
-        schema, endpoint, parsed_url = parse_url(url)
-        #  TODO: Modify the URL replacement to be outside of the dataitem. Dataitem class should
-        #   be implemented as a generic class.
-        if endpoint and schema == "dbfs":
-            url = url.replace(endpoint, "", 1)
         return DataItem(key, store, subpath, url, meta=meta, artifact_url=artifact_url)
 
     def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
@@ -193,10 +189,13 @@ class StoreManager:
 
         if schema == "ds":
             profile_name = endpoint
-            project_name = urlparse(url).username or mlrun.mlconf.default_project
-            datastore = mlrun.db.get_run_db(
-                secrets=self._secrets
-            ).get_datastore_profile(profile_name, project_name)
+            datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+            if not datastore:
+                project_name = urlparse(url).username or mlrun.mlconf.default_project
+                datastore = mlrun.db.get_run_db(
+                    secrets=self._secrets
+                ).get_datastore_profile(profile_name, project_name)
+
             datastore_type = datastore.type
 
         if schema == "memory":

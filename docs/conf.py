@@ -124,6 +124,10 @@ html_theme_options = {
     "google_analytics_id": "",
 }
 
+html_sidebars = {
+    "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+}
+
 copybutton_selector = "div:not(.output) > div.highlight pre"
 
 myst_enable_extensions = [

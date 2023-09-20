@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 import copy
+import json
 import logging
 
 import pytest
 import pytest_alembic.plugin.fixtures
 from sqlalchemy.orm import sessionmaker
 
-from mlrun.api.db.sqldb.models import Schedule
+from mlrun.api.db.sqldb.models import Run, Schedule
 from mlrun.config import config
 
 log = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 
 class Constants:
     schedule_table = "schedules_v2"
+    notifications_table = "runs_notifications"
 
     schedule_id_revision = "cf21882f938e"
     schedule_id_project = "schedule-id-project"
@@ -36,6 +38,11 @@ class Constants:
 
     schedule_concurrency_limit_revision = "e1dd5983c06b"
     schedule_concurrency_limit_project = "schedule-concurrency-limit-project"
+
+    notifications_params_to_secret_params_revision = "114b2c80710f"
+    notifications_params_to_secret_params_project = (
+        "notifications_params_to_secret_params_project"
+    )
 
 
 alembic_config = {
@@ -63,6 +70,21 @@ alembic_config = {
                 "name": name,
             }
             for name in ["test-schedule5", "test-schedule6"]
+        ],
+        Constants.notifications_params_to_secret_params_revision: [
+            {
+                "__tablename__": Constants.notifications_table,
+                "project": Constants.notifications_params_to_secret_params_project,
+                "name": name,
+                "kind": "console",
+                "message": "test",
+                "severity": "info",
+                "when": "completed",
+                "params": json.dumps({"obj": {"x": 99}}),
+                "condition": "",
+                "status": "",
+            }
+            for name in ["notifications1"]
         ],
     },
 }
@@ -140,3 +162,23 @@ def test_schedule_concurrency_limit_column(alembic_runner, alembic_session):
             instance.concurrency_limit
             == config.httpdb.scheduling.default_concurrency_limit
         )
+
+
+@pytest.mark.alembic
+def test_notification_params_to_secret_params(alembic_runner, alembic_session):
+
+    alembic_runner.migrate_up_to(
+        Constants.notifications_params_to_secret_params_revision
+    )
+
+    revision_data = alembic_config["before_revision_data"][
+        Constants.notifications_params_to_secret_params_revision
+    ]
+
+    for index, item in enumerate(
+        alembic_session.query(Run.Notification.params, Run.Notification.secret_params)
+        .filter_by(project=Constants.notifications_params_to_secret_params_project)
+        .order_by(Run.Notification.id)
+    ):
+        assert not item.params
+        assert item.secret_params == revision_data[index]["params"]

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 
 
 def secret_test_function(context, secrets: list = None):
@@ -40,3 +41,7 @@ def log_artifact_test_function(context, body_size: int = 1000, inline: bool = Tr
     context.log_artifact("test", body=body, is_inline=inline)
     context.logger.info("run complete!", body_len=len(body))
     return True
+
+
+def access_key_verifier(context, v3io_access_key: str):
+    assert os.environ.get("V3IO_ACCESS_KEY") == v3io_access_key

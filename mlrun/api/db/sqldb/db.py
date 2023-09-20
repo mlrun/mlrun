@@ -115,7 +115,6 @@ def retry_on_conflict(function):
             try:
                 return function(*args, **kwargs)
             except Exception as exc:
-
                 if mlrun.utils.helpers.are_strings_in_exception_chain_messages(
                     exc, conflict_messages
                 ):
@@ -145,11 +144,8 @@ def retry_on_conflict(function):
 
 
 class SQLDB(DBInterface):
-    def __init__(self, dsn):
+    def __init__(self, dsn=""):
         self.dsn = dsn
-        self._cache = {
-            "project_resources_counters": {"value": None, "ttl": datetime.min}
-        }
         self._name_with_iter_regex = re.compile("^[0-9]+-.+$")
 
     def initialize(self, session):
@@ -315,7 +311,9 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run uid {uid} of project {project} not found"
+            )
         return run.struct
 
     def list_runs(
@@ -1493,7 +1491,6 @@ class SQLDB(DBInterface):
         labels: Dict = None,
         next_run_time: datetime = None,
     ) -> mlrun.common.schemas.ScheduleRecord:
-
         schedule_record = self._create_schedule_db_record(
             project=project,
             name=name,
@@ -2500,7 +2497,6 @@ class SQLDB(DBInterface):
         partition_order: mlrun.common.schemas.OrderType,
         max_partitions: int = 0,
     ):
-
         partition_field = partition_by.to_partition_by_db_field(cls)
         sort_by_field = partition_sort_by.to_db_field(cls)
 
@@ -2796,7 +2792,6 @@ class SQLDB(DBInterface):
             if uid == existing_tagged_object.uid or always_overwrite:
                 db_tagged_object = existing_tagged_object
             else:
-
                 # In case an object with the given tag (or 'latest' which is the default) and name, but different uid
                 # was found - Check If an object with the same computed uid but different tag already exists
                 # and re-tag it.
@@ -3537,6 +3532,7 @@ class SQLDB(DBInterface):
         notification_status = {
             "status": notification_spec.pop("status", None),
             "sent_time": notification_spec.pop("sent_time", None),
+            "reason": notification_spec.pop("reason", None),
         }
         return notification_spec, notification_status
 
@@ -3551,9 +3547,11 @@ class SQLDB(DBInterface):
             severity=notification_record.severity,
             when=notification_record.when.split(","),
             condition=notification_record.condition,
+            secret_params=notification_record.secret_params,
             params=notification_record.params,
             status=notification_record.status,
             sent_time=notification_record.sent_time,
+            reason=notification_record.reason,
         )
 
     def _move_and_reorder_table_items(
@@ -3744,12 +3742,20 @@ class SQLDB(DBInterface):
             session, source_record, move_to=None, move_from=current_order
         )
 
-    def get_hub_source(self, session, name) -> mlrun.common.schemas.IndexedHubSource:
-        source_record = self._query(session, HubSource, name=name).one_or_none()
+    def get_hub_source(
+        self, session, name=None, index=None, raise_on_not_found=True
+    ) -> typing.Optional[mlrun.common.schemas.IndexedHubSource]:
+        source_record = self._query(
+            session, HubSource, name=name, index=index
+        ).one_or_none()
         if not source_record:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Hub source not found. name = {name}"
-            )
+            log_method = logger.warning if raise_on_not_found else logger.debug
+            message = f"Hub source not found. name = {name}"
+            log_method(message)
+            if raise_on_not_found:
+                raise mlrun.errors.MLRunNotFoundError(message)
+
+            return None
 
         return self._transform_hub_source_record_to_schema(source_record)
 
@@ -3976,12 +3982,14 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
+            notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (
                 notification_model.status
                 or mlrun.common.schemas.NotificationStatus.PENDING
             )
             notification.sent_time = notification_model.sent_time
+            notification.reason = notification_model.reason
 
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
@@ -4000,7 +4008,6 @@ class SQLDB(DBInterface):
         run_uid: str,
         project: str = "",
     ) -> typing.List[mlrun.model.Notification]:
-
         # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
         run = self._get_run(session, run_uid, project, 0)
         if not run:
@@ -4023,7 +4030,6 @@ class SQLDB(DBInterface):
     ):
         run_id = None
         if run_uid:
-
             # iteration is 0, as we don't support multiple notifications per hyper param run, only for the whole run
             run = self._get_run(session, run_uid, project, 0)
             if not run:
@@ -4085,6 +4091,7 @@ class SQLDB(DBInterface):
             )
         self._commit(session, [run], ignore=True)
 
+    # ---- Data Store ----
     def store_datastore_profile(
         self, session, info: mlrun.common.schemas.DatastoreProfile
     ):
@@ -4097,18 +4104,17 @@ class SQLDB(DBInterface):
         info.project = info.project or config.default_project
         profile = self._query(
             session, DatastoreProfile, name=info.name, project=info.project
-        )
-        first = profile.first()
-        if first:
-            first.type = info.type
-            first.body = info.body
+        ).one_or_none()
+        if profile:
+            profile.type = info.type
+            profile.full_object = info.object
             self._commit(session, [profile])
         else:
             profile = DatastoreProfile(
                 name=info.name,
                 type=info.type,
                 project=info.project,
-                body=info.body,
+                full_object=info.object,
             )
             self._upsert(session, [profile])
 
@@ -4128,8 +4134,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         res = self._query(session, DatastoreProfile, name=profile, project=project)
         if res.first():
-            r = res.first().to_dict(exclude=["id"])
-            return mlrun.common.schemas.DatastoreProfile(**r)
+            return self._transform_datastore_profile_model_to_schema(res.first())
         else:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Datastore profile '{profile}' not found in project '{project}'"
@@ -4165,7 +4170,7 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         query_results = self._query(session, DatastoreProfile, project=project)
         return [
-            mlrun.common.schemas.DatastoreProfile(**query.to_dict(exclude=["id"]))
+            self._transform_datastore_profile_model_to_schema(query)
             for query in query_results
         ]
 
@@ -4185,6 +4190,17 @@ class SQLDB(DBInterface):
         for profile in query_results:
             session.delete(profile)
         session.commit()
+
+    @staticmethod
+    def _transform_datastore_profile_model_to_schema(
+        db_object,
+    ) -> mlrun.common.schemas.DatastoreProfile:
+        return mlrun.common.schemas.DatastoreProfile(
+            name=db_object.name,
+            type=db_object.type,
+            object=db_object.full_object,
+            project=db_object.project,
+        )
 
     # ---- Utils ----
     def delete_table_records(

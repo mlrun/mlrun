@@ -98,7 +98,7 @@ class MpiRuntimeV1(AbstractMPIJobRuntime):
         "spec": {
             "containers": [
                 {
-                    "image": "mlrun/ml-models",
+                    "image": "mlrun/mlrun",
                     "name": "base",
                     "command": [],
                     "env": [],

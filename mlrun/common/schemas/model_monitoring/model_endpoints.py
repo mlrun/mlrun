@@ -18,7 +18,7 @@ import json
 import typing
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
@@ -99,6 +99,17 @@ class ModelEndpointSpec(ObjectSpec):
             flattened_dictionary=endpoint_dict,
             json_parse_values=json_parse_values,
         )
+
+    @validator("monitor_configuration")
+    def set_name(cls, monitor_configuration):
+        return monitor_configuration or {
+            EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
 
 
 class Histogram(BaseModel):

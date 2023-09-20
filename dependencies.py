@@ -32,15 +32,15 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #       there as well
     extras_require = {
         "s3": [
-            "boto3~=1.26.161",
-            "aiobotocore~=2.5.2",
-            "s3fs~=2023.6.0",
+            "boto3>=1.24.59,<1.27",
+            "aiobotocore>=2.4.2,<2.6",
+            "s3fs>=2023.1,<2023.7",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
-            "azure-storage-blob~=12.13",
-            "adlfs~=2023.4.0",
+            "azure-storage-blob>=12.13, !=12.18.0",
+            "adlfs>=2022.2,<2023.5",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [
@@ -64,7 +64,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas, bqstorage]~=3.2",
             "google-cloud~=0.34",
         ],
-        "google-cloud-storage": ["gcsfs~=2023.6.0"],
+        "google-cloud-storage": ["gcsfs>=2023.1,<2023.7"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
         "kafka": [
             "kafka-python~=2.0",
@@ -73,6 +73,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         ],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.3.0"],
+        "sqlalchemy": ["sqlalchemy~=1.4"],
     }
 
     # see above why we are excluding google-cloud

@@ -27,8 +27,7 @@ from mlrun.common.db.sql_session import create_session, get_engine
 from mlrun.utils import logger
 
 from .model_endpoint_store import ModelEndpointStore
-from .models import get_ModelEndpointsTable
-from .models.base import Base
+from .models import get_model_endpoints_table
 
 
 class SQLModelEndpointStore(ModelEndpointStore):
@@ -69,13 +68,17 @@ class SQLModelEndpointStore(ModelEndpointStore):
         )
 
         self._engine = get_engine(dsn=self.sql_connection_string)
-        self.ModelEndpointsTable = get_ModelEndpointsTable(
+        self.ModelEndpointsTable = get_model_endpoints_table(
             connection_string=self.sql_connection_string
         )
         # Create table if not exist. The `metadata` contains the `ModelEndpointsTable`
         if not self._engine.has_table(self.table_name):
-            Base.metadata.create_all(bind=self._engine)
-        self.model_endpoints_table = self.ModelEndpointsTable.__table__
+            self.ModelEndpointsTable.metadata.create_all(  # pyright: ignore[reportGeneralTypeIssues]
+                bind=self._engine
+            )
+        self.model_endpoints_table = (
+            self.ModelEndpointsTable.__table__  # pyright: ignore[reportGeneralTypeIssues]
+        )
 
     def write_model_endpoint(self, endpoint: typing.Dict[str, typing.Any]):
         """

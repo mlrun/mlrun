@@ -3228,7 +3228,7 @@ class TestFeatureStore(TestMLRunSystem):
         fstore.ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         quotes_set = fstore.FeatureSet(
-            "stock-quotes", entities=[fstore.Entity("ticker")]
+            "stock-quotes", entities=[fstore.Entity("ticker")], timestamp_key="time"
         )
 
         quotes_set.graph.to("storey.Extend", _fn="({'extra': event['bid'] * 77})").to(
@@ -3249,7 +3249,6 @@ class TestFeatureStore(TestMLRunSystem):
             quotes_set,
             quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 

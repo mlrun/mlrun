@@ -33,7 +33,6 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
-    exclude_notification_params_from_run_object,
     fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
@@ -1199,7 +1198,7 @@ class RunTemplate(ModelObj):
         return self
 
     def to_env(self):
-        environ["MLRUN_EXEC_CONFIG"] = exclude_notification_params_from_run_object(self)
+        environ["MLRUN_EXEC_CONFIG"] = self.to_json()
 
 
 class RunObject(RunTemplate):
@@ -1219,6 +1218,23 @@ class RunObject(RunTemplate):
     @classmethod
     def from_template(cls, template: RunTemplate):
         return cls(template.spec, template.metadata)
+
+    def to_json(self, exclude=None, **kwargs):
+        if (
+            exclude_notifications_params := kwargs.get("exclude_notifications_params")
+        ) and exclude_notifications_params:
+            if self.spec.notifications:
+                extracted_params = []
+                for notification in self.spec.notifications:
+                    extracted_params.append(notification.params)
+                    del notification.params  # Remove params from the object
+                json_obj = super().to_json(exclude=exclude)
+                for notification, params in zip(
+                    self.spec.notifications, extracted_params
+                ):
+                    notification.params = params
+                return json_obj
+        return super().to_json(exclude=exclude)
 
     @property
     def status(self) -> RunStatus:

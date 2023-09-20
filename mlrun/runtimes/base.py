@@ -43,7 +43,6 @@ from ..utils import (
     dict_to_json,
     dict_to_yaml,
     enrich_image_url,
-    exclude_notification_params_from_run_object,
     get_in,
     get_parsed_docker_registry,
     logger,
@@ -404,9 +403,9 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
         if runobj:
-            runtime_env[
-                "MLRUN_EXEC_CONFIG"
-            ] = exclude_notification_params_from_run_object(runobj)
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
+                exclude_notifications_params=True
+            )
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:

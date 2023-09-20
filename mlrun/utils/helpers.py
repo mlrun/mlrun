@@ -197,20 +197,6 @@ def verify_field_regex(
         return False
 
 
-def exclude_notification_params_from_run_object(run_object):
-    # Since the `params` attribute within each notification object can be large,
-    # it has the potential to cause errors and is unnecessary for the notification functionality.
-    # Therefore, in this section, we remove the `params` attribute from each notification object.
-    run_object_dict = run_object.to_dict()
-    if run_object.spec.notifications:
-        modified_notifications = [
-            {k: v for k, v in notification.items() if k != "params"}
-            for notification in run_object.spec.notifications
-        ]
-        run_object_dict["spec"]["notifications"] = modified_notifications
-    return dict_to_json(run_object_dict)
-
-
 def validate_builder_source(
     source: str, pull_at_runtime: bool = False, workdir: str = None
 ):

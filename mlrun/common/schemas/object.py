@@ -71,6 +71,7 @@ class ObjectRecord(BaseModel):
 
 class ObjectKind(mlrun.common.types.StrEnum):
     project = "project"
+    artifact = "artifact"
     feature_set = "FeatureSet"
     background_task = "BackgroundTask"
     feature_vector = "FeatureVector"

@@ -79,7 +79,6 @@ class ArtifactSpec(pydantic.BaseModel):
     target_path: typing.Optional[str]
     viewer: typing.Optional[str]
     inline: typing.Optional[str]
-    format: typing.Optional[ArtifactsFormat]
     size: typing.Optional[int]
     db_key: typing.Optional[str]
     extra_data: typing.Optional[typing.Dict[str, typing.Any]]
@@ -90,7 +89,7 @@ class ArtifactSpec(pydantic.BaseModel):
 
 
 class Artifact(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.feature_vector, const=True)
+    kind: ObjectKind = pydantic.Field(ObjectKind.artifact, const=True)
     metadata: ArtifactMetadata
     spec: ArtifactSpec
     status: ObjectStatus

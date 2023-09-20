@@ -154,7 +154,7 @@ class DBInterface(ABC):
         iter=None,
         tag="",
         project="",
-        tree=None,
+        producer_id=None,
         best_iteration=False,
         always_overwrite=False,
     ):
@@ -204,7 +204,6 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
         uid=None,
         producer_id=None,
     ):
@@ -218,7 +217,14 @@ class DBInterface(ABC):
 
     @abstractmethod
     def del_artifacts(
-        self, session, name="", project="", tag="*", labels=None, ids=None, tree=None
+        self,
+        session,
+        name="",
+        project="",
+        tag="*",
+        labels=None,
+        ids=None,
+        producer_id=None,
     ):
         pass
 

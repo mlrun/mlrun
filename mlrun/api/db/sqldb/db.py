@@ -473,7 +473,7 @@ class SQLDB(DBInterface):
         iter=None,
         tag="",
         project="",
-        tree="",
+        producer_id="",
         best_iteration=False,
         always_overwrite=False,
     ) -> str:
@@ -494,7 +494,7 @@ class SQLDB(DBInterface):
 
         # record with the given tag/uid
         existing_artifact = self._get_existing_artifact(
-            session, project, key, uid, tree=tree, iteration=iter
+            session, project, key, uid, producer_id=producer_id, iteration=iter
         )
 
         if isinstance(artifact, dict):
@@ -509,9 +509,6 @@ class SQLDB(DBInterface):
 
         # calculate uid
         uid = fill_artifact_object_hash(artifact_dict, "uid", iter)
-        print(
-            f"Calculated UID! key={key}, uid={uid}, project={project}, tree={tree} iter={iter}"
-        )
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -542,7 +539,7 @@ class SQLDB(DBInterface):
                 iter,
                 best_iteration,
                 tag,
-                tree,
+                producer_id,
             )
             self._upsert(session, [db_artifact])
             if tag:
@@ -567,7 +564,7 @@ class SQLDB(DBInterface):
             return uid
 
         return self.create_artifact(
-            session, project, artifact, key, tag, uid, iter, tree, best_iteration
+            session, project, artifact, key, tag, uid, iter, producer_id, best_iteration
         )
 
     def list_artifacts(
@@ -584,7 +581,6 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
         uid=None,
         producer_id=None,
     ):
@@ -706,7 +702,14 @@ class SQLDB(DBInterface):
         )
 
     def del_artifacts(
-        self, session, name="", project="", tag="*", labels=None, ids=None, tree=None
+        self,
+        session,
+        name="",
+        project="",
+        tag="*",
+        labels=None,
+        ids=None,
+        producer_id=None,
     ):
         project = project or config.default_project
         distinct_keys = {
@@ -724,7 +727,7 @@ class SQLDB(DBInterface):
                 tag=tag,
                 key=key,
                 commit=False,
-                producer_id=tree,
+                producer_id=producer_id,
             )
             if artifact_column_identifier is None:
                 # record was not found
@@ -898,12 +901,14 @@ class SQLDB(DBInterface):
         iter: int = None,
         best_iteration: bool = False,
         tag: str = None,
-        tree: str = None,
+        producer_id: str = None,
     ):
         artifact_record.project = project
         kind = artifact_dict.get("kind") or "artifact"
         artifact_record.kind = kind
-        artifact_record.producer_id = tree or artifact_dict["metadata"].get("tree")
+        artifact_record.producer_id = producer_id or artifact_dict["metadata"].get(
+            "tree"
+        )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
         if not artifact_record.created:
@@ -946,7 +951,7 @@ class SQLDB(DBInterface):
         tag="",
         uid=None,
         iteration=None,
-        tree="",
+        producer_id="",
         best_iteration=False,
     ):
         if not uid:
@@ -973,7 +978,7 @@ class SQLDB(DBInterface):
             iteration,
             best_iteration,
             tag,
-            tree,
+            producer_id,
         )
 
         self._upsert(session, [db_artifact])
@@ -1156,14 +1161,14 @@ class SQLDB(DBInterface):
         project: str,
         key: str,
         uid: str = None,
-        tree: str = None,
+        producer_id: str = None,
         iteration: int = None,
     ):
         query = self._query(session, ArtifactV2, key=key, project=project)
         if uid:
             query = query.filter(ArtifactV2.uid == uid)
-        if tree:
-            query = query.filter(ArtifactV2.producer_id == tree)
+        if producer_id:
+            query = query.filter(ArtifactV2.producer_id == producer_id)
         if iteration is not None:
             query = query.filter(ArtifactV2.iteration == iteration)
         return query.one_or_none()

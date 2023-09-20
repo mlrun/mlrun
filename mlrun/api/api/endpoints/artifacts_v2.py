@@ -26,7 +26,6 @@ import mlrun.common.schemas
 from mlrun.api.api import deps
 from mlrun.api.api.utils import artifact_project_and_resource_name_extractor
 from mlrun.common.schemas.artifact import ArtifactsFormat
-from mlrun.config import config
 from mlrun.utils import logger
 
 router = APIRouter()
@@ -75,7 +74,7 @@ async def create_artifact(
         tag,
         iteration,
         project,
-        tree=tree,
+        producer_id=tree,
         object_uid=artifact_uid,
     )
 
@@ -107,6 +106,7 @@ async def store_artifact(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
+    producer_id = tree
     artifact_uid = await run_in_threadpool(
         mlrun.api.crud.Artifacts().store_artifact,
         db_session,
@@ -116,7 +116,7 @@ async def store_artifact(
         tag,
         iter,
         project,
-        tree,
+        producer_id=producer_id,
     )
     return await run_in_threadpool(
         mlrun.api.crud.Artifacts().get_artifact,
@@ -125,14 +125,14 @@ async def store_artifact(
         tag,
         iter,
         project,
-        tree=tree,
-        uid=artifact_uid,
+        producer_id=producer_id,
+        object_uid=artifact_uid,
     )
 
 
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
-    project: str = None,
+    project: str,
     name: str = None,
     tag: str = None,
     kind: str = None,
@@ -145,8 +145,6 @@ async def list_artifacts(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    if project is None:
-        project = config.default_project
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project,
         mlrun.common.schemas.AuthorizationAction.read,
@@ -206,8 +204,8 @@ async def get_artifact(
         iter,
         project,
         format_,
-        tree,
-        object_uid,
+        producer_id=tree,
+        object_uid=object_uid,
     )
     return artifact
 
@@ -236,7 +234,7 @@ async def delete_artifact(
         tag,
         project,
         object_uid,
-        tree,
+        producer_id=tree,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)
 
@@ -275,6 +273,6 @@ async def delete_artifacts(
         tag,
         labels,
         auth_info,
-        tree=tree,
+        producer_id=tree,
     )
     return Response(status_code=HTTPStatus.NO_CONTENT.value)

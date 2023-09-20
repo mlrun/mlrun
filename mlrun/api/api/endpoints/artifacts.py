@@ -87,7 +87,7 @@ async def store_artifact(
         tag=tag,
         iter=iter,
         project=project,
-        tree=tree,
+        producer_id=tree,
     )
     return {}
 

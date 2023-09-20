@@ -188,14 +188,14 @@ def test_resolve_artifacts_to_tag_objects():
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
     artifact.metadata.iter = 1
-    artifact.metadata.tree = "some-uid"
+    artifact.metadata.tree = "some-tree"
 
     tag_objects = db._resolve_artifacts_to_tag_objects([artifact])
     assert len(tag_objects.identifiers) == 1
     assert tag_objects.identifiers[0].key == "some-key"
     assert tag_objects.identifiers[0].iter == 1
     assert tag_objects.identifiers[0].kind == "artifact"
-    assert tag_objects.identifiers[0].uid == "some-uid"
+    assert tag_objects.identifiers[0].tree == "some-tree"
 
 
 @pytest.mark.parametrize(

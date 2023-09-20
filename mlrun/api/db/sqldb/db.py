@@ -475,10 +475,15 @@ class SQLDB(DBInterface):
         project="",
         producer_id="",
         best_iteration=False,
+        tree=None,
         always_overwrite=False,
     ) -> str:
         project = project or config.default_project
         tag = tag or "latest"
+
+        # tree is replaced by producer_id, but we still support it for backwards compatibility
+        if tree:
+            producer_id = tree
 
         # handle link artifacts separately
         if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:

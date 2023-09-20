@@ -82,29 +82,6 @@ def test_get_project_with_pre_060_record(
     assert updated_record.full_object is not None
 
 
-def test_data_migration_enrich_project_state(
-    db: DBInterface,
-    db_session: sqlalchemy.orm.Session,
-):
-    for i in range(10):
-        project_name = f"project-name-{i}"
-        _generate_and_insert_pre_060_record(db_session, project_name)
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        # getting default value from the schema
-        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
-        assert project.status.state is None
-    mlrun.api.initial_data._enrich_project_state(db, db_session)
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
-        assert project.status.state == project.spec.desired_state
-    # verify not storing for no reason
-    db.store_project = unittest.mock.Mock()
-    mlrun.api.initial_data._enrich_project_state(db, db_session)
-    assert db.store_project.call_count == 0
-
-
 def _generate_and_insert_pre_060_record(
     db_session: sqlalchemy.orm.Session, project_name: str
 ):

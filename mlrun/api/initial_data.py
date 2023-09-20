@@ -471,6 +471,7 @@ def _resolve_current_data_version(
 
         raise exc
 
+
 def _perform_version_5_data_migrations(
     db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):

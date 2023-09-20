@@ -227,6 +227,26 @@ class DBInterface(ABC):
     ):
         pass
 
+    def store_artifact_v1(
+        self,
+        session,
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
+    ):
+        """
+        Store artifact v1 in the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
+        pass
+
+    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+        pass
+
     # TODO: Make these abstract once filedb implements them
     def store_metric(
         self, session, uid, project="", keyvals=None, timestamp=None, labels=None

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
 import datetime
 import json
 import os
@@ -37,7 +36,7 @@ import mlrun.common.schemas
 from mlrun.api.db.init_db import init_db
 from mlrun.api.db.session import close_session, create_session
 from mlrun.config import config
-from mlrun.errors import err_to_str
+from mlrun.errors import MLRunPreconditionFailedError, err_to_str
 from mlrun.utils import (
     fill_artifact_object_hash,
     is_legacy_artifact,
@@ -240,7 +239,9 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
                 latest_data_version=latest_data_version,
             )
             if current_data_version < 1:
-                _perform_version_1_data_migrations(db, db_session)
+                raise MLRunPreconditionFailedError(
+                    "Data migration from data version 0 is not supported"
+                )
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)
             if current_data_version < 3:
@@ -253,231 +254,6 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
 def _add_initial_data(db_session: sqlalchemy.orm.Session):
     db = mlrun.api.db.sqldb.db.SQLDB()
     _add_data_version(db, db_session)
-
-
-def _perform_version_1_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _enrich_project_state(db, db_session)
-    _fix_artifact_tags_duplications(db, db_session)
-    _fix_datasets_large_previews(db, db_session)
-
-
-def _enrich_project_state(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Enriching projects state")
-    projects = db.list_projects(db_session)
-    for project in projects.projects:
-        changed = False
-        if not project.spec.desired_state:
-            changed = True
-            project.spec.desired_state = mlrun.common.schemas.ProjectState.online
-        if not project.status.state:
-            changed = True
-            project.status.state = project.spec.desired_state
-        if changed:
-            logger.debug(
-                "Found project without state data. Enriching",
-                name=project.metadata.name,
-            )
-            db.store_project(db_session, project.metadata.name, project)
-
-
-def _fix_artifact_tags_duplications(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    logger.info("Fixing artifact tags duplications")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    # get all artifact tags
-    tags = db._query(db_session, mlrun.api.db.sqldb.models.Artifact.Tag).all()
-    # artifact record id -> artifact
-    artifact_record_id_map = {artifact.id: artifact for artifact in artifacts}
-    tags_to_delete = []
-    projects = {artifact.project for artifact in artifacts}
-    for project in projects:
-        artifact_keys = {
-            artifact.key for artifact in artifacts if artifact.project == project
-        }
-        for artifact_key in artifact_keys:
-            artifact_key_tags = []
-            for tag in tags:
-                # sanity
-                if tag.obj_id not in artifact_record_id_map:
-                    logger.warning("Found orphan tag, deleting", tag=tag.to_dict())
-                if artifact_record_id_map[tag.obj_id].key == artifact_key:
-                    artifact_key_tags.append(tag)
-            tag_name_tags_map = collections.defaultdict(list)
-            for tag in artifact_key_tags:
-                tag_name_tags_map[tag.name].append(tag)
-            for tag_name, _tags in tag_name_tags_map.items():
-                if len(_tags) == 1:
-                    continue
-                tags_artifacts = [artifact_record_id_map[tag.obj_id] for tag in _tags]
-                last_updated_artifact = _find_last_updated_artifact(tags_artifacts)
-                for tag in _tags:
-                    if tag.obj_id != last_updated_artifact.id:
-                        tags_to_delete.append(tag)
-    if tags_to_delete:
-        logger.info(
-            "Found duplicated artifact tags. Removing duplications",
-            tags_to_delete=[
-                tag_to_delete.to_dict() for tag_to_delete in tags_to_delete
-            ],
-            tags=[tag.to_dict() for tag in tags],
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        for tag in tags_to_delete:
-            db_session.delete(tag)
-        db_session.commit()
-
-
-def _fix_datasets_large_previews(
-    db: mlrun.api.db.sqldb.db.SQLDB,
-    db_session: sqlalchemy.orm.Session,
-):
-    logger.info("Fixing datasets large previews")
-    # get all artifacts
-    artifacts = db._find_artifacts(db_session, None, "*")
-    for artifact in artifacts:
-        try:
-            artifact_dict = artifact.struct
-            if (
-                artifact_dict
-                and artifact_dict.get("kind") == mlrun.artifacts.DatasetArtifact.kind
-            ):
-                is_legacy = is_legacy_artifact(artifact_dict)
-
-                header = (
-                    artifact_dict.get("header", [])
-                    if is_legacy
-                    else artifact_dict.get("spec", {}).get("header", [])
-                )
-                if header and len(header) > mlrun.artifacts.dataset.max_preview_columns:
-                    logger.debug(
-                        "Found dataset artifact with more than allowed columns in preview fields. Fixing",
-                        artifact=artifact_dict,
-                    )
-                    columns_to_remove = header[
-                        mlrun.artifacts.dataset.max_preview_columns :
-                    ]
-
-                    # align preview
-                    preview = (
-                        artifact_dict.get("preview")
-                        if is_legacy
-                        else artifact_dict.get("status", {}).get("preview")
-                    )
-                    if preview:
-                        new_preview = []
-                        for preview_row in preview:
-                            # sanity
-                            if (
-                                len(preview_row)
-                                < mlrun.artifacts.dataset.max_preview_columns
-                            ):
-                                logger.warning(
-                                    "Found artifact with more than allowed columns in header definition, "
-                                    "but preview data is valid. Leaving preview as is",
-                                    artifact=artifact_dict,
-                                )
-                            new_preview.append(
-                                preview_row[
-                                    : mlrun.artifacts.dataset.max_preview_columns
-                                ]
-                            )
-
-                        if is_legacy:
-                            artifact_dict["preview"] = new_preview
-                        else:
-                            artifact_dict["status"]["preview"] = new_preview
-
-                    # align stats
-                    for column_to_remove in columns_to_remove:
-                        artifact_stats = (
-                            artifact_dict.get("stats", {})
-                            if is_legacy
-                            else artifact_dict.get("status").get("stats", {})
-                        )
-                        if column_to_remove in artifact_stats:
-                            del artifact_stats[column_to_remove]
-
-                    # align schema
-                    schema_dict = (
-                        artifact_dict.get("schema", {})
-                        if is_legacy
-                        else artifact_dict.get("spec").get("schema", {})
-                    )
-                    if schema_dict.get("fields"):
-                        new_schema_fields = []
-                        for field in schema_dict["fields"]:
-                            if field.get("name") not in columns_to_remove:
-                                new_schema_fields.append(field)
-                        schema_dict["fields"] = new_schema_fields
-
-                    # lastly, align headers
-                    if is_legacy:
-                        artifact_dict["header"] = header[
-                            : mlrun.artifacts.dataset.max_preview_columns
-                        ]
-                    else:
-                        artifact_dict["spec"]["header"] = header[
-                            : mlrun.artifacts.dataset.max_preview_columns
-                        ]
-
-                    logger.debug(
-                        "Fixed dataset artifact preview fields. Storing",
-                        artifact=artifact_dict,
-                    )
-                    db._store_artifact(
-                        db_session,
-                        artifact.key,
-                        artifact_dict,
-                        artifact.uid,
-                        project=artifact.project,
-                        tag_artifact=False,
-                    )
-        except Exception as exc:
-            logger.warning(
-                "Failed fixing dataset artifact large preview. Continuing",
-                exc=exc,
-            )
-
-
-def _find_last_updated_artifact(
-    artifacts: typing.List[mlrun.api.db.sqldb.models.Artifact],
-):
-    # sanity
-    if not artifacts:
-        raise RuntimeError("No artifacts given")
-    last_updated_artifact = None
-    last_updated_artifact_time = datetime.datetime.min
-    artifacts_with_same_update_time = []
-    for artifact in artifacts:
-        if artifact.updated > last_updated_artifact_time:
-            last_updated_artifact = artifact
-            last_updated_artifact_time = last_updated_artifact.updated
-            artifacts_with_same_update_time = [last_updated_artifact]
-        elif artifact.updated == last_updated_artifact_time:
-            artifacts_with_same_update_time.append(artifact)
-    if len(artifacts_with_same_update_time) > 1:
-        logger.warning(
-            "Found several artifact with same update time, heuristically choosing the first",
-            artifacts=[
-                artifact.to_dict() for artifact in artifacts_with_same_update_time
-            ],
-        )
-        # we don't really need to do anything to choose the first, it's already happening because the first if is >
-        # and not >=
-    if not last_updated_artifact:
-        logger.warning(
-            "No artifact had update time, heuristically choosing the first",
-            artifacts=[artifact.to_dict() for artifact in artifacts],
-        )
-        last_updated_artifact = artifacts[0]
-
-    return last_updated_artifact
 
 
 def _perform_version_2_data_migrations(

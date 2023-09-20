@@ -78,33 +78,36 @@ def test_list_artifact_date(db: SQLDB, db_session: Session):
     t1 = datetime(2020, 2, 16)
     t2 = t1 - timedelta(days=7)
     t3 = t2 - timedelta(days=7)
-    prj = "p7"
+    project = "p7"
 
-    db.store_artifact(
-        db_session, "k1", {"metadata": {"updated": t1}}, tree="u1", project=prj
-    )
-    db.store_artifact(
-        db_session, "k2", {"metadata": {"updated": t2}}, tree="u2", project=prj
-    )
-    db.store_artifact(
-        db_session, "k3", {"metadata": {"updated": t3}}, tree="u3", project=prj
-    )
+    artifacts_to_create = []
+    for key, updated, producer_id in [
+        ("k1", t1, "p1"),
+        ("k2", t2, "p2"),
+        ("k3", t3, "p3"),
+    ]:
+        db_artifact = ArtifactV2(
+            project=project, key=key, updated=updated, producer_id=producer_id
+        )
+        artifacts_to_create.append(db_artifact)
 
-    arts = db.list_artifacts(db_session, project=prj, since=t3, tag="*")
+    db._upsert(db_session, artifacts_to_create)
+
+    arts = db.list_artifacts(db_session, project=project, since=t3, tag="*")
     assert 3 == len(arts), "since t3"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, since=t2, tag="*")
     assert 2 == len(arts), "since t2"
 
     arts = db.list_artifacts(
-        db_session, project=prj, since=t1 + timedelta(days=1), tag="*"
+        db_session, project=project, since=t1 + timedelta(days=1), tag="*"
     )
     assert not arts, "since t1+"
 
-    arts = db.list_artifacts(db_session, project=prj, until=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, until=t2, tag="*")
     assert 2 == len(arts), "until t2"
 
-    arts = db.list_artifacts(db_session, project=prj, since=t2, until=t2, tag="*")
+    arts = db.list_artifacts(db_session, project=project, since=t2, until=t2, tag="*")
     assert 1 == len(arts), "since/until t2"
 
 

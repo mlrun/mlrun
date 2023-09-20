@@ -1220,15 +1220,21 @@ class RunObject(RunTemplate):
         return cls(template.spec, template.metadata)
 
     def to_json(self, exclude=None, **kwargs):
+        # Since the `params` attribute within each notification object can be large,
+        # it has the potential to cause errors and is unnecessary for the notification functionality.
+        # Therefore, in this section, we remove the `params` attribute from each notification object.
         if (
             exclude_notifications_params := kwargs.get("exclude_notifications_params")
         ) and exclude_notifications_params:
             if self.spec.notifications:
+                # Extract and remove 'params' from notification
                 extracted_params = []
                 for notification in self.spec.notifications:
                     extracted_params.append(notification.params)
-                    del notification.params  # Remove params from the object
+                    del notification.params
+                # Generate the JSON representation, excluding specified fields
                 json_obj = super().to_json(exclude=exclude)
+                # Restore 'params' back to the notifications
                 for notification, params in zip(
                     self.spec.notifications, extracted_params
                 ):

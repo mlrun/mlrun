@@ -16,6 +16,8 @@ import ast
 import inspect
 import re
 
+from deprecated import deprecated
+
 from mlrun.model import FunctionEntrypoint
 
 
@@ -27,7 +29,7 @@ def type_name(ann):
 
 def inspect_default(value):
     if value is inspect.Signature.empty:
-        return ""
+        return None
     return repr(value)
 
 
@@ -41,12 +43,14 @@ def inspect_param(param: inspect.Parameter) -> dict:
 # We're using dict and not classes (here and in func_dict) since this goes
 # directly to YAML
 def param_dict(name="", type="", doc="", default=""):
-    return {
-        "default": default,
+    return_value = {
         "doc": doc,
         "name": name,
         "type": type,
     }
+    if default is not None:
+        return_value["default"] = default
+    return return_value
 
 
 def func_dict(
@@ -69,6 +73,12 @@ def func_dict(
     }
 
 
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'func_info' is deprecated and will be removed in 1.7.0, use 'ast_func_info' instead",
+    category=FutureWarning,
+)
 def func_info(fn) -> dict:
     sig = inspect.signature(fn)
     doc = inspect.getdoc(fn) or ""
@@ -204,7 +214,6 @@ def ast_param_dict(param: ast.arg) -> dict:
         "name": param.arg,
         "type": ann_type(param.annotation) if param.annotation else "",
         "doc": "",
-        "default": "",
     }
 
 

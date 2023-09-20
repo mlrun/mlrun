@@ -28,9 +28,9 @@ import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
+from mlrun.api.runtime_handlers.pod import get_resource_labels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
-from mlrun.runtimes.utils import get_k8s, get_resource_labels
 from mlrun.utils import logger
 
 
@@ -102,7 +102,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        services = get_k8s().v1api.list_namespaced_service(
+        services = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -204,13 +204,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        services = get_k8s().v1api.list_namespaced_service(
+        services = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         for service in services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    get_k8s().v1api.delete_namespaced_service(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
                         service.metadata.name, namespace
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
@@ -339,10 +339,10 @@ def enrich_dask_cluster(
         resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
 
-    scheduler_pod_spec = mlrun.runtimes.pod.kube_resource_spec_to_pod_spec(
+    scheduler_pod_spec = mlrun.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, scheduler_container
     )
-    worker_pod_spec = mlrun.runtimes.pod.kube_resource_spec_to_pod_spec(
+    worker_pod_spec = mlrun.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, worker_container
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:

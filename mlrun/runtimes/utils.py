@@ -40,6 +40,7 @@ class RunError(Exception):
     pass
 
 
+# TODO: move to API?
 mlrun_key = "mlrun/"
 
 
@@ -147,6 +148,7 @@ def add_code_metadata(path=""):
     return None
 
 
+# TODO: remove
 def get_k8s():
     """
     Get the k8s helper object
@@ -368,35 +370,6 @@ def apply_kfp(modify, cop, runtime):
     return runtime
 
 
-def get_resource_labels(function, run=None, scrape_metrics=None):
-    scrape_metrics = (
-        scrape_metrics if scrape_metrics is not None else config.scrape_metrics
-    )
-    run_uid, run_name, run_project, run_owner = None, None, None, None
-    if run:
-        run_uid = run.metadata.uid
-        run_name = run.metadata.name
-        run_project = run.metadata.project
-        run_owner = run.metadata.labels.get("owner")
-    labels = deepcopy(function.metadata.labels)
-    labels[mlrun_key + "class"] = function.kind
-    labels[mlrun_key + "project"] = run_project or function.metadata.project
-    labels[mlrun_key + "function"] = str(function.metadata.name)
-    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
-    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
-
-    if run_uid:
-        labels[mlrun_key + "uid"] = run_uid
-
-    if run_name:
-        labels[mlrun_key + "name"] = run_name
-
-    if run_owner:
-        labels[mlrun_key + "owner"] = run_owner
-
-    return labels
-
-
 def verify_limits(
     resources_field_name,
     mem=None,
@@ -495,18 +468,6 @@ def get_func_selector(project, name=None, tag=None):
         s.append(f"{mlrun_key}function={name}")
         s.append(f"{mlrun_key}tag={tag or 'latest'}")
     return s
-
-
-def parse_function_selector(selector: typing.List[str]) -> typing.Tuple[str, str, str]:
-    project, name, tag = None, None, None
-    for criteria in selector:
-        if f"{mlrun_key}project=" in criteria:
-            project = criteria[f"{mlrun_key}project=":]
-        if f"{mlrun_key}function=" in criteria:
-            name = criteria[f"{mlrun_key}function=":]
-        if f"{mlrun_key}tag=" in criteria:
-            tag = criteria[f"{mlrun_key}tag=":]
-    return project, name, tag
 
 
 class k8s_resource:

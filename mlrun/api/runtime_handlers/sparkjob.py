@@ -20,10 +20,10 @@ from sqlalchemy.orm import Session
 
 from mlrun.api.db.base import DBInterface
 from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
+from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes.sparkjob.abstract import AbstractSparkRuntime
-from mlrun.runtimes.utils import get_k8s
 from mlrun.utils import logger
 
 
@@ -142,14 +142,14 @@ class SparkRuntimeHandler(BaseRuntimeHandler):
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        config_maps = get_k8s().v1api.list_namespaced_config_map(
+        config_maps = get_k8s_helper().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    get_k8s().v1api.delete_namespaced_config_map(
+                    get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

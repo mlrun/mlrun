@@ -37,14 +37,13 @@ from ..k8s_utils import (
     generate_preemptible_tolerations,
 )
 from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in
+from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
     get_k8s,
-    get_resource_labels,
     set_named_item,
     verify_limits,
     verify_requests,
@@ -1169,26 +1168,7 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    def _get_meta(self, runobj, unique=False):
-        namespace = get_k8s().resolve_namespace()
-
-        labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        new_meta = k8s_client.V1ObjectMeta(
-            namespace=namespace,
-            annotations=self.metadata.annotations or runobj.metadata.annotations,
-            labels=labels,
-        )
-
-        name = runobj.metadata.name or "mlrun"
-        norm_name = f"{normalize_name(name)}-"
-        if unique:
-            norm_name += uuid.uuid4().hex[:8]
-            new_meta.name = norm_name
-            runobj.set_label("mlrun/job", norm_name)
-        else:
-            new_meta.generate_name = norm_name
-        return new_meta
-
+    # TODO: remove
     def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
         if self._secrets:
             if self._secrets.has_vault_source():
@@ -1203,6 +1183,7 @@ class KubeResource(BaseRuntime):
         else:
             self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
 
+    # TODO: remove
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
             k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
@@ -1285,6 +1266,7 @@ class KubeResource(BaseRuntime):
         if not encode_key_names and secrets.keys():
             self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
 
+    # TODO: remove
     def _add_vault_params_to_spec(self, runobj=None, project=None):
         project_name = project or runobj.metadata.project
         if project_name is None:
@@ -1367,25 +1349,6 @@ class KubeResource(BaseRuntime):
                 )
 
         self.spec.validate_service_account(allowed_service_accounts)
-
-
-def kube_resource_spec_to_pod_spec(
-    kube_resource_spec: KubeResourceSpec, container: k8s_client.V1Container
-):
-    return k8s_client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=kube_resource_spec.volumes,
-        service_account=kube_resource_spec.service_account,
-        node_name=kube_resource_spec.node_name,
-        node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity,
-        priority_class_name=kube_resource_spec.priority_class_name
-        if len(mlconf.get_valid_function_priority_class_names())
-        else None,
-        tolerations=kube_resource_spec.tolerations,
-        security_context=kube_resource_spec.security_context,
-    )
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

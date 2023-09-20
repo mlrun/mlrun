@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Union
 from dependency_injector import containers, providers
 
 import mlrun.api.crud
+import mlrun.api.runtime_handlers
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
@@ -151,7 +152,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
-                resp = runtime._run(run, execution)
+                runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(
+                    runtime.kind
+                )
+                # TODO: is resp always None?
+                resp = runtime_handler.run(runtime, run, execution)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 

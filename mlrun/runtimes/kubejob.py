@@ -16,20 +16,14 @@ import os
 import time
 import warnings
 
-from kubernetes import client
-from kubernetes.client.rest import ApiException
-
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
-from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError
-from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import get_k8s
+from .pod import KubeResource
 
 
 class KubejobRuntime(KubeResource):
@@ -37,10 +31,6 @@ class KubejobRuntime(KubeResource):
     _is_nested = True
 
     _is_remote = True
-
-    @staticmethod
-    def _get_lifecycle():
-        return None
 
     def is_deployed(self):
         """check if the function is deployed (has a valid container)"""
@@ -316,42 +306,11 @@ class KubejobRuntime(KubeResource):
             skip_deployed=skip_deployed,
         )
 
+    # TODO: remove this
     def _run(self, runobj: RunObject, execution):
-        command, args, extra_env = self._get_cmd_args(runobj)
+        raise NotImplementedError()
 
-        if runobj.metadata.iteration:
-            self.store_run(runobj)
-        new_meta = self._get_meta(runobj)
-
-        self._add_secrets_to_spec_before_running(runobj)
-        workdir = self._resolve_workdir()
-
-        pod_spec = func_to_pod(
-            self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version"),
-                client_python_version=runobj.metadata.labels.get(
-                    "mlrun/client_python_version"
-                ),
-            ),
-            self,
-            extra_env,
-            command,
-            args,
-            workdir,
-            self._get_lifecycle(),
-        )
-        pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
-        try:
-            pod_name, namespace = get_k8s().create_pod(pod)
-        except ApiException as exc:
-            raise RunError(err_to_str(exc))
-
-        txt = f"Job is running in the background, pod: {pod_name}"
-        logger.info(txt)
-        runobj.status.status_text = txt
-
-        return None
-
+    # TODO: remove this
     def _resolve_workdir(self):
         """
         The workdir is relative to the source root, if the source is not loaded on run then the workdir
@@ -374,27 +333,3 @@ class KubejobRuntime(KubeResource):
             return os.path.join(self.spec.clone_target_dir, workdir)
 
         return workdir
-
-
-def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
-    container = client.V1Container(
-        name="base",
-        image=image,
-        env=extra_env + runtime.spec.env,
-        command=[command] if command else None,
-        args=args,
-        working_dir=workdir,
-        image_pull_policy=runtime.spec.image_pull_policy,
-        volume_mounts=runtime.spec.volume_mounts,
-        resources=runtime.spec.resources,
-        lifecycle=lifecycle,
-    )
-
-    pod_spec = kube_resource_spec_to_pod_spec(runtime.spec, container)
-
-    if runtime.spec.image_pull_secret:
-        pod_spec.image_pull_secrets = [
-            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)
-        ]
-
-    return pod_spec

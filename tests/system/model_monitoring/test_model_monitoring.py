@@ -857,6 +857,12 @@ class TestBatchDrift(TestMLRunSystem):
             == f"store://models/{project.metadata.name}/{model_name}:latest"
         )
 
+        # Validate that function_uri is based on project and function name
+        assert (
+            model_endpoint.spec.function_uri
+            == f"{project.metadata.name}/batch-drift-function"
+        )
+
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise

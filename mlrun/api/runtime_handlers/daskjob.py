@@ -46,9 +46,19 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
     class_modes = {RuntimeClassMode.run: "dask"}
 
+    def run(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        run: mlrun.run.RunObject,
+        execution: mlrun.execution.MLClientCtx,
+    ):
+        raise NotImplementedError(
+            "Execution of dask jobs is done locally by the dask client"
+        )
+
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
-    # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
+    # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
     ):

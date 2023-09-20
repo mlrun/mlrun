@@ -121,10 +121,6 @@ class RemoteSparkRuntime(KubejobRuntime):
             return True
         return super().is_deployed()
 
-    def _run(self, runobj: RunObject, execution):
-        self.spec.image = self.spec.image or self.default_image
-        super()._run(runobj=runobj, execution=execution)
-
     @property
     def spec(self) -> RemoteSparkSpec:
         return self._spec

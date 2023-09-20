@@ -10,11 +10,12 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.runtimes.pod
 import mlrun.secrets
 import mlrun.utils.helpers
+from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
 from mlrun.runtimes.utils import mlrun_key
 from mlrun.utils import logger
 
 
-class KubeResourceHandler(ABC):
+class KubeResourceHandler(BaseRuntimeHandler, ABC):
     @staticmethod
     def _get_meta(
         runtime: mlrun.runtimes.pod.KubeResource,

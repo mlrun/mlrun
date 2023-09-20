@@ -21,6 +21,10 @@ import yaml
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileS3,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 
@@ -50,7 +54,26 @@ def aws_s3_configured(extra_params=None):
 
 
 @pytest.mark.skipif(not aws_s3_configured(), reason="AWS S3 parameters not configured")
+@pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestAwsS3:
+    def _make_target_names(
+        self, prefix, bucket_name, object_dir, object_file, csv_file
+    ):
+        bucket_path = prefix + bucket_name
+        object_path = f"{object_dir}/{object_file}"
+        df_path = f"{object_dir}/{csv_file}"
+        object_url = f"{bucket_path}/{object_path}"
+        res = {
+            "bucket_path": bucket_path,
+            "object_path": object_path,
+            "df_path": df_path,
+            "object_url": object_url,
+            "df_url": f"{bucket_path}/{df_path}",
+            "blob_url": f"{object_url}.blob",
+            "parquet_url": f"{object_url}.parquet",
+        }
+        return res
+
     def setup_method(self, method):
         self._bucket_name = config["env"].get("bucket_name")
         self._access_key_id = config["env"].get("AWS_ACCESS_KEY_ID")
@@ -60,20 +83,27 @@ class TestAwsS3:
         object_file = f"file_{random.randint(0, 1000)}.txt"
         csv_file = f"file_{random.randint(0,1000)}.csv"
 
-        self._bucket_path = "s3://" + self._bucket_name
-        self._object_path = object_dir + "/" + object_file
-        self._df_path = object_dir + "/" + csv_file
+        self.s3 = {}
+        self.s3["s3"] = self._make_target_names(
+            "s3://", self._bucket_name, object_dir, object_file, csv_file
+        )
+        self.s3["ds"] = self._make_target_names(
+            "ds://s3ds_profile/", self._bucket_name, object_dir, object_file, csv_file
+        )
+        profile = DatastoreProfileS3(
+            name="s3ds_profile",
+            access_key=self._access_key_id,
+            secret_key=self._secret_access_key,
+        )
+        register_temporary_client_datastore_profile(profile)
 
-        self._object_url = self._bucket_path + "/" + self._object_path
-        self._df_url = self._bucket_path + "/" + self._df_path
-        self._blob_url = self._object_url + ".blob"
+    def _perform_aws_s3_tests(self, use_datastore_profile, secrets=None):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        logger.info(f'Object URL: {param["object_url"]}')
 
-        logger.info(f"Object URL: {self._object_url}")
-
-    def _perform_aws_s3_tests(self, secrets=None):
-        data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
+        data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
         data_item.put(test_string)
-        df_data_item = mlrun.run.get_dataitem(self._df_url, secrets=secrets)
+        df_data_item = mlrun.run.get_dataitem(param["df_url"], secrets=secrets)
         df_data_item.put(test_df_string)
 
         response = data_item.get()
@@ -85,11 +115,11 @@ class TestAwsS3:
         stat = data_item.stat()
         assert stat.size == len(test_string), "Stat size different than expected"
 
-        dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
-        assert self._object_path in dir_list, "File not in container dir-list"
-        assert self._df_path in dir_list, "CSV file not in container dir-list"
+        dir_list = mlrun.run.get_dataitem(param["bucket_path"]).listdir()
+        assert param["object_path"] in dir_list, "File not in container dir-list"
+        assert param["df_path"] in dir_list, "CSV file not in container dir-list"
 
-        upload_data_item = mlrun.run.get_dataitem(self._blob_url)
+        upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
@@ -100,7 +130,7 @@ class TestAwsS3:
         assert list(df) == ["col1", "col2", "col3"]
         assert df.shape == (1, 3)
 
-    def test_project_secrets_credentials(self):
+    def test_project_secrets_credentials(self, use_datastore_profile):
         # This simulates running a job in a pod with project-secrets assigned to it
         for param in credential_params:
             os.environ.pop(param, None)
@@ -108,45 +138,45 @@ class TestAwsS3:
                 "env"
             ][param]
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in credential_params:
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param))
 
-    def test_using_env_variables(self):
+    def test_using_env_variables(self, use_datastore_profile):
         # Use "naked" env variables, useful in client-side sdk.
         for param in credential_params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in credential_params:
             os.environ.pop(param)
 
-    def test_using_dataitem_secrets(self):
+    def test_using_dataitem_secrets(self, use_datastore_profile):
         # make sure no other auth method is configured
         for param in credential_params:
             os.environ.pop(param, None)
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
         secrets = {param: config["env"][param] for param in credential_params}
-        self._perform_aws_s3_tests(secrets=secrets)
+        self._perform_aws_s3_tests(use_datastore_profile, secrets=secrets)
 
     @pytest.mark.skipif(
         not aws_s3_configured(extra_params=["MLRUN_AWS_ROLE_ARN"]),
         reason="Role ARN not configured",
     )
-    def test_using_role_arn(self):
+    def test_using_role_arn(self, use_datastore_profile):
         params = credential_params.copy()
         params.append("MLRUN_AWS_ROLE_ARN")
         for param in params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in params:
@@ -156,14 +186,14 @@ class TestAwsS3:
         not aws_s3_configured(extra_params=["AWS_PROFILE"]),
         reason="AWS profile not configured",
     )
-    def test_using_profile(self):
+    def test_using_profile(self, use_datastore_profile):
         params = credential_params.copy()
         params.append("AWS_PROFILE")
         for param in params:
             os.environ[param] = config["env"][param]
             os.environ.pop(SecretsStore.k8s_env_variable_name_for_secret(param), None)
 
-        self._perform_aws_s3_tests()
+        self._perform_aws_s3_tests(use_datastore_profile)
 
         # cleanup
         for param in params:

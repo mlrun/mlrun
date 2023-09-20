@@ -675,7 +675,7 @@ class MonitoringDeployment:
 
         # Create writer monitoring serving graph
         graph = function.set_topology("flow")
-        graph.to(ModelMonitoringWriter(name="king")).respond()  # writer
+        graph.to(ModelMonitoringWriter(project=project)).respond()  # writer
 
         # Set the project to the serving function
         function.metadata.project = project

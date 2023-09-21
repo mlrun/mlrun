@@ -1219,7 +1219,7 @@ def test_parse_extra_args(extra_args, expected_result):
 )
 def test_validate_extra_args(extra_args, expected):
     with expected:
-        mlrun.api.utils.builder._validate_extra_args(extra_args)
+        mlrun.api.utils.builder.validate_extra_args(extra_args)
 
 
 @pytest.mark.parametrize(

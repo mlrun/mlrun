@@ -359,6 +359,10 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
     if function.spec.base_image_pull:
         nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
 
+    if function.spec.build.extra_args:
+        builder.validate_extra_args(function.spec.build.extra_args)
+        nuclio_spec.set_config("spec.build.Flags", function.spec.build.extra_args.strip().split())
+
 
 def _set_function_scheduling_params(function, nuclio_spec):
     # don't send node selections if nuclio is not compatible

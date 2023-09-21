@@ -408,7 +408,7 @@ def build_image(
 
     builder_env = runtime_builder_env | builder_env or {}
     # no need to enrich extra args because we get them from the build anyway
-    _validate_extra_args(extra_args)
+    validate_extra_args(extra_args)
 
     image_target, secret_name = resolve_image_target_and_registry_secret(
         image_target, registry, secret_name
@@ -915,7 +915,7 @@ def _parse_extra_args(extra_args: str) -> dict:
     return args
 
 
-def _validate_extra_args(extra_args: str):
+def validate_extra_args(extra_args: str):
     """
      Validate extra_args string for Docker commands:
     - Ensure --build-arg is followed by a non-flag argument.

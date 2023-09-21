@@ -296,7 +296,7 @@ class BaseRuntimeHandler(ABC):
                 )
             if runtime._secrets.has_azure_vault_source():
                 self.add_azure_vault_params_to_spec(
-                    runtime._secrets.get_azure_vault_k8s_secret()
+                    runtime, runtime._secrets.get_azure_vault_k8s_secret()
                 )
             self.add_k8s_secrets_to_spec(
                 runtime._secrets.get_k8s_secrets(),

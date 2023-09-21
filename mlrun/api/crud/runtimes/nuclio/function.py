@@ -536,7 +536,7 @@ def _add_secrets_config_to_function_spec(
                 )
             if function._secrets.has_azure_vault_source():
                 handler.add_azure_vault_params_to_spec(
-                    function._secrets.get_azure_vault_k8s_secret()
+                    function, function._secrets.get_azure_vault_k8s_secret()
                 )
             handler.add_k8s_secrets_to_spec(
                 function._secrets.get_k8s_secrets(),

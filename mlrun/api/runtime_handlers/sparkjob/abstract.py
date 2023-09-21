@@ -23,10 +23,10 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.api.utils.singletons.k8s
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
 from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.runtimes.sparkjob.abstract import AbstractSparkRuntime
@@ -350,7 +350,7 @@ with ctx:
         code: typing.Optional[str] = None,
     ):
         namespace = meta.namespace
-        k8s = get_k8s_helper()
+        k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = k8s_client.V1ConfigMap()
@@ -554,14 +554,14 @@ with ctx:
             uid = crd_dict["metadata"].get("labels", {}).get("mlrun/uid", None)
             uids.append(uid)
 
-        config_maps = get_k8s_helper().v1api.list_namespaced_config_map(
+        config_maps = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
             try:
                 uid = config_map.metadata.labels.get("mlrun/uid", None)
                 if force or uid in uids:
-                    get_k8s_helper().v1api.delete_namespaced_config_map(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
                         config_map.metadata.name, namespace
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")

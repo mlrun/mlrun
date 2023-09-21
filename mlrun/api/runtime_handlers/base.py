@@ -36,7 +36,6 @@ import mlrun.utils.notifications
 import mlrun.utils.regex
 from mlrun.api.constants import LogSources
 from mlrun.api.db.base import DBInterface
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
@@ -75,9 +74,11 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support removing runtime resources in non k8s env
-        if not get_k8s_helper().is_running_inside_kubernetes_cluster():
+        if (
+            not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        ):
             return {}
-        namespace = get_k8s_helper().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
@@ -122,9 +123,11 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if not get_k8s_helper().is_running_inside_kubernetes_cluster():
+        if (
+            not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        ):
             return
-        namespace = get_k8s_helper().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -172,7 +175,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session):
-        namespace = get_k8s_helper().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = False
@@ -557,7 +560,9 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
-        pods = get_k8s_helper().list_pods(namespace, selector=label_selector)
+        pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+            namespace, selector=label_selector
+        )
         # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
         # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
         pods = [pod.to_dict() for pod in pods]
@@ -568,7 +573,7 @@ class BaseRuntimeHandler(ABC):
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = get_k8s_helper().crdapi.list_namespaced_custom_object(
+                crd_objects = mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
                     crd_group,
                     crd_version,
                     namespace,
@@ -592,7 +597,7 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = get_k8s_helper().v1api.list_namespaced_pod(
+            pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
@@ -696,8 +701,10 @@ class BaseRuntimeHandler(ABC):
     ) -> List[Dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = get_k8s_helper().v1api.list_namespaced_pod(
-            namespace, label_selector=label_selector
+        pods = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
+                namespace, label_selector=label_selector
+            )
         )
         deleted_pods = []
         for pod in pods.items:
@@ -737,7 +744,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                get_k8s_helper().delete_pod(
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
                     pod.metadata.name, namespace, self.pod_grace_period_seconds
                 )
                 deleted_pods.append(pod_dict)
@@ -763,7 +770,7 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = get_k8s_helper().crdapi.list_namespaced_custom_object(
+            crd_objects = mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
                 crd_group,
                 crd_version,
                 namespace,
@@ -814,7 +821,7 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    get_k8s_helper().delete_crd(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,

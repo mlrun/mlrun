@@ -22,7 +22,6 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
-import mlrun.api.runtime_handlers.pod
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas

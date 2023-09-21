@@ -5,7 +5,6 @@ You can write your code on a local machine while running your functions on a rem
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up a Python 3.7 client environment](#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2)
 - [Set up a Python 3.9 client environment](#set-up-a-python-3-9-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
@@ -18,12 +17,12 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9 (or Python 3.7 for Iguazio versions up to and including v3.5.2)
+- Python 3.9
 - Recommended pip 22.x+
 
 The MLRun server is now based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
 
-For a Python 3.7 environment see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
+For a Python 3.7 environment for platform versions up to and including v3.5.2 see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
 
 ## Set up a Python 3.9 client environment 
 

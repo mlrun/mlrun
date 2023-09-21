@@ -1,5 +1,5 @@
 matplotlib~=3.5
-scipy~=1.0
+scipy~=1.11
 scikit-learn~=1.0
 seaborn~=0.11.0
 scikit-plot~=0.3.7
@@ -10,5 +10,12 @@ nuclio-jupyter[jupyter-server]~=0.9.12
 nbclassic>=0.2.8
 # added to tackle security vulnerabilities
 notebook~=6.4
-Pillow~=9.0
+Pillow~=9.3
 jupyterlab-git~=0.41.0
+Pygments~=2.15
+wheel~=0.38
+setuptools~=65.6
+tornado~=6.3
+requests~=2.31
+cryptography~=41.0
+certifi~=2023.7

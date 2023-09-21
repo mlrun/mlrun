@@ -1227,7 +1227,7 @@ class RunObject(RunTemplate):
             exclude_notifications_params := kwargs.get("exclude_notifications_params")
         ) and exclude_notifications_params:
             if self.spec.notifications:
-                # Extract and remove 'params' from notification
+                # Extract and remove 'params' from each notification
                 extracted_params = []
                 for notification in self.spec.notifications:
                     extracted_params.append(notification.params)

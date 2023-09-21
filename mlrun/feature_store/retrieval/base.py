@@ -138,11 +138,23 @@ class BaseMerger(abc.ABC):
 
     def _write_to_offline_target(self, timestamp_key=None):
         # update vector features:
-        timestamp_key = timestamp_key if not self._drop_indexes and timestamp_key not in self._drop_columns else None
-        feature_columns = [col for col in self._result_df.columns if col not in self._drop_columns] + \
-                          [] if timestamp_key is None else [timestamp_key]
-        self.vector.status.features = [Feature(name=col, value_type=self._result_df[col].dtype)
-                                       for col in feature_columns]
+        timestamp_key = (
+            timestamp_key
+            if not self._drop_indexes and timestamp_key not in self._drop_columns
+            else None
+        )
+        feature_columns = (
+            [col for col in self._result_df.columns if col not in self._drop_columns]
+            + []
+            if timestamp_key is None
+            else [timestamp_key]
+        )
+        self.vector.status.features = [
+            Feature(name=col, value_type=self._result_df[col].dtype)
+            if self._result_df[col].dtype.name != "object"
+            else Feature(name=col, value_type="str")
+            for col in feature_columns
+        ]
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -151,8 +163,7 @@ class BaseMerger(abc.ABC):
                 )
             self._target.set_resource(self.vector)
             size = self._target.write_dataframe(
-                self._result_df,
-                timestamp_key=timestamp_key
+                self._result_df, timestamp_key=timestamp_key
             )
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)

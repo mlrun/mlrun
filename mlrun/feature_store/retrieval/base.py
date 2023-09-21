@@ -157,7 +157,6 @@ class BaseMerger(abc.ABC):
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
-                self.vector.save()
         if not self._drop_indexes:
             self.vector.spec.entity_fields = [
                 Feature(name=feature, value_type=self._result_df[feature].dtype)
@@ -165,7 +164,7 @@ class BaseMerger(abc.ABC):
                 else Feature(name=feature, value_type="str")
                 for feature in self._index_columns
             ]
-            self.vector.save()
+        self.vector.save()
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:

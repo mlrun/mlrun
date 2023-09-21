@@ -20,7 +20,6 @@ from copy import deepcopy
 from io import StringIO
 from sys import stderr
 
-import packaging.version
 import pandas as pd
 from kubernetes import client
 

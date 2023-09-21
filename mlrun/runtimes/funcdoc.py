@@ -183,7 +183,9 @@ def parse_rst(docstring: str):
 
 def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ""
-    rtype = getattr(func.returns, "id", "")
+    rtype = None
+    if func.returns:
+        rtype = ast.unparse(func.returns)
     params = [ast_param_dict(p) for p in func.args.args]
     # adds info about *args and **kwargs to the function doc
     has_varargs = func.args.vararg is not None
@@ -197,7 +199,7 @@ def ast_func_info(func: ast.FunctionDef):
         name=func.name,
         doc=doc,
         params=params,
-        returns=param_dict(type=rtype),
+        returns=param_dict(type=rtype, default=None) if rtype else None,
         lineno=func.lineno,
         has_varargs=has_varargs,
         has_kwargs=has_kwargs,
@@ -297,6 +299,8 @@ def as_func(handler):
         parameters=[clean(p) for p in handler["params"]],
         outputs=[ret] if ret else None,
         lineno=handler["lineno"],
+        has_varargs=handler["has_varargs"],
+        has_kwargs=handler["has_kwargs"],
     ).to_dict()
 
 

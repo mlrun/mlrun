@@ -19,13 +19,13 @@ from kubernetes.client.rest import ApiException
 
 import mlrun
 import mlrun.api.utils.singletons.k8s
-from mlrun.api.runtime_handlers.pod import KubeResourceHandler
+from mlrun.api.runtime_handlers import BaseRuntimeHandler
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 
 
-class KubeRuntimeHandler(KubeResourceHandler):
+class KubeRuntimeHandler(BaseRuntimeHandler):
     kind = "job"
     class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
 

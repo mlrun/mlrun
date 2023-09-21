@@ -27,7 +27,8 @@ import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
-from mlrun.api.runtime_handlers.pod import KubeResourceHandler, get_resource_labels
+from mlrun.api.runtime_handlers import BaseRuntimeHandler
+from mlrun.api.runtime_handlers.base import get_resource_labels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -41,7 +42,7 @@ def get_dask_resource():
     }
 
 
-class DaskRuntimeHandler(KubeResourceHandler):
+class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
     class_modes = {RuntimeClassMode.run: "dask"}
 

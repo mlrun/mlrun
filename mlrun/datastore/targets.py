@@ -484,7 +484,7 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
-            df = self.prepare_spark_df(df.copy(), key_column, timestamp_key, options)
+            df = self.prepare_spark_df(df.alias('df_copied'), key_column, timestamp_key, options)
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()

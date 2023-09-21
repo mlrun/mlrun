@@ -19,7 +19,6 @@ import kubernetes.client
 import mlrun.errors
 from mlrun.config import config
 
-from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, mount_v3iod
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec

@@ -155,7 +155,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_nuclio_runtime=None,
         expected_env=None,
         expected_build_commands=None,
-        expected_build_args=None
+        expected_build_args=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -228,10 +228,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                     == expected_build_commands
                 )
             if expected_build_args:
-                assert (
-                    deploy_config["spec"]["build"]["flags"]
-                    == expected_build_args
-                    )
+                assert deploy_config["spec"]["build"]["flags"] == expected_build_args
 
         return deploy_configs
 
@@ -666,12 +663,24 @@ class TestNuclioRuntime(TestRuntimeBase):
         [
             ("--skip-tls-verify --cleanup", ["--skip-tls-verify", "--cleanup"]),
             ("--skip-tls-verify    --cleanup", ["--skip-tls-verify", "--cleanup"]),
-            ("--skip-tls-verify  --build-arg LABEL=SL --cleanup --memory=100",
-             ["--skip-tls-verify", "--build-arg LABEL=SL", "--cleanup", "--memory=100"]),
+            (
+                "--skip-tls-verify  --build-arg LABEL=SL --cleanup --memory=100",
+                [
+                    "--skip-tls-verify",
+                    "--build-arg LABEL=SL",
+                    "--cleanup",
+                    "--memory=100",
+                ],
+            ),
         ],
     )
-    def test_deploy_with_build_flags(self, extra_args: str, expected_build_flags: list, db: Session,
-                                     client: TestClient):
+    def test_deploy_with_build_flags(
+        self,
+        extra_args: str,
+        expected_build_flags: list,
+        db: Session,
+        client: TestClient,
+    ):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.extra_args = extra_args
         self.execute_function(function)

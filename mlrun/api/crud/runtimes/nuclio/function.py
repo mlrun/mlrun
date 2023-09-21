@@ -361,8 +361,10 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
     if function.spec.build.extra_args:
         nuclio_spec.set_config(
-            "spec.build.flags", mlrun.api.crud.runtimes.nuclio.helpers.parse_extra_args_to_nuclio_build_flags(
-                function.spec.build.extra_args)
+            "spec.build.flags",
+            mlrun.api.crud.runtimes.nuclio.helpers.parse_extra_args_to_nuclio_build_flags(
+                function.spec.build.extra_args
+            ),
         )
 
 

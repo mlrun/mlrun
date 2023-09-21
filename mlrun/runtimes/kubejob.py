@@ -306,30 +306,7 @@ class KubejobRuntime(KubeResource):
             skip_deployed=skip_deployed,
         )
 
-    # TODO: remove this
     def _run(self, runobj: RunObject, execution):
-        raise NotImplementedError()
-
-    # TODO: remove this
-    def _resolve_workdir(self):
-        """
-        The workdir is relative to the source root, if the source is not loaded on run then the workdir
-        is relative to the clone target dir (where the source was copied to).
-        Otherwise, if the source is loaded on run, the workdir is resolved on the run as well.
-        If the workdir is absolute, keep it as is.
-        """
-        workdir = self.spec.workdir
-        if self.spec.build.source and self.spec.build.load_source_on_run:
-            # workdir will be set AFTER the clone which is done in the pre-run of local runtime
-            return None
-
-        if workdir and os.path.isabs(workdir):
-            return workdir
-
-        if self.spec.clone_target_dir:
-            workdir = workdir or ""
-            workdir = workdir.removeprefix("./")
-
-            return os.path.join(self.spec.clone_target_dir, workdir)
-
-        return workdir
+        raise NotImplementedError(
+            "Running a Kubejob from the client is not supported. Use .run() to submit the job to the API."
+        )

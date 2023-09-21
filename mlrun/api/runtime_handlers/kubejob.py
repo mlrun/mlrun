@@ -41,7 +41,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
             runtime.store_run(run)
         new_meta = self._get_meta(runtime, run)
 
-        self._add_secrets_to_spec_before_running(
+        self.add_secrets_to_spec_before_running(
             runtime, project_name=run.metadata.project
         )
         workdir = self._resolve_workdir(runtime)
@@ -73,14 +73,12 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         logger.info(txt, pod_name=pod_name)
         run.status.status_text = f"{txt}, pod: {pod_name}"
 
-        return None
-
     def _get_cmd_args(
         self,
         runtime: mlrun.runtimes.KubejobRuntime,
         run: mlrun.run.RunObject,
     ):
-        extra_env = self._generate_runtime_env(runtime, run)
+        extra_env = runtime._generate_runtime_env(run)
         if runtime.spec.pythonpath:
             extra_env["PYTHONPATH"] = runtime.spec.pythonpath
         args = []
@@ -164,35 +162,6 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return workdir
 
     @staticmethod
-    def _generate_runtime_env(
-        runtime: mlrun.runtimes.BaseRuntime, run: mlrun.run.RunObject
-    ) -> typing.Dict:
-        """
-        Prepares all available environment variables for usage on a runtime
-        Data will be extracted from several sources and most of them are not guaranteed to be available
-
-        :param runtime: The ad-hoc runtime object
-        :param run:     Run context object (RunObject) with run metadata and status
-        :return:        Dictionary with all the variables that could be parsed
-        """
-        runtime_env = {
-            "MLRUN_DEFAULT_PROJECT": runtime.metadata.project or config.default_project
-        }
-        if run:
-            runtime_env["MLRUN_EXEC_CONFIG"] = run.to_json()
-            if run.metadata.project:
-                runtime_env["MLRUN_DEFAULT_PROJECT"] = run.metadata.project
-            if run.spec.verbose:
-                runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
-        if config.httpdb.api_url:
-            runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
-        if runtime.metadata.namespace or config.namespace:
-            runtime_env["MLRUN_NAMESPACE"] = (
-                runtime.metadata.namespace or config.namespace
-            )
-        return runtime_env
-
-    @staticmethod
     def _expect_pods_without_uid() -> bool:
         """
         builder pods are handled as part of this runtime handler - they are not coupled to run object, therefore they
@@ -218,7 +187,13 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
     class_modes = {RuntimeClassMode.run: "databricks"}
     pod_grace_period_seconds = 60
 
-    # TODO: move _get_lifecycle here
+    @staticmethod
+    def _get_lifecycle():
+        script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
+        pre_stop_handler = client.V1Handler(
+            _exec=client.V1ExecAction(command=["python", script_path])
+        )
+        return client.V1Lifecycle(pre_stop=pre_stop_handler)
 
 
 def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):

@@ -16,8 +16,6 @@ import os
 from base64 import b64decode, b64encode
 from typing import Callable, Dict, List, Optional, Union
 
-from kubernetes.client import V1ExecAction, V1Handler, V1Lifecycle
-
 import mlrun
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.model import HyperParamOptions, RunObject
@@ -27,14 +25,6 @@ from mlrun.runtimes.kubejob import KubejobRuntime
 class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
-
-    @staticmethod
-    def _get_lifecycle():
-        script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
-        pre_stop_handler = V1Handler(
-            _exec=V1ExecAction(command=["python", script_path])
-        )
-        return V1Lifecycle(pre_stop=pre_stop_handler)
 
     def get_internal_parameters(self, runobj: RunObject):
         """

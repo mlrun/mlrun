@@ -284,6 +284,28 @@ class BaseRuntimeHandler(ABC):
         """
         return run.get("metadata", {}).get("uid", None)
 
+    def add_secrets_to_spec_before_running(
+        self,
+        runtime: mlrun.runtimes.pod.KubeResource,
+        project_name: typing.Optional[str] = None,
+    ):
+        if runtime._secrets:
+            if runtime._secrets.has_vault_source():
+                self.add_vault_params_to_spec(
+                    runtime=runtime, project_name=project_name
+                )
+            if runtime._secrets.has_azure_vault_source():
+                self.add_azure_vault_params_to_spec(
+                    runtime._secrets.get_azure_vault_k8s_secret()
+                )
+            self.add_k8s_secrets_to_spec(
+                runtime._secrets.get_k8s_secrets(),
+                runtime,
+                project_name=project_name,
+            )
+        else:
+            self.add_k8s_secrets_to_spec(None, runtime, project_name=project_name)
+
     @staticmethod
     def add_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
@@ -1447,28 +1469,6 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-    def _add_secrets_to_spec_before_running(
-        self,
-        runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
-    ):
-        if runtime._secrets:
-            if runtime._secrets.has_vault_source():
-                self.add_vault_params_to_spec(
-                    runtime=runtime, project_name=project_name
-                )
-            if runtime._secrets.has_azure_vault_source():
-                self.add_azure_vault_params_to_spec(
-                    runtime._secrets.get_azure_vault_k8s_secret()
-                )
-            self.add_k8s_secrets_to_spec(
-                runtime._secrets.get_k8s_secrets(),
-                runtime,
-                project_name=project_name,
-            )
-        else:
-            self.add_k8s_secrets_to_spec(None, runtime, project_name=project_name)
 
 
 def get_resource_labels(function, run=None, scrape_metrics=None):

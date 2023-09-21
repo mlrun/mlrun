@@ -1165,29 +1165,6 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    # TODO: remove
-    def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
-        secret_name = (
-            k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
-        )
-        if not secret_name:
-            logger.warning(
-                "No k8s secret provided. Azure key vault will not be available"
-            )
-            return
-
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        secret_path = mlconf.secret_stores.azure_vault.secret_path.replace("~", "/root")
-        volumes = [
-            {
-                "name": "azure-vault-secret",
-                "secret": {"defaultMode": 420, "secretName": secret_name},
-            }
-        ]
-        volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-
     def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:
             logger.debug(

@@ -179,7 +179,7 @@ class AbstractSparkRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         update_in(job, "spec.volumes", runtime.spec.volumes)
 
-        self._add_secrets_to_spec_before_running(
+        self.add_secrets_to_spec_before_running(
             runtime, project_name=run.metadata.project
         )
 
@@ -327,8 +327,6 @@ with ctx:
 
         verify_list_and_update_in(job, "spec.arguments", runtime.spec.args or [], str)
         self._submit_spark_job(runtime, job, meta, code)
-
-        return None
 
     @abc.abstractmethod
     def _get_spark_version(self):

@@ -304,7 +304,7 @@ def enrich_dask_cluster(
     runtime_handler: mlrun.api.runtime_handlers.daskjob.DaskRuntimeHandler = (
         mlrun.api.runtime_handlers.DaskRuntimeHandler()
     )
-    runtime_handler._add_secrets_to_spec_before_running(
+    runtime_handler.add_secrets_to_spec_before_running(
         runtime=function, project_name=function.metadata.project
     )
 

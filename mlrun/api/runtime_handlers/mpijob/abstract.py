@@ -44,7 +44,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         meta = self._get_meta(runtime, run, True)
 
-        self._add_secrets_to_spec_before_running(
+        self.add_secrets_to_spec_before_running(
             runtime, project_name=run.metadata.project
         )
 
@@ -77,8 +77,6 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
                 txt = f"MpiJob status unknown or failed, check pods: {pods_phases}"
                 logger.warning(txt)
                 run.status.status_text = txt
-
-        return None
 
     def get_pods(self, name=None, namespace=None, launcher=False):
         namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace(

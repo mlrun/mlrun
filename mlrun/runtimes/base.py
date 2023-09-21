@@ -391,7 +391,6 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    # TODO: remove this method
     def _generate_runtime_env(self, runobj: RunObject = None) -> Dict:
         """
         Prepares all available environment variables for usage on a runtime

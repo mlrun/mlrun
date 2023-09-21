@@ -22,6 +22,7 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
+import mlrun.api.runtime_handlers
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
@@ -268,7 +269,7 @@ def _resolve_env_vars(function):
     ).is_running_inside_kubernetes_cluster():
         _add_secrets_config_to_function_spec(function)
 
-    env_dict, external_source_env_dict = function._get_nuclio_cogstnfig_spec_env()
+    env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
 
     # In nuclio 1.6.0<=v<1.8.0, python runtimes default behavior was to not decode event strings
     # Our code is counting on the strings to be decoded, so add the needed env var for those versions
@@ -508,7 +509,7 @@ def _set_function_name(function, config, project, tag):
 def _add_secrets_config_to_function_spec(
     function: mlrun.runtimes.function.RemoteRuntime,
 ):
-    handler = mlrun.api.runtime_handlers.BaseRuntimeHandler()
+    handler = mlrun.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
         mlrun.runtimes.RuntimeKinds.remote,
         mlrun.runtimes.RuntimeKinds.nuclio,
@@ -516,7 +517,7 @@ def _add_secrets_config_to_function_spec(
         # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
         # to decode the secrets and special env variable names in the function, we just use the same env variable as
         # the key name (encode_key_names=False)
-        handler._add_k8s_secrets_to_spec(
+        handler.add_k8s_secrets_to_spec(
             None,
             function,
             project_name=function.metadata.project,
@@ -530,20 +531,20 @@ def _add_secrets_config_to_function_spec(
                 function.spec.secret_sources
             )
             if function._secrets.has_vault_source():
-                handler._add_vault_params_to_spec(
+                handler.add_vault_params_to_spec(
                     function, project_name=function.metadata.project
                 )
             if function._secrets.has_azure_vault_source():
-                handler._add_azure_vault_params_to_spec(
+                handler.add_azure_vault_params_to_spec(
                     function._secrets.get_azure_vault_k8s_secret()
                 )
-            handler._add_k8s_secrets_to_spec(
+            handler.add_k8s_secrets_to_spec(
                 function._secrets.get_k8s_secrets(),
                 function,
                 project_name=function.metadata.project,
             )
         else:
-            handler._add_k8s_secrets_to_spec(
+            handler.add_k8s_secrets_to_spec(
                 None, function, project_name=function.metadata.project
             )
 

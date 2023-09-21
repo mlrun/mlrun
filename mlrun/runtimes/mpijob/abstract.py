@@ -16,8 +16,6 @@ import os
 import typing
 
 from mlrun.config import config
-from mlrun.execution import MLClientCtx
-from mlrun.model import RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 from mlrun.runtimes.pod import KubeResourceSpec
 from mlrun.utils import update_in

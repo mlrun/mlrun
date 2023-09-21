@@ -73,6 +73,3 @@ source_modules=
 
 forbidden_modules=
     mlrun.api
-
-ignore_imports =
-    mlrun.runtimes.utils -> mlrun.api.utils.singletons.k8s

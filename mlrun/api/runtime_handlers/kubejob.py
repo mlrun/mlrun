@@ -41,7 +41,9 @@ class KubeRuntimeHandler(KubeResourceHandler):
             runtime.store_run(run)
         new_meta = self._get_meta(runtime, run)
 
-        self._add_secrets_to_spec_before_running(runtime, run)
+        self._add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
         workdir = self._resolve_workdir(runtime)
 
         pod_spec = func_to_pod(

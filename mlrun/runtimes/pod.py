@@ -35,14 +35,12 @@ from ..k8s_utils import (
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
 )
-from ..secrets import SecretsStore
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
-    get_k8s,
     set_named_item,
     verify_limits,
     verify_requests,
@@ -1168,21 +1166,6 @@ class KubeResource(BaseRuntime):
         return mlconf.default_function_priority_class_name
 
     # TODO: remove
-    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj=runobj, project=project)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
-            )
-        else:
-            self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
-
-    # TODO: remove
     def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
         secret_name = (
             k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
@@ -1204,114 +1187,6 @@ class KubeResource(BaseRuntime):
         ]
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         self.spec.update_vols_and_mounts(volumes, volume_mounts)
-
-    def _add_k8s_secrets_to_spec(
-        self,
-        secrets,
-        runobj=None,
-        project=None,
-        encode_key_names=True,
-    ):
-        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
-        # project secrets, to allow project secret keys to override them
-        global_secret_name = (
-            mlconf.secret_stores.kubernetes.global_function_env_secret_name
-        )
-        if mlrun.config.is_running_as_api() and global_secret_name:
-            global_secrets = get_k8s().get_secret_data(global_secret_name)
-            for key, value in global_secrets.items():
-                env_var_name = (
-                    SecretsStore.k8s_env_variable_name_for_secret(key)
-                    if encode_key_names
-                    else key
-                )
-                self.set_env_from_secret(env_var_name, global_secret_name, key)
-
-        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
-        # it's a different case than None (not asking for project secrets at all).
-        if (
-            secrets is None
-            and not mlconf.secret_stores.kubernetes.auto_add_project_secrets
-        ):
-            return
-
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add k8s secrets")
-            return
-
-        secret_name = get_k8s().get_project_secret_name(project_name)
-        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
-        # in the nuclio remote-dashboard flow, which causes dependency problems.
-        existing_secret_keys = get_k8s().get_project_secret_keys(
-            project_name, filter_internal=True
-        )
-
-        # If no secrets were passed or auto-adding all secrets, we need all existing keys
-        if not secrets:
-            secrets = {
-                key: SecretsStore.k8s_env_variable_name_for_secret(key)
-                if encode_key_names
-                else key
-                for key in existing_secret_keys
-            }
-
-        for key, env_var_name in secrets.items():
-            if key in existing_secret_keys:
-                self.set_env_from_secret(env_var_name, secret_name, key)
-
-        # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
-        # can be initialized with those env variables as secrets
-        if not encode_key_names and secrets.keys():
-            self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
-
-    # TODO: remove
-    def _add_vault_params_to_spec(self, runobj=None, project=None):
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add vault parameters")
-            return
-
-        service_account_name = (
-            mlconf.secret_stores.vault.project_service_account_name.format(
-                project=project_name
-            )
-        )
-
-        project_vault_secret_name = get_k8s().get_project_vault_secret_name(
-            project_name, service_account_name
-        )
-        if project_vault_secret_name is None:
-            logger.info(f"No vault secret associated with project {project_name}")
-            return
-
-        volumes = [
-            {
-                "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
-            }
-        ]
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-
-        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
-
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append(
-            {
-                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": f"project:{project_name}",
-            }
-        )
-        # In case remote URL is different than local URL, use it. Else, use the local URL
-        vault_url = mlconf.secret_stores.vault.remote_url
-        if vault_url == "":
-            vault_url = mlconf.secret_stores.vault.url
-
-        self.spec.env.append(
-            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
-        )
 
     def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:

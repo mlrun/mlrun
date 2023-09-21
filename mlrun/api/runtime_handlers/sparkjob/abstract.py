@@ -179,7 +179,9 @@ class AbstractSparkRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         update_in(job, "spec.volumes", runtime.spec.volumes)
 
-        self._add_secrets_to_spec_before_running(runtime, run)
+        self._add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
 
         command, args, extra_env = self._get_cmd_args(runtime, run)
         code = None

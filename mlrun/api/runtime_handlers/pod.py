@@ -57,13 +57,12 @@ class KubeResourceHandler(BaseRuntimeHandler, ABC):
     def _add_secrets_to_spec_before_running(
         self,
         runtime: mlrun.runtimes.pod.KubeResource,
-        run: mlrun.run.RunObject,
         project_name: typing.Optional[str] = None,
     ):
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
                 self._add_vault_params_to_spec(
-                    runtime=runtime, run=run, project_name=project_name
+                    runtime=runtime, project_name=project_name
                 )
             if runtime._secrets.has_azure_vault_source():
                 self._add_azure_vault_params_to_spec(
@@ -72,21 +71,16 @@ class KubeResourceHandler(BaseRuntimeHandler, ABC):
             self._add_k8s_secrets_to_spec(
                 runtime._secrets.get_k8s_secrets(),
                 runtime,
-                run=run,
                 project_name=project_name,
             )
         else:
-            self._add_k8s_secrets_to_spec(
-                None, runtime, run=run, project_name=project_name
-            )
+            self._add_k8s_secrets_to_spec(None, runtime, project_name=project_name)
 
     @staticmethod
     def _add_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
-        run: mlrun.run.RunObject,
         project_name: typing.Optional[str] = None,
     ):
-        project_name = project_name or run.metadata.project
         if project_name is None:
             logger.warning("No project provided. Cannot add vault parameters")
             return
@@ -165,7 +159,6 @@ class KubeResourceHandler(BaseRuntimeHandler, ABC):
     def _add_k8s_secrets_to_spec(
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
-        run: mlrun.run.RunObject,
         project_name: typing.Optional[str] = None,
         encode_key_names: bool = True,
     ):
@@ -196,7 +189,6 @@ class KubeResourceHandler(BaseRuntimeHandler, ABC):
         ):
             return
 
-        project_name = project_name or run.metadata.project
         if project_name is None:
             logger.warning("No project provided. Cannot add k8s secrets")
             return

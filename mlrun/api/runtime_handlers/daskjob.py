@@ -27,8 +27,7 @@ import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
-from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
-from mlrun.api.runtime_handlers.pod import get_resource_labels
+from mlrun.api.runtime_handlers.pod import KubeResourceHandler, get_resource_labels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -42,7 +41,7 @@ def get_dask_resource():
     }
 
 
-class DaskRuntimeHandler(BaseRuntimeHandler):
+class DaskRuntimeHandler(KubeResourceHandler):
     kind = "dask"
     class_modes = {RuntimeClassMode.run: "dask"}
 
@@ -301,9 +300,12 @@ def enrich_dask_cluster(
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
 
-    # Is it possible that the function will not have a project at this point?
-    if function.metadata.project:
-        function._add_secrets_to_spec_before_running(project=function.metadata.project)
+    runtime_handler: mlrun.api.runtime_handlers.daskjob.DaskRuntimeHandler = (
+        mlrun.api.runtime_handlers.DaskRuntimeHandler()
+    )
+    runtime_handler._add_secrets_to_spec_before_running(
+        runtime=function, project_name=function.metadata.project
+    )
 
     spec = function.spec
     meta = function.metadata

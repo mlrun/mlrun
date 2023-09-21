@@ -30,7 +30,7 @@ from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 
 from ..artifacts import TableArtifact
-from ..config import config, is_running_as_api
+from ..config import config
 from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
@@ -39,7 +39,6 @@ class RunError(Exception):
     pass
 
 
-# TODO: move to API?
 mlrun_key = "mlrun/"
 
 
@@ -144,20 +143,6 @@ def add_code_metadata(path=""):
             path=path,
             error=err_to_str(exc),
         )
-    return None
-
-
-# TODO: remove
-def get_k8s():
-    """
-    Get the k8s helper object
-    :return: k8s helper object or None if not running as API
-    """
-    if is_running_as_api():
-        import mlrun.api.utils.singletons.k8s
-
-        return mlrun.api.utils.singletons.k8s.get_k8s_helper()
-
     return None
 
 

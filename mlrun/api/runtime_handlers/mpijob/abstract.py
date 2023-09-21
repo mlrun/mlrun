@@ -44,7 +44,9 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
 
         meta = self._get_meta(runtime, run, True)
 
-        self._add_secrets_to_spec_before_running(runtime, run)
+        self._add_secrets_to_spec_before_running(
+            runtime, project_name=run.metadata.project
+        )
 
         job = self._generate_mpi_job(runtime, run, execution, meta)
 

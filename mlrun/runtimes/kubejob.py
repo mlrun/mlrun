@@ -307,5 +307,5 @@ class KubejobRuntime(KubeResource):
 
     def _run(self, runobj: RunObject, execution):
         raise NotImplementedError(
-            "Running a Kubejob from the client is not supported. Use .run() to submit the job to the API."
+            f"Running a {self.kind} function from the client is not supported. Use .run() to submit the job to the API."
         )

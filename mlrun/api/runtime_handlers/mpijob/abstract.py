@@ -101,7 +101,9 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
                 mpi_group, mpi_version, namespace, mpi_plural, name
             )
         except client.exceptions.ApiException as exc:
-            print(f"Exception when reading MPIJob: {mlrun.errors.err_to_str(exc)}")
+            logger.warning(
+                "Exception when reading MPIJob", error=mlrun.errors.err_to_str(exc)
+            )
             return None
         return resp
 

@@ -118,9 +118,6 @@ class AbstractMPIJobRuntime(KubejobRuntime, abc.ABC):
         update_in(run, "status.state", "running", append=False, replace=False)
         return {}
 
-    def _run(self, runobj: RunObject, execution: MLClientCtx):
-        raise NotImplementedError()
-
     def with_tracing(
         self, log_file_path: str = None, enable_cycle_markers: bool = False
     ):

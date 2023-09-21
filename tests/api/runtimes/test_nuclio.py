@@ -684,8 +684,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.extra_args = extra_args
         self.execute_function(function)
-        self._assert_deploy_called_basic_config(expected_class=self.class_name,
-                                                expected_build_args=expected_build_flags)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_args=expected_build_flags
+        )
 
     def test_deploy_image_with_enrich_registry_prefix(self):
         function = self._generate_runtime(self.runtime_kind)

@@ -312,3 +312,20 @@ def compile_nuclio_archive_config(
     nuclio_spec.set_config("spec.build.path", source)
     nuclio_spec.set_config("spec.build.codeEntryType", code_entry_type)
     nuclio_spec.set_config("spec.build.codeEntryAttributes", code_entry_attributes)
+
+
+def parse_extra_args_to_nuclio_build_flags(extra_args: str) -> list[str]:
+    extra_args = extra_args.strip()
+    build_flags_list = []
+    current_flag = None
+
+    for item in extra_args.split():
+        if item.startswith("--"):
+            if current_flag:
+                build_flags_list.append(current_flag)
+            current_flag = item
+        else:
+            current_flag = f"{current_flag} {item}" if current_flag else item
+    if current_flag:
+        build_flags_list.append(current_flag)
+    return build_flags_list

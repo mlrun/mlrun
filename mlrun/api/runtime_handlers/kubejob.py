@@ -65,11 +65,11 @@ class KubeRuntimeHandler(KubeResourceHandler):
                 namespace,
             ) = mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod(pod)
         except ApiException as exc:
-            raise mlrun.runtimes.utils.RunError(mlrun.errors.err_to_str(exc))
+            raise mlrun.runtimes.utils.RunError(str(exc)) from exc
 
-        txt = f"Job is running in the background, pod: {pod_name}"
-        logger.info(txt)
-        run.status.status_text = txt
+        txt = "Job is running in the background"
+        logger.info(txt, pod_name=pod_name)
+        run.status.status_text = f"{txt}, pod: {pod_name}"
 
         return None
 

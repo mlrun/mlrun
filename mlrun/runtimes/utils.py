@@ -231,15 +231,11 @@ def results_to_iter(results, runspec, execution):
 
 def log_iter_artifacts(execution, df, header):
     csv_buffer = StringIO()
-    # pandas 1.5.0 renames line_terminator to lineterminator
-    line_terminator_parameter = (
-        "lineterminator"
-        if packaging.version.Version(pd.__version__)
-        >= packaging.version.Version("1.5.0")
-        else "line_terminator"
-    )
     df.to_csv(
-        csv_buffer, index=False, encoding="utf-8", **{line_terminator_parameter: "\n"}
+        csv_buffer,
+        index=False,
+        encoding="utf-8",
+        **mlrun.utils.line_terminator_kwargs(),
     )
     try:
         # may fail due to lack of access credentials to the artifacts store

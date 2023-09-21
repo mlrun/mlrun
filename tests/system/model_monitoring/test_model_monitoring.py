@@ -88,6 +88,16 @@ class TestModelEndpointsOperations(TestMLRunSystem):
 
         assert endpoint_before_update.status.state == "null"
 
+        # Check default drift thresholds
+        assert endpoint_before_update.spec.monitor_configuration == {
+            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
+
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
         current_stats = {
@@ -840,6 +850,18 @@ class TestBatchDrift(TestMLRunSystem):
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
+
+        # Validate that model_uri is based on models prefix
+        assert (
+            model_endpoint.spec.model_uri
+            == f"store://models/{project.metadata.name}/{model_name}:latest"
+        )
+
+        # Validate that function_uri is based on project and function name
+        assert (
+            model_endpoint.spec.function_uri
+            == f"{project.metadata.name}/batch-drift-function"
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

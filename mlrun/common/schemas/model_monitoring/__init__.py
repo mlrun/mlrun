@@ -23,6 +23,7 @@ from .constants import (
     EventLiveStats,
     FileTargetKind,
     FunctionURI,
+    ModelEndpointTarget,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
     ProjectSecretKeys,

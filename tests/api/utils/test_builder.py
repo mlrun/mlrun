@@ -47,6 +47,29 @@ def test_build_runtime_use_base_image_when_no_build():
     assert fn.spec.image == base_image
 
 
+def test_build_runtime_enrich_base_image(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    with unittest.mock.patch(
+        "mlrun.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        docker_registry = "default.docker.registry/default-repository"
+        config.httpdb.builder.docker_registry = docker_registry
+
+        fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
+        base_image = "some/image"
+        fn.build_config(
+            base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
+        )
+        assert fn.spec.image == ""
+        mlrun.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            fn,
+        )
+        dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
+        dockerfile_lines = dockerfile.splitlines()
+        assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
+
+
 def test_build_runtime_use_image_when_no_build():
     image = "mlrun/mlrun"
     fn = mlrun.new_function(

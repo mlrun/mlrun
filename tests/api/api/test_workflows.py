@@ -91,7 +91,10 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/runs/{run_id}"
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
-    assert f"Run {run_id}:{wrong_project_name} not found" in resp.json()["detail"]
+    assert (
+        f"Run uid {run_id} of project {wrong_project_name} not found"
+        in resp.json()["detail"]
+    )
 
 
 def _create_proj_with_workflow(client: TestClient):

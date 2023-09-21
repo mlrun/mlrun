@@ -811,6 +811,9 @@ class BatchProcessor:
             )
 
             if not mlrun.mlconf.is_ce_mode():
+                # Generate V3IO KV schema if not exist
+                self._infer_kv_schema()
+
                 # Update drift results in TSDB
                 self._update_drift_in_v3io_tsdb(
                     endpoint_id=endpoint[
@@ -1010,6 +1013,25 @@ class BatchProcessor:
                 "Monitoring stream pod is not found, probably not deployed. "
                 "To deploy, call set_tracking() on a serving function. exc: ",
                 exc=exc,
+            )
+
+    def _infer_kv_schema(self):
+        """
+        Create KV schema file if not exist. This schema is being used by the Grafana dashboards.
+        """
+
+        schema_file = self.db.client.kv.new_cursor(
+            container=self.db.container,
+            table_path=self.db.path,
+            filter_expression='__name==".#schema"',
+        )
+
+        if not schema_file.all():
+            logger.info(
+                "Generate a new V3IO KV schema file", kv_table_path=self.db.path
+            )
+            self.frames.execute(
+                backend="kv", table=self.db.path, command="infer_schema"
             )
 
 

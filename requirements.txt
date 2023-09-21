@@ -17,7 +17,6 @@ ipython~=8.0
 nuclio-jupyter~=0.9.12
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
-# limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us
 pandas>=1.2, <3
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
@@ -43,7 +42,7 @@ kubernetes~=12.0
 dependency-injector~=4.41
 fsspec>=2023.1,<2023.7
 v3iofs~=0.1.15
-storey~=1.5.6
+storey~=1.6.0
 deepdiff~=5.0
 inflection~=0.5.0
 python-dotenv~=0.17.0

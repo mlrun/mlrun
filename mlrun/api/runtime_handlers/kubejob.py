@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import typing
 
 from kubernetes import client
 from kubernetes.client.rest import ApiException
@@ -20,7 +19,6 @@ from kubernetes.client.rest import ApiException
 import mlrun
 import mlrun.api.utils.singletons.k8s
 from mlrun.api.runtime_handlers import BaseRuntimeHandler
-from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 

@@ -302,7 +302,4 @@ def test_annotate_mod():
 def test_return_types(func_code, expected_return_type):
     fn: ast.FunctionDef = ast.parse(dedent(func_code)).body[0]
     func_info = funcdoc.ast_func_info(fn)
-    if expected_return_type:
-        assert func_info["return"]["type"] == expected_return_type
-    else:
-        assert func_info["return"] is None
+    assert func_info["return"]["type"] == expected_return_type

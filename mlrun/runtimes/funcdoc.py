@@ -199,7 +199,7 @@ def ast_func_info(func: ast.FunctionDef):
         name=func.name,
         doc=doc,
         params=params,
-        returns=param_dict(type=rtype, default=None) if rtype else None,
+        returns=param_dict(type=rtype, default=None),
         lineno=func.lineno,
         has_varargs=has_varargs,
         has_kwargs=has_kwargs,

@@ -79,7 +79,7 @@ def test_requirement_specifiers_convention():
 
                 # either major or part of limited group of "stable" packages
                 is_stable_requirement = major_version >= 1 or requirement_name in [
-                    "wheel"
+                    "wheel",
                 ]
                 # if it's stable we want to prevent only major changes, meaning version should be X.Y
                 # if it's not stable we want to prevent major and minor changes, meaning version should be X.Y.Z

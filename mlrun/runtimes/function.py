@@ -858,6 +858,10 @@ class RemoteRuntime(KubeResource):
         if not method:
             method = "POST" if body else "GET"
 
+        # if no path was provided, use the default handler to be invoked
+        if not path and self.spec.default_handler:
+            path = self.spec.default_handler
+
         if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
             # if we deployed mock server or in simulated nuclio environment use mock
             if not self._mock_server:

@@ -21,9 +21,9 @@ from deprecated import deprecated
 from mlrun.model import FunctionEntrypoint
 
 
-def type_name(ann):
+def type_name(ann, empty_is_none=False):
     if ann is inspect.Signature.empty:
-        return ""
+        return None if empty_is_none else ""
     return getattr(ann, "__name__", str(ann))
 
 
@@ -87,7 +87,9 @@ def func_info(fn) -> dict:
         name=fn.__name__,
         doc=doc,
         params=[inspect_param(p) for p in sig.parameters.values()],
-        returns=param_dict(type=type_name(sig.return_annotation)),
+        returns=param_dict(
+            type=type_name(sig.return_annotation, empty_is_none=True), default=None
+        ),
         lineno=func_lineno(fn),
     )
 

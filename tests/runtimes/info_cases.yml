@@ -23,7 +23,6 @@
         name: ""
         type: int
         doc: ""
-        default: ""
       params:
         - name: n
           type: int
@@ -40,9 +39,8 @@
       doc: ""
       return:
         name: ""
-        type: ""
+        type: null
         doc: ""
-        default: ""
       params:
         - name: n
           type: ""
@@ -67,7 +65,6 @@
         name: ""
         type: int
         doc: a number
-        default: ""
       params:
         - name: n
           type: int
@@ -87,7 +84,6 @@
         name: ""
         type: int
         doc: ""
-        default: ""
       params:
         - name: n
           type: int
@@ -116,9 +112,8 @@
       doc: Open a file/object archive into a target directory
       return:
         name: ""
-        type: ""
+        type: null
         doc: "content dir"
-        default: ""
       params:
         - name: context
           type: ""

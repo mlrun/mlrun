@@ -165,6 +165,7 @@ class FeatureVectorStatus(ModelObj):
         preview=None,
         run_uri=None,
         index_keys=None,
+        timestamp_key=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -177,6 +178,7 @@ class FeatureVectorStatus(ModelObj):
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
+        self.timestamp_key = timestamp_key
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -695,13 +697,14 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, _ in fields:
+            for name, alias in fields:
                 if name in feature_set.status.stats and update_stats:
                     self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    self.status.features[name] = feature
+                    feature.name = alias or name
+                    self.status.features[alias or name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields

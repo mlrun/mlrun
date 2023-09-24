@@ -166,7 +166,7 @@ class RemoteVectorResponse:
         if not columns:
             columns = list(self.vector.status.features.keys())
             if self.with_indexes:
-                columns = columns + self.vector.status.index_keys
+                columns += self.vector.status.index_keys + [self.status.timestamp_key]
         file_format = kwargs.get("format")
         if not file_format:
             file_format = self.run.status.results["target"]["kind"]

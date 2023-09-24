@@ -133,7 +133,9 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(vector, run, with_indexes)
+    return RemoteVectorResponse(
+        mlrun.feature_store.get_feature_vector(vector.uri), run, with_indexes
+    )
 
 
 class RemoteVectorResponse:
@@ -164,7 +166,7 @@ class RemoteVectorResponse:
         if not columns:
             columns = list(self.vector.status.features.keys())
             if self.with_indexes:
-                columns = columns + list(self.vector.spec.entity_fields.keys())
+                columns = columns + self.vector.status.index_keys
         file_format = kwargs.get("format")
         if not file_format:
             file_format = self.run.status.results["target"]["kind"]
@@ -172,9 +174,7 @@ class RemoteVectorResponse:
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )
         if self.with_indexes:
-            df.set_index(
-                list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
-            )
+            df.set_index(self.vector.status.index_keys, inplace=True, drop=True)
         return df
 
     @property

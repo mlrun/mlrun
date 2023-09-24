@@ -143,12 +143,9 @@ class BaseMerger(abc.ABC):
             if not self._drop_indexes and timestamp_key not in self._drop_columns
             else None
         )
-        feature_columns = (
-            [col for col in self._result_df.columns if col not in self._drop_columns]
-            + []
-            if timestamp_key is None
-            else [timestamp_key]
-        )
+        feature_columns = [
+            col for col in self._result_df.columns if col not in self._index_columns
+        ]
         self.vector.status.features = [
             Feature(name=col, value_type=self._result_df[col].dtype)
             if self._result_df[col].dtype.name != "object"
@@ -168,13 +165,6 @@ class BaseMerger(abc.ABC):
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
-        if not self._drop_indexes:
-            self.vector.spec.entity_fields = [
-                Feature(name=feature, value_type=self._result_df[feature].dtype)
-                if self._result_df[feature].dtype.name != "object"
-                else Feature(name=feature, value_type="str")
-                for feature in self._index_columns
-            ]
         self.vector.save()
 
     def _set_indexes(self, df):

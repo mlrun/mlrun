@@ -131,7 +131,7 @@ def test_requirement_specifiers_convention():
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <12"},
         "nbclassic": {">=0.2.8"},
-        "pandas": {">=1.2, <3"},
+        "pandas": {">=1.2, <2.1"},
         "gitpython": {"~=3.1, >= 3.1.30"},
         "orjson": {"~=3.3, <3.8.12"},
         "pydantic": {"~=1.10, >=1.10.8"},

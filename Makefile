@@ -442,8 +442,8 @@ test: clean ## Run mlrun tests
 		--ignore=tests/system \
 		--ignore=tests/rundb/test_httpdb.py \
 		-rf \
+		tests/run/test_run.py \
 		tests
-
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test ## Run mlrun integration tests in docker container

@@ -17,7 +17,7 @@ ipython~=8.0
 nuclio-jupyter~=0.9.12
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
-pandas>=1.2, <3
+pandas>=1.2, <2.1
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
 # <12 to prevent bugs due to major upgrading

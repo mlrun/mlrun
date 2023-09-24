@@ -445,7 +445,7 @@ def run(
 @click.option("--archive", "-a", default="", help="destination archive for code (tar)")
 @click.option("--silent", is_flag=True, help="do not show build logs")
 @click.option("--with-mlrun", is_flag=True, help="add MLRun package")
-@click.option("--db", default="", help="save run results to path or DB url")
+@click.option("--db", default="", help="save run results to DB url")
 @click.option(
     "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
 )
@@ -917,7 +917,9 @@ def version():
 
 @main.command()
 @click.argument("uid", type=str)
-@click.option("--project", "-p", help="project name")
+@click.option(
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+)
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
 @click.option("--watch", "-w", is_flag=True, help="watch/follow log")

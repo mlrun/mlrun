@@ -16,7 +16,7 @@
 
 set -e
 
-if [ ! -v  MLRUN_MIGRATION_MESSAGE ]; then
+if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
 	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
 	exit 1
 fi

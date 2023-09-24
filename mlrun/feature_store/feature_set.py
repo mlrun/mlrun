@@ -708,7 +708,6 @@ class FeatureSet(ModelObj):
         step_name=None,
         after=None,
         before=None,
-        state_name=None,
         emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
@@ -745,7 +744,6 @@ class FeatureSet(ModelObj):
         :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
-        :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         :param emit_policy: optional, which emit policy to use when performing the aggregations. Use the derived
@@ -758,14 +756,6 @@ class FeatureSet(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid parameters provided - operations must be a list."
             )
-        if state_name:
-            warnings.warn(
-                "The 'state_name' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use 'step_name' instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            step_name = step_name or state_name
 
         name = name or column
 

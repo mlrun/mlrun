@@ -563,6 +563,7 @@ class Notification(ModelObj):
         params=None,
         status=None,
         sent_time=None,
+        reason=None,
     ):
         self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
         self.name = name or ""
@@ -576,6 +577,7 @@ class Notification(ModelObj):
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+        self.reason = reason
 
         self.validate_notification()
 
@@ -1454,12 +1456,23 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+    def __init__(
+        self,
+        name="",
+        doc="",
+        parameters=None,
+        outputs=None,
+        lineno=-1,
+        has_varargs=None,
+        has_kwargs=None,
+    ):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
         self.outputs = [] if outputs is None else outputs
         self.lineno = lineno
+        self.has_varargs = has_varargs
+        self.has_kwargs = has_kwargs
 
 
 def new_task(
@@ -1627,7 +1640,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,

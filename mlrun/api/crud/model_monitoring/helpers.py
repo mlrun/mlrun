@@ -112,7 +112,9 @@ def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
 
 
 def get_monitoring_parquet_path(
-    db_session: sqlalchemy.orm.Session, project: str
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
@@ -121,6 +123,7 @@ def get_monitoring_parquet_path(
     :param db_session: A session that manages the current dialog with the database. Will be used in this function
                        to get the project record from DB.
     :param project:    Project name.
+    :param kind:       indicate the kind of the parquet path, can be either stream_parquet or stream_controller_parquet
 
     :return:           Monitoring parquet target path.
     """
@@ -133,27 +136,37 @@ def get_monitoring_parquet_path(
     # Generate monitoring parquet path value
     parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
-        kind=mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+        kind=kind,
         target="offline",
         artifact_path=artifact_path,
     )
     return parquet_path
 
 
-def get_stream_path(project: str = None):
-    """Get stream path from the project secret. If wasn't set, take it from the system configurations"""
+def get_stream_path(project: str = None, application_name: str = None):
+    """
+    Get stream path from the project secret. If wasn't set, take it from the system configurations
+
+    :param project:             Project name.
+    :param application_name:    Application name, None for model_monitoring_stream.
+
+    :return:                    Monitoring stream path to the relevant application.
+    """
 
     stream_uri = mlrun.api.crud.secrets.Secrets().get_project_secret(
         project=project,
         provider=mlrun.common.schemas.secret.SecretProviderName.kubernetes,
         allow_secrets_from_k8s=True,
-        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH,
+        secret_key=mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PATH
+        if application_name is None
+        else "",
     ) or mlrun.mlconf.get_model_monitoring_file_target_path(
         project=project,
         kind=mlrun.common.schemas.model_monitoring.FileTargetKind.STREAM,
         target="online",
+        application_name=application_name,
     )
 
     return mlrun.common.model_monitoring.helpers.parse_monitoring_stream_path(
-        stream_uri=stream_uri, project=project
+        stream_uri=stream_uri, project=project, application_name=application_name
     )

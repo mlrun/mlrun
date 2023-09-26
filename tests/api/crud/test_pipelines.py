@@ -14,7 +14,6 @@
 #
 import json
 
-import mlrun.api.crud
 import mlrun.errors
 import mlrun.kfpops
 import mlrun.run

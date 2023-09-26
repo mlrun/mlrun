@@ -16,15 +16,16 @@ import http
 import unittest.mock
 
 import fastapi.testclient
+import initial_data
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.initial_data
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.db.alembic
-import mlrun.api.utils.db.backup
-import mlrun.api.utils.db.sqlite_migration
 import mlrun.common.schemas
+import server.api.initial_data
+import server.api.utils.auth.verifier
+import server.api.utils.db.alembic
+import server.api.utils.db.backup
+import server.api.utils.db.sqlite_migration
 
 
 def test_offline_state(
@@ -84,33 +85,33 @@ def test_api_states(
 def test_init_data_migration_required_recognition(monkeypatch) -> None:
     sqlite_migration_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        mlrun.api.utils.db.sqlite_migration,
+        server.api.utils.db.sqlite_migration,
         "SQLiteMigrationUtil",
         sqlite_migration_util_mock,
     )
     alembic_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(mlrun.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
+    monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        mlrun.api.initial_data, "_is_latest_data_version", is_latest_data_version_mock
+        initial_data, "_is_latest_data_version", is_latest_data_version_mock
     )
     db_backup_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(mlrun.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
+    monkeypatch.setattr(server.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
     perform_schema_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        mlrun.api.initial_data,
+        initial_data,
         "_perform_schema_migrations",
         perform_schema_migrations_mock,
     )
     perform_database_migration_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        mlrun.api.initial_data,
+        initial_data,
         "_perform_database_migration",
         perform_database_migration_mock,
     )
     perform_data_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        mlrun.api.initial_data, "_perform_data_migrations", perform_data_migrations_mock
+        initial_data, "_perform_data_migrations", perform_data_migrations_mock
     )
 
     for case in [
@@ -196,7 +197,7 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         is_latest_data_version_mock.return_value = not case.get("data_migration", False)
 
         mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
-        mlrun.api.initial_data.init_data()
+        initial_data.init_data()
         failure_message = f"Failed in case: {case}"
         assert (
             mlrun.mlconf.httpdb.state

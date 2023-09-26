@@ -21,12 +21,11 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import aiohttp
+import api.utils
+import constants
 import pytest
 import tabulate
 
-import mlrun.api.api.utils
-import mlrun.api.constants
-import mlrun.api.crud
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
 
@@ -482,9 +481,7 @@ def test_notification_params_masking_on_run(monkeypatch):
         "metadata": {"uid": run_uid, "project": "test-project"},
         "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
-    mlrun.api.api.utils.mask_notification_params_on_task(
-        run, mlrun.api.constants.MaskOperations.CONCEAL
-    )
+    api.utils.mask_notification_params_on_task(run, constants.MaskOperations.CONCEAL)
     assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
     assert "secret" in run["spec"]["notifications"][0]["secret_params"]
     assert (
@@ -522,7 +519,7 @@ def test_notification_params_unmasking_on_run(monkeypatch):
         mlrun.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
     )
 
-    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+    unmasked_run = api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
     assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
@@ -532,7 +529,7 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     monkeypatch.setattr(
         mlrun.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
     )
-    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+    unmasked_run = api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
     assert len(unmasked_run.spec.notifications) == 0

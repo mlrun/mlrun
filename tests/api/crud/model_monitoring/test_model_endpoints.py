@@ -19,8 +19,8 @@ import pytest
 from sqlalchemy.orm import Session as DBSession
 
 import mlrun.common.schemas
-from mlrun.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 from mlrun.artifacts import ModelArtifact
+from server.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 
 
 @pytest.fixture

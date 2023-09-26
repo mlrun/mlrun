@@ -13,11 +13,11 @@
 # limitations under the License.
 #
 import pytest
+from db import Function
+from db.base import DBInterface
 from sqlalchemy.orm import Session
 
 import mlrun.errors
-from mlrun.api.db.base import DBInterface
-from mlrun.api.db.sqldb.models import Function
 
 
 def test_store_function_default_to_latest(db: DBInterface, db_session: Session):

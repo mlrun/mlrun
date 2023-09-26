@@ -20,9 +20,9 @@ import pydantic
 import pytest
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.testclient import TestClient
+from main import app
 from sqlalchemy.orm import Session
 
-from mlrun.api.main import app
 from mlrun.utils import logger
 
 

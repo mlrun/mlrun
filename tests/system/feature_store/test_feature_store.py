@@ -3303,7 +3303,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # change alias
         request_url = (
-            f"{mlrun.mlconf.iguazio_api_url}/mlrun/api/v1/projects/{self.project_name}/"
+            f"{mlrun.mlconf.iguazio_api_url}/server/api/v1/projects/{self.project_name}/"
             f"feature-vectors/{vector_name}/references/latest"
         )
         request_body = {

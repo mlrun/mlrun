@@ -21,7 +21,6 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.errors
 import tests.api.conftest

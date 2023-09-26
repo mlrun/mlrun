@@ -18,6 +18,7 @@ import deprecated
 import pytest
 
 import mlrun
+import server.api.api.utils
 
 
 def test_deprecated_decorator_warning_is_shown():
@@ -75,12 +76,11 @@ def test_deprecation_helper():
     This test validates that the deprecation warning is shown when using a deprecated class, and that the
     object is created from the new class.
     """
-    import mlrun.api.schemas
     import mlrun.common.schemas
 
     with warnings.catch_warnings(record=True) as w:
         # create an object using the deprecated class
-        obj = mlrun.api.schemas.ObjectMetadata(name="name", project="project")
+        obj = mlrun.common.schemas.ObjectMetadata(name="name", project="project")
 
         # validate that the object is created from the new class
         assert type(obj) == mlrun.common.schemas.ObjectMetadata
@@ -100,15 +100,13 @@ def test_deprecated_schema_as_argument():
     function. And that the function still works, and the schema is converted to the new schema.
     The test uses the get_secrets function as an example.
     """
-    import mlrun.api.api.utils
-    import mlrun.api.schemas
     import mlrun.common.schemas
 
     data_session = "some-data-session"
 
     with warnings.catch_warnings(record=True) as w:
-        secrets = mlrun.api.api.utils.get_secrets(
-            auth_info=mlrun.api.schemas.AuthInfo(data_session=data_session),
+        secrets = server.api.api.utils.get_secrets(
+            auth_info=mlrun.common.schemas.AuthInfo(data_session=data_session),
         )
 
         assert "V3IO_ACCESS_KEY" in secrets

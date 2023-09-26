@@ -19,15 +19,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.common.schemas
+import server.api.crud
 import tests.conftest
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import now_date
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -278,9 +278,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 # using freeze enables us to set the now attribute when calling the sub-function
                 # _update_run_updated_time without the need to call the function directly
                 original_update_run_updated_time = (
-                    mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
+                    server.api.utils.singletons.db.get_db()._update_run_updated_time
                 )
-                mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                server.api.utils.singletons.db.get_db()._update_run_updated_time = (
                     tests.conftest.freeze(
                         original_update_run_updated_time,
                         now=now_date()
@@ -292,7 +292,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 mlrun.api.crud.Runs().store_run(
                     db, self.run, self.run_uid, project=self.project
                 )
-                mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+                server.api.utils.singletons.db.get_db()._update_run_updated_time = (
                     original_update_run_updated_time
                 )
                 # Mocking pod that is still in non-terminal state
@@ -423,7 +423,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
         log = self._mock_read_namespaced_pod_log()
         self.run["status"]["state"] = RunStates.completed
-        mlrun.api.crud.Runs().store_run(
+        server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
         expected_monitor_cycles_to_reach_expected_state = (
@@ -453,15 +453,15 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
         original_update_run_updated_time = (
-            mlrun.api.utils.singletons.db.get_db()._update_run_updated_time
+            server.api.utils.singletons.db.get_db()._update_run_updated_time
         )
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(original_update_run_updated_time, now=now_date())
         )
-        mlrun.api.crud.Runs().store_run(
+        server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 
@@ -478,16 +478,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # Mocking that update occurred before debounced period
         debounce_period = config.runs_monitoring_interval
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(
                 original_update_run_updated_time,
                 now=now_date() - timedelta(seconds=float(2 * debounce_period)),
             )
         )
-        mlrun.api.crud.Runs().store_run(
+        server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
-        mlrun.api.utils.singletons.db.get_db()._update_run_updated_time = (
+        server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             original_update_run_updated_time
         )
 

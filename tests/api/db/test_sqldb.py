@@ -18,12 +18,11 @@ from unittest import mock
 
 import deepdiff
 import pytest
+from db import SQLDB, Artifact
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.db.sqldb.models import Artifact
 from mlrun.lists import ArtifactList
 from tests.conftest import new_run
 

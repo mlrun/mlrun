@@ -780,7 +780,7 @@ class Spark3Runtime(AbstractSparkRuntime):
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )
-        
+
     def with_cores(self, executor_cores: int = None, driver_cores: int = None):
         """
         Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers

@@ -133,9 +133,7 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(
-        mlrun.feature_store.get_feature_vector(vector.uri), run, with_indexes
-    )
+    return RemoteVectorResponse(vector, run, with_indexes)
 
 
 class RemoteVectorResponse:
@@ -163,6 +161,7 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
+        self._is_ready()
         if not columns:
             columns = list(self.vector.status.features.keys())
             if self.with_indexes:

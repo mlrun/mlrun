@@ -12,7 +12,7 @@
 
 ## v1.4.1 (8 August 2023)
 
-###  Closed issues
+### Closed issues
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-4303 | Archive out-of-sync leader projects. |
@@ -22,13 +22,19 @@
 
 ### New and updated features
 
-####  Functions
+#### Functions
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3474 | New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type. See {ref}`packagers`, and [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
+| ML-3474 | New sub-package in MLRun for packing returning outputs, logging them to MLRun and unpacking inputs, parsing data items to their required type. [View in Git](https://github.com/mlrun/mlrun/pull/3333). |
 
 
-####  Projects
+#### Notifications
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-21 | Supports job notifications. See full details in {ref}`notifications`, and [View in Git](https://github.com/mlrun/mlrun/pull/2414). |
+
+
+#### Projects
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
@@ -37,10 +43,10 @@
 
 
 
-####  Serving
+#### Serving
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3654 | The `error_handler` was updated. See {ref}`pipelines-error-handling`. |
+| ML-3654 | Updates to `error_handler`: Exceptions are applied to either a graph or a step. In the case of a graph, the graph stops upon an error. In the case of a step, the graph can either stop or complete upon an error. See {ref}`pipelines-error-handling`. [View in Git](https://github.com/mlrun/mlrun/pull/3390). |
 
 #### UI 
 
@@ -54,7 +60,7 @@
 | ML-2922 | The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.  |
 
 
-####  Documentation
+#### Documentation
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3548 | Passing parameters between steps using the `outputs` parameter is now described in [Write a pipeline](../projects/build-run-workflows-pipelines.html#write-a-pipeline). |
@@ -63,7 +69,6 @@
 
 #### New documentation pages
 - {ref}`git-repo-as-hub`
-- {ref}`notifications`
 - {ref}`ci-cd-automate`
 
 
@@ -158,7 +163,7 @@ See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations
 | ML-3819 | Reduce overly-verbose logs on the backend side. [View in Git](https://github.com/mlrun/mlrun/pull/3531). [View in Git](https://github.com/mlrun/mlrun/pull/3553).  |
 | ML-3823 | Optimized `/projects` endpoint to work faster. [View in Git](https://github.com/mlrun/mlrun/pull/3560). |
 
-###  Documentation
+### Documentation
 New sections describing [Git best practices](../projects/git-best-practices.html) and an example [Nuclio function](../concepts/nuclio-real-time-functions.html#example-of-nuclio-function).
 
 ## v1.3.0 (22 March 2023)
@@ -260,7 +265,7 @@ conda activate python39
 | ML-3104 | These APIs now only return reasons in kwargs: `log_and_raise`, `generic_error_handler`, `http_status_error_handler`. |
 | ML-3204 | New API `set_image_pull_configuration` that modifies `func.spec.image_pull_secret` and `func.spec.image_pull_policy`, instead of directly accessing these values through the spec. |
  
-####  Documentation
+#### Documentation
 
 Improvements to [Set up your environment](../install/remote.html).
 

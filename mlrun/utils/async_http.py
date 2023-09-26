@@ -205,7 +205,13 @@ class _CustomRequestContext(_RequestContext):
                 # if the response is not retryable, return now.
                 # this is done to prevent the retry logic from running on non-idempotent methods such as POST.
                 not_retryable_method = not self._is_method_retryable(params.method)
-                if exhausted_attempts or not_retryable_method:
+                is_connection_error = isinstance(
+                    exc.__cause__, ConnectionRefusedError
+                ) and "[Errno 111] Connect call failed" in str(exc)
+
+                # while method might be blacklisted, we still want to retry on connection errors
+                avoid_retry_on_method = not_retryable_method and not is_connection_error
+                if exhausted_attempts or avoid_retry_on_method:
                     if response:
                         self._response = response
                         return response

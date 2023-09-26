@@ -568,12 +568,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # validate monitoring feature set features and target
         m_fs = fs_list[0]
-        assert list(m_fs.spec.features.keys()) == [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        assert list(m_fs.spec.features.keys()) == columns + ["label"]
         assert m_fs.status.to_dict()["targets"][0]["kind"] == "parquet"
 
         # checking that stream processing and batch monitoring were successfully deployed

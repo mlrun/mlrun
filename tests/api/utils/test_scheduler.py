@@ -34,6 +34,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.launcher.factory
 import tests.api.conftest
 from mlrun.api.utils.scheduler import Scheduler
 from mlrun.api.utils.singletons.db import get_db
@@ -47,6 +48,11 @@ async def scheduler(db: Session) -> typing.Generator:
     logger.info("Creating scheduler")
     config.httpdb.scheduling.min_allowed_interval = "0"
     config.httpdb.jobs.allow_local_run = True
+
+    # The scheduler tests are subject to running local functions.
+    # Since running local functions is not supported in the API, we need to run as client.
+    mlrun.config._is_running_as_api = False
+
     scheduler = Scheduler()
     await scheduler.start(db)
     mlrun.api.utils.singletons.project_member.initialize_project_member()

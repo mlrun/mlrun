@@ -11,72 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os.path
 import typing
-from copy import deepcopy
 
 from kubernetes import client
-from kubernetes.client.rest import ApiException
 
 import mlrun.db
 import mlrun.errors
 import mlrun.utils.regex
 from mlrun.config import config
-from mlrun.errors import err_to_str
 
 from ...execution import MLClientCtx
 from ...model import RunObject
 from ...platforms.iguazio import mount_v3io, mount_v3iod
-from ...utils import (
-    get_in,
-    logger,
-    update_in,
-    verify_and_update_in,
-    verify_field_regex,
-    verify_list_and_update_in,
-)
-from ..base import RunError
+from ...utils import update_in
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec
-from ..utils import get_item_name, get_k8s
+from ..utils import get_item_name
 
 _service_account = "sparkapp"
-_sparkjob_template = {
-    "apiVersion": "sparkoperator.k8s.io/v1beta2",
-    "kind": "SparkApplication",
-    "metadata": {"name": "", "namespace": "default-tenant"},
-    "spec": {
-        "mode": "cluster",
-        "image": "",
-        "mainApplicationFile": "",
-        "sparkVersion": "3.1.2",
-        "restartPolicy": {
-            "type": "OnFailure",
-            "onFailureRetries": 0,
-            "onFailureRetryInterval": 10,
-            "onSubmissionFailureRetries": 3,
-            "onSubmissionFailureRetryInterval": 20,
-        },
-        "deps": {},
-        "volumes": [],
-        "driver": {
-            "cores": 1,
-            "coreLimit": "1200m",
-            "memory": "512m",
-            "labels": {},
-            "volumeMounts": [],
-            "env": [],
-        },
-        "executor": {
-            "cores": 0,
-            "instances": 0,
-            "memory": "",
-            "labels": {},
-            "volumeMounts": [],
-            "env": [],
-        },
-    },
-}
 
 
 allowed_types = ["Python", "Scala", "Java", "R"]
@@ -219,6 +171,9 @@ class AbstractSparkRuntime(KubejobRuntime):
     code_script = "spark-function-code.py"
     code_path = "/etc/config/mlrun"
 
+    def _get_igz_deps(self):
+        raise NotImplementedError()
+
     @classmethod
     def _get_default_deployed_mlrun_image_name(cls, with_gpu=False):
         suffix = cls.gpu_suffix if with_gpu else ""
@@ -313,51 +268,6 @@ class AbstractSparkRuntime(KubejobRuntime):
         gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
         return gpu_type[0] if gpu_type else None, gpu_quantity
 
-    def _validate(self, runobj: RunObject):
-        # validating correctness of sparkjob's function name
-        try:
-            verify_field_regex(
-                "run.metadata.name",
-                runobj.metadata.name,
-                mlrun.utils.regex.sparkjob_name,
-            )
-
-        except mlrun.errors.MLRunInvalidArgumentError as err:
-            pattern_error = str(err).split(" ")[-1]
-            if pattern_error == mlrun.utils.regex.sprakjob_length:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Job name '{runobj.metadata.name}' is not valid."
-                    f" The job name must be not longer than 29 characters"
-                )
-            elif pattern_error in mlrun.utils.regex.label_value:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "a valid label must be an empty string or consist of alphanumeric characters,"
-                    " '-', '_' or '.', and must start and end with an alphanumeric character"
-                )
-            elif pattern_error in mlrun.utils.regex.sparkjob_service_name:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "a valid label must consist of lower case alphanumeric characters or '-', start with "
-                    "an alphabetic character, and end with an alphanumeric character"
-                )
-            else:
-                raise err
-
-        # validating existence of required fields
-        if "requests" not in self.spec.executor_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Sparkjob must contain executor requests"
-            )
-        if "requests" not in self.spec.driver_resources:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Sparkjob must contain driver requests"
-            )
-
-    def _get_spark_version(self):
-        raise NotImplementedError()
-
-    def _get_igz_deps(self):
-        raise NotImplementedError()
-
     def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
         if self.spec.build.source and self.spec.build.load_source_on_run:
             raise mlrun.errors.MLRunPreconditionFailedError(
@@ -366,319 +276,6 @@ class AbstractSparkRuntime(KubejobRuntime):
             )
 
         super()._pre_run(runobj, execution)
-
-    @staticmethod
-    def _parse_cpu_resource_string(cpu):
-        if isinstance(cpu, str) and cpu.endswith("m"):
-            return float(cpu[:-1]) / 1000
-        else:
-            return float(cpu)
-
-    def _run(self, runobj: RunObject, execution: MLClientCtx):
-        self._validate(runobj)
-
-        if runobj.metadata.iteration:
-            self.store_run(runobj)
-        job = deepcopy(_sparkjob_template)
-        meta = self._get_meta(runobj, True)
-        pod_labels = deepcopy(meta.labels)
-        pod_labels["mlrun/job"] = meta.name
-        job_type = self.spec.job_type or "Python"
-        update_in(job, "spec.type", job_type)
-        if self.spec.job_type == "Python":
-            update_in(job, "spec.pythonVersion", self.spec.python_version or "3")
-        if self.spec.main_class:
-            update_in(job, "spec.mainClass", self.spec.main_class)
-        update_in(
-            job,
-            "spec.sparkVersion",
-            self.spec.spark_version or self._get_spark_version(),
-        )
-
-        if self.spec.image_pull_policy:
-            verify_and_update_in(
-                job, "spec.imagePullPolicy", self.spec.image_pull_policy, str
-            )
-
-        if self.spec.restart_policy:
-            verify_and_update_in(
-                job, "spec.restartPolicy.type", self.spec.restart_policy["type"], str
-            )
-            verify_and_update_in(
-                job,
-                "spec.restartPolicy.onFailureRetries",
-                self.spec.restart_policy["retries"],
-                int,
-            )
-            verify_and_update_in(
-                job,
-                "spec.restartPolicy.onFailureRetryInterval",
-                self.spec.restart_policy["retry_interval"],
-                int,
-            )
-            verify_and_update_in(
-                job,
-                "spec.restartPolicy.onSubmissionFailureRetries",
-                self.spec.restart_policy["submission_retries"],
-                int,
-            )
-            verify_and_update_in(
-                job,
-                "spec.restartPolicy.onSubmissionFailureRetryInterval",
-                self.spec.restart_policy["submission_retry_interval"],
-                int,
-            )
-
-        update_in(job, "metadata", meta.to_dict())
-        update_in(job, "spec.driver.labels", pod_labels)
-        update_in(job, "spec.executor.labels", pod_labels)
-        verify_and_update_in(
-            job,
-            "spec.executor.instances",
-            self.spec.replicas or 1,
-            int,
-        )
-        if self.spec.image_pull_secret:
-            update_in(job, "spec.imagePullSecrets", [self.spec.image_pull_secret])
-
-        if self.spec.node_selector:
-            update_in(job, "spec.nodeSelector", self.spec.node_selector)
-
-        if not self.spec.image:
-            if self.spec.use_default_image:
-                self.spec.image = self._get_default_deployed_mlrun_image_name(
-                    self._is_using_gpu()
-                )
-            elif self._default_image:
-                self.spec.image = self._default_image
-
-        update_in(
-            job,
-            "spec.image",
-            self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version"),
-                client_python_version=runobj.metadata.labels.get(
-                    "mlrun/client_python_version"
-                ),
-            ),
-        )
-
-        update_in(job, "spec.volumes", self.spec.volumes)
-
-        self._add_secrets_to_spec_before_running(runobj)
-
-        command, args, extra_env = self._get_cmd_args(runobj)
-        code = None
-        if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
-            code = f"""
-import mlrun.__main__ as ml
-ctx = ml.main.make_context('main', {args})
-with ctx:
-    result = ml.main.invoke(ctx)
-"""
-
-        update_in(job, "spec.driver.env", extra_env + self.spec.env)
-        update_in(job, "spec.executor.env", extra_env + self.spec.env)
-        update_in(job, "spec.driver.volumeMounts", self.spec.volume_mounts)
-        update_in(job, "spec.executor.volumeMounts", self.spec.volume_mounts)
-        update_in(job, "spec.deps", self.spec.deps)
-
-        if self.spec.spark_conf:
-            job["spec"]["sparkConf"] = {}
-            for k, v in self.spec.spark_conf.items():
-                job["spec"]["sparkConf"][f"{k}"] = f"{v}"
-
-        if self.spec.hadoop_conf:
-            job["spec"]["hadoopConf"] = {}
-            for k, v in self.spec.hadoop_conf.items():
-                job["spec"]["hadoopConf"][f"{k}"] = f"{v}"
-
-        executor_cpu_limit = None
-        if "limits" in self.spec.executor_resources:
-            if "cpu" in self.spec.executor_resources["limits"]:
-                executor_cpu_limit = self.spec.executor_resources["limits"]["cpu"]
-                verify_and_update_in(
-                    job,
-                    "spec.executor.coreLimit",
-                    executor_cpu_limit,
-                    str,
-                )
-        if "requests" in self.spec.executor_resources:
-            verify_and_update_in(
-                job,
-                "spec.executor.cores",
-                1,  # Must be set due to CRD validations. Will be overridden by coreRequest
-                int,
-            )
-            if "cpu" in self.spec.executor_resources["requests"]:
-                if executor_cpu_limit is not None:
-                    executor_cpu_request = self.spec.executor_resources["requests"][
-                        "cpu"
-                    ]
-                    if self._parse_cpu_resource_string(
-                        executor_cpu_request
-                    ) > self._parse_cpu_resource_string(executor_cpu_limit):
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Executor CPU request ({executor_cpu_request}) is higher than limit "
-                            f"({executor_cpu_limit})"
-                        )
-                verify_and_update_in(
-                    job,
-                    "spec.executor.coreRequest",
-                    str(
-                        self.spec.executor_resources["requests"]["cpu"]
-                    ),  # Backwards compatibility
-                    str,
-                )
-            if "memory" in self.spec.executor_resources["requests"]:
-                verify_and_update_in(
-                    job,
-                    "spec.executor.memory",
-                    self.spec.executor_resources["requests"]["memory"],
-                    str,
-                )
-            gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.executor_resources["limits"]
-            )
-            if gpu_type:
-                update_in(job, "spec.executor.gpu.name", gpu_type)
-                if gpu_quantity:
-                    verify_and_update_in(
-                        job,
-                        "spec.executor.gpu.quantity",
-                        gpu_quantity,
-                        int,
-                    )
-        driver_cpu_limit = None
-        if "limits" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["limits"]:
-                driver_cpu_limit = self.spec.driver_resources["limits"]["cpu"]
-                verify_and_update_in(
-                    job,
-                    "spec.driver.coreLimit",
-                    self.spec.driver_resources["limits"]["cpu"],
-                    str,
-                )
-        if "requests" in self.spec.driver_resources:
-            if "cpu" in self.spec.driver_resources["requests"]:
-                if driver_cpu_limit is not None:
-                    driver_cpu_request = self.spec.driver_resources["requests"]["cpu"]
-                    if self._parse_cpu_resource_string(
-                        driver_cpu_request
-                    ) > self._parse_cpu_resource_string(driver_cpu_limit):
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"Driver CPU request ({driver_cpu_request}) is higher than limit "
-                            f"({driver_cpu_limit})"
-                        )
-                verify_and_update_in(
-                    job,
-                    "spec.driver.coreRequest",
-                    str(self.spec.driver_resources["requests"]["cpu"]),
-                    str,
-                )
-            if "memory" in self.spec.driver_resources["requests"]:
-                verify_and_update_in(
-                    job,
-                    "spec.driver.memory",
-                    self.spec.driver_resources["requests"]["memory"],
-                    str,
-                )
-            gpu_type, gpu_quantity = self._get_gpu_type_and_quantity(
-                resources=self.spec.driver_resources["limits"]
-            )
-            if gpu_type:
-                update_in(job, "spec.driver.gpu.name", gpu_type)
-                if gpu_quantity:
-                    verify_and_update_in(
-                        job,
-                        "spec.driver.gpu.quantity",
-                        gpu_quantity,
-                        int,
-                    )
-
-        self._enrich_job(job)
-
-        if self.spec.command:
-            if "://" not in self.spec.command:
-                workdir = self._resolve_workdir()
-                self.spec.command = "local://" + os.path.join(
-                    workdir or "",
-                    self.spec.command,
-                )
-            update_in(job, "spec.mainApplicationFile", self.spec.command)
-
-        verify_list_and_update_in(job, "spec.arguments", self.spec.args or [], str)
-        self._submit_spark_job(job, meta, code)
-
-        return None
-
-    def _enrich_job(self, job):
-        raise NotImplementedError()
-
-    def _submit_spark_job(
-        self,
-        job,
-        meta,
-        code=None,
-    ):
-        namespace = meta.namespace
-        k8s = get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        if code:
-            k8s_config_map = client.V1ConfigMap()
-            k8s_config_map.metadata = meta
-            k8s_config_map.metadata.name += "-script"
-            k8s_config_map.data = {self.code_script: code}
-            config_map = k8s.v1api.create_namespaced_config_map(
-                namespace, k8s_config_map
-            )
-            config_map_name = config_map.metadata.name
-
-            vol_src = client.V1ConfigMapVolumeSource(name=config_map_name)
-            volume_name = "script"
-            vol = client.V1Volume(name=volume_name, config_map=vol_src)
-            vol_mount = client.V1VolumeMount(
-                mount_path=self.code_path, name=volume_name
-            )
-            update_in(job, "spec.volumes", [vol], append=True)
-            update_in(job, "spec.driver.volumeMounts", [vol_mount], append=True)
-            update_in(job, "spec.executor.volumeMounts", [vol_mount], append=True)
-            update_in(
-                job,
-                "spec.mainApplicationFile",
-                f"local://{self.code_path}/{self.code_script}",
-            )
-
-        try:
-            resp = k8s.crdapi.create_namespaced_custom_object(
-                AbstractSparkRuntime.group,
-                AbstractSparkRuntime.version,
-                namespace=namespace,
-                plural=AbstractSparkRuntime.plural,
-                body=job,
-            )
-            name = get_in(resp, "metadata.name", "unknown")
-            logger.info(f"SparkJob {name} created")
-            return resp
-        except ApiException as exc:
-            crd = f"{AbstractSparkRuntime.group}/{AbstractSparkRuntime.version}/{AbstractSparkRuntime.plural}"
-            logger.error(f"Exception when creating SparkJob ({crd}): {err_to_str(exc)}")
-            raise RunError("Exception when creating SparkJob") from exc
-
-    def get_job(self, name, namespace=None):
-        k8s = get_k8s()
-        namespace = k8s.resolve_namespace(namespace)
-        try:
-            resp = k8s.crdapi.get_namespaced_custom_object(
-                AbstractSparkRuntime.group,
-                AbstractSparkRuntime.version,
-                namespace,
-                AbstractSparkRuntime.plural,
-                name,
-            )
-        except ApiException as exc:
-            print(f"Exception when reading SparkJob: {err_to_str(exc)}")
-        return resp
 
     def _update_igz_jars(self, deps):
         if not self.spec.deps:

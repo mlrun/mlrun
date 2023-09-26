@@ -1456,12 +1456,23 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+    def __init__(
+        self,
+        name="",
+        doc="",
+        parameters=None,
+        outputs=None,
+        lineno=-1,
+        has_varargs=None,
+        has_kwargs=None,
+    ):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
         self.outputs = [] if outputs is None else outputs
         self.lineno = lineno
+        self.has_varargs = has_varargs
+        self.has_kwargs = has_kwargs
 
 
 def new_task(

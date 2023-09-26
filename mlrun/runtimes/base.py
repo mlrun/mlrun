@@ -440,62 +440,6 @@ class BaseRuntime(ModelObj):
             )
             runspec.spec.function = self._function_uri(hash_key=hash_key)
 
-    def _get_cmd_args(self, runobj: RunObject):
-        extra_env = self._generate_runtime_env(runobj)
-        if self.spec.pythonpath:
-            extra_env["PYTHONPATH"] = self.spec.pythonpath
-        args = []
-        command = self.spec.command
-        code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
-        )
-
-        if runobj.spec.handler and self.spec.mode == "pass":
-            raise ValueError('cannot use "pass" mode with handler')
-
-        if code:
-            extra_env["MLRUN_EXEC_CODE"] = code
-
-        load_archive = self.spec.build.load_source_on_run and self.spec.build.source
-        need_mlrun = code or load_archive or self.spec.mode != "pass"
-
-        if need_mlrun:
-            args = ["run", "--name", runobj.metadata.name, "--from-env"]
-            if runobj.spec.handler:
-                args += ["--handler", runobj.spec.handler]
-            if self.spec.mode:
-                args += ["--mode", self.spec.mode]
-            if self.spec.build.origin_filename:
-                args += ["--origin-file", self.spec.build.origin_filename]
-
-            if load_archive:
-                if code:
-                    raise ValueError("cannot specify both code and source archive")
-                args += ["--source", self.spec.build.source]
-                if self.spec.workdir:
-                    # set the absolute/relative path to the cloned code
-                    args += ["--workdir", self.spec.workdir]
-
-            if command:
-                args += [command]
-
-            if self.spec.args:
-                if not command:
-                    # * is a placeholder for the url argument in the run CLI command,
-                    # where the code is passed in the `MLRUN_EXEC_CODE` meaning there is no "actual" file to execute
-                    # until the run command will create that file from the env param.
-                    args += ["*"]
-                args = args + self.spec.args
-
-            command = "mlrun"
-        else:
-            command = command.format(**runobj.spec.parameters)
-            if self.spec.args:
-                args = [arg.format(**runobj.spec.parameters) for arg in self.spec.args]
-
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
-        return command, args, extra_env
-
     def _pre_run(self, runspec: RunObject, execution):
         pass
 

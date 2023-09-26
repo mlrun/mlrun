@@ -19,13 +19,14 @@ import typing
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
+import mlrun
 import mlrun.api.runtime_handlers.mpijob
 import mlrun.common.schemas
 import mlrun.common.secrets
-import mlrun.config as mlconfig
 import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
+import mlrun.runtimes.pod
 from mlrun.utils import logger
 
 _k8s = None
@@ -52,8 +53,8 @@ class SecretTypes:
 
 class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
     def __init__(self, namespace=None, silent=False, log=True):
-        self.namespace = namespace or mlconfig.config.namespace
-        self.config_file = mlconfig.config.kubernetes.kubeconfig_path or None
+        self.namespace = namespace or mlrun.mlconf.namespace
+        self.config_file = mlrun.mlconf.kubernetes.kubeconfig_path or None
         self.running_inside_kubernetes_cluster = False
         try:
             self._init_k8s_config(log)
@@ -283,13 +284,13 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         return service_account.secrets[0].name
 
     def get_project_secret_name(self, project) -> str:
-        return mlconfig.config.secret_stores.kubernetes.project_secret_name.format(
+        return mlrun.mlconf.secret_stores.kubernetes.project_secret_name.format(
             project=project
         )
 
     def resolve_auth_secret_name(self, access_key: str) -> str:
         hashed_access_key = self._hash_access_key(access_key)
-        return mlconfig.config.secret_stores.kubernetes.auth_secret_name.format(
+        return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
         )
 
@@ -688,3 +689,23 @@ class BasePod:
             spec=pod_spec,
         )
         return pod
+
+
+def kube_resource_spec_to_pod_spec(
+    kube_resource_spec: mlrun.runtimes.pod.KubeResourceSpec,
+    container: client.V1Container,
+):
+    return client.V1PodSpec(
+        containers=[container],
+        restart_policy="Never",
+        volumes=kube_resource_spec.volumes,
+        service_account=kube_resource_spec.service_account,
+        node_name=kube_resource_spec.node_name,
+        node_selector=kube_resource_spec.node_selector,
+        affinity=kube_resource_spec.affinity,
+        priority_class_name=kube_resource_spec.priority_class_name
+        if len(mlrun.mlconf.get_valid_function_priority_class_names())
+        else None,
+        tolerations=kube_resource_spec.tolerations,
+        security_context=kube_resource_spec.security_context,
+    )

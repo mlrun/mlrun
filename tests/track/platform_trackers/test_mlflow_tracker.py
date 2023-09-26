@@ -16,7 +16,6 @@ import tempfile
 from random import randint, random
 
 import lightgbm as lgb
-import matplotlib as mpl
 import mlflow
 import mlflow.environment_variables
 import mlflow.xgboost
@@ -29,12 +28,9 @@ from sklearn.model_selection import train_test_split
 import mlrun
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
-mpl.use("Agg")
-
 
 # simple general mlflow example of hand logging
-def simple_run(context):
-    mlflow.set_tracking_uri(context.artifact_path)
+def simple_run():
     with mlflow.start_run():
         # Log some random params and metrics
         mlflow.log_param("param1", randint(0, 100))
@@ -48,8 +44,8 @@ def simple_run(context):
                 mlflow.log_artifacts(test_dir)
 
 
-def lgb_run(context):
-    mlflow.set_tracking_uri(context.artifact_path)
+# simple mlflow example of lgb logging
+def lgb_run():
     # prepare train and test data
     iris = datasets.load_iris()
     X = iris.data
@@ -92,8 +88,8 @@ def lgb_run(context):
         mlflow.log_metrics({"log_loss": loss, "accuracy": acc})
 
 
-def xgb_run(context):
-    mlflow.set_tracking_uri(context.artifact_path)
+# simple mlflow example of xgb logging
+def xgb_run():
     # prepare train and test data
     iris = datasets.load_iris()
     x = iris.data
@@ -131,6 +127,9 @@ def xgb_run(context):
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
 def test_is_enabled(rundb_mock, enable_tracking):
+    """
+    This is a small test to validate tracking enablement mechanisms
+    """
     # enable tracking in config for inspection
     mlrun.mlconf.external_platform_tracking.enabled = enable_tracking
     # see if mlflow is in scope
@@ -144,13 +143,16 @@ def test_is_enabled(rundb_mock, enable_tracking):
 
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
 def test_track_run(rundb_mock, handler):
+    """
+    This test is for tracking a run logged by mlflow into mlrun while it's running.
+    first activate the tracking option in mlconf, then we name the mlflow experiment,
+    then we run some code that is being logged by mlflow using mlrun,
+    and finally compare the mlrun we tracked with the original mlflow run using the validate func
+    """
     mlrun.mlconf.external_platform_tracking.enabled = True
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)
-
-        # in order to tell mlflow where to look for logged run for comparison
-        client = mlflow.MlflowClient()
 
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
@@ -165,17 +167,24 @@ def test_track_run(rundb_mock, handler):
         )
         # mlflow creates a dir to log the run, this makes it in the tmpdir we create
         trainer_run = func.run(
-            local=True, artifact_path=test_directory, handler=handler
+            local=True,
+            handler=handler,
+            artifact_path=test_directory,
         )
-        _validate_run(trainer_run, client)
+
+        _validate_run(run=trainer_run)
 
 
-def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
+def _validate_run(run: mlrun.run):
+    # in order to tell mlflow where to look for logged run for comparison
+    client = mlflow.MlflowClient()
+
     runs = []
     # returns a list of mlflow.entities.Experiment
     experiments = client.search_experiments()
     for experiment in experiments:
         runs.append(client.search_runs(experiment.experiment_id))
+
     # find the right run
     run_to_comp = None
     for run_list in runs:
@@ -184,6 +193,7 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
                 run_to_comp = mlflow_run
     if not run_to_comp:
         assert False, "Run not found, test failed"
+
     # check that values correspond
     for param in run_to_comp.data.params:
         assert run_to_comp.data.params[param] == run.spec.parameters[param]
@@ -192,4 +202,71 @@ def _validate_run(run: mlrun.run, client: mlflow.MlflowClient):
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
-    assert num_artifacts == len(run.status.artifacts)
+    assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"
+
+
+@pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
+def test_import_run(rundb_mock, handler):
+    """
+    This test is for importing a run logged by mlflow into mlrun.
+    first we run some code that's logged by mlflow, then we import it
+    to mlrun, and then we use the validate function to compare between original run and imported
+    """
+
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)
+
+        handler(test_directory)
+        mlrun.mlconf.artifact_path = test_directory + "/artifact"
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler.__name__}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+
+        mlflow_run = mlflow.last_active_run()
+        imported_run = MLFlowTracker.import_run(project=project,
+                                                pointer=mlflow_run.info.run_id,
+                                                function_name="import_run_test",
+                                                )
+
+        _validate_run(run=imported_run)
+
+
+@pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
+def test_import_model(rundb_mock, handler):
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)
+
+        handler(test_directory)
+        mlrun.mlconf.artifact_path = test_directory + "/artifact"
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler.__name__}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+
+        mlflow_run = mlflow.last_active_run()
+        imported_run = MLFlowTracker.import_run(project=project,
+                                                pointer=mlflow_run.info.run_id,
+                                                function_name="import_run_test")
+
+
+def test_import_artifact():
+    pass

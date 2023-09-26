@@ -16,7 +16,6 @@ as input to a machine learning model.
 - [Creating a feature vector](#creating-a-feature-vector)
 - [Using an offline feature vector](#using-an-offline-feature-vector)
 - [Using an online feature vector](#using-an-online-feature-vector)
-- [Creating and using a feature vector with different entities and complex joins](#creating-and-using-a-feature-vector-with-different-entities-and-complex-joins)
 
     
 ## Creating a feature vector
@@ -63,7 +62,7 @@ You can also view some metadata about the feature vector, including all the feat
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
-### Feature vector with different entities and complex joins
+### Feature vectors with different entities and complex joins
 
 ```{admonition} Note
 Tech Preview

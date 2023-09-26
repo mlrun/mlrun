@@ -99,35 +99,76 @@ class Pipelines(
 
         return total_size, next_page_token, runs
 
-    def delete_pipelines_runs(self, db_session: sqlalchemy.orm.Session, project: str):
+    def delete_pipelines_runs(
+        self, db_session: sqlalchemy.orm.Session, project_name: str
+    ):
         _, _, project_pipeline_runs = self.list_pipelines(
             db_session=db_session,
-            project=project,
-            format_=mlrun.common.schemas.PipelinesFormat.metadata_only,
+            project=project_name,
+            format_=mlrun.common.schemas.PipelinesFormat.full,
         )
         kfp_client = self.initialize_kfp_client()
 
         if project_pipeline_runs:
             logger.debug(
                 "Detected pipeline runs for project, deleting them",
-                project=project,
+                project_name=project_name,
                 pipeline_run_ids=[run["id"] for run in project_pipeline_runs],
             )
 
+        succeeded = 0
+        failed = 0
+        experiment_ids = set()
         for pipeline_run in project_pipeline_runs:
             try:
                 # delete pipeline run also terminates it if it is in progress
                 kfp_client._run_api.delete_run(pipeline_run["id"])
+                experiment_id = self._get_experiment_id_from_run(pipeline_run)
+                if experiment_id:
+                    experiment_ids.add(self._get_experiment_id_from_run(pipeline_run))
+                succeeded += 1
             except Exception as exc:
                 # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
                 # so it won't fail the delete project operation. we will log the error and continue
                 logger.warning(
                     "Failed to delete pipeline run",
-                    project=project,
+                    project_name=project_name,
                     pipeline_run_id=pipeline_run["id"],
                     exc_info=exc,
                 )
-        logger.debug("Finished deleting pipeline runs", project=project)
+                failed += 1
+        logger.debug(
+            "Finished deleting pipeline runs",
+            project_name=project_name,
+            succeeded=succeeded,
+            failed=failed,
+        )
+
+        succeeded = 0
+        failed = 0
+        for experiment_id in experiment_ids:
+            try:
+                logger.debug(
+                    f"Detected experiment for project {project_name} and deleting it",
+                    project_name=project_name,
+                    experiment_id=experiment_id,
+                )
+                kfp_client._experiment_api.delete_experiment(id=experiment_id)
+                succeeded += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning(
+                    "Failed to delete an experiment",
+                    project_name=project_name,
+                    experiment_id=experiment_id,
+                    exc_info=err_to_str(exc),
+                )
+        logger.debug(
+            "Finished deleting project experiments",
+            project_name=project_name,
+            succeeded=succeeded,
+            failed=failed,
+        )
 
     def get_pipeline(
         self,
@@ -371,3 +412,15 @@ class Pipelines(
                     raise NotImplementedError(f"Unknown action: {action}")
 
         return mlrun.mlconf.default_project
+
+    @staticmethod
+    def _get_experiment_id_from_run(run: dict) -> str:
+        for reference in run.get("resource_references", []):
+            data = reference.get("key", {})
+            if (
+                data.get("type", "") == "EXPERIMENT"
+                and reference.get("relationship", "") == "OWNER"
+                and reference.get("name", "") != "Default"
+            ):
+                return data.get("id", "")
+        return ""

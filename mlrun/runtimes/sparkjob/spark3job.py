@@ -770,17 +770,17 @@ class Spark3Runtime(AbstractSparkRuntime):
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
-        super().with_igz_spark(mount_v3io_to_executor)
         """
         Configures the pods (driver and executors) to have V3IO access (via file system and via Hadoop).
 
         :param mount_v3io_to_executor: Default=True. When False, limits the file system mount to driver pod only.
         """
+        super().with_igz_spark(mount_v3io_to_executor)
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
             )
-
+        
     def with_cores(self, executor_cores: int = None, driver_cores: int = None):
         """
         Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers

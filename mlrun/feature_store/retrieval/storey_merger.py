@@ -151,7 +151,6 @@ class StoreyFeatureMerger(BaseMerger):
         server = create_graph_server(graph=graph, parameters={})
 
         cache = ResourceCache()
-        all_fs_entities = []
         for featureset in feature_set_objects.values():
             driver = get_online_target(featureset)
             if not driver:

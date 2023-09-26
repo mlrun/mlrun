@@ -38,7 +38,7 @@
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3375 | Two new APIs in the MlrunProject object, used to build an image directly through project API, without creating a function and building an image for it: `build_config` configures the default build for a given project; `build_image` builds a docker image based on the project configuration. See {py:class}`~mlrun.projects.MlrunProject`, [Image build configuration](../projects/run-build-deploy.html#build_config), [build_image](../projects/run-build-deploy.html#build-image), and [View in Git](https://github.com/mlrun/mlrun/pull/3594). |
-| ML-4084 | New API to run a setup script to enrich a project, when loading the project , and [View in Git](https://github.com/mlrun/mlrun/pull/3809)|
+| ML-4084 | New API to run a setup script to enrich a project, when loading the project. [View in Git](https://github.com/mlrun/mlrun/pull/3809)|
 
 
 

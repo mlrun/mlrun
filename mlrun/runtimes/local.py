@@ -397,6 +397,7 @@ def run_exec(cmd, args, env=None, cwd=None):
 
     # if we return anything for err, the caller will assume that the process failed
     code = process.poll()
+    print(f"!!! run_exec return code: {code}")
     err = "" if code == 0 else err
 
     return out, err

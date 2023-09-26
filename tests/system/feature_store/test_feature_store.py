@@ -4109,7 +4109,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -4122,7 +4124,6 @@ class TestFeatureStore(TestMLRunSystem):
             data_set,
             source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
         expected_df = pd.DataFrame(

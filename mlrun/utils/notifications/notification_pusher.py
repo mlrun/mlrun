@@ -221,7 +221,7 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing sync notification",
-            notification=_sanitize_notification(notification_object),
+            notification=sanitize_notification(notification_object.to_dict()),
             run_uid=run.metadata.uid,
         )
         update_notification_status_kwargs = {
@@ -234,7 +234,7 @@ class NotificationPusher(object):
             notification.push(message, severity, runs)
             logger.debug(
                 "Notification sent successfully",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
             )
             update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
@@ -243,7 +243,7 @@ class NotificationPusher(object):
         except Exception as exc:
             logger.warning(
                 "Failed to send or update notification",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
                 traceback=traceback.format_exc(),
@@ -269,7 +269,7 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing async notification",
-            notification=_sanitize_notification(notification_object),
+            notification=sanitize_notification(notification_object.to_dict()),
             run_uid=run.metadata.uid,
         )
         update_notification_status_kwargs = {
@@ -282,7 +282,7 @@ class NotificationPusher(object):
             await notification.push(message, severity, runs)
             logger.debug(
                 "Notification sent successfully",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
             )
             update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
@@ -292,7 +292,7 @@ class NotificationPusher(object):
         except Exception as exc:
             logger.warning(
                 "Failed to send or update notification",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
                 traceback=traceback.format_exc(),
@@ -523,8 +523,7 @@ class CustomNotificationPusher(object):
         self.push(text, "info", runs=runs_list)
 
 
-def _sanitize_notification(notification: mlrun.model.Notification):
-    notification_dict = notification.to_dict()
+def sanitize_notification(notification_dict: dict):
     notification_dict.pop("secret_params", None)
     notification_dict.pop("message", None)
     notification_dict.pop("params", None)

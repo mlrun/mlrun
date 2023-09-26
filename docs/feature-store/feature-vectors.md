@@ -63,7 +63,46 @@ You can also view some metadata about the feature vector, including all the feat
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
-A more sophisticated feature vector is described in [Creating and using a feature vector with different entities and complex joins](#creating-and-using-a-feature-vector-with-different-entities-and-complex-joins).
+### Feature vector with different entities and complex joins
+
+```{admonition} Note
+Tech Preview
+```
+
+You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 
+types. The join types can differ for different feature set combinations. This configuration supports online and offline 
+feature vectors. 
+
+You can define relations within a feature set in two ways:
+- Explicitly defining relations within the feature set itself.
+- Specifying relations in the context of a feature vector by passing them through the `relations` parameter ({py:class}`~mlrun.feature_store.FeatureVector`). 
+    This is a dictionary specifying the relations between feature 
+    sets in the feature vector. The keys of the dictionary are feature set names, and the values are both dictionaries whose keys 
+    represent column names (of the feature set), and they represent the target entities to join with. The `relations` take
+    precedence over the relations that were specified on the feature sets themselves. If a specific feature set is not mentioned 
+    as a key in `relations`, the function falls back to using the default relations defined in the feature set.
+
+You can define a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`), which defines the join type. 
+You can use the graph to define complex joins and pass on the relations to the vector.  Currently, only one branch (DAG) is supported. 
+This means that operations involving brackets are not available.
+    
+When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
+implements the "as_of" join.
+
+   
+The `get_online_feature_service` function utilizes the same graph, but uses QueryByKey on the kv store: all join types in the graph turn 
+into left joins. Consequently, the function performs joins using the latest events for each required entity within each feature set.
+
+You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, and the starting place. 
+See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
+
+Example, assuming three feature sets: [fs1, fs2. fs3]:
+```
+join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
+vector = FeatureVector("myvector", features, 
+                        join_graph=join_graph, 
+                        relation={fs_1:{'col_1':'entity_2'}}) # the relation between fs1-> fs3 / fs2-> fs3 is already defined or they have                           the same entity 
+```
 
 ## Using an offline feature vector
 
@@ -266,45 +305,4 @@ frameworks and this eliminates additional glue logic.
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
 
-## Creating and using a feature vector with different entities and complex joins
-
-```{admonition} Note
-Tech Preview
-```
-
-You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 
-types. The join types can differ for different feature set combinations. This configuration supports online and offline 
-feature vectors. 
-
-You can define relations within a feature set in two ways:
-- Explicitly defining relations within the feature set itself.
-- Specifying relations in the context of a feature vector by passing them through the `relations` parameter ({py:class}`~mlrun.feature_store.FeatureVector`). This is a 
-    dictionary specifying the relations between feature 
-    sets in the feature vector. The keys of the dictionary are feature set names, and the values are both dictionaries whose keys 
-    represent column names (of the feature set), and they represent the target entities to join with. The `relations` take
-    precedence over the relations that were specified on the feature sets themselves. If a specific feature set is not mentioned 
-    as a key in `relations`, the function falls back to using the default relations defined in the feature set.
-
-You can define a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`), which defines the join type. You can use the graph to define complex joins and pass on the raltions to the vector.  Currently, only one branch (DAG) is supported. This means that operations involving brackets are not available.
-    
-
-
-When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The join type is the 
-only one that implements the "as_of" join.
-
-4. Get online : 
-    
-    
-The `get_online_feature_service` function utilizes the same graph, but uses QueryByKey on the kv store, all join types in the graph turn into inner joins. Consequently, the function performs joins using the latest events for each required entity within each feature set.
-
-You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, and the starting place. 
-See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
-
-Assuming three feature sets: [fs1, fs2. fs3]
-```
-join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
-vector = FeatureVector("myvector", features, 
-                        join_graph=join_graph, 
-                        relation={fs_1:{'col_1':'entity_2'}}) # the relation between fs1-> fs3 / fs2-> fs3 is already defined or they have                           the same entity 
-```
 

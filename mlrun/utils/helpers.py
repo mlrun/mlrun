@@ -35,7 +35,6 @@ import git
 import numpy as np
 import packaging.version
 import pandas
-import pandas as pd
 import semver
 import yaml
 from dateutil import parser
@@ -1523,7 +1522,7 @@ def line_terminator_kwargs():
     # pandas 1.5.0 renames line_terminator to lineterminator
     line_terminator_parameter = (
         "lineterminator"
-        if packaging.version.Version(pd.__version__)
+        if packaging.version.Version(pandas.__version__)
         >= packaging.version.Version("1.5.0")
         else "line_terminator"
     )

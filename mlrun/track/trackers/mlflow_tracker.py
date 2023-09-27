@@ -180,10 +180,7 @@ class MLFlowTracker(Tracker):
 
     @classmethod
     def import_artifact(
-        cls,
-        project: MlrunProject,
-        pointer: str,
-        key: str = None
+        cls, project: MlrunProject, pointer: str, key: str = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.

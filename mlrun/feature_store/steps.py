@@ -155,11 +155,14 @@ class FeaturesetValidator(StepToDict, MLRunStep):
 class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
+    _dict_fields = ["encoded_mapping", "with_original_features", "suffix", "kwargs"]
+
     def __init__(
         self,
-        mapping: Dict[str, Dict[Union[str, int, bool], Any]],
+        mapping: Dict[str, Dict[Union[str, int, bool], Any]] = {},
         with_original_features: bool = False,
         suffix: str = "mapped",
+        encoded_mapping: Dict[str, Dict[Union[str, int, bool], Any]] = {},
         **kwargs,
     ):
         """Map column values to new values
@@ -183,13 +186,27 @@ class MapValues(StepToDict, MLRunStep):
         super().__init__(**kwargs)
         # To preserve the original data types of keys,
         # because JSON serialization converts dictionary keys into strings.
-        self.encoded_mapping = JsonNonStringKeysEncoder.encode(mapping)
+        if encoded_mapping:
+            self.encoded_mapping = encoded_mapping
+            if mapping:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Mapvalues __init__ can not get both mapping and encoded_mapping attributes."
+                )
+        else:
+            if mapping:
+                self.encoded_mapping = JsonNonStringKeysEncoder.encode(mapping)
+            else:
+                mlrun.errors.MLRunInvalidArgumentError(
+                    "Mapvalues init must get one of the attributes mapping or encoded_mapping"
+                )
         self.with_original_features = with_original_features
         self.suffix = suffix
 
     @property
     def mapping(self):
-        print(f"mapping_mapping: {JsonNonStringKeysEncoder.decode(self.encoded_mapping)}")
+        print(
+            f"mapping_mapping: {JsonNonStringKeysEncoder.decode(self.encoded_mapping)}"
+        )
         return JsonNonStringKeysEncoder.decode(self.encoded_mapping)
 
     def _map_value(self, feature: str, value):
@@ -337,7 +354,8 @@ class MapValues(StepToDict, MLRunStep):
 
     @classmethod
     def validate_args(cls, feature_set, **kwargs):
-        mapping = kwargs.get("mapping", [])
+        encoded_mapping = kwargs.get("encoded_mapping", [])
+        mapping = JsonNonStringKeysEncoder.decode(encoded_mapping)
         for column, column_map in mapping.items():
             if not cls.get_ranges_key() in column_map:
                 types = set(

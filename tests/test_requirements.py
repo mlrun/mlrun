@@ -133,7 +133,6 @@ def test_requirement_specifiers_convention():
         "nbclassic": {">=0.2.8"},
         "pandas": {"~=1.2, <1.5.0"},
         "gitpython": {"~=3.1, >= 3.1.30"},
-        "orjson": {"~=3.3, <3.8.12"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},

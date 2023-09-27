@@ -29,9 +29,9 @@ import server.api.db.session
 import server.api.utils.events.events_factory as events_factory
 import server.api.utils.projects.remotes.follower as project_follower
 import server.api.utils.singletons.db
-import server.api.utils.singletons.k8s
 import server.api.utils.singletons.scheduler
 from mlrun.utils import logger
+from server.api.utils.singletons.k8s import get_k8s_helper
 
 
 class Projects(
@@ -133,8 +133,9 @@ class Projects(
         # an MLRun resource (such as model-endpoints) was already verified in previous checks. Therefore, any internal
         # secret existing here is something that the user needs to be notified about, as MLRun didn't generate it.
         # Therefore, this check should remain at the end of the verification flow.
-        if mlrun.mlconf.is_api_running_on_k8s() and server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
-            project
+        if (
+            mlrun.mlconf.is_api_running_on_k8s()
+            and get_k8s_helper().get_project_secret_keys(project)
         ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project} can not be deleted since related resources found: project secrets"
@@ -183,9 +184,7 @@ class Projects(
             (
                 secret_name,
                 action,
-            ) = server.api.utils.singletons.k8s.get_k8s_helper().delete_project_secrets(
-                name, secrets
-            )
+            ) = get_k8s_helper().delete_project_secrets(name, secrets)
             if action:
                 events_client = events_factory.EventsFactory().get_events_client()
                 events_client.emit(

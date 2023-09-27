@@ -15,6 +15,7 @@
 import copy
 import json
 import logging
+import pathlib
 
 import pytest
 import pytest_alembic.plugin.fixtures
@@ -27,6 +28,9 @@ log = logging.getLogger(__name__)
 
 
 class Constants:
+    ini_file_path = str(
+        pathlib.Path(__file__).absolute().parent.parent.parent / "alembic.ini"
+    )
     schedule_table = "schedules_v2"
     notifications_table = "runs_notifications"
 
@@ -46,6 +50,7 @@ class Constants:
 
 
 alembic_config = {
+    "file": Constants.ini_file_path,
     "before_revision_data": {
         Constants.schedule_id_revision: [
             {

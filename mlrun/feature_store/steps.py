@@ -354,6 +354,7 @@ class MapValues(StepToDict, MLRunStep):
 
     @classmethod
     def validate_args(cls, feature_set, **kwargs):
+        print(kwargs)
         encoded_mapping = kwargs.get("encoded_mapping", [])
         mapping = JsonNonStringKeysEncoder.decode(encoded_mapping)
         for column, column_map in mapping.items():

@@ -1520,7 +1520,7 @@ def is_explicit_ack_supported(context):
     ]
 
 
-class JsonNonStringFormat:
+class JsonNonStringKeysEncoder:
     key_type_prefix = "__mlrun__internal_key_type__"
     value_prefix = "__mlrun__internal_dict_value__"
 

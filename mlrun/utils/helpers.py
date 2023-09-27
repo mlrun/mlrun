@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from importlib import import_module
 from os import path
 from types import ModuleType
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import anyio
 import git
@@ -51,6 +51,8 @@ from mlrun.errors import err_to_str
 
 from ..config import config
 from .logger import create_logger
+
+LIST_TYPES = (list, tuple, set)
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
@@ -1515,3 +1517,116 @@ def is_explicit_ack_supported(context):
         "kafka-cluster",
         "kafka",
     ]
+
+
+class JsonNonStringKeysEncoder:
+    key_type_prefix = "__mlrun__internal_key_type__"
+    value_prefix = "__mlrun__internal_dict_value__"
+
+    @classmethod
+    def encode(cls, obj: Union[Dict, List, Any]):
+        if isinstance(obj, dict):
+            formatted_obj = cls._encode_as_dict(obj)
+        elif isinstance(obj, LIST_TYPES):
+            formatted_obj = cls._encode_as_list(decoded_list=obj)
+        else:
+            formatted_obj = obj
+        return json.dumps(formatted_obj)
+
+    @classmethod
+    def _encode_as_dict(cls, obj: dict):
+        result = {}
+        for key, value in obj.items():
+            if isinstance(value, dict):
+                encoded_value = cls._encode_as_dict(value)
+            elif isinstance(value, LIST_TYPES):
+                encoded_value = cls._encode_as_list(decoded_list=value)
+            else:
+                encoded_value = value
+            if not isinstance(key, str):
+                result[key] = {
+                    cls.key_type_prefix: type(key).__name__,
+                    cls.value_prefix: encoded_value,
+                }
+            else:
+                result[key] = encoded_value
+        return result
+
+    @classmethod
+    def _encode_as_list(cls, decoded_list: Union[LIST_TYPES]):
+        value_type = type(decoded_list)
+        result = []
+        for value in decoded_list:
+            if isinstance(value, LIST_TYPES):
+                result.append(cls._encode_as_list(decoded_list=value))
+            if isinstance(value, dict):
+                result.append(cls._encode_as_dict(obj=value))
+            else:
+                result.append(value)
+        return value_type(result)
+
+    @classmethod
+    def decode(cls, obj: Union[Dict, List, Any]):
+        if isinstance(obj, dict):
+            return cls._decode_dict(input_obj=obj)
+        elif isinstance(obj, LIST_TYPES):
+            return cls._decode_list(input_obj=obj)
+        else:
+            return obj
+
+    @classmethod
+    def _is_mlrun_custom_dict(cls, value):
+        if not isinstance(value, dict):
+            return False
+        if sorted(value.keys()) != sorted([cls.key_type_prefix, cls.value_prefix]):
+            return False
+        return True
+
+    @staticmethod
+    def _convert_key(key, key_type):
+        if not key_type:
+            return str(key)
+        if key_type == "bool":
+            return True if key.lower() == "true" else False
+        elif key_type == "int":
+            return int(key)
+        elif key_type == "float":
+            return float(key)
+        elif key_type == "str":
+            return str(key)
+        elif key_type == "NoneType":
+            return None
+
+    @classmethod
+    def _decode_dict(cls, input_obj: dict, **kwargs):
+        result = {}
+        for key, value in input_obj.items():
+            result_key = cls._convert_key(
+                key,
+                value.get("__mlrun__internal_key_type__", None)
+                if isinstance(value, dict)
+                else None,
+            )
+            if cls._is_mlrun_custom_dict(value):
+                result_value = value[cls.value_prefix]
+            else:
+                result_value = value
+            if isinstance(result_value, dict):
+                result_value = cls._decode_dict(result_value, **kwargs)
+            if isinstance(result_value, LIST_TYPES):
+                result_value = cls._decode_list(input_obj=result_value, **kwargs)
+            result[result_key] = result_value
+        return result
+
+    @classmethod
+    def _decode_list(cls, input_obj: Union[LIST_TYPES], **kwargs):
+        value_type = type(input_obj)
+        result = []
+        for index, value in enumerate(input_obj):
+            if isinstance(value, LIST_TYPES):
+                result.append(cls._decode_list(input_obj=value))
+            if isinstance(value, dict):
+                result.append(cls._decode_dict(input_obj=value, **kwargs))
+            else:
+                result.append(value)
+        return value_type(result)

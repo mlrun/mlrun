@@ -32,7 +32,7 @@ import pytest
 import pytz
 import requests
 from databricks.sdk import WorkspaceClient
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 from storey import MapClass
 
 import mlrun
@@ -697,7 +697,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
         actual_stat = actual_stat.sort_index().sort_index(axis=1)
-        assert isinstance(actual_stat["top"]["booly"], bool)
+        # From pandas 2.0, top of a boolean column is string ("True" or "False"), not boolean
+        assert str(actual_stat["top"]["booly"]) == "True"
 
     def test_ingest_to_default_path(self):
         key = "patient_id"
@@ -4142,7 +4143,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -4155,7 +4158,6 @@ class TestFeatureStore(TestMLRunSystem):
             data_set,
             source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
         expected_df = pd.DataFrame(

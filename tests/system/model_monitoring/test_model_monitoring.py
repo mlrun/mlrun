@@ -41,7 +41,6 @@ from tests.system.base import TestMLRunSystem
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
@@ -88,6 +87,16 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
         assert endpoint_before_update.status.state == "null"
+
+        # Check default drift thresholds
+        assert endpoint_before_update.spec.monitor_configuration == {
+            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
 
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
@@ -318,7 +327,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 
@@ -560,12 +568,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # validate monitoring feature set features and target
         m_fs = fs_list[0]
-        assert list(m_fs.spec.features.keys()) == [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        assert list(m_fs.spec.features.keys()) == columns + ["label"]
         assert m_fs.status.to_dict()["targets"][0]["kind"] == "parquet"
 
         # checking that stream processing and batch monitoring were successfully deployed
@@ -842,6 +845,18 @@ class TestBatchDrift(TestMLRunSystem):
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
+
+        # Validate that model_uri is based on models prefix
+        assert (
+            model_endpoint.spec.model_uri
+            == f"store://models/{project.metadata.name}/{model_name}:latest"
+        )
+
+        # Validate that function_uri is based on project and function name
+        assert (
+            model_endpoint.spec.function_uri
+            == f"{project.metadata.name}/batch-drift-function"
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

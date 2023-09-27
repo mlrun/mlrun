@@ -23,6 +23,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
+import requests
 import v3io
 import v3io.dataplane
 import v3io_frames
@@ -810,6 +811,9 @@ class BatchProcessor:
             )
 
             if not mlrun.mlconf.is_ce_mode():
+                # Generate V3IO KV schema if not exist
+                self._infer_kv_schema()
+
                 # Update drift results in TSDB
                 self._update_drift_in_v3io_tsdb(
                     endpoint_id=endpoint[
@@ -962,40 +966,73 @@ class BatchProcessor:
             )
         )
 
-        statistical_metrics = ["hellinger_mean", "tvd_mean", "kld_mean"]
-        metrics = []
-        for metric in statistical_metrics:
-            metrics.append(
-                {
-                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
-                    mlrun.common.schemas.model_monitoring.EventFieldType.METRIC: metric,
-                    mlrun.common.schemas.model_monitoring.EventFieldType.VALUE: drift_result[
-                        metric
-                    ],
-                }
-            )
-
         http_session = mlrun.utils.HTTPSessionWithRetry(
             retry_on_post=True,
             verbose=True,
+            max_retries=1,
+        )
+        try:
+            # Model monitoring stream http health check
+            http_session.request("GET", url=stream_http_path)
+
+            # Update statistical metrics
+            statistical_metrics = ["hellinger_mean", "tvd_mean", "kld_mean"]
+            metrics = []
+            for metric in statistical_metrics:
+                metrics.append(
+                    {
+                        mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+                        mlrun.common.schemas.model_monitoring.EventFieldType.METRIC: metric,
+                        mlrun.common.schemas.model_monitoring.EventFieldType.VALUE: drift_result[
+                            metric
+                        ],
+                    }
+                )
+
+            http_session.request(
+                method="POST",
+                url=stream_http_path + "/monitoring-batch-metrics",
+                data=json.dumps(metrics),
+            )
+
+            # Update drift status
+            drift_status_dict = {
+                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
+                mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
+            }
+
+            http_session.request(
+                method="POST",
+                url=stream_http_path + "/monitoring-drift-status",
+                data=json.dumps(drift_status_dict),
+            )
+
+        except requests.exceptions.ConnectionError as exc:
+            logger.warning(
+                "Can't push metrics to Prometheus registry."
+                "Monitoring stream pod is not found, probably not deployed. "
+                "To deploy, call set_tracking() on a serving function. exc: ",
+                exc=exc,
+            )
+
+    def _infer_kv_schema(self):
+        """
+        Create KV schema file if not exist. This schema is being used by the Grafana dashboards.
+        """
+
+        schema_file = self.db.client.kv.new_cursor(
+            container=self.db.container,
+            table_path=self.db.path,
+            filter_expression='__name==".#schema"',
         )
 
-        http_session.request(
-            method="POST",
-            url=stream_http_path + "/monitoring-batch-metrics",
-            data=json.dumps(metrics),
-        )
-
-        drift_status_dict = {
-            mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: endpoint_id,
-            mlrun.common.schemas.model_monitoring.EventFieldType.DRIFT_STATUS: drift_status.value,
-        }
-
-        http_session.request(
-            method="POST",
-            url=stream_http_path + "/monitoring-drift-status",
-            data=json.dumps(drift_status_dict),
-        )
+        if not schema_file.all():
+            logger.info(
+                "Generate a new V3IO KV schema file", kv_table_path=self.db.path
+            )
+            self.frames.execute(
+                backend="kv", table=self.db.path, command="infer_schema"
+            )
 
 
 def handler(context: mlrun.run.MLClientCtx):

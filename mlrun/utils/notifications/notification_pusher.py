@@ -42,8 +42,16 @@ class NotificationPusher(object):
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
         self._runs = runs
-        self._sync_notifications = []
-        self._async_notifications = []
+        self._sync_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
+        self._async_notifications: typing.List[
+            typing.Tuple[
+                NotificationBase, mlrun.model.RunObject, mlrun.model.Notification
+            ]
+        ] = []
 
         for run in self._runs:
             if isinstance(run, dict):
@@ -74,11 +82,17 @@ class NotificationPusher(object):
 
         def _sync_push():
             for notification_data in self._sync_notifications:
-                self._push_notification_sync(
-                    notification_data[0],
-                    notification_data[1],
-                    notification_data[2],
-                )
+                try:
+                    self._push_notification_sync(
+                        notification_data[0],
+                        notification_data[1],
+                        notification_data[2],
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to push notification sync",
+                        error=mlrun.errors.err_to_str(exc),
+                    )
 
         async def _async_push():
             tasks = []
@@ -207,38 +221,42 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing sync notification",
-            notification=_sanitize_notification(notification_object),
+            notification=sanitize_notification(notification_object.to_dict()),
             run_uid=run.metadata.uid,
         )
+        update_notification_status_kwargs = {
+            "run_uid": run.metadata.uid,
+            "project": run.metadata.project,
+            "notification": notification_object,
+            "status": mlrun.common.schemas.NotificationStatus.SENT,
+        }
         try:
             notification.push(message, severity, runs)
             logger.debug(
                 "Notification sent successfully",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
             )
-            self._update_notification_status(
-                run.metadata.uid,
-                run.metadata.project,
-                notification_object,
-                status=mlrun.common.schemas.NotificationStatus.SENT,
-                sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+            update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
+                tz=datetime.timezone.utc
             )
         except Exception as exc:
             logger.warning(
                 "Failed to send or update notification",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
-            self._update_notification_status(
-                run.metadata.uid,
-                run.metadata.project,
-                notification_object,
-                status=mlrun.common.schemas.NotificationStatus.ERROR,
-            )
+            update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
+            update_notification_status_kwargs[
+                "status"
+            ] = mlrun.common.schemas.NotificationStatus.ERROR
             raise exc
+        finally:
+            self._update_notification_status(
+                **update_notification_status_kwargs,
+            )
 
     async def _push_notification_async(
         self,
@@ -251,40 +269,44 @@ class NotificationPusher(object):
         )
         logger.debug(
             "Pushing async notification",
-            notification=_sanitize_notification(notification_object),
+            notification=sanitize_notification(notification_object.to_dict()),
             run_uid=run.metadata.uid,
         )
+        update_notification_status_kwargs = {
+            "run_uid": run.metadata.uid,
+            "project": run.metadata.project,
+            "notification": notification_object,
+            "status": mlrun.common.schemas.NotificationStatus.SENT,
+        }
         try:
             await notification.push(message, severity, runs)
             logger.debug(
                 "Notification sent successfully",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
             )
-            await mlrun.utils.helpers.run_in_threadpool(
-                self._update_notification_status,
-                run.metadata.uid,
-                run.metadata.project,
-                notification_object,
-                status=mlrun.common.schemas.NotificationStatus.SENT,
-                sent_time=datetime.datetime.now(tz=datetime.timezone.utc),
+            update_notification_status_kwargs["sent_time"] = datetime.datetime.now(
+                tz=datetime.timezone.utc
             )
+
         except Exception as exc:
             logger.warning(
                 "Failed to send or update notification",
-                notification=_sanitize_notification(notification_object),
+                notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
                 traceback=traceback.format_exc(),
             )
+            update_notification_status_kwargs["reason"] = f"Exception error: {str(exc)}"
+            update_notification_status_kwargs[
+                "status"
+            ] = mlrun.common.schemas.NotificationStatus.ERROR
+            raise exc
+        finally:
             await mlrun.utils.helpers.run_in_threadpool(
                 self._update_notification_status,
-                run.metadata.uid,
-                run.metadata.project,
-                notification_object,
-                status=mlrun.common.schemas.NotificationStatus.ERROR,
+                **update_notification_status_kwargs,
             )
-            raise exc
 
     @staticmethod
     def _update_notification_status(
@@ -293,10 +315,24 @@ class NotificationPusher(object):
         notification: mlrun.model.Notification,
         status: str = None,
         sent_time: typing.Optional[datetime.datetime] = None,
+        reason: typing.Optional[str] = None,
     ):
         db = mlrun.get_run_db()
         notification.status = status or notification.status
         notification.sent_time = sent_time or notification.sent_time
+
+        # fill reason only if failed
+        if notification.status == mlrun.common.schemas.NotificationStatus.ERROR:
+            notification.reason = reason or notification.reason
+
+            # limit reason to a max of 255 characters (for db reasons)
+            # but also for human readability reasons.
+            notification.reason = notification.reason[:255]
+        else:
+
+            # empty out the reason if the notification is in a non-error state
+            # in case a retry would kick in (when such mechanism would be implemented)
+            notification.reason = None
 
         # There is no need to mask the secret_params as the secrets are already loaded
         db.store_run_notifications(
@@ -487,9 +523,10 @@ class CustomNotificationPusher(object):
         self.push(text, "info", runs=runs_list)
 
 
-def _sanitize_notification(notification: mlrun.model.Notification):
-    notification_dict = notification.to_dict()
+def sanitize_notification(notification_dict: dict):
     notification_dict.pop("secret_params", None)
+    notification_dict.pop("message", None)
+    notification_dict.pop("params", None)
     return notification_dict
 
 

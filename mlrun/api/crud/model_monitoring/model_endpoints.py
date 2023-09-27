@@ -15,7 +15,6 @@
 
 import os
 import typing
-import warnings
 
 import sqlalchemy.orm
 
@@ -35,35 +34,6 @@ from mlrun.utils import logger
 
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
-
-    def create_or_patch(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        access_key: str,
-        model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ) -> mlrun.common.schemas.ModelEndpoint:
-        # TODO: deprecated in 1.3.0, remove in 1.5.0.
-        warnings.warn(
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0."
-            "Please use create_model_endpoint() for create or patch_model_endpoint() for update",
-            FutureWarning,
-        )
-        """
-        Either create or updates the record of a given `ModelEndpoint` object.
-        Leaving here for backwards compatibility, remove in 1.5.0.
-
-        :param db_session:             A session that manages the current dialog with the database
-        :param access_key:             Access key with permission to write to KV table
-        :param model_endpoint:         Model endpoint object to update
-        :param auth_info:              The auth info of the request
-
-        :return: `ModelEndpoint` object.
-        """
-
-        return self.create_model_endpoint(
-            db_session=db_session, model_endpoint=model_endpoint
-        )
 
     @classmethod
     def create_model_endpoint(
@@ -100,6 +70,12 @@ class ModelEndpoints:
                 mlrun.datastore.store_resources.get_store_resource(
                     model_endpoint.spec.model_uri, db=run_db
                 )
+            )
+
+            mlrun.utils.helpers.verify_field_of_type(
+                field_name="model_endpoint.spec.model_uri",
+                field_value=model_obj,
+                expected_type=mlrun.artifacts.ModelArtifact,
             )
 
             # Get stats from model object if not found in model endpoint object
@@ -268,6 +244,12 @@ class ModelEndpoints:
                         name=feature.name, value_type=feature.value_type
                     )
                 )
+            for feature in model_obj.spec.outputs:
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature.name, value_type=feature.value_type
+                    )
+                )
         # Check if features can be found within the feature vector
         elif model_obj.spec.feature_vector:
             _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
@@ -297,7 +279,8 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET, parquet_path
+            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+            parquet_path,
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
 
@@ -546,9 +529,12 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
+        if (
+            mlrun.mlconf.model_endpoint_monitoring.store_type
+            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
+            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        ):
             return
-
         # Generate a model endpoint store object and get a list of model endpoint dictionaries
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,

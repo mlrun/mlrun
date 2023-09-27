@@ -381,7 +381,7 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )
-        stocks_set_endpoint = fstore.deploy_ingestion_service(
+        stocks_set_endpoint, _ = fstore.deploy_ingestion_service_v2(
             featureset=stocks_set,
             source=kafka_source,
             targets=[target],

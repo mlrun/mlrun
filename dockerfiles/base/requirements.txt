@@ -1,8 +1,7 @@
 blosc~=1.7
 dask-kubernetes~=0.11.0
 dask-ml~=1.4,<1.9.0
-dask[complete]~=2021.11.2
-lz4~=3.0
+dask[complete]~=2023.9.0
 vaex~=4.0
 yellowbrick~=1.1
 lifelines~=0.25.0
@@ -10,7 +9,6 @@ lifelines~=0.25.0
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0
 pyod~=0.8.1
-pytest~=7.0
 scikit-multiflow~=0.5.3
 scikit-optimize~=0.8.1
 scikit-image~=0.16.0

@@ -19,7 +19,6 @@ import kubernetes.client
 import mlrun.errors
 from mlrun.config import config
 
-from ..model import RunObject
 from ..platforms.iguazio import mount_v3io, mount_v3iod
 from .kubejob import KubejobRuntime
 from .pod import KubeResourceSpec
@@ -120,10 +119,6 @@ class RemoteSparkRuntime(KubejobRuntime):
         ):
             return True
         return super().is_deployed()
-
-    def _run(self, runobj: RunObject, execution):
-        self.spec.image = self.spec.image or self.default_image
-        super()._run(runobj=runobj, execution=execution)
 
     @property
     def spec(self) -> RemoteSparkSpec:

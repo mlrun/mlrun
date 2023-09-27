@@ -670,7 +670,6 @@ class HTTPRunDB(RunDBInterface):
         if (
             not name
             and not uid
-            and not project
             and not labels
             and not state
             and not last
@@ -678,6 +677,9 @@ class HTTPRunDB(RunDBInterface):
             and not start_time_to
             and not last_update_time_from
             and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
         ):
             # default to last week on no filter
             start_time_from = datetime.now() - timedelta(days=7)
@@ -1469,15 +1471,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(

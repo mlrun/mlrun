@@ -13,13 +13,15 @@ A data store defines a storage provider (e.g. file system, S3, Azure blob, Iguaz
 MLRun supports multiple data stores. (More can easily added by extending the `DataStore` class.)
 Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`). The currently supported schemas and their urls:
 * **files** &mdash; local/shared file paths, format: `/file-dir/path/to/file` (Unix) or `C:/dir/file` (Windows)
-* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file`
+* **http, https** &mdash; read data from HTTP sources (read-only), format: `https://host/path/to/file` (Not supported by runtimes spark and remote-spark)
 * **s3** &mdash; S3 objects (AWS or other endpoints), format: `s3://<bucket>/path/to/file`
 * **v3io, v3ios** &mdash; Iguazio v3io data fabric, format: `v3io://[<remote-host>]/<data-container>/path/to/file`
 * **az** &mdash; Azure Blob storage, format: `az://<container>/path/to/file`
+* **dbfs** &mdash; Databricks storage, format: `dbfs://path/to/file` (Not supported by runtimes spark and remote-spark)
 * **gs, gcs** &mdash; Google Cloud Storage objects, format: `gs://<bucket>/path/to/file`
 * **store** &mdash; MLRun versioned artifacts [(see Artifacts)](./artifacts.html), format: `store://artifacts/<project>/<artifact-name>[:tag]`
-* **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` to register in memory data items (byte buffers or DataFrames).
+* **memory** &mdash; in memory data registry for passing data within the same process, format `memory://key`, use `mlrun.datastore.set_in_memory_item(key, value)` 
+   to register in memory data items (byte buffers or DataFrames). (Not supported by all Spark runtimes)
 
 ## Storage credentials and parameters
 Data stores might require connection credentials. These can be provided through environment variables 
@@ -110,6 +112,14 @@ may contain the contents of this file. If configured in the function pod, MLRun 
 and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
 contents directly to the query engine.
 
+### Databricks file system
+```{Admonition} Note
+Not supported by the spark and remote-spark runtimes.
+```
+* `DATABRICKS_HOST` &mdash; hostname in the format: https://abc-d1e2345f-a6b2.cloud.databricks.com'
+* `DATABRICKS_TOKEN` &mdash; Databricks access token. 
+   Perform [Databricks personal access token authentication](https://docs.databricks.com/en/dev-tools/auth.html#databricks-personal-access-token-authentication).
+
 ### S3
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; [access key](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
   parameters
@@ -169,3 +179,4 @@ the profiles. Access to private attributes is restricted to applications running
 ```{Admonition} Note
 This feature currently only supports Redis.
 ```
+

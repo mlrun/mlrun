@@ -121,7 +121,7 @@ def test_force_run_local():
     result = mlrun.run_function(fn, base_task=spec, workdir=out_path)
     print(result.to_yaml())
     verify_state(result)
-    assert not result.metadata.labels["kind"]
+    assert result.metadata.labels["kind"] == "local"
 
     mlrun.mlconf.force_run_local = old_force
 

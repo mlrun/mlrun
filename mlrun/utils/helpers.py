@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import anyio
 import git
 import numpy as np
+import packaging.version
 import pandas
 import semver
 import yaml
@@ -1630,3 +1631,14 @@ class JsonNonStringFormat:
             else:
                 result.append(value)
         return value_type(result)
+
+
+def line_terminator_kwargs():
+    # pandas 1.5.0 renames line_terminator to lineterminator
+    line_terminator_parameter = (
+        "lineterminator"
+        if packaging.version.Version(pandas.__version__)
+        >= packaging.version.Version("1.5.0")
+        else "line_terminator"
+    )
+    return {line_terminator_parameter: "\n"}

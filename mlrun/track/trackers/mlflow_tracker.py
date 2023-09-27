@@ -26,12 +26,12 @@ import mlrun
 from mlrun import MLClientCtx, mlconf
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.features import Feature
+from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
 
 from ..tracker import Tracker
 
-from mlrun.launcher.client import ClientBaseLauncher
 
 class MLFlowTracker(Tracker):
     """
@@ -137,13 +137,16 @@ class MLFlowTracker(Tracker):
         ctx.set_state(execution_state="completed", commit=False)
         ctx.commit(completed=True)
 
-        # wrapping the run in order to get nice table when running in jupyter
+        # Print a summary message after importing the run:
+        # RuntimeMock needed for mocking runtime parameter in `_log_track_results`
         class RuntimeMock:
             is_child = False
 
         result = ctx.to_dict()
         run_object = RunObject.from_dict(result)
-        ClientBaseLauncher._log_track_results(runtime=RuntimeMock, result=result, run=run_object)
+        ClientBaseLauncher._log_track_results(
+            runtime=RuntimeMock, result=result, run=run_object
+        )
 
         return run_object
 
@@ -178,8 +181,8 @@ class MLFlowTracker(Tracker):
         extra_data = extra_data or {}
         with tempfile.TemporaryDirectory() as temp_dir:
 
-            # Log and return the model:
-            return cls._log_model(
+            # Log the model:
+            model = cls._log_model(
                 context_or_project=project,
                 model_uri=pointer,
                 key=key,
@@ -187,6 +190,9 @@ class MLFlowTracker(Tracker):
                 extra_data=extra_data,
                 tmp_path=temp_dir,
             )
+
+            print(f"[Info]: model {key} imported successfully")
+            return model
 
     @classmethod
     def import_artifact(
@@ -215,12 +221,15 @@ class MLFlowTracker(Tracker):
             )
 
             # Log and return the artifact:
-            return cls._log_artifact(
+            artifact = cls._log_artifact(
                 context_or_project=project,
                 key=key,
                 local_path=local_path,
                 tmp_path=tmp_dir,
             )
+
+            print(f"[Info]: model {key} imported successfully")
+            return artifact
 
     @staticmethod
     def _log_run(

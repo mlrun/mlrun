@@ -21,6 +21,7 @@ from mlrun import mlconf
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
+from mlrun.run import get_or_create_ctx
 
 from .errors import MLRunPackageCollectionError, MLRunPackagePackingError
 from .packagers_manager import PackagersManager
@@ -103,9 +104,6 @@ class ContextHandler:
                     os.path.join("mlrun", "runtimes", "local")
                     in callstack_frame.filename
                 ):
-                    # To avoid circular dependency we import here:
-                    from mlrun.run import get_or_create_ctx
-
                     self._context = get_or_create_ctx("context")
                     break
 

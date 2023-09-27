@@ -31,6 +31,7 @@ from mlrun.projects import MlrunProject
 
 from ..tracker import Tracker
 
+from mlrun.launcher.client import ClientBaseLauncher
 
 class MLFlowTracker(Tracker):
     """
@@ -135,7 +136,16 @@ class MLFlowTracker(Tracker):
         cls._log_run(context=ctx, run=run, is_offline=True)
         ctx.set_state(execution_state="completed", commit=False)
         ctx.commit(completed=True)
-        return RunObject.from_dict(ctx.to_dict())
+
+        # wrapping the run in order to get nice table when running in jupyter
+        class RuntimeMock:
+            is_child = False
+
+        result = ctx.to_dict()
+        run_object = RunObject.from_dict(result)
+        ClientBaseLauncher._log_track_results(runtime=RuntimeMock, result=result, run=run_object)
+
+        return run_object
 
     @classmethod
     def import_model(

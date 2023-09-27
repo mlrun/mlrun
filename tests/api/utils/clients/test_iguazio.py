@@ -419,6 +419,7 @@ async def test_list_project_with_updated_after(
                     mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
                 )
             ],
+            "filter[operational_status]": ["[$ne]deleting"],
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_project_request_headers(request.headers, session)

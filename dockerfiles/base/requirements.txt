@@ -10,7 +10,6 @@ lifelines~=0.25.0
 # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
 plotly~=5.4, <5.12.0
 pyod~=0.8.1
-pytest~=7.0
 scikit-multiflow~=0.5.3
 scikit-optimize~=0.8.1
 scikit-image~=0.16.0

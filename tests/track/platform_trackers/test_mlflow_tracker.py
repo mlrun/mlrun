@@ -179,18 +179,9 @@ def _validate_run(run: mlrun.run):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
 
-    runs = []
-    # returns a list of mlflow.entities.Experiment
-    experiments = client.search_experiments()
-    for experiment in experiments:
-        runs.append(client.search_runs(experiment.experiment_id))
-
     # find the right run
-    run_to_comp = None
-    for run_list in runs:
-        for mlflow_run in run_list:
-            if mlflow_run.info.run_id == run.metadata.labels["mlflow-run-id"]:
-                run_to_comp = mlflow_run
+    run_to_comp = mlflow.last_active_run()
+
     if not run_to_comp:
         assert False, "Run not found, test failed"
 

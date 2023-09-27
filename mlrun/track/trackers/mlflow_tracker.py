@@ -242,7 +242,10 @@ class MLFlowTracker(Tracker):
             )
 
             # Get the MLFlow run's tags and save them as labels:
-            context._labels.update(run.data.tags)
+            context.set_label(key="mlflow-user", value=run.data.tags.get("mlflow.user"))
+            context.set_label(
+                key="mlflow-run-name", value=run.data.tags.get("mlflow.runName")
+            )
             context.set_label(key="mlflow-run-id", value=run.info.run_id)
             context.set_label(key="mlflow-experiment-id", value=run.info.experiment_id)
 

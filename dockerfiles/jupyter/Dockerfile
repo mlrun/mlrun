@@ -58,9 +58,11 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
 RUN git clone --branch 1.5.x https://github.com/mlrun/demos.git $HOME/demos && \
-    chmod 700 ./demos/update_demos.sh && \
+   chmod 700 ./demos/update_demos.sh && \
     ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
-    ./$HOME/demos/community_edition_align.sh
+    cd $HOME/demos && \
+    ./community_edition_align.sh && \
+    cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \

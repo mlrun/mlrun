@@ -247,3 +247,5 @@ Example:
     project.run("main", arguments={'data': data_url})  # run the workflow "main"
 ```
 
+## Deleting a project
+See[delete_project](../api/mlrun.db.htm#mlrun.db.httpdb.HTTPRunDB.delete_project)

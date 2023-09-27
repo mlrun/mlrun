@@ -23,7 +23,7 @@
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-2296 | Add ability to manage datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
-| ML-3500 | Add support for dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
+| ML-3500 | Supports a dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
 
 
 ### Documentation
@@ -42,14 +42,14 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3370 | Accessing the MLRun hub is now through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech-preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
 | ML-3644 | Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
-| ML-4132 | Flag added to the fn invoke method to allow disabling of ssh authentication. [View in Git](https://github.com/mlrun/mlrun/pull/3872). |
+| ML-4132 | New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 | ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
 
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3501 | Add support for running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
-| ML-4059 | Adds support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
+| ML-3501 | Supports running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
+| ML-4059 | Supports adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
 
 ### UI
@@ -57,14 +57,14 @@
 | --- | ----------------------------------------------------------------- |
 | ML-2811 | New Batch Inference wizard. |
 | ML-2815 | The new Batch Run wizard replaces the previous New job. |
-| ML-3582 | The Model Endpoints page now displays the Function Tag. |
-| ML-4167 | The Projects page now has option to download the .yaml file. |
+| ML-3584 | The Model Endpoints page now displays the Function Tag. |
+| ML-4167 | Supports downloading the .yaml file from the Projects page. |
 
 
 ### Breaking changes
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format. [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
+| ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
 | ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
 
 ### Deprecations
@@ -746,6 +746,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.4.0 | ML-3547 | [APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code) and [REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code](#rest-apis-deprecated-in-v1-4-0-will-be-removed-from-v1-6-0-code).|
 | v1.5.0 | ML-4010 | Artifact types that were unused BokehArtifact, ChartArtifact are deprecated. |
 | v1.5.0 | ML-4075 | python 3.7 is deprecated. |
+| v1.5.0 | ML-4366  | MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` |
 
 ## Future deprecations
 
@@ -778,7 +779,10 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | GET /funcs  | /projects/{project}/functions  |
 
 
-
+ ### APIs deprecated in v1.4.0, will be removed from v1.6.0 code
+| Deprecated / to be removed                       | Use instead                                   |
+| ------------------------------------------------ | --------------------------------------------- |
+| CSVSource's time_field parameter | |
 
 ### APIs deprecated in v1.3.0, will be removed from v1.6.0 code
 | Deprecated / to be removed                       | Use instead                                   |
@@ -795,10 +799,10 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 |overwrite schedule (project) | Not relevant. Running a schedule is now an  operation |
 
 ### APIs removed in v1.5.0 (deprecated in v1.3.0)
-These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you try to use them in v1.3.0 and higher.
-| Deprecated / to be removed                       | Use instead                                   |
+These APIs weree removed from the v1.5.0 code. 
+| Removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
-| project-related parameters of `set_environment`. (Global-related parameters will not be deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
+| user_project- and project-related parameters of `set_environment`. (Global-related parameters are not deprecated.) | The same parameters in project-related APIs, such as `get_or_create_project` |
 | `KubeResource.gpus`                              | `with_limits`                 |
 | Dask `gpus`                                      | `with_scheduler_limits` / `with_worker_limits`   |
 | `ExecutorTypes`                                  | `ParallelRunnerModes`         |
@@ -812,13 +816,13 @@ These APIs will be removed from the v1.5.0 code. A FutureWarning appears if you 
 
 ### CLI removed in v1.5.0 (deprecated in v1.3.0)
 
-The `--ensure-project` flag of the `mlrun project` CLI command is deprecated and will be removed in v1.5.0.
+The `--ensure-project` flag of the `mlrun project` CLI command was removed from the v1.5.0 code.
 
 
 ### APIs deprecated and removed from v1.3.0 code
 These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
 
-| Deprecated/removed                   | Use instead                                   |
+| Removed                   | Use instead                                   |
 | ------------------------------------ | --------------------------------------------- |
 | `project.functions`                  | `project.get_function`, `project.set_function`, `project.list_function` |
 | `project.artifacts`                  | `project.get_artifact`, `project.set_artifact`, `project.list_artifact` |

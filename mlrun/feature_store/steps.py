@@ -26,6 +26,7 @@ from storey import MapClass
 import mlrun.errors
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import get_in
+from mlrun.utils.helpers import JsonNonStringKeysEncoder
 
 
 def get_engine(first_event):
@@ -181,9 +182,15 @@ class MapValues(StepToDict, MLRunStep):
         :param kwargs: optional kwargs (for storey)
         """
         super().__init__(**kwargs)
-        self.mapping = mapping
+        self.encoded_mapping = JsonNonStringKeysEncoder.encode(
+            mapping
+        )  # just in order to save to original keys types.
         self.with_original_features = with_original_features
         self.suffix = suffix
+
+    @property
+    def mapping(self):
+        return JsonNonStringKeysEncoder.decode(self.encoded_mapping)
 
     def _map_value(self, feature: str, value):
         feature_map = self.mapping.get(feature, {})

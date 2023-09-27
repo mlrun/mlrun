@@ -19,7 +19,7 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
-import mlrun.runtimes.databricks.databricks
+import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
 import mlrun.runtimes.pod
@@ -64,7 +64,7 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
-            mlrun.runtimes.databricks.databricks.DatabricksRuntime,
+            mlrun.runtimes.databricks_job.databricks_runtime.DatabricksRuntime,
         ],
     }
     invalid_classes = {}
@@ -210,7 +210,7 @@ def test_volume_mounts_addition():
 
 
 def test_build_config_with_multiple_commands():
-    image = "mlrun/ml-models"
+    image = "mlrun/mlrun"
     fn = mlrun.new_function(
         "some-function", "some-project", "some-tag", image=image, kind="job"
     )

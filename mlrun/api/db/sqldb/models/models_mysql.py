@@ -121,6 +121,7 @@ def make_notification(table):
         condition = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
         )
+        secret_params = Column("secret_params", JSON)
         params = Column("params", JSON)
         parent_id = Column(Integer, ForeignKey(f"{table}.id"))
 
@@ -135,6 +136,9 @@ def make_notification(table):
         )
         status = Column(
             String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        reason = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=True
         )
 
     return Notification

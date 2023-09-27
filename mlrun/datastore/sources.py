@@ -32,6 +32,7 @@ from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
+from .datastore_profile import datastore_profile_read
 from .utils import (
     _generate_sql_query_with_time_filter,
     filter_df_start_end_time,
@@ -59,10 +60,6 @@ def get_source_step(source, key_fields=None, time_field=None, context=None):
 class BaseSourceDriver(DataSource):
     support_spark = False
     support_storey = False
-
-    def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(self.path)
-        return store
 
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
@@ -142,7 +139,6 @@ class CSVSource(BaseSourceDriver):
     :parameter path: path to CSV file
     :parameter key_field: the CSV field to be used as the key for events. May be an int (field index) or string
         (field name) if with_header is True. Defaults to None (no key). Can be a list of keys.
-    :parameter time_field: DEPRECATED. Use parse_dates to parse timestamps.
     :parameter schedule: string to configure scheduling of the ingestion job.
     :parameter attributes: additional parameters to pass to storey. For example:
         attributes={"timestamp_format": '%Y%m%d%H'}
@@ -160,29 +156,13 @@ class CSVSource(BaseSourceDriver):
         path: str = None,
         attributes: Dict[str, str] = None,
         key_field: str = None,
-        time_field: str = None,
         schedule: str = None,
         parse_dates: Union[None, int, str, List[int], List[str]] = None,
         **kwargs,
     ):
-        super().__init__(
-            name, path, attributes, key_field, time_field, schedule, **kwargs
-        )
-        if time_field is not None:
-            warnings.warn(
-                "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use parse_dates instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            if isinstance(parse_dates, (int, str)):
-                parse_dates = [parse_dates]
-
-            if parse_dates is None:
-                parse_dates = [time_field]
-            elif time_field not in parse_dates:
-                parse_dates = copy(parse_dates)
-                parse_dates.append(time_field)
+        super().__init__(name, path, attributes, key_field, schedule=schedule, **kwargs)
+        if parse_dates and not isinstance(parse_dates, list):
+            parse_dates = [parse_dates]
         self._parse_dates = parse_dates
 
     def to_step(self, key_field=None, time_field=None, context=None):
@@ -196,11 +176,13 @@ class CSVSource(BaseSourceDriver):
         if time_field and time_field not in parse_dates:
             parse_dates.append(time_field)
 
+        data_item = mlrun.store_manager.object(self.path)
+
         return storey.CSVSource(
-            paths=self.path,
+            paths=data_item.url,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=data_item.store.get_storage_options(),
             parse_dates=parse_dates,
             **attributes,
         )
@@ -339,10 +321,13 @@ class ParquetSource(BaseSourceDriver):
         attributes = self.attributes or {}
         if context:
             attributes["context"] = context
+
+        data_item = mlrun.store_manager.object(self.path)
+
         return storey.ParquetSource(
-            paths=self.path,
+            paths=data_item.url,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
             start_filter=self.start_time,
             filter_column=self.time_field or time_field,
@@ -723,16 +708,7 @@ class DataFrameSource:
 
     support_storey = True
 
-    def __init__(
-        self, df, key_field=None, time_field=None, context=None, iterator=False
-    ):
-        if time_field:
-            warnings.warn(
-                "DataFrameSource's time_field parameter has no effect. "
-                "It is deprecated in 1.3.0 and will be removed in 1.5.0",
-                FutureWarning,
-            )
-
+    def __init__(self, df, key_field=None, context=None, iterator=False):
         self._df = df
         if isinstance(key_field, str):
             self.key_field = [key_field]
@@ -776,7 +752,7 @@ class OnlineSource(BaseSourceDriver):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         workers: int = None,
@@ -952,7 +928,11 @@ class KafkaSource(OnlineSource):
         )
 
     def add_nuclio_trigger(self, function):
-        extra_attributes = copy(self.attributes)
+        if self.path and self.path.startswith("ds://"):
+            datastore_profile = datastore_profile_read(self.path)
+            extra_attributes = datastore_profile.attributes()
+        else:
+            extra_attributes = copy(self.attributes)
         partitions = extra_attributes.pop("partitions", None)
         explicit_ack_mode = None
         engine = "async"

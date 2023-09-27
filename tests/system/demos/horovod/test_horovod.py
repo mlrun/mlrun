@@ -66,7 +66,7 @@ class TestHorovodTFv2(TestDemo):
             name="trainer",
             kind="mpijob",
             command=self._get_v3io_user_store_path(trainer_dest_path, remote=False),
-            image="mlrun/ml-models",
+            image="mlrun/mlrun",
         )
         trainer.spec.remote = True
         trainer.spec.replicas = 4

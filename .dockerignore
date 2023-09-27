@@ -1,5 +1,10 @@
 .git
 .circleci
 .pytest_cache
+.github
+.import_linter_cache
+.run
 venv
 venv*
+__pycache__
+.idea

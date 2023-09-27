@@ -15,7 +15,6 @@
 
 import os
 import typing
-import warnings
 
 import sqlalchemy.orm
 
@@ -36,37 +35,9 @@ from mlrun.utils import logger
 class ModelEndpoints:
     """Provide different methods for handling model endpoints such as listing, writing and deleting"""
 
-    def create_or_patch(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        access_key: str,
-        model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-    ) -> mlrun.common.schemas.ModelEndpoint:
-        # TODO: deprecated in 1.3.0, remove in 1.5.0.
-        warnings.warn(
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0."
-            "Please use create_model_endpoint() for create or patch_model_endpoint() for update",
-            FutureWarning,
-        )
-        """
-        Either create or updates the record of a given `ModelEndpoint` object.
-        Leaving here for backwards compatibility, remove in 1.5.0.
-
-        :param db_session:             A session that manages the current dialog with the database
-        :param access_key:             Access key with permission to write to KV table
-        :param model_endpoint:         Model endpoint object to update
-        :param auth_info:              The auth info of the request
-
-        :return: `ModelEndpoint` object.
-        """
-
-        return self.create_model_endpoint(
-            db_session=db_session, model_endpoint=model_endpoint
-        )
-
+    @classmethod
     def create_model_endpoint(
-        self,
+        cls,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -101,15 +72,22 @@ class ModelEndpoints:
                 )
             )
 
+            mlrun.utils.helpers.verify_field_of_type(
+                field_name="model_endpoint.spec.model_uri",
+                field_value=model_obj,
+                expected_type=mlrun.artifacts.ModelArtifact,
+            )
+
             # Get stats from model object if not found in model endpoint object
             if not model_endpoint.status.feature_stats and hasattr(
                 model_obj, "feature_stats"
             ):
-                mlrun.common.model_monitoring.helpers.pad_features_hist(
-                    mlrun.common.model_monitoring.helpers.FeatureStats(
-                        model_obj.spec.feature_stats
+                if model_obj.spec.feature_stats:
+                    mlrun.common.model_monitoring.helpers.pad_features_hist(
+                        mlrun.common.model_monitoring.helpers.FeatureStats(
+                            model_obj.spec.feature_stats
+                        )
                     )
-                )
                 model_endpoint.status.feature_stats = model_obj.spec.feature_stats
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
@@ -128,7 +106,7 @@ class ModelEndpoints:
                 model_endpoint.spec.monitoring_mode
                 == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
             ):
-                monitoring_feature_set = self.create_monitoring_feature_set(
+                monitoring_feature_set = cls.create_monitoring_feature_set(
                     model_endpoint, model_obj, db_session, run_db
                 )
                 # Link model endpoint object to feature set URI
@@ -143,13 +121,13 @@ class ModelEndpoints:
             logger.info("Feature stats found, cleaning feature names")
             if model_endpoint.spec.feature_names:
                 # Validate that the length of feature_stats is equal to the length of feature_names and label_names
-                self._validate_length_features_and_labels(model_endpoint=model_endpoint)
+                cls._validate_length_features_and_labels(model_endpoint=model_endpoint)
 
                 # Clean feature names in both feature_stats and feature_names
             (
                 model_endpoint.status.feature_stats,
                 model_endpoint.spec.feature_names,
-            ) = self._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
+            ) = cls._adjust_feature_names_and_stats(model_endpoint=model_endpoint)
 
             logger.info(
                 "Done preparing feature names and stats",
@@ -266,6 +244,12 @@ class ModelEndpoints:
                         name=feature.name, value_type=feature.value_type
                     )
                 )
+            for feature in model_obj.spec.outputs:
+                feature_set.add_feature(
+                    mlrun.feature_store.Feature(
+                        name=feature.name, value_type=feature.value_type
+                    )
+                )
         # Check if features can be found within the feature vector
         elif model_obj.spec.feature_vector:
             _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
@@ -295,7 +279,8 @@ class ModelEndpoints:
         )
 
         parquet_target = mlrun.datastore.targets.ParquetTarget(
-            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET, parquet_path
+            mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
+            parquet_path,
         )
         driver = mlrun.datastore.targets.get_target_driver(parquet_target, feature_set)
 
@@ -544,9 +529,12 @@ class ModelEndpoints:
 
         # We would ideally base on config.v3io_api but can't for backwards compatibility reasons,
         # we're using the igz version heuristic
-        if not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api:
+        if (
+            mlrun.mlconf.model_endpoint_monitoring.store_type
+            == mlrun.common.schemas.model_monitoring.ModelEndpointTarget.V3IO_NOSQL
+            and (not mlrun.mlconf.igz_version or not mlrun.mlconf.v3io_api)
+        ):
             return
-
         # Generate a model endpoint store object and get a list of model endpoint dictionaries
         endpoint_store = get_model_endpoint_store(
             access_key=auth_info.data_session,

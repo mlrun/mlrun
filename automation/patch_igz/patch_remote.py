@@ -38,8 +38,9 @@ class MLRunPatcher(object):
     class Consts(object):
         mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
 
-    def __init__(self, conf_file):
+    def __init__(self, conf_file, reset_db):
         self._config = yaml.safe_load(conf_file)
+        self._reset_db = reset_db
         self._validate_config()
 
     def patch_mlrun_api(self):
@@ -62,6 +63,9 @@ class MLRunPatcher(object):
             self._replace_deploy_policy()
             self._replace_deployment_images(built_image)
             self._wait_deployment_ready()
+            if self._reset_db:
+                self._reset_mlrun_db()
+                self._wait_deployment_ready()
         finally:
             out = self._exec_remote(
                 [
@@ -110,6 +114,9 @@ class MLRunPatcher(object):
             raise RuntimeError(
                 "REGISTRY_USERNAME defined, yet REGISTRY_PASSWORD is not defined"
             )
+
+        if self._reset_db and "DB_USER" not in self._config:
+            raise RuntimeError("Must define DB_USER if requesting DB reset")
 
     @contextmanager
     def _add_mlrun_src_to_path(self):
@@ -274,6 +281,134 @@ class MLRunPatcher(object):
             live=True,
         )
 
+    def _reset_mlrun_db(self):
+        curr_worker_replicas = self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "get",
+                "deployment",
+                "mlrun-api-worker",
+                "-o=jsonpath='{.spec.replicas}'",
+            ]
+        ).strip()
+        logger.info("Detected current worker replicas: %s", curr_worker_replicas)
+
+        logger.info("Scaling down mlrun-api-chief")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "scale",
+                "deploy",
+                "mlrun-api-chief",
+                "--replicas=0",
+            ],
+        )
+        logger.info("Scaling down mlrun-api-worker")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "scale",
+                "deploy",
+                "mlrun-api-worker",
+                "--replicas=0",
+            ],
+        )
+
+        logger.info("Waiting for mlrun-api-chief to go down")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "wait",
+                "pods",
+                "-l",
+                "app.kubernetes.io/sub-component=chief",
+                "--for=delete",
+                "--timeout=60s",
+            ],
+            live=True,
+        )
+
+        logger.info("Waiting for mlrun-api-worker to go down")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "wait",
+                "pods",
+                "-l",
+                "app.kubernetes.io/sub-component=worker",
+                "--for=delete",
+                "--timeout=60s",
+            ],
+            live=True,
+        )
+
+        mlrun_db_pod = self._get_db_pod()
+        if mlrun_db_pod is None:
+            raise RuntimeError("Unable to find DB pod")
+
+        logger.info("Reset DB")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "exec",
+                "-it",
+                mlrun_db_pod,
+                "--",
+                "mysql",
+                "-u",
+                self._config["DB_USER"],
+                "-S",
+                "/var/run/mysqld/mysql.sock",
+                "-e",
+                "'DROP DATABASE mlrun; CREATE DATABASE mlrun'",
+            ],
+            live=True,
+        )
+
+        logger.info("Scaling up mlrun-api-chief")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "scale",
+                "deploy",
+                "mlrun-api-chief",
+                "--replicas=1",
+            ],
+        )
+        logger.info("Scaling up mlrun-api-worker")
+        self._exec_remote(
+            [
+                "kubectl",
+                "-n",
+                "default-tenant",
+                "scale",
+                "deploy",
+                "mlrun-api-worker",
+                "--replicas={}".format(curr_worker_replicas),
+            ],
+        )
+
+    def _get_db_pod(self):
+        cmd = ["kubectl", "-n", "default-tenant", "get", "pod"]
+
+        for line in self._exec_remote(cmd).splitlines()[1:]:
+            if "mlrun-db" in line:
+                return line.split()[0]
+
     @staticmethod
     def _get_image_tag(tag) -> str:
         return f"{tag}"
@@ -342,11 +477,14 @@ class MLRunPatcher(object):
     type=click.File(mode="r"),
     show_default=True,
 )
-def main(verbose, config):
+@click.option(
+    "-r", "--reset-db", is_flag=True, help="Reset mlrun DB after deploying api"
+)
+def main(verbose, config, reset_db):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
 
-    MLRunPatcher(config).patch_mlrun_api()
+    MLRunPatcher(config, reset_db).patch_mlrun_api()
 
 
 if __name__ == "__main__":

@@ -15,7 +15,6 @@
 import math
 import re
 import uuid
-import warnings
 from collections import OrderedDict
 from typing import Any, Dict, List, Union
 
@@ -637,7 +636,6 @@ class SetEventMetadata(MapClass):
         self,
         id_path: str = None,
         key_path: str = None,
-        time_path: str = None,
         random_id: bool = None,
         **kwargs,
     ):
@@ -662,16 +660,8 @@ class SetEventMetadata(MapClass):
 
         :param id_path:   path to the id value
         :param key_path:  path to the key value
-        :param time_path: DEPRECATED
         :param random_id: if True will set the event.id to a random value
         """
-        if time_path:
-            warnings.warn(
-                "SetEventMetadata's 'time_path' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "It has no effect.",
-                FutureWarning,
-            )
-
         kwargs["full_event"] = True
         super().__init__(**kwargs)
         self.id_path = id_path

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pytest
 
 import mlrun
 import tests.system.base
@@ -23,17 +22,13 @@ from mlrun.runtimes.constants import RunStates
 class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
     project_name = "does-not-exist-mpijob"
 
-    # TODO: This test is failing in the open source system tests due to a lack of resources
-    #  (running in git action worker with limited resources).
-    #  This mark should be removed if we shift to a new CE testing environment with adequate resources
-    @pytest.mark.enterprise
     def test_mpijob_run(self):
         """
         Run the `handler` function in mpijob_function.py as an OpenMPI job and validate it ran properly (see the
         docstring of the handler for more details).
         """
         code_path = str(self.assets_path / "mpijob_function.py")
-        replicas = 4
+        replicas = 2
 
         mpijob_function = mlrun.code_to_function(
             name="mpijob-test",
@@ -41,7 +36,7 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             handler="handler",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/ml-models",
+            image="mlrun/mlrun",
         )
         mpijob_function.spec.replicas = replicas
 

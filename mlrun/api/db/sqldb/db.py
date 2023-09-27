@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import and_, distinct, func, or_
+from sqlalchemy import Integer, and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
@@ -304,7 +304,9 @@ class SQLDB(DBInterface):
         project = project or config.default_project
         run = self._get_run(session, uid, project, iter)
         if not run:
-            raise mlrun.errors.MLRunNotFoundError(f"Run {uid}:{project} not found")
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run uid {uid} of project {project} not found"
+            )
         return run.struct
 
     def list_runs(
@@ -3083,7 +3085,7 @@ class SQLDB(DBInterface):
             return query
 
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
-        # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
+        # Also limit length to len(str) + 4, assuming iter is < 1000 (three iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
         exact_name = self._escape_characters_for_like_query(name)
 
@@ -3106,7 +3108,8 @@ class SQLDB(DBInterface):
                 Artifact.key == name,
                 and_(
                     Artifact.key.like(f"%-{exact_name}", escape="\\"),
-                    func.length(Artifact.key) < len(name) + 4,
+                    func.length(Artifact.key) < len(name) + 5,
+                    func.cast(func.substr(Artifact.key, 1, 1), Integer),
                 ),
             )
         )
@@ -3394,6 +3397,7 @@ class SQLDB(DBInterface):
         notification_status = {
             "status": notification_spec.pop("status", None),
             "sent_time": notification_spec.pop("sent_time", None),
+            "reason": notification_spec.pop("reason", None),
         }
         return notification_spec, notification_status
 
@@ -3408,9 +3412,11 @@ class SQLDB(DBInterface):
             severity=notification_record.severity,
             when=notification_record.when.split(","),
             condition=notification_record.condition,
+            secret_params=notification_record.secret_params,
             params=notification_record.params,
             status=notification_record.status,
             sent_time=notification_record.sent_time,
+            reason=notification_record.reason,
         )
 
     def _move_and_reorder_table_items(
@@ -3837,12 +3843,14 @@ class SQLDB(DBInterface):
             notification.severity = notification_model.severity
             notification.when = ",".join(notification_model.when)
             notification.condition = notification_model.condition
+            notification.secret_params = notification_model.secret_params
             notification.params = notification_model.params
             notification.status = (
                 notification_model.status
                 or mlrun.common.schemas.NotificationStatus.PENDING
             )
             notification.sent_time = notification_model.sent_time
+            notification.reason = notification_model.reason
 
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
@@ -4031,10 +4039,10 @@ class SQLDB(DBInterface):
         :returns: List of DatatoreProfile objects (only the public portion of it)
         """
         project = project or config.default_project
-        query_results = self._query(session, DatastoreProfile, project=project)
+        datastore_records = self._query(session, DatastoreProfile, project=project)
         return [
-            self._transform_datastore_profile_model_to_schema(query)
-            for query in query_results
+            self._transform_datastore_profile_model_to_schema(datastore_record)
+            for datastore_record in datastore_records
         ]
 
     def delete_datastore_profiles(

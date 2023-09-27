@@ -153,6 +153,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                     "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
                     "requests": {"cpu": "200m", "memory": "32Mi"},
                 },
+                "image": "my/image:tag",
                 "image_pull_policy": "Always",
                 "replicas": "3",
                 "node_name": "k8s-node1",
@@ -262,6 +263,10 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             ignore_order=True,
         )
         == {}
+    )
+    assert (
+        parsed_function_object.spec.image
+        == submit_job_body["function"]["spec"]["image"]
     )
     assert (
         parsed_function_object.spec.image_pull_policy
@@ -748,7 +753,7 @@ def test_mask_v3io_volume_credentials(
     username = "volume-username"
     access_key = "volume-access-key"
     v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
-        "some-v3io-volume-name", "", access_key
+        "some-v3io-volume-name", "", access_key, user=username
     )
     v3io_volume_mount = kubernetes.client.V1VolumeMount(
         mount_path="some-v3io-mount-path",

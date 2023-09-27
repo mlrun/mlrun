@@ -16,7 +16,6 @@ import http
 import unittest.mock
 
 import fastapi.testclient
-import initial_data
 import pytest
 import sqlalchemy.orm
 
@@ -93,25 +92,27 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
     monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        initial_data, "_is_latest_data_version", is_latest_data_version_mock
+        server.api.initial_data, "_is_latest_data_version", is_latest_data_version_mock
     )
     db_backup_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(server.api.utils.db.backup, "DBBackupUtil", db_backup_util_mock)
     perform_schema_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        initial_data,
+        server.api.initial_data,
         "_perform_schema_migrations",
         perform_schema_migrations_mock,
     )
     perform_database_migration_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        initial_data,
+        server.api.initial_data,
         "_perform_database_migration",
         perform_database_migration_mock,
     )
     perform_data_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
-        initial_data, "_perform_data_migrations", perform_data_migrations_mock
+        server.api.initial_data,
+        "_perform_data_migrations",
+        perform_data_migrations_mock,
     )
 
     for case in [
@@ -197,7 +198,7 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         is_latest_data_version_mock.return_value = not case.get("data_migration", False)
 
         mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
-        initial_data.init_data()
+        server.api.initial_data.init_data()
         failure_message = f"Failed in case: {case}"
         assert (
             mlrun.mlconf.httpdb.state

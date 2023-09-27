@@ -24,7 +24,6 @@ import nuclio
 import nuclio.utils
 import pytest
 import requests
-from api.endpoints.functions import _build_function
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -40,6 +39,7 @@ from mlrun import code_to_function, mlconf
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
+from server.api.api.endpoints.functions import _build_function
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 

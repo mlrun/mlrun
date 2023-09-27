@@ -19,7 +19,6 @@ import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
-import api.utils
 import deepdiff
 import pytest
 from kubernetes import client
@@ -29,6 +28,7 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.version
+import server.api.api.utils
 import server.api.utils.builder
 import server.api.utils.singletons.k8s
 from mlrun.config import config
@@ -1032,7 +1032,7 @@ def _mock_default_service_account(monkeypatch, service_account):
         service_account,
     )
     monkeypatch.setattr(
-        api.utils,
+        server.api.api.utils,
         "resolve_project_default_service_account",
         resolve_project_default_service_account_mock,
     )

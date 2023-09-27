@@ -22,10 +22,8 @@ import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
 
-import api.utils
 import deepdiff
 import fastapi.testclient
-import main
 import mergedeep
 import pytest
 import sqlalchemy.orm
@@ -36,7 +34,9 @@ import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.schemas
 import mlrun.errors
+import server.api.api.utils
 import server.api.crud
+import server.api.main
 import server.api.utils.auth.verifier
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
@@ -57,7 +57,7 @@ from server.api.db.sqldb.models import (
     _classes,
 )
 
-ORIGINAL_VERSIONED_API_PREFIX = main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -1145,7 +1145,7 @@ def _assert_logs_in_project(
     project: str,
     assert_no_resources: bool = False,
 ) -> int:
-    logs_path = api.utils.project_logs_path(project)
+    logs_path = server.api.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
         number_of_log_files = len(

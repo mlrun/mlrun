@@ -22,6 +22,7 @@ import sqlalchemy.orm
 import mlrun
 import mlrun.common.db.sql_session
 import mlrun.common.schemas
+import server.api.db.init_db
 import server.api.db.sqldb.db
 import server.api.initial_data
 import server.api.utils.singletons.db
@@ -35,7 +36,7 @@ def test_add_data_version_empty_db():
     original_latest_data_version = server.api.initial_data.latest_data_version
     server.api.initial_data.latest_data_version = "3"
     assert db.get_current_data_version(db_session, raise_on_not_found=False) is None
-    server.api.initial_data._add_server.api.initial_data(db_session)
+    server.api.initial_data._add_initial_data(db_session)
     assert (
         db.get_current_data_version(db_session, raise_on_not_found=True)
         == server.api.initial_data.latest_data_version
@@ -58,7 +59,7 @@ def test_add_data_version_non_empty_db():
             metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
         ),
     )
-    server.api.initial_data._add_server.api.initial_data(db_session)
+    server.api.initial_data._add_initial_data(db_session)
     assert db.get_current_data_version(db_session, raise_on_not_found=True) == "1"
     server.api.initial_data.latest_data_version = original_latest_data_version
 
@@ -194,5 +195,5 @@ def _initialize_db_without_migrations() -> (
     db_session = mlrun.common.db.sql_session.create_session(dsn=dsn)
     db = server.api.db.sqldb.db.SQLDB(dsn)
     db.initialize(db_session)
-    db.init_db.init_db()
+    server.api.db.init_db.init_db()
     return db, db_session

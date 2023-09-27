@@ -18,12 +18,12 @@ import unittest.mock
 from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
-from utils.singletons import get_k8s_helper
 
 import mlrun.common.schemas
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.runtimes.constants import MPIJobCRDVersions
+from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtimes.base import TestRuntimeBase
 
 

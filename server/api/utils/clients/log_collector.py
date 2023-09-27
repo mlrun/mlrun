@@ -81,10 +81,10 @@ class LogCollectorClient(
     def _initialize_proto_client_imports(self):
         # Importing the proto client classes here and not at the top of the file to avoid raising an import error
         # when the log_collector service is not enabled / the proto client wasn't compiled
-        import proto.log_collector_pb2_grpc
+        import server.api.proto.log_collector_pb2_grpc
 
-        self._log_collector_pb2 = proto.log_collector_pb2
-        self._log_collector_pb2_grpc = proto.log_collector_pb2_grpc
+        self._log_collector_pb2 = server.api.proto.log_collector_pb2
+        self._log_collector_pb2_grpc = server.api.proto.log_collector_pb2_grpc
 
     async def start_logs(
         self,

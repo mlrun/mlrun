@@ -14,13 +14,13 @@
 #
 import deepdiff
 import pytest
-from db.base import DBInterface
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.feature_store as fstore
 import mlrun.utils.helpers
 from mlrun import errors
+from server.api.db.base import DBInterface
 
 
 def _create_feature_set(name):

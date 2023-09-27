@@ -22,7 +22,6 @@ from base64 import b64encode
 from copy import deepcopy
 from datetime import datetime, timezone
 
-import api.endpoints.functions
 import deepdiff
 import fastapi.testclient
 import pytest
@@ -30,11 +29,11 @@ import sqlalchemy.orm
 from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
-from utils.singletons import get_k8s_helper
 
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import server.api.api.endpoints.functions
 import server.api.crud
 import tests.api.api.utils
 from mlrun.config import config as mlconf
@@ -42,6 +41,7 @@ from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
+from server.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime")
 
@@ -402,7 +402,7 @@ class TestRuntimeBase:
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        api.endpoints.functions._build_function(
+        server.api.api.endpoints.functions._build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 

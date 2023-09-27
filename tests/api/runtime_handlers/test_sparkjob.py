@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from utils.singletons import get_k8s_helper
 
 import mlrun.common.schemas
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
-from server.api import get_runtime_handler
+from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 

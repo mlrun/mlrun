@@ -15,11 +15,11 @@
 import time
 
 import pytest
-from db.base import DBInterface
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
+from server.api.db.base import DBInterface
 
 
 def test_store_project_background_task(db: DBInterface, db_session: Session):

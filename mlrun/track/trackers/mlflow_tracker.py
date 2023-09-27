@@ -30,8 +30,8 @@ from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
 
-from ..tracker import Tracker
-
+from mlrun.track.tracker import Tracker
+from mlrun.utils import now_date
 
 class MLFlowTracker(Tracker):
     """
@@ -134,8 +134,17 @@ class MLFlowTracker(Tracker):
         )
         ctx.store_run()
         cls._log_run(context=ctx, run=run, is_offline=True)
-        ctx.set_state(execution_state="completed", commit=False)
-        ctx.commit(completed=True)
+        # ctx.commit(completed=True)
+
+        rundb = mlrun.get_run_db()
+        project = run_object.metadata.project
+        uid = run_object.metadata.uid
+        updates = {
+            "status.last_update": now_date().isoformat(),
+            "status.state": "completed",
+        }
+        run_object.status.state = "completed"
+        rundb.update_run(updates, uid, project)
 
         # Print a summary message after importing the run:
         # RuntimeMock needed for mocking runtime parameter in `_log_track_results`
@@ -147,6 +156,7 @@ class MLFlowTracker(Tracker):
         ClientBaseLauncher._log_track_results(
             runtime=RuntimeMock, result=result, run=run_object
         )
+
 
         return run_object
 

@@ -47,28 +47,28 @@ import mlrun.common.schemas.tag as old_tag
 from mlrun.utils.helpers import DeprecationHelper
 
 # for backwards compatibility, we need to inject the old import path to `sys.modules`
-sys.modules["mlrun.api.schemas.artifact"] = old_artifact
-sys.modules["mlrun.api.schemas.auth"] = old_auth
-sys.modules["mlrun.api.schemas.background_task"] = old_background_task
-sys.modules["mlrun.api.schemas.client_spec"] = old_client_spec
-sys.modules["mlrun.api.schemas.clusterization_spec"] = old_clusterization_spec
-sys.modules["mlrun.api.schemas.constants"] = old_constants
-sys.modules["mlrun.api.schemas.feature_store"] = old_feature_store
-sys.modules["mlrun.api.schemas.frontend_spec"] = old_frontend_spec
-sys.modules["mlrun.api.schemas.function"] = old_function
-sys.modules["mlrun.api.schemas.http"] = old_http
-sys.modules["mlrun.api.schemas.k8s"] = old_k8s
-sys.modules["mlrun.api.schemas.memory_reports"] = old_memory_reports
-sys.modules["mlrun.api.schemas.object"] = old_object
-sys.modules["mlrun.api.schemas.pipeline"] = old_pipeline
-sys.modules["mlrun.api.schemas.project"] = old_project
-sys.modules["mlrun.api.schemas.runtime_resource"] = old_runtime_resource
-sys.modules["mlrun.api.schemas.schedule"] = old_schedule
-sys.modules["mlrun.api.schemas.secret"] = old_secret
-sys.modules["mlrun.api.schemas.tag"] = old_tag
+sys.modules["server.api.schemas.artifact"] = old_artifact
+sys.modules["server.api.schemas.auth"] = old_auth
+sys.modules["server.api.schemas.background_task"] = old_background_task
+sys.modules["server.api.schemas.client_spec"] = old_client_spec
+sys.modules["server.api.schemas.clusterization_spec"] = old_clusterization_spec
+sys.modules["server.api.schemas.constants"] = old_constants
+sys.modules["server.api.schemas.feature_store"] = old_feature_store
+sys.modules["server.api.schemas.frontend_spec"] = old_frontend_spec
+sys.modules["server.api.schemas.function"] = old_function
+sys.modules["server.api.schemas.http"] = old_http
+sys.modules["server.api.schemas.k8s"] = old_k8s
+sys.modules["server.api.schemas.memory_reports"] = old_memory_reports
+sys.modules["server.api.schemas.object"] = old_object
+sys.modules["server.api.schemas.pipeline"] = old_pipeline
+sys.modules["server.api.schemas.project"] = old_project
+sys.modules["server.api.schemas.runtime_resource"] = old_runtime_resource
+sys.modules["server.api.schemas.schedule"] = old_schedule
+sys.modules["server.api.schemas.secret"] = old_secret
+sys.modules["server.api.schemas.tag"] = old_tag
 
 # The DeprecationHelper class is used to print a deprecation warning when the old import is used,
-# and return the new schema. This is done for backwards compatibility with mlrun.api.schemas.
+# and return the new schema. This is done for backwards compatibility with server.api.schemas.
 ArtifactCategories = DeprecationHelper(mlrun.common.schemas.ArtifactCategories)
 ArtifactIdentifier = DeprecationHelper(mlrun.common.schemas.ArtifactIdentifier)
 ArtifactsFormat = DeprecationHelper(mlrun.common.schemas.ArtifactsFormat)

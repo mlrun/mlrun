@@ -738,7 +738,7 @@ def main():
         debug=config.httpdb.debug,
     )
     uvicorn.run(
-        "mlrun.api.main:app",
+        "server.api.main:app",
         host="0.0.0.0",
         port=config.httpdb.port,
         access_log=False,

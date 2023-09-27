@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import server.api.api.deps
+import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
@@ -77,7 +78,7 @@ async def store_datastore_profile(
     # When new features are introduced that warrant a CRUD framework, the logic for handling storage
     # profiles should be relocated there.
     await run_in_threadpool(
-        mlrun.api.crud.Secrets().store_project_secrets,
+        server.api.crud.Secrets().store_project_secrets,
         project_name,
         mlrun.common.schemas.SecretsData(
             provider=mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -203,7 +204,7 @@ async def delete_datastore_profile(
     project_ds_name_private = ds.generate_secret_key(profile, project_name)
 
     await run_in_threadpool(
-        mlrun.api.crud.Secrets().delete_project_secret,
+        server.api.crud.Secrets().delete_project_secret,
         project_name,
         mlrun.common.schemas.SecretProviderName.kubernetes,
         project_ds_name_private,

@@ -543,20 +543,22 @@ class Scheduler:
             # handler
             secret_key_map = (
                 server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                    mlrun.api.server.api.crud.SecretsClientType.schedules
+                    server.api.crud.SecretsClientType.schedules
                 )
             )
             secrets = {
                 access_key_secret_key: auth_info.access_key,
             }
             if auth_info.username:
-                username_secret_key = mlrun.api.server.api.crud.Secrets().generate_client_project_secret_key(
-                    mlrun.api.server.api.crud.SecretsClientType.schedules,
-                    name,
-                    self._secret_username_subtype,
+                username_secret_key = (
+                    server.api.crud.Secrets().generate_client_project_secret_key(
+                        server.api.crud.SecretsClientType.schedules,
+                        name,
+                        self._secret_username_subtype,
+                    )
                 )
                 secrets[username_secret_key] = auth_info.username
-            mlrun.api.server.api.crud.Secrets().store_project_secrets(
+            server.api.crud.Secrets().store_project_secrets(
                 project,
                 mlrun.common.schemas.SecretsData(
                     provider=self._secrets_provider,
@@ -573,25 +575,27 @@ class Scheduler:
     ):
         if server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required():
             access_key_secret_key = (
-                mlrun.api.server.api.crud.Secrets().generate_client_project_secret_key(
-                    mlrun.api.server.api.crud.SecretsClientType.schedules,
+                server.api.crud.Secrets().generate_client_project_secret_key(
+                    server.api.crud.SecretsClientType.schedules,
                     name,
                     self._secret_access_key_subtype,
                 )
             )
 
             username_secret_key = (
-                mlrun.api.server.api.crud.Secrets().generate_client_project_secret_key(
-                    mlrun.api.server.api.crud.SecretsClientType.schedules,
+                server.api.crud.Secrets().generate_client_project_secret_key(
+                    server.api.crud.SecretsClientType.schedules,
                     name,
                     self._secret_username_subtype,
                 )
             )
-            secret_key_map = mlrun.api.server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                mlrun.api.server.api.crud.SecretsClientType.schedules
+            secret_key_map = (
+                server.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                    server.api.crud.SecretsClientType.schedules
+                )
             )
             # TODO: support delete secrets (plural and not only singular) using key map
-            mlrun.api.server.api.crud.Secrets().delete_project_secret(
+            server.api.crud.Secrets().delete_project_secret(
                 project,
                 self._secrets_provider,
                 access_key_secret_key,
@@ -599,7 +603,7 @@ class Scheduler:
                 allow_internal_secrets=True,
                 key_map_secret_key=secret_key_map,
             )
-            mlrun.api.server.api.crud.Secrets().delete_project_secret(
+            server.api.crud.Secrets().delete_project_secret(
                 project,
                 self._secrets_provider,
                 username_secret_key,
@@ -613,17 +617,19 @@ class Scheduler:
     ) -> typing.Tuple[typing.Optional[str], typing.Optional[str]]:
 
         schedule_access_key_secret_key = (
-            mlrun.api.server.api.crud.Secrets().generate_client_project_secret_key(
-                mlrun.api.server.api.crud.SecretsClientType.schedules,
+            server.api.crud.Secrets().generate_client_project_secret_key(
+                server.api.crud.SecretsClientType.schedules,
                 name,
                 self._secret_access_key_subtype,
             )
         )
-        secret_key_map = mlrun.api.server.api.crud.Secrets().generate_client_key_map_project_secret_key(
-            mlrun.api.server.api.crud.SecretsClientType.schedules
+        secret_key_map = (
+            server.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                server.api.crud.SecretsClientType.schedules
+            )
         )
         # TODO: support listing (and not only get) secrets using key map
-        access_key = mlrun.api.server.api.crud.Secrets().get_project_secret(
+        access_key = server.api.crud.Secrets().get_project_secret(
             project,
             self._secrets_provider,
             schedule_access_key_secret_key,
@@ -634,13 +640,13 @@ class Scheduler:
         username = None
         if include_username:
             schedule_username_secret_key = (
-                mlrun.api.server.api.crud.Secrets().generate_client_project_secret_key(
-                    mlrun.api.server.api.crud.SecretsClientType.schedules,
+                server.api.crud.Secrets().generate_client_project_secret_key(
+                    server.api.crud.SecretsClientType.schedules,
                     name,
                     self._secret_username_subtype,
                 )
             )
-            username = mlrun.api.server.api.crud.Secrets().get_project_secret(
+            username = server.api.crud.Secrets().get_project_secret(
                 project,
                 self._secrets_provider,
                 schedule_username_secret_key,
@@ -800,7 +806,7 @@ class Scheduler:
                         db_schedule
                     )
                     if secret_name:
-                        secret = mlrun.api.server.api.crud.Secrets().read_auth_secret(
+                        secret = server.api.crud.Secrets().read_auth_secret(
                             secret_name, raise_on_not_found=True
                         )
                         username = secret.username
@@ -1073,7 +1079,7 @@ class Scheduler:
         try:
             db_session = create_session()
 
-            active_runs = mlrun.api.server.api.crud.Runs().list_runs(
+            active_runs = server.api.crud.Runs().list_runs(
                 db_session,
                 states=RunStates.non_terminal_states(),
                 project=project_name,

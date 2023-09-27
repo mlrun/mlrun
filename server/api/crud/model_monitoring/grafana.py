@@ -87,7 +87,7 @@ async def grafana_list_endpoints(
             auth_info,
         )
     endpoint_list = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().list_model_endpoints,
+        server.api.crud.ModelEndpoints().list_model_endpoints,
         auth_info=auth_info,
         project=project,
         model=model,
@@ -205,7 +205,7 @@ async def grafana_individual_feature_analysis(
     )
 
     endpoint = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        server.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -287,7 +287,7 @@ async def grafana_overall_feature_analysis(
         auth_info,
     )
     endpoint = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        server.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,
@@ -349,7 +349,7 @@ async def grafana_incoming_features(
     )
 
     endpoint = await run_in_threadpool(
-        mlrun.api.crud.ModelEndpoints().get_model_endpoint,
+        server.api.crud.ModelEndpoints().get_model_endpoint,
         auth_info=auth_info,
         project=project,
         endpoint_id=endpoint_id,

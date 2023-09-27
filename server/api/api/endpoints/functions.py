@@ -675,7 +675,7 @@ def _handle_nuclio_deploy_status(
             # Versioned means the version will be saved in the DB forever, we don't want to spam
             # the DB with intermediate or unusable versions, only successfully deployed versions
             versioned = True
-        mlrun.api.server.api.crud.Functions().store_function(
+        server.api.crud.Functions().store_function(
             db_session,
             fn,
             name,
@@ -775,7 +775,7 @@ def _build_function(
                                 project=fn.metadata.project,
                                 function=fn,
                                 monitoring_application=monitoring_application,
-                                stream_path=mlrun.api.server.api.crud.model_monitoring.get_stream_path(
+                                stream_path=server.api.crud.model_monitoring.get_stream_path(
                                     project=fn.metadata.project,
                                     application_name=mm_constants.MonitoringFunctionNames.STREAM,
                                 ),
@@ -786,7 +786,7 @@ def _build_function(
                                     project=fn.metadata.project,
                                     function=fn,
                                     monitoring_application=monitoring_application,
-                                    stream_path=mlrun.api.server.api.crud.model_monitoring.get_stream_path(
+                                    stream_path=server.api.crud.model_monitoring.get_stream_path(
                                         project=fn.metadata.project,
                                         application_name=mm_constants.MonitoringFunctionNames.WRITER,
                                     ),
@@ -810,7 +810,7 @@ def _build_function(
                                 project=fn.metadata.project,
                                 function=fn,
                                 monitoring_application=monitoring_application,
-                                stream_path=mlrun.api.server.api.crud.model_monitoring.get_stream_path(
+                                stream_path=server.api.crud.model_monitoring.get_stream_path(
                                     project=fn.metadata.project,
                                     application_name=fn.metadata.name,
                                 ),
@@ -881,7 +881,7 @@ def _parse_start_function_body(db_session, data):
         )
 
     project, name, tag, hash_key = parse_versioned_object_uri(url)
-    runtime = mlrun.api.server.api.crud.Functions().get_function(
+    runtime = server.api.crud.Functions().get_function(
         db_session, name, project, tag, hash_key
     )
     if not runtime:
@@ -908,7 +908,7 @@ def _start_function(
             auth_info,
         )
 
-        mlrun.api.server.api.crud.Functions().start_function(
+        server.api.crud.Functions().start_function(
             function, client_version, client_python_version
         )
         logger.info("Fn:\n %s", function.to_yaml())
@@ -946,7 +946,7 @@ async def _get_function_status(data, auth_info: mlrun.common.schemas.AuthInfo):
     )
 
     try:
-        status = mlrun.api.server.api.crud.Functions().get_function_status(
+        status = server.api.crud.Functions().get_function_status(
             kind,
             selector,
         )

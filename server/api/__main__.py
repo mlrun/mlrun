@@ -95,7 +95,7 @@ def db(
         p = pathlib.Path(parsed.path[1:]).parent
         p.mkdir(parents=True, exist_ok=True)
 
-    cmd = [executable, "-m", "api.main"]
+    cmd = [executable, "-m", "server.api.main"]
     pid = None
     if background:
         print("Starting MLRun API service in the background...")

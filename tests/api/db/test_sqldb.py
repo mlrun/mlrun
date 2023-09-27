@@ -18,12 +18,13 @@ from unittest import mock
 
 import deepdiff
 import pytest
-from db import SQLDB, Artifact
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.db.sqldb.models
 from mlrun.lists import ArtifactList
+from server.api.db.sqldb.db import SQLDB, Artifact
 from tests.conftest import new_run
 
 
@@ -253,9 +254,9 @@ def test_projects_crud(db: SQLDB, db_session: Session):
 def test_commit_failures(db: SQLDB, error_message: str, expected_exception: Exception):
     # create some fake objects to commit
     objects = [
-        mlrun.api.db.sqldb.models.Run(project="p1", uid="u1", name="run-1"),
-        mlrun.api.db.sqldb.models.Feature(feature_set_id="fs-1", name="feat-1"),
-        mlrun.api.db.sqldb.models.Function(project="p3", name="func-1"),
+        server.api.db.sqldb.models.Run(project="p1", uid="u1", name="run-1"),
+        server.api.db.sqldb.models.Feature(feature_set_id="fs-1", name="feat-1"),
+        server.api.db.sqldb.models.Function(project="p3", name="func-1"),
     ]
 
     session = mock.MagicMock()

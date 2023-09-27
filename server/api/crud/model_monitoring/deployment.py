@@ -235,7 +235,7 @@ class MonitoringDeployment:
             # Try to list functions that named model monitoring batch
             # to make sure that this job has not yet been deployed
             try:
-                fn = mlrun.api.server.api.crud.Functions().get_function(
+                fn = server.api.crud.Functions().get_function(
                     db_session=db_session,
                     name=function_name,
                     project=project,
@@ -566,7 +566,7 @@ class MonitoringDeployment:
 
         # Get the stream path from the configuration
         # stream_path = mlrun.mlconf.get_file_target_path(project=project, kind="stream", target="stream")
-        stream_path = mlrun.api.server.api.crud.model_monitoring.get_stream_path(
+        stream_path = server.api.crud.model_monitoring.get_stream_path(
             project=project, application_name=function_name
         )
 

@@ -67,6 +67,5 @@ COPY . .
 
 RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
-WORKDIR /mlrun/server
 
-CMD ["python",  "-m",  "api",  "db"]
+CMD ["python",  "-m",  "server.api",  "db"]

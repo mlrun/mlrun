@@ -289,7 +289,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                         ),
                     )
                 )
-                mlrun.api.crud.Runs().store_run(
+                server.api.crud.Runs().store_run(
                     db, self.run, self.run_uid, project=self.project
                 )
                 server.api.utils.singletons.db.get_db()._update_run_updated_time = (

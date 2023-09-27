@@ -1134,7 +1134,7 @@ def test_make_kaniko_pod_command_using_build_args(
     builder_env, extra_args, parsed_extra_args
 ):
     with unittest.mock.patch(
-        "mlrun.api.api.utils.resolve_project_default_service_account",
+        "server.api.api.utils.resolve_project_default_service_account",
         return_value=(None, None),
     ):
         kpod = server.api.utils.builder.make_kaniko_pod(

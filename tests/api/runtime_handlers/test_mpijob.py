@@ -17,13 +17,14 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from utils.singletons import get_k8s_helper
 
 import mlrun.common.schemas
+import server.api.runtime_handlers.mpijob
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
-from server.api import get_runtime_handler
+from server.api.runtime_handlers import get_runtime_handler
 from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -361,10 +362,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # override the container
         mlrun.runtimes.MpiRuntimeContainer.override(
-            mlrun.api.runtime_handlers.MpiRuntimeHandlerContainer
+            server.api.runtime_handlers.MpiRuntimeHandlerContainer
         )
         mlrun.mlconf.mpijob_crd_version = None
-        mlrun.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1alpha1
         )
 
@@ -374,11 +375,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         v1alpha1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
             v1alpha1_runtime_handler
-            == mlrun.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
+            == server.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
         )
 
         mlrun.mlconf.mpijob_crd_version = None
-        mlrun.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1
         )
 
@@ -387,7 +388,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         assert v1_runtime == mlrun.runtimes.MpiRuntimeV1
         v1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
-            v1_runtime_handler == mlrun.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
+            v1_runtime_handler == server.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
         )
 
     def _mock_list_resources_pods(self):

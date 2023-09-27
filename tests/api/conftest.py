@@ -83,7 +83,7 @@ def api_config_test():
 @pytest.fixture()
 def db() -> Generator:
     """
-    This fixture initialize the db singleton (so it will be accessible using mlrun.api.singletons.get_db()
+    This fixture initialize the db singleton (so it will be accessible using server.api.singletons.get_db()
     and generates a db session that can be used by the test
     """
     db_file = NamedTemporaryFile(suffix="-mlrun.db")

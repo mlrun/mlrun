@@ -1480,7 +1480,7 @@ class DeprecationHelper(object):
 
     def _warn(self):
         warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
+            f"server.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
             f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
             FutureWarning,
         )

@@ -178,7 +178,7 @@ def test_add_default_hub_source_if_needed():
 
     # Make sure the hub source is not updated if it already exists
     with unittest.mock.patch(
-        "mlrun.api.server.api.initial_data._update_default_hub_source"
+        "server.api.initial_data._update_default_hub_source"
     ) as update_default_hub_source:
         server.api.initial_data._add_default_hub_source_if_needed(db, db_session)
         assert update_default_hub_source.call_count == 0

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import tempfile
 from random import randint, random
 
@@ -152,7 +153,7 @@ def test_track_run(rundb_mock, handler):
     mlrun.mlconf.external_platform_tracking.enabled = True
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
     with tempfile.TemporaryDirectory() as test_directory:
-        mlflow.set_tracking_uri(test_directory)
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
@@ -212,19 +213,21 @@ def test_import_run(rundb_mock, handler):
     first we run some code that's logged by mlflow, then we import it
     to mlrun, and then we use the validate function to compare between original run and imported
     """
-
-    mlrun.mlconf.external_platform_tracking.enabled = True
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
     with tempfile.TemporaryDirectory() as test_directory:
-        mlflow.set_tracking_uri(test_directory)
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
-        handler(test_directory)
+        # Run mlflow wrapped code
+        handler()
+
+        # Set mlconf path to artifacts
         mlrun.mlconf.artifact_path = test_directory + "/artifact"
+
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
-        func = project.set_function(
+        project.set_function(
             func=__file__,
             name=f"{handler.__name__}-test",
             kind="job",
@@ -233,28 +236,34 @@ def test_import_run(rundb_mock, handler):
         )
 
         mlflow_run = mlflow.last_active_run()
-        imported_run = MLFlowTracker.import_run(project=project,
-                                                pointer=mlflow_run.info.run_id,
-                                                function_name="import_run_test",
-                                                )
+        imported_run = MLFlowTracker.import_run(
+            project=project,
+            pointer=mlflow_run.info.run_id,
+            function_name="import_run_test",
+        )
 
         _validate_run(run=imported_run)
 
 
-@pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
+@pytest.mark.parametrize("handler", [xgb_run, lgb_run])
 def test_import_model(rundb_mock, handler):
-    mlrun.mlconf.external_platform_tracking.enabled = True
+    """
+    This test is for importing a model logged by mlflow into mlrun.
+    first we run some code that's logged by mlflow, then we import the logged model
+    to mlrun, and then we validate
+    """
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
     with tempfile.TemporaryDirectory() as test_directory:
-        mlflow.set_tracking_uri(test_directory)
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
-        handler(test_directory)
-        mlrun.mlconf.artifact_path = test_directory + "/artifact"
+        # Run mlflow code
+        handler()
+
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
 
         # Create a MLRun function using the tester source file (all the functions must be located in it):
-        func = project.set_function(
+        project.set_function(
             func=__file__,
             name=f"{handler.__name__}-test",
             kind="job",
@@ -262,11 +271,65 @@ def test_import_model(rundb_mock, handler):
             requirements=["mlflow"],
         )
 
+        # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
-        imported_run = MLFlowTracker.import_run(project=project,
-                                                pointer=mlflow_run.info.run_id,
-                                                function_name="import_run_test")
+        model_uri = mlflow_run.info.artifact_uri + "/model"
+
+        key = "test_model"
+        MLFlowTracker.import_model(
+            project=project,
+            pointer=model_uri,
+            key=key,
+            metrics=mlflow_run.data.metrics,
+        )
+
+        # Validate model was logged into project
+        assert project.get_artifact(key)
 
 
-def test_import_artifact():
-    pass
+@pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
+def test_import_artifact(rundb_mock, handler):
+    """
+    This test is for importing an artifact logged by mlflow into mlrun.
+    first we run some code that's logged by mlflow, then we import logged artifacts
+    to mlrun, and then we use validate by comparing to original artifacts
+    """
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+
+        # Run mlflow code
+        handler()
+
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default1", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        project.set_function(
+            func=__file__,
+            name=f"{handler.__name__}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+        # Get a list of all artifacts logged by mlflow during last run
+        mlflow_run = mlflow.last_active_run()
+        client = mlflow.MlflowClient()
+        artifacts = client.list_artifacts(mlflow_run.info.run_id)
+
+        # Try importing all artifacts
+        for artifact in artifacts:
+            # We don't want to log models here
+            if not artifact.is_dir:
+
+                artifact_uri = mlflow_run.info.artifact_uri + "/" + artifact.path
+
+                key = f"test_artifact_{artifact.path}"
+                MLFlowTracker.import_artifact(
+                    project=project,
+                    pointer=artifact_uri,
+                    key=key,
+                )
+
+                # Validate artifact in project
+                assert project.get_artifact(key)

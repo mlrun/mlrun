@@ -26,7 +26,7 @@ import mlrun
 from mlrun import MLClientCtx, mlconf
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.features import Feature
-from mlrun.model import RunObject, RunSpec, RunMetadata
+from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
 
 from ..tracker import Tracker
@@ -123,9 +123,14 @@ class MLFlowTracker(Tracker):
         run = run[0]  # We are using a run id, so only one will be returned in the list.
 
         run_spec = RunSpec(function=function_name, handler=handler)
-        run_metadata = RunMetadata(uid=run.info.run_uuid, name=run.info.run_name, project=project.name)
+        run_metadata = RunMetadata(
+            uid=run.info.run_uuid, name=run.info.run_name, project=project.name
+        )
         run_object = RunObject(spec=run_spec, metadata=run_metadata)
-        ctx = mlrun.get_or_create_ctx(name=run.info.run_name, spec=run_object, )
+        ctx = mlrun.get_or_create_ctx(
+            name=run.info.run_name,
+            spec=run_object,
+        )
         cls._log_run(context=ctx, run=run, is_offline=True)
         ctx.store_run()
         ctx.set_state(execution_state="completed", commit=False)
@@ -161,7 +166,6 @@ class MLFlowTracker(Tracker):
         # Setup defaults:
         metrics = metrics or {}
         extra_data = extra_data or {}
-
         with tempfile.TemporaryDirectory() as temp_dir:
 
             # Log and return the model:
@@ -171,12 +175,15 @@ class MLFlowTracker(Tracker):
                 key=key,
                 metrics=metrics,
                 extra_data=extra_data,
-                tmp_path=temp_dir
+                tmp_path=temp_dir,
             )
 
     @classmethod
     def import_artifact(
-        cls, project: MlrunProject, pointer: str, key: str = None
+        cls,
+        project: MlrunProject,
+        pointer: str,
+        key: str = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
@@ -202,11 +209,16 @@ class MLFlowTracker(Tracker):
 
             # Log and return the artifact:
             return cls._log_artifact(
-                context_or_project=project, key=key, local_path=local_path, tmp_path=tmp_dir
+                context_or_project=project,
+                key=key,
+                local_path=local_path,
+                tmp_path=tmp_dir,
             )
 
     @staticmethod
-    def _log_run(context: MLClientCtx, run: mlflow.entities.Run, is_offline: bool = False):
+    def _log_run(
+        context: MLClientCtx, run: mlflow.entities.Run, is_offline: bool = False
+    ):
         """
         Log the given MLFlow run to MLRun.
 
@@ -252,7 +264,8 @@ class MLFlowTracker(Tracker):
                 # Get the artifact's local path (MLFlow suggests that if the artifact is already in the local filesystem
                 # its local path will be returned:
                 artifact_local_path = mlflow.artifacts.download_artifacts(
-                    run_id=run.info.run_id, artifact_path=artifact.path,
+                    run_id=run.info.run_id,
+                    artifact_path=artifact.path,
                 )
                 # Check if the artifact is a model (will be logged after the artifacts):
                 if artifact.is_dir and os.path.exists(
@@ -361,9 +374,7 @@ class MLFlowTracker(Tracker):
             # Zip the artifact:
             with zipfile.ZipFile(archive_path, "w") as zip_file:
                 for path in local_path.rglob("*"):
-                    zip_file.write(
-                        filename=path, arcname=path.relative_to(local_path)
-                    )
+                    zip_file.write(filename=path, arcname=path.relative_to(local_path))
             # Set the local path to the archive file:
             local_path = str(archive_path)
 

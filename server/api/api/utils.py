@@ -32,13 +32,13 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification_pusher
 import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.utils.auth.verifier
 import server.api.utils.clients.iguazio
 import server.api.utils.singletons.k8s
-import mlrun.utils.notifications.notification_pusher
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
 from mlrun.errors import err_to_str

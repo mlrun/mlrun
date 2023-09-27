@@ -27,7 +27,7 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.db.factory
 import mlrun.launcher.factory
-import server.api.crud.secrets
+import server.api.crud
 import server.api.launcher
 import server.api.rundb.sqldb
 import server.api.runtime_handlers.mpijob

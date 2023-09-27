@@ -14,9 +14,9 @@
 #
 import mlrun.common.schemas
 import mlrun.utils.singleton
+import server.api.runtime_handlers.mpijob
 import server.api.utils.runtimes.nuclio
 from mlrun.config import Config, config, default_config
-from server.api.runtime_handlers.mpijob import resolve_mpijob_crd_version
 
 
 class ClientSpec(
@@ -25,7 +25,9 @@ class ClientSpec(
     def get_client_spec(
         self, client_version: str = None, client_python_version: str = None
     ):
-        mpijob_crd_version = resolve_mpijob_crd_version()
+        mpijob_crd_version = (
+            server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
+        )
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
             namespace=config.namespace,

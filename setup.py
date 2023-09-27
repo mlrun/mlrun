@@ -59,8 +59,7 @@ setup(
     url="https://github.com/mlrun/mlrun",
     packages=packages.packages(
         exclude_packages=[
-            "server.api.migrations_sqlite.tests",
-            "server.api.proto",
+            "server",
         ]
     ),
     install_requires=dependencies.base_requirements(),

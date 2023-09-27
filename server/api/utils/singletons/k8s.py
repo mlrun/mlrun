@@ -26,7 +26,7 @@ import mlrun.errors
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-import server.api.runtime_handlers.mpijob
+import server.api.runtime_handlers
 from mlrun.utils import logger
 
 _k8s = None
@@ -224,9 +224,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
 
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
         namespace = self.resolve_namespace(namespace)
-        mpijob_crd_version = (
-            server.api.runtime_handlers.mpijob.resolve_mpijob_crd_version()
-        )
+        mpijob_crd_version = server.api.runtime_handlers.resolve_mpijob_crd_version()
         mpijob_role_label = (
             mlrun.runtimes.constants.MPIJobCRDVersions.role_label_by_version(
                 mpijob_crd_version

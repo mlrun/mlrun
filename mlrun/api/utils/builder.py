@@ -419,7 +419,7 @@ def build_image(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
 
-    if not inline_code and not source and not commands and not requirements:
+    if not inline_code and not source and not commands and not requirements and not force_build:
         mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -624,6 +624,7 @@ def build_runtime(
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
+    mlrun.utils.logger.info("innnn YAELLLLL", force_build=force_build)
     if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
@@ -646,6 +647,7 @@ def build_runtime(
         and not with_mlrun
         and not force_build
     ):
+        mlrun.utils.logger.info("innnn YAELLLLL")
         if not runtime.spec.image:
             if build.base_image:
                 runtime.spec.image = build.base_image
@@ -658,6 +660,7 @@ def build_runtime(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
                 " (commands/source)"
             )
+
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
@@ -686,7 +689,7 @@ def build_runtime(
         project=project,
         name=name,
     )
-
+    mlrun.utils.logger.info("logggg before building image", image_target=build.image, base_image=enriched_base_image, name=name)
     status = build_image(
         auth_info,
         project,

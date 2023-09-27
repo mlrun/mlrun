@@ -131,8 +131,8 @@ class MLFlowTracker(Tracker):
             name=run.info.run_name,
             spec=run_object,
         )
-        cls._log_run(context=ctx, run=run, is_offline=True)
         ctx.store_run()
+        cls._log_run(context=ctx, run=run, is_offline=True)
         ctx.set_state(execution_state="completed", commit=False)
         ctx.commit(completed=True)
         return RunObject.from_dict(ctx.to_dict())

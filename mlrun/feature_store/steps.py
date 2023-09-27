@@ -182,9 +182,9 @@ class MapValues(StepToDict, MLRunStep):
         :param kwargs: optional kwargs (for storey)
         """
         super().__init__(**kwargs)
-        self.encoded_mapping = JsonNonStringKeysEncoder.encode(
-            mapping
-        )  # just in order to save to original keys types.
+        # To preserve the original data types of keys,
+        # because JSON serialization converts dictionary keys into strings.
+        self.encoded_mapping = JsonNonStringKeysEncoder.encode(mapping)
         self.with_original_features = with_original_features
         self.suffix = suffix
 

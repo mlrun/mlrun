@@ -18,10 +18,10 @@ import logging
 
 import pytest
 import pytest_alembic.plugin.fixtures
-from db.sqldb.models import Run, Schedule
 from sqlalchemy.orm import sessionmaker
 
 from mlrun.config import config
+from server.api.db.sqldb.models import Run, Schedule
 
 log = logging.getLogger(__name__)
 

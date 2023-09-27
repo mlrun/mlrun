@@ -18,7 +18,6 @@ import deprecated
 import pytest
 
 import mlrun
-import server.api.api.utils
 
 
 def test_deprecated_decorator_warning_is_shown():

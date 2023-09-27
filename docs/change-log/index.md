@@ -11,51 +11,45 @@
 - [Deprecations](#deprecations)
 
 
-## v1.5.0 
+## v1.5.0 (2 October 2023)
 
 ### Alerts
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds). |
+| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
 
 
 ### Data
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML- | Add ability to manage datastore credentials with datastore profiles,. See [Using data store profiles](../store/datastore.html#Using data store profiles). |
-| ML- | Add support for dbfs data store (Databricks file system) data store. See [Databricks file system](store/datastore.html#Databricks file system). |
+| ML-2296 | Add ability to manage datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+| ML-3500 | Add support for dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
 
 
 ### Documentation
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2380 | **not in docs yet**  Enhanced description of Spark runtime. |
 | ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
 | ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html). |  
 
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3784 | **not in docs yet** Supports feature vector-defined feature-set relations and join-type (per-join).  (Tech-preview)|
-
-### Function hub
-| ID    | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3370, ML-3381 | **not in docs yet** New API that supports importing functions from function hub and private repos. (Tech-preview) |
-
+| ML-3784 | Supports feature vector-defined feature-set relations and join-type (per-join). Tech-preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.html#feature-vector-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947).|
 
 ### Infrastructure
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](/runtimes/images.html#mlrun-images). |
-| ML-3644 | Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry). |
-| ML-4132 | Flag added to the fn invoke method to allow disabling of ssh authentication|
+| ML-3370 | Accessing the MLRun hub is now through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech-preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
+| ML-3644 | Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
+| ML-4132 | Flag added to the fn invoke method to allow disabling of ssh authentication. [View in Git](https://github.com/mlrun/mlrun/pull/3872). |
+| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
 
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3501 | Add support for running Spark jobs on Databricks cluster. See {ref}`databricks`. |
-| ML-4059 | **not in docs yet** Adds support for adding env vars or secrets to the docker build during runtime. See {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config`. |
+| ML-3501 | Add support for running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
+| ML-4059 | Adds support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
 
 ### UI
@@ -70,8 +64,8 @@
 ### Breaking changes
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format. |
-| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. |
+| ML-3823 | The default format of `list projects` returns project names only. If you want the project objects, now need to specify the `full` format. [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
+| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
 
 ### Deprecations
 
@@ -94,10 +88,6 @@
 | ML-4391 | Consumer group UI now shows complete details. |
 | ML-4501 | Fixed: UI  shows error after deleting a function, then viewing a related job. |
 | ML-4533 | In the UI, ML functions can now be created with upper-case letters. |
-
-
-
-
 
 
 ## v1.4.1 (8 August 2023)

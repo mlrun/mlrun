@@ -189,6 +189,7 @@ class MapValues(StepToDict, MLRunStep):
 
     @property
     def mapping(self):
+        print(f"mapping_mapping: {JsonNonStringKeysEncoder.decode(self.encoded_mapping)}")
         return JsonNonStringKeysEncoder.decode(self.encoded_mapping)
 
     def _map_value(self, feature: str, value):
@@ -209,6 +210,7 @@ class MapValues(StepToDict, MLRunStep):
         return f"{feature}_{self.suffix}" if self.with_original_features else feature
 
     def _do_storey(self, event):
+        print(f"storey_mapping: {self.mapping}")
         mapped_values = {
             self._get_feature_name(feature): self._map_value(feature, val)
             for feature, val in event.items()

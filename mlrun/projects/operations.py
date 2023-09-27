@@ -245,6 +245,7 @@ def build_function(
     project_object=None,
     overwrite_build_params: bool = False,
     extra_args: str = None,
+    force_build: bool = False,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -304,6 +305,7 @@ def build_function(
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            force_build=force_build,
         )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)

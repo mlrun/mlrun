@@ -172,6 +172,7 @@ class KubejobRuntime(KubeResource):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 

@@ -2831,6 +2831,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2868,6 +2869,7 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
     def build_config(

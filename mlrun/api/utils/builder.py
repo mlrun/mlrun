@@ -399,6 +399,7 @@ def build_image(
     client_version=None,
     runtime=None,
     extra_args=None,
+    force_build=None,
 ):
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
@@ -618,6 +619,7 @@ def build_runtime(
     builder_env=None,
     client_version=None,
     client_python_version=None,
+    force_build=False,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -642,6 +644,7 @@ def build_runtime(
         and not build.requirements
         and not build.extra
         and not with_mlrun
+        and not force_build
     ):
         if not runtime.spec.image:
             if build.base_image:
@@ -901,7 +904,11 @@ def _parse_extra_args(extra_args: str) -> dict:
     current_flag = None
     for arg in extra_args:
         if arg.startswith("--"):
-            current_flag = arg
+            if "=" in arg:
+                key, val = arg.split("=")
+                args.setdefault(key, [val])
+            else:
+                current_flag = arg
             # explicitly set the key in the dictionary
             args.setdefault(current_flag, [])
         elif current_flag:

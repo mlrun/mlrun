@@ -469,7 +469,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
         env.to_dict() for env in pod_spec.containers[0].env
     ]
 
-    # ensure both envvars are set without values so they wont interfere with the iam policy
+    # ensure both envvars are set without values, so they won't interfere with the iam policy
     for env_name in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]:
         assert {"name": env_name, "value": "", "value_from": None} in [
             env.to_dict() for env in pod_spec.containers[0].env

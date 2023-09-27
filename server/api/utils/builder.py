@@ -170,7 +170,7 @@ def make_kaniko_pod(
     for attribute in get_kaniko_spec_attributes_from_runtime():
         attr_value = getattr(runtime_spec, attribute, None)
         if attribute == "service_account":
-            from api.utils import resolve_project_default_service_account
+            from server.api.api.utils import resolve_project_default_service_account
 
             (
                 allowed_service_accounts,
@@ -482,7 +482,7 @@ def build_image(
         mlrun.mlconf.function.spec.security_context.enrichment_mode
         != mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
     ):
-        from api.utils import ensure_function_security_context
+        from server.api.api.utils import ensure_function_security_context
 
         ensure_function_security_context(runtime, auth_info)
         user_unix_id = runtime.spec.security_context.run_as_user

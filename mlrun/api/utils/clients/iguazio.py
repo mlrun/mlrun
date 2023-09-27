@@ -362,7 +362,7 @@ class Client(
 
         # avoid getting projects that are in the process of being deleted
         # this is done to avoid race condition between deleting the project flow and sync mechanism
-        params["filter[operational_status]"] = f"[$ne]deleting"
+        params["filter[operational_status]"] = "[$ne]deleting"
 
         response = self._send_request_to_api(
             "GET",

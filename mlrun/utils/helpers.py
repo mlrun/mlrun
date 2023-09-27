@@ -1519,7 +1519,7 @@ def is_explicit_ack_supported(context):
     ]
 
 
-class JsonNonStringKeysEncoder:
+class JsonNonStringFormat:
     key_type_prefix = "__mlrun__internal_key_type__"
     value_prefix = "__mlrun__internal_dict_value__"
 
@@ -1531,7 +1531,7 @@ class JsonNonStringKeysEncoder:
             formatted_obj = cls._encode_as_list(decoded_list=obj)
         else:
             formatted_obj = obj
-        return json.dumps(formatted_obj)
+        return json.loads(json.dumps(formatted_obj))
 
     @classmethod
     def _encode_as_dict(cls, obj: dict):
@@ -1603,7 +1603,7 @@ class JsonNonStringKeysEncoder:
         for key, value in input_obj.items():
             result_key = cls._convert_key(
                 key,
-                value.get("__mlrun__internal_key_type__", None)
+                value.get(cls.key_type_prefix, None)
                 if isinstance(value, dict)
                 else None,
             )

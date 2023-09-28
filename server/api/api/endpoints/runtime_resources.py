@@ -23,6 +23,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun
 import mlrun.common.schemas
 import server.api.api.deps
+import server.api.crud
 import server.api.utils.auth.verifier
 
 router = fastapi.APIRouter(prefix="/projects/{project}/runtime-resources")

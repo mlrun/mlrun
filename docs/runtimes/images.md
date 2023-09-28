@@ -20,7 +20,7 @@ Every release of MLRun includes several images for different usages. All images 
 
 The images are:
 
-`mlrun/mlrun`: The most basic (and smallest) image, can be used for simple jobs,  including Open MPI. This is simply MLRun installed on top of a python image.
+`mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI. Useful as a base image for simple jobs.
 `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
 `mlrun/ml-base`: The image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like `lrun/mlrun` with the addition of Miniconda and other python packages.
 `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
@@ -46,16 +46,11 @@ For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these im
 - mlrun/ml-base:x.y.z
 - mlrun/ml-models:x.y.z
 
-You can also build only a specific image, for example, `make api` (builds only the api image)
-Or a set of images, for example, `make mlrun jupyter base` 
+You can also build only a specific image, for example, `make mlrun` (builds only the api image).
 
 The possible commands are:
 - `mlrun`
 - `mlrun-gpu`
-- `api`
-- `jupyter`
-- `base`
-- `models`
 
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`

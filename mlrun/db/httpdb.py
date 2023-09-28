@@ -3254,7 +3254,7 @@ class HTTPRunDB(RunDBInterface):
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
-        req["spec"]["name"] = name
+        req["spec"]["name"] = workflow_spec.get("name", name)
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{name}/submit",

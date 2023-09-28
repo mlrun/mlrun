@@ -12,17 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import traceback
+import typing
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Union
 
+from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
+import mlrun
+import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
+import mlrun.runtimes.pod
+import mlrun.secrets
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -32,7 +40,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.runtimes.constants import PodPhases, RunStates
-from mlrun.runtimes.utils import get_k8s
+from mlrun.runtimes.utils import mlrun_key
 from mlrun.utils import logger, now_date
 
 
@@ -43,32 +51,14 @@ class BaseRuntimeHandler(ABC):
     wait_for_deletion_interval = 10
     pod_grace_period_seconds = 0
 
-    @staticmethod
     @abstractmethod
-    def _get_object_label_selector(object_id: str) -> str:
-        """
-        Should return the label selector to get only resources of a specific object (with id object_id)
-        """
+    def run(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        run: mlrun.run.RunObject,
+        execution: mlrun.execution.MLClientCtx,
+    ):
         pass
-
-    def _should_collect_logs(self) -> bool:
-        """
-        There are some runtimes which we don't collect logs for using the log collector
-        :return: whether it should collect log for it
-        """
-        return True
-
-    def _get_possible_mlrun_class_label_values(
-        self, class_mode: Union[RuntimeClassMode, str] = None
-    ) -> List[str]:
-        """
-        Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
-        handler kind
-        """
-        if not class_mode:
-            return list(self.class_modes.values())
-        class_mode = self.class_modes.get(class_mode, None)
-        return [class_mode] if class_mode else []
 
     def list_resources(
         self,
@@ -84,9 +74,11 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support removing runtime resources in non k8s env
-        if not get_k8s().is_running_inside_kubernetes_cluster():
+        if (
+            not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        ):
             return {}
-        namespace = get_k8s().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)
         pod_resources = self._build_pod_resources(pods)
@@ -131,9 +123,11 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if not get_k8s().is_running_inside_kubernetes_cluster():
+        if (
+            not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
+        ):
             return
-        namespace = get_k8s().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
         crd_group, crd_version, crd_plural = self._get_crd_info()
         if crd_group and crd_version and crd_plural:
@@ -181,7 +175,7 @@ class BaseRuntimeHandler(ABC):
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session):
-        namespace = get_k8s().resolve_namespace()
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
         runtime_resource_is_crd = False
@@ -244,6 +238,241 @@ class BaseRuntimeHandler(ABC):
                             exc=err_to_str(exc),
                             traceback=traceback.format_exc(),
                         )
+
+    def resolve_label_selector(
+        self,
+        project: str,
+        object_id: Optional[str] = None,
+        label_selector: Optional[str] = None,
+        class_mode: Union[RuntimeClassMode, str] = None,
+        with_main_runtime_resource_label_selector: bool = False,
+    ) -> str:
+        default_label_selector = self._get_default_label_selector(class_mode=class_mode)
+
+        if label_selector:
+            label_selector = ",".join([default_label_selector, label_selector])
+        else:
+            label_selector = default_label_selector
+
+        if project and project != "*":
+            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
+
+        label_selector = self._add_object_label_selector_if_needed(
+            object_id, label_selector
+        )
+
+        if with_main_runtime_resource_label_selector:
+            main_runtime_resource_label_selector = (
+                self._get_main_runtime_resource_label_selector()
+            )
+            if main_runtime_resource_label_selector:
+                label_selector = ",".join(
+                    [label_selector, main_runtime_resource_label_selector]
+                )
+
+        return label_selector
+
+    @staticmethod
+    def resolve_object_id(
+        run: dict,
+    ) -> Optional[str]:
+        """
+        Get the object id from the run object
+        Override this if the object id is not the run uid
+        :param run: run object
+        :return: object id
+        """
+        return run.get("metadata", {}).get("uid", None)
+
+    def add_secrets_to_spec_before_running(
+        self,
+        runtime: mlrun.runtimes.pod.KubeResource,
+        project_name: typing.Optional[str] = None,
+    ):
+        if runtime._secrets:
+            if runtime._secrets.has_vault_source():
+                self.add_vault_params_to_spec(
+                    runtime=runtime, project_name=project_name
+                )
+            if runtime._secrets.has_azure_vault_source():
+                self.add_azure_vault_params_to_spec(
+                    runtime, runtime._secrets.get_azure_vault_k8s_secret()
+                )
+            self.add_k8s_secrets_to_spec(
+                runtime._secrets.get_k8s_secrets(),
+                runtime,
+                project_name=project_name,
+            )
+        else:
+            self.add_k8s_secrets_to_spec(None, runtime, project_name=project_name)
+
+    @staticmethod
+    def add_vault_params_to_spec(
+        runtime: mlrun.runtimes.pod.KubeResource,
+        project_name: typing.Optional[str] = None,
+    ):
+        if project_name is None:
+            logger.warning("No project provided. Cannot add vault parameters")
+            return
+
+        service_account_name = (
+            mlrun.mlconf.secret_stores.vault.project_service_account_name.format(
+                project=project_name
+            )
+        )
+
+        project_vault_secret_name = mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_vault_secret_name(
+            project_name, service_account_name
+        )
+        if project_vault_secret_name is None:
+            logger.info(f"No vault secret associated with project {project_name}")
+            return
+
+        volumes = [
+            {
+                "name": "vault-secret",
+                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
+            }
+        ]
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        token_path = mlrun.mlconf.secret_stores.vault.token_path.replace("~", "/root")
+
+        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
+
+        runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
+        runtime.spec.env.append(
+            {
+                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
+                "value": f"project:{project_name}",
+            }
+        )
+        # In case remote URL is different from local URL, use it. Else, use the local URL
+        vault_url = mlrun.mlconf.secret_stores.vault.remote_url
+        if vault_url == "":
+            vault_url = mlrun.mlconf.secret_stores.vault.url
+
+        runtime.spec.env.append(
+            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
+        )
+
+    @staticmethod
+    def add_azure_vault_params_to_spec(
+        runtime: mlrun.runtimes.pod.KubeResource,
+        k8s_secret_name: typing.Optional[str] = None,
+    ):
+        secret_name = (
+            k8s_secret_name
+            or mlrun.mlconf.secret_stores.azure_vault.default_secret_name
+        )
+        if not secret_name:
+            logger.warning(
+                "No k8s secret provided. Azure key vault will not be available"
+            )
+            return
+
+        # We cannot use expanduser() here, since the user in question is the user running in the pod
+        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
+        secret_path = mlrun.mlconf.secret_stores.azure_vault.secret_path.replace(
+            "~", "/root"
+        )
+        volumes = [
+            {
+                "name": "azure-vault-secret",
+                "secret": {"defaultMode": 420, "secretName": secret_name},
+            }
+        ]
+        volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
+        runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
+
+    @staticmethod
+    def add_k8s_secrets_to_spec(
+        secrets,
+        runtime: mlrun.runtimes.pod.KubeResource,
+        project_name: typing.Optional[str] = None,
+        encode_key_names: bool = True,
+    ):
+        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
+        # project secrets, to allow project secret keys to override them
+        global_secret_name = (
+            mlrun.mlconf.secret_stores.kubernetes.global_function_env_secret_name
+        )
+        if global_secret_name:
+            global_secrets = (
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().get_secret_data(
+                    global_secret_name
+                )
+            )
+            for key, value in global_secrets.items():
+                env_var_name = (
+                    mlrun.secrets.SecretsStore.k8s_env_variable_name_for_secret(key)
+                    if encode_key_names
+                    else key
+                )
+                runtime.set_env_from_secret(env_var_name, global_secret_name, key)
+
+        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
+        # it's a different case than None (not asking for project secrets at all).
+        if (
+            secrets is None
+            and not mlrun.mlconf.secret_stores.kubernetes.auto_add_project_secrets
+        ):
+            return
+
+        if project_name is None:
+            logger.warning("No project provided. Cannot add k8s secrets")
+            return
+
+        secret_name = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
+                project_name
+            )
+        )
+        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
+        # in the nuclio remote-dashboard flow, which causes dependency problems.
+        existing_secret_keys = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_keys(
+                project_name, filter_internal=True
+            )
+        )
+
+        # If no secrets were passed or auto-adding all secrets, we need all existing keys
+        if not secrets:
+            secrets = {
+                key: mlrun.secrets.SecretsStore.k8s_env_variable_name_for_secret(key)
+                if encode_key_names
+                else key
+                for key in existing_secret_keys
+            }
+
+        for key, env_var_name in secrets.items():
+            if key in existing_secret_keys:
+                runtime.set_env_from_secret(env_var_name, secret_name, key)
+
+        # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
+        # can be initialized with those env variables as secrets
+        if not encode_key_names and secrets.keys():
+            runtime.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
+
+    @staticmethod
+    @abstractmethod
+    def _get_object_label_selector(object_id: str) -> str:
+        """
+        Should return the label selector to get only resources of a specific object (with id object_id)
+        """
+        pass
+
+    def _get_possible_mlrun_class_label_values(
+        self, class_mode: Union[RuntimeClassMode, str] = None
+    ) -> List[str]:
+        """
+        Should return the possible values of the mlrun/class label for runtime resources that are of this runtime
+        handler kind
+        """
+        if not class_mode:
+            return list(self.class_modes.values())
+        class_mode = self.class_modes.get(class_mode, None)
+        return [class_mode] if class_mode else []
 
     def _ensure_run_not_stuck_on_non_terminal_state(
         self,
@@ -501,7 +730,9 @@ class BaseRuntimeHandler(ABC):
         return False
 
     def _list_pods(self, namespace: str, label_selector: str = None) -> List:
-        pods = get_k8s().list_pods(namespace, selector=label_selector)
+        pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().list_pods(
+            namespace, selector=label_selector
+        )
         # when we work with custom objects (list_namespaced_custom_object) it's always a dict, to be able to generalize
         # code working on runtime resource (either a custom object or a pod) we're transforming to dicts
         pods = [pod.to_dict() for pod in pods]
@@ -512,7 +743,7 @@ class BaseRuntimeHandler(ABC):
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = get_k8s().crdapi.list_namespaced_custom_object(
+                crd_objects = mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
                     crd_group,
                     crd_version,
                     namespace,
@@ -527,51 +758,6 @@ class BaseRuntimeHandler(ABC):
                 crd_objects = crd_objects["items"]
         return crd_objects
 
-    def resolve_label_selector(
-        self,
-        project: str,
-        object_id: Optional[str] = None,
-        label_selector: Optional[str] = None,
-        class_mode: Union[RuntimeClassMode, str] = None,
-        with_main_runtime_resource_label_selector: bool = False,
-    ) -> str:
-        default_label_selector = self._get_default_label_selector(class_mode=class_mode)
-
-        if label_selector:
-            label_selector = ",".join([default_label_selector, label_selector])
-        else:
-            label_selector = default_label_selector
-
-        if project and project != "*":
-            label_selector = ",".join([label_selector, f"mlrun/project={project}"])
-
-        label_selector = self._add_object_label_selector_if_needed(
-            object_id, label_selector
-        )
-
-        if with_main_runtime_resource_label_selector:
-            main_runtime_resource_label_selector = (
-                self._get_main_runtime_resource_label_selector()
-            )
-            if main_runtime_resource_label_selector:
-                label_selector = ",".join(
-                    [label_selector, main_runtime_resource_label_selector]
-                )
-
-        return label_selector
-
-    @staticmethod
-    def resolve_object_id(
-        run: dict,
-    ) -> Optional[str]:
-        """
-        Get the object id from the run object
-        Override this if the object id is not the run uid
-        :param run: run object
-        :return: object id
-        """
-        return run.get("metadata", {}).get("uid", None)
-
     def _wait_for_pods_deletion(
         self,
         namespace: str,
@@ -581,7 +767,7 @@ class BaseRuntimeHandler(ABC):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
         def _verify_pods_removed():
-            pods = get_k8s().v1api.list_namespaced_pod(
+            pods = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
                 namespace, label_selector=label_selector
             )
             existing_pod_names = [pod.metadata.name for pod in pods.items]
@@ -685,8 +871,10 @@ class BaseRuntimeHandler(ABC):
     ) -> List[Dict]:
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
-        pods = get_k8s().v1api.list_namespaced_pod(
-            namespace, label_selector=label_selector
+        pods = (
+            mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_pod(
+                namespace, label_selector=label_selector
+            )
         )
         deleted_pods = []
         for pod in pods.items:
@@ -726,7 +914,7 @@ class BaseRuntimeHandler(ABC):
                             pod_name=pod.metadata.name,
                         )
 
-                get_k8s().delete_pod(
+                mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
                     pod.metadata.name, namespace, self.pod_grace_period_seconds
                 )
                 deleted_pods.append(pod_dict)
@@ -752,7 +940,7 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = get_k8s().crdapi.list_namespaced_custom_object(
+            crd_objects = mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
                 crd_group,
                 crd_version,
                 namespace,
@@ -803,7 +991,7 @@ class BaseRuntimeHandler(ABC):
                                 crd_object_name=crd_object["metadata"]["name"],
                             )
 
-                    get_k8s().delete_crd(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().delete_crd(
                         crd_object["metadata"]["name"],
                         crd_group,
                         crd_version,
@@ -1256,3 +1444,57 @@ class BaseRuntimeHandler(ABC):
                 )
             )
         return crd_resources
+
+    @staticmethod
+    def _get_meta(
+        runtime: mlrun.runtimes.pod.KubeResource,
+        run: mlrun.run.RunObject,
+        unique: bool = False,
+    ) -> k8s_client.V1ObjectMeta:
+        namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+
+        labels = get_resource_labels(runtime, run, run.spec.scrape_metrics)
+        new_meta = k8s_client.V1ObjectMeta(
+            namespace=namespace,
+            annotations=runtime.metadata.annotations or run.metadata.annotations,
+            labels=labels,
+        )
+
+        name = run.metadata.name or "mlrun"
+        norm_name = f"{mlrun.utils.helpers.normalize_name(name)}-"
+        if unique:
+            norm_name += uuid.uuid4().hex[:8]
+            new_meta.name = norm_name
+            run.set_label("mlrun/job", norm_name)
+        else:
+            new_meta.generate_name = norm_name
+        return new_meta
+
+
+def get_resource_labels(function, run=None, scrape_metrics=None):
+    scrape_metrics = (
+        scrape_metrics if scrape_metrics is not None else mlrun.mlconf.scrape_metrics
+    )
+    run_uid, run_name, run_project, run_owner = None, None, None, None
+    if run:
+        run_uid = run.metadata.uid
+        run_name = run.metadata.name
+        run_project = run.metadata.project
+        run_owner = run.metadata.labels.get("owner")
+    labels = copy.deepcopy(function.metadata.labels)
+    labels[mlrun_key + "class"] = function.kind
+    labels[mlrun_key + "project"] = run_project or function.metadata.project
+    labels[mlrun_key + "function"] = str(function.metadata.name)
+    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
+    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
+
+    if run_uid:
+        labels[mlrun_key + "uid"] = run_uid
+
+    if run_name:
+        labels[mlrun_key + "name"] = run_name
+
+    if run_owner:
+        labels[mlrun_key + "owner"] = run_owner
+
+    return labels

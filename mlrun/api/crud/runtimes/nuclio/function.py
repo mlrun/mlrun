@@ -22,6 +22,7 @@ import requests
 
 import mlrun
 import mlrun.api.crud.runtimes.nuclio.helpers
+import mlrun.api.runtime_handlers
 import mlrun.api.utils.builder
 import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
@@ -266,7 +267,7 @@ def _resolve_env_vars(function):
     if mlrun.api.utils.singletons.k8s.get_k8s_helper(
         silent=True
     ).is_running_inside_kubernetes_cluster():
-        function.add_secrets_config_to_spec()
+        _add_secrets_config_to_function_spec(function)
 
     env_dict, external_source_env_dict = function._get_nuclio_config_spec_env()
 
@@ -358,6 +359,14 @@ def _set_build_params(function, nuclio_spec, builder_env, project, auth_info=Non
 
     if function.spec.base_image_pull:
         nuclio_spec.set_config("spec.build.noBaseImagesPull", False)
+
+    if function.spec.build.extra_args:
+        nuclio_spec.set_config(
+            "spec.build.flags",
+            mlrun.api.crud.runtimes.nuclio.helpers.parse_extra_args_to_nuclio_build_flags(
+                function.spec.build.extra_args
+            ),
+        )
 
 
 def _set_function_scheduling_params(function, nuclio_spec):
@@ -503,3 +512,52 @@ def _set_function_name(function, config, project, tag):
     function.status.nuclio_name = name
     mlrun.utils.update_in(config, "metadata.name", name)
     return name
+
+
+def _add_secrets_config_to_function_spec(
+    function: mlrun.runtimes.function.RemoteRuntime,
+):
+    handler = mlrun.api.runtime_handlers.BaseRuntimeHandler
+    if function.kind in [
+        mlrun.runtimes.RuntimeKinds.remote,
+        mlrun.runtimes.RuntimeKinds.nuclio,
+    ]:
+        # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
+        # to decode the secrets and special env variable names in the function, we just use the same env variable as
+        # the key name (encode_key_names=False)
+        handler.add_k8s_secrets_to_spec(
+            None,
+            function,
+            project_name=function.metadata.project,
+            encode_key_names=False,
+        )
+
+    elif function.kind == mlrun.runtimes.RuntimeKinds.serving:
+        function: mlrun.runtimes.serving.ServingRuntime
+        if function.spec.secret_sources:
+            function._secrets = mlrun.secrets.SecretsStore.from_list(
+                function.spec.secret_sources
+            )
+            if function._secrets.has_vault_source():
+                handler.add_vault_params_to_spec(
+                    function, project_name=function.metadata.project
+                )
+            if function._secrets.has_azure_vault_source():
+                handler.add_azure_vault_params_to_spec(
+                    function, function._secrets.get_azure_vault_k8s_secret()
+                )
+            handler.add_k8s_secrets_to_spec(
+                function._secrets.get_k8s_secrets(),
+                function,
+                project_name=function.metadata.project,
+            )
+        else:
+            handler.add_k8s_secrets_to_spec(
+                None, function, project_name=function.metadata.project
+            )
+
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Unexpected function kind {function.kind}. Expected one of: "
+            f"{mlrun.runtimes.RuntimeKinds.nuclio_runtimes()}"
+        )

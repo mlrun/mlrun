@@ -155,6 +155,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_nuclio_runtime=None,
         expected_env=None,
         expected_build_commands=None,
+        expected_build_args=None,
     ):
         if expected_labels is None:
             expected_labels = {}
@@ -226,6 +227,8 @@ class TestNuclioRuntime(TestRuntimeBase):
                     deploy_config["spec"]["build"]["commands"]
                     == expected_build_commands
                 )
+            if expected_build_args:
+                assert deploy_config["spec"]["build"]["flags"] == expected_build_args
 
         return deploy_configs
 
@@ -654,6 +657,36 @@ class TestNuclioRuntime(TestRuntimeBase):
         self.execute_function(function)
 
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
+
+    @pytest.mark.parametrize(
+        "extra_args,expected_build_flags",
+        [
+            ("--skip-tls-verify --cleanup", ["--skip-tls-verify", "--cleanup"]),
+            ("--skip-tls-verify    --cleanup", ["--skip-tls-verify", "--cleanup"]),
+            (
+                "--skip-tls-verify  --build-arg LABEL=SL --cleanup --memory=100",
+                [
+                    "--skip-tls-verify",
+                    "--build-arg LABEL=SL",
+                    "--cleanup",
+                    "--memory=100",
+                ],
+            ),
+        ],
+    )
+    def test_deploy_with_build_flags(
+        self,
+        extra_args: str,
+        expected_build_flags: list,
+        db: Session,
+        client: TestClient,
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.spec.build.extra_args = extra_args
+        self.execute_function(function)
+        self._assert_deploy_called_basic_config(
+            expected_class=self.class_name, expected_build_args=expected_build_flags
+        )
 
     def test_deploy_image_with_enrich_registry_prefix(self):
         function = self._generate_runtime(self.runtime_kind)

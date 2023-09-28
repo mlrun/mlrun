@@ -119,7 +119,9 @@ def test_check_permissions(rundb_mock, monkeypatch):
             "string": ["ab", "cd", "ef"],
         }
     )
-    data_set1 = fstore.FeatureSet("fs1", entities=[Entity("string")])
+    data_set1 = fstore.FeatureSet(
+        "fs1", entities=[Entity("string")], timestamp_key="time_stamp"
+    )
 
     monkeypatch.setattr(
         rundb_mock,
@@ -132,7 +134,6 @@ def test_check_permissions(rundb_mock, monkeypatch):
             data_set1,
             data,
             entity_columns=[Entity("string")],
-            timestamp_key="time_stamp",
         )
     with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
         fstore.ingest(data_set1, data, infer_options=fstore.InferOptions.default())

@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Union
 from dependency_injector import containers, providers
 
 import mlrun.api.crud
+import mlrun.api.runtime_handlers
 import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
 import mlrun.config
@@ -132,7 +133,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         execution.store_run()
         runtime._pre_run(run, execution)  # hook for runtime specific prep
 
-        resp = None
         last_err = None
         # If the runtime is nested, it means the hyper-run will run within a single instance of the run.
         # So while in the API, we consider the hyper-run as a single run, and then in the runtime itself when the
@@ -151,12 +151,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
         else:
             # single run
             try:
-                resp = runtime._run(run, execution)
+                runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(
+                    runtime.kind
+                )
+                runtime_handler.run(runtime, run, execution)
             except mlrun.runtimes.utils.RunError as err:
                 last_err = err
 
             finally:
-                result = runtime._update_run_state(resp=resp, task=run, err=last_err)
+                result = runtime._update_run_state(task=run, err=last_err)
 
         self._save_notifications(run)
 

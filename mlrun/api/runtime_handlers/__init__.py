@@ -23,7 +23,7 @@ from mlrun.api.runtime_handlers.mpijob import (
     resolve_mpijob_crd_version,
 )
 from mlrun.api.runtime_handlers.remotesparkjob import RemoteSparkRuntimeHandler
-from mlrun.api.runtime_handlers.sparkjob import SparkRuntimeHandler
+from mlrun.api.runtime_handlers.sparkjob.spark3job import Spark3RuntimeHandler
 from mlrun.runtimes import RuntimeKinds
 
 runtime_handler_instances_cache = {}
@@ -45,7 +45,7 @@ def get_runtime_handler(kind: str) -> BaseRuntimeHandler:
 
     kind_runtime_handler_map = {
         RuntimeKinds.dask: DaskRuntimeHandler,
-        RuntimeKinds.spark: SparkRuntimeHandler,
+        RuntimeKinds.spark: Spark3RuntimeHandler,
         RuntimeKinds.remotespark: RemoteSparkRuntimeHandler,
         RuntimeKinds.job: KubeRuntimeHandler,
         RuntimeKinds.databricks: DatabricksRuntimeHandler,

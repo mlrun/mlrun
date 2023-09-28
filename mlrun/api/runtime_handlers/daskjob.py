@@ -27,10 +27,10 @@ import mlrun.runtimes.pod
 import mlrun.utils
 import mlrun.utils.regex
 from mlrun.api.db.base import DBInterface
-from mlrun.api.runtime_handlers.base import BaseRuntimeHandler
+from mlrun.api.runtime_handlers import BaseRuntimeHandler
+from mlrun.api.runtime_handlers.base import get_resource_labels
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
-from mlrun.runtimes.utils import get_k8s, get_resource_labels
 from mlrun.utils import logger
 
 
@@ -46,9 +46,19 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     kind = "dask"
     class_modes = {RuntimeClassMode.run: "dask"}
 
+    def run(
+        self,
+        runtime: mlrun.runtimes.BaseRuntime,
+        run: mlrun.run.RunObject,
+        execution: mlrun.execution.MLClientCtx,
+    ):
+        raise NotImplementedError(
+            "Execution of dask jobs is done locally by the dask client"
+        )
+
     # Dask runtime resources are per function (and not per run).
     # It means that monitoring runtime resources state doesn't say anything about the run state.
-    # Therefore dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
+    # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
     ):
@@ -102,7 +112,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        services = get_k8s().v1api.list_namespaced_service(
+        services = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -204,13 +214,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        services = get_k8s().v1api.list_namespaced_service(
+        services = mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
             namespace, label_selector=label_selector
         )
         for service in services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    get_k8s().v1api.delete_namespaced_service(
+                    mlrun.api.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
                         service.metadata.name, namespace
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
@@ -291,9 +301,12 @@ def enrich_dask_cluster(
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
     from kubernetes import client
 
-    # Is it possible that the function will not have a project at this point?
-    if function.metadata.project:
-        function._add_secrets_to_spec_before_running(project=function.metadata.project)
+    runtime_handler: mlrun.api.runtime_handlers.daskjob.DaskRuntimeHandler = (
+        mlrun.api.runtime_handlers.DaskRuntimeHandler()
+    )
+    runtime_handler.add_secrets_to_spec_before_running(
+        runtime=function, project_name=function.metadata.project
+    )
 
     spec = function.spec
     meta = function.metadata
@@ -339,10 +352,10 @@ def enrich_dask_cluster(
         resources=spec.worker_resources, args=worker_args, **container_kwargs
     )
 
-    scheduler_pod_spec = mlrun.runtimes.pod.kube_resource_spec_to_pod_spec(
+    scheduler_pod_spec = mlrun.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, scheduler_container
     )
-    worker_pod_spec = mlrun.runtimes.pod.kube_resource_spec_to_pod_spec(
+    worker_pod_spec = mlrun.api.utils.singletons.k8s.kube_resource_spec_to_pod_spec(
         spec, worker_container
     )
     for pod_spec in [scheduler_pod_spec, worker_pod_spec]:

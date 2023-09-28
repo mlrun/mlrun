@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import and_, distinct, func, or_
+from sqlalchemy import Integer, and_, distinct, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 
@@ -3085,7 +3085,7 @@ class SQLDB(DBInterface):
             return query
 
         # Escape special chars (_,%) since we still need to do a like query because of the iter.
-        # Also limit length to len(str) + 3, assuming iter is < 100 (two iter digits + hyphen)
+        # Also limit length to len(str) + 4, assuming iter is < 1000 (three iter digits + hyphen)
         # this helps filter the situations where we match a suffix by mistake due to the like query.
         exact_name = self._escape_characters_for_like_query(name)
 
@@ -3108,7 +3108,8 @@ class SQLDB(DBInterface):
                 Artifact.key == name,
                 and_(
                     Artifact.key.like(f"%-{exact_name}", escape="\\"),
-                    func.length(Artifact.key) < len(name) + 4,
+                    func.length(Artifact.key) < len(name) + 5,
+                    func.cast(func.substr(Artifact.key, 1, 1), Integer),
                 ),
             )
         )
@@ -4038,10 +4039,10 @@ class SQLDB(DBInterface):
         :returns: List of DatatoreProfile objects (only the public portion of it)
         """
         project = project or config.default_project
-        query_results = self._query(session, DatastoreProfile, project=project)
+        datastore_records = self._query(session, DatastoreProfile, project=project)
         return [
-            self._transform_datastore_profile_model_to_schema(query)
-            for query in query_results
+            self._transform_datastore_profile_model_to_schema(datastore_record)
+            for datastore_record in datastore_records
         ]
 
     def delete_datastore_profiles(

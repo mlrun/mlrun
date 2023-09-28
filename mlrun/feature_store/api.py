@@ -67,6 +67,7 @@ from .retrieval import RemoteVectorResponse, get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
+_TRANS_TABLE = str.maketrans({" ": "_", "(": "", ")": ""})
 
 
 def _features_to_vector_and_check_permissions(features, update_stats):
@@ -315,12 +316,20 @@ def get_online_feature_service(
     )
 
 
-def _rename_source_dataframe_columns(df):
+def norm_column_name(name: str) -> str:
+    """
+    Remove parentheses () and replace whitespaces with an underscore _.
+    Used to normalize a column/feature name.
+    """
+    return name.translate(_TRANS_TABLE)
+
+
+def _rename_source_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     rename_mapping = {}
     column_set = set(df.columns)
     for column in df.columns:
         if isinstance(column, str):
-            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            rename_to = norm_column_name(column)
             if rename_to != column:
                 if rename_to in column_set:
                     raise mlrun.errors.MLRunInvalidArgumentError(

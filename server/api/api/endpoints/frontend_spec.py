@@ -17,14 +17,14 @@ import typing
 import fastapi
 import semver
 
-import server.api.utils.builder
-import server.api.utils.runtimes.nuclio
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import mlrun.utils.helpers
 import server.api.api.deps
+import server.api.utils.builder
 import server.api.utils.clients.iguazio
+import server.api.utils.runtimes.nuclio
 from mlrun.config import config
 from mlrun.platforms import is_iguazio_session_cookie
 from server.api.api.utils import get_allowed_path_prefixes_list

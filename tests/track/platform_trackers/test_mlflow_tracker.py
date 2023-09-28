@@ -207,7 +207,7 @@ def test_import_run(rundb_mock, handler):
         mlflow_run = mlflow.last_active_run()
         imported_run = MLFlowTracker.import_run(
             project=project,
-            pointer=mlflow_run.info.run_id,
+            reference_id=mlflow_run.info.run_id,
             function_name="import_run_test",
         )
 
@@ -238,7 +238,7 @@ def test_import_model(rundb_mock, handler):
         key = "test_model"
         MLFlowTracker.import_model(
             project=project,
-            pointer=model_uri,
+            reference_id=model_uri,
             key=key,
             metrics=mlflow_run.data.metrics,
         )
@@ -279,7 +279,7 @@ def test_import_artifact(rundb_mock, handler):
                 key = f"test_artifact_{artifact.path}"
                 MLFlowTracker.import_artifact(
                     project=project,
-                    pointer=artifact_uri,
+                    reference_id=artifact_uri,
                     key=key,
                 )
 

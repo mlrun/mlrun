@@ -181,8 +181,8 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
         trackers_manager = self._get_trackers_manager()
         trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
-        log_std(self._db_conn, runobj, sout, serr, show=False)
         context = trackers_manager.post_run(context)
+        log_std(self._db_conn, runobj, sout, serr, show=False)
         return context.to_dict()
 
 
@@ -294,11 +294,11 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 trackers_manager = self._get_trackers_manager()
                 trackers_manager.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
+                # If trackers where used, this is where we log all data collected to MLRun
+                context = trackers_manager.post_run(context)
                 log_std(
                     self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
-                # If trackers where used, this is where we log all data collected to MLRun
-                context = trackers_manager.post_run(context)
                 return context.to_dict()
 
             # if RunError was raised it means that the error was raised as part of running the function

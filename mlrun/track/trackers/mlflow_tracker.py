@@ -30,7 +30,7 @@ from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
 from mlrun.track.tracker import Tracker
-from mlrun.utils import now_date, logger
+from mlrun.utils import logger, now_date
 
 
 class MLFlowTracker(Tracker):
@@ -90,7 +90,7 @@ class MLFlowTracker(Tracker):
     def import_run(
         cls,
         project: MlrunProject,
-        pointer: str,
+        reference_id: str,
         function_name: str,
         handler: str = None,
     ) -> RunObject:
@@ -98,7 +98,7 @@ class MLFlowTracker(Tracker):
         Import a previous MLFlow experiment run to MLRun.
 
         :param project:       The MLRun project to import the run to.
-        :param pointer:       The MLFlow `run_id` to import.
+        :param reference_id:  The MLFlow `run_id` to import.
         :param function_name: The MLRun function to assign this run to.
         :param handler:       The handler for MLRun's RunObject
 
@@ -108,7 +108,7 @@ class MLFlowTracker(Tracker):
         # Get the MLFlow run object:
         run = mlflow.search_runs(
             search_all_experiments=True,
-            filter_string=f"attributes.run_id = '{pointer}'",
+            filter_string=f"attributes.run_id = '{reference_id}'",
             output_format="list",
         )
         if not run:
@@ -144,14 +144,10 @@ class MLFlowTracker(Tracker):
         rundb.update_run(updates, uid, project)
 
         # Print a summary message after importing the run:
-        # RuntimeMock needed for mocking runtime parameter in `_log_track_results`
-        class RuntimeMock:
-            is_child = False
-
         result = ctx.to_dict()
         run_object = RunObject.from_dict(result)
         ClientBaseLauncher._log_track_results(
-            runtime=RuntimeMock, result=result, run=run_object
+            is_child=False, result=result, run=run_object
         )
 
         return run_object
@@ -160,22 +156,27 @@ class MLFlowTracker(Tracker):
     def import_model(
         cls,
         project: MlrunProject,
-        pointer: str,
-        key: str,
+        reference_id: str,
+        key: str = None,
         metrics: dict = None,
         extra_data: dict = None,
     ) -> ModelArtifact:
         """
         Import a model from MLFlow to MLRun.
 
-        :param project:    The MLRun project to import the model to.
-        :param pointer:    The MLFlow model uri to import.
-        :param key:        The model key to be used in MLRun. Mandatory for importing.
-        :param metrics:    The model's metrics.
-        :param extra_data: Extra artifacts and files to log with the model.
+        :param project:         The MLRun project to import the model to.
+        :param reference_id:    The MLFlow model uri to import.
+        :param key:             The model key to be used in MLRun. Mandatory for importing.
+        :param metrics:         The model's metrics.
+        :param extra_data:      Extra artifacts and files to log with the model.
 
         :return: The newly imported ModelArtifact.
         """
+        # Validate key is given:
+        if key is None:
+            raise ValueError(
+                "MLFlow models require a key to import into MLRun - the key of the model artifact to be created."
+            )
 
         # Setup defaults:
         metrics = metrics or {}
@@ -185,7 +186,7 @@ class MLFlowTracker(Tracker):
             # Log the model:
             model = cls._log_model(
                 context_or_project=project,
-                model_uri=pointer,
+                model_uri=reference_id,
                 key=key,
                 metrics=metrics,
                 extra_data=extra_data,
@@ -197,14 +198,14 @@ class MLFlowTracker(Tracker):
 
     @classmethod
     def import_artifact(
-        cls, project: MlrunProject, pointer: str, key: str = None
+        cls, project: MlrunProject, reference_id: str, key: str = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
 
-        :param project: The MLRun project to import the artifact to.
-        :param pointer: The MLFlow artifact uri to import.
-        :param key:     The artifact key to be used in MLRun. Mandatory for importing.
+        :param project:      The MLRun project to import the artifact to.
+        :param reference_id: The MLFlow artifact uri to import.
+        :param key:          The artifact key to be used in MLRun. Mandatory for importing.
 
         :return: The newly imported artifact.
         """
@@ -218,7 +219,7 @@ class MLFlowTracker(Tracker):
         with tempfile.TemporaryDirectory() as tmp_dir:
             # Download the artifact to local temp:
             local_path = mlflow.artifacts.download_artifacts(
-                artifact_uri=pointer, dst_path=tmp_dir
+                artifact_uri=reference_id, dst_path=tmp_dir
             )
 
             # Log and return the artifact:
@@ -239,9 +240,9 @@ class MLFlowTracker(Tracker):
         """
         Log the given MLFlow run to MLRun.
 
-        :param context:    Current MLRun context or project.
-        :param run: MLFlow Run to log. Can be given as a `Run` object or as a run id.
-        :param is_offline: True if logging an offline run (importing), False if online run (tracking)
+        :param context:     Current MLRun context or project.
+        :param run:         MLFlow Run to log. Can be given as a `Run` object or as a run id.
+        :param is_offline:  True if logging an offline run (importing), False if online run (tracking)
         """
         client = mlflow.MlflowClient()
 

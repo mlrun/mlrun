@@ -72,7 +72,10 @@ class TrackerManager:
 
         # Go over the trackers and call the `post_run` method:
         for tracker in self._trackers:
-            tracker.post_run(context)
+            try:
+                tracker.post_run(context)
+            except Exception as e:
+                logger.warn(f"Tracker {tracker.__name__} failed in post run with the following exception: ", exception=str(e))
 
         # Commit changes:
         context.commit()

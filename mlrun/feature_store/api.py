@@ -62,7 +62,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import get_merger, run_merge_job
+from .retrieval import RemoteVectorResponse, get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -106,7 +106,7 @@ def get_offline_features(
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, Dict[str, str]] = None,
-) -> OfflineVectorResponse:
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata

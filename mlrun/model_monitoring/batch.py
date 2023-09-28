@@ -361,6 +361,8 @@ class VirtualDrift:
                     "Can't calculate drift for this feature because at least one of the required"
                     "statistical metrics is missing",
                     feature=feature,
+                    tvd=tvd,
+                    hellinger=hellinger,
                 )
                 continue
             metrics_results_dictionary = (tvd + hellinger) / 2

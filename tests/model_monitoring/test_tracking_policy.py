@@ -14,7 +14,7 @@
 #
 
 import mlrun.model_monitoring.tracking_policy
-import server.api.crud
+import server.api.crud.model_monitoring.helpers
 
 
 def test_batch_intervals():

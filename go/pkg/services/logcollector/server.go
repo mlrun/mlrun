@@ -693,11 +693,15 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
-		keepLogging, err = s.streamPodLogs(ctx, runUID, file, stream)
+		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream)
 		if err != nil {
-			s.Logger.WarnWithCtx(ctx,
-				"An error occurred while streaming pod logs",
-				"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
+			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
+			// by bailing out
+			if !errors.Is(err, common.PodStillRunningError{}) {
+				s.Logger.WarnWithCtx(ctx,
+					"An error occurred while streaming pod logs",
+					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
+			}
 
 			// fatal error, bail out
 			// note that when function is returned, a defer function will remove the
@@ -730,7 +734,8 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 // streamPodLogs streams logs from a pod to a file
 func (s *Server) streamPodLogs(ctx context.Context,
-	runUID string,
+	runUID,
+	podName string,
 	logFile *os.File,
 	stream io.ReadCloser) (bool, error) {
 
@@ -754,10 +759,24 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		}
 	}
 
-	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
+	// if error is EOF, it either means the pod is done streaming logs, or the logs in the apiserver were rotated,
+	// in such case we need to get a new stream
 	if err == io.EOF {
-		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
-		return false, nil
+
+		pod, err := s.kubeClientSet.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return false, errors.Wrap(err, "Failed to get pod")
+		}
+		// if the pod not running, it means is done streaming logs and we can stop
+		if pod.Status.Phase != v1.PodRunning {
+			s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
+			return false, nil
+		}
+
+		// the pod is still running - exit and without error, so the monitoring loop will continue
+		// to stream logs
+		s.Logger.DebugWithCtx(ctx, "Received EOF but pod is still running", "runUID", runUID)
+		return false, common.PodStillRunningError{}
 	}
 
 	// other error occurred

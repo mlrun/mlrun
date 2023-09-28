@@ -227,16 +227,17 @@ def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
 ) -> typing.Optional[Dict]:
     """
-    Getting workflow from project
+    Getting workflow from project by name.
 
     :param project:     MLRun project
     :param name:        workflow name
 
-    :return: workflow as a dict if project has the workflow
+    :return: workflow as a dict if project has the workflow and empty dict if not.
     """
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
             return workflow
+    return {}
 
 
 def _fill_workflow_missing_fields_from_project(
@@ -255,16 +256,23 @@ def _fill_workflow_missing_fields_from_project(
 
     :return: completed workflow spec
     """
-    # Verifying workflow exists in project:
+
+    # while we expect workflow to be exists on project spec, we might get a case where the workflow is not exists.
+    # this is possible when workflow is not set prior to its execution.
     workflow = _get_workflow_by_name(project, workflow_name)
-    if not workflow:
-        workflow = {}
 
     if spec:
         # Merge between the workflow spec provided in the request with existing
         # workflow while the provided workflow takes precedence over the existing workflow params
         workflow = copy.deepcopy(workflow)
         workflow = _update_dict(workflow, spec.dict())
+
+    if not workflow["name"]:
+        log_and_raise(
+            reason=f"workflow name {workflow_name} is not found"
+            if not workflow
+            else "workflow spec is invalid",
+        )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
     # Overriding arguments of the existing workflow:

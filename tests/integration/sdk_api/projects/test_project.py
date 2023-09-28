@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import pathlib
 
 import deepdiff
@@ -99,6 +100,8 @@ class TestProject(tests.integration.sdk_api.base.TestMLRunIntegration):
         }
         artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
         for artifact_key in artifact_keys:
+            artifact_instance = copy.deepcopy(artifact)
+            artifact_instance["metadata"]["key"] = artifact_key
             db.store_artifact(
                 artifact_key,
                 artifact,

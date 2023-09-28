@@ -746,7 +746,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         key,
         artifact,
-        # TODO: deprecated, remove in 1.7.0
+        # TODO: deprecated, remove in 1.8.0
         uid=None,
         iter=None,
         tag=None,

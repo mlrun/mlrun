@@ -26,7 +26,7 @@ _TRACKERS = ["mlflow"]
 
 # A list for the available trackers during runtime. It will be setup at the beginning of the run by the function
 # `_collect_available_trackers`:
-_AVAILABLE_TRACKERS: List[Type[Tracker]] = None
+_AVAILABLE_TRACKERS: List[Tracker] = None
 
 # The global singleton trackers manager:
 _TRACKERS_MANAGER = TrackerManager(_stale=True)
@@ -98,6 +98,6 @@ def get_trackers_manager() -> TrackerManager:
     # Add relevant trackers (enabled ones by the configuration) to be managed:
     for available_tracker in _AVAILABLE_TRACKERS:
         if available_tracker.is_enabled():
-            _TRACKERS_MANAGER.add_tracker(tracker=available_tracker)
+            _TRACKERS_MANAGER.add_tracker(tracker=available_tracker())
 
     return _TRACKERS_MANAGER

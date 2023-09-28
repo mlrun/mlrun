@@ -29,8 +29,9 @@ from mlrun.features import Feature
 from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
-from mlrun.track.tracker import Tracker
 from mlrun.utils import logger, now_date
+
+from ..tracker import Tracker
 
 
 class MLFlowTracker(Tracker):
@@ -38,8 +39,8 @@ class MLFlowTracker(Tracker):
     A class for detecting and logging MLFlow runs into MLRun. Notice, only the last active MLFlow run is logged.
     """
 
-    @classmethod
-    def is_enabled(cls) -> bool:
+    @staticmethod
+    def is_enabled() -> bool:
         """
         Checks if tracker is enabled.
 
@@ -47,8 +48,7 @@ class MLFlowTracker(Tracker):
         """
         return getattr(mlconf.external_platform_tracking, mlflow.__name__).enabled
 
-    @classmethod
-    def pre_run(cls, context: MLClientCtx):
+    def pre_run(self, context: MLClientCtx):
         """
         Initializes the MLFlow tracker, setting the experiment name as configured by the user.
 
@@ -71,14 +71,13 @@ class MLFlowTracker(Tracker):
             experiment_name = context.name
             mlflow.set_experiment(experiment_name=experiment_name)
 
-    @classmethod
-    def post_run(cls, context: MLClientCtx):
+    def post_run(self, context: MLClientCtx):
         """
         Performs post-run tasks for logging MLFlow artifacts generated during the run.
 
         :param context: Current mlrun context
         """
-        # Get the last run (None means no run was created or found):
+        # Get the last run (None means no run was created or found, in cases where there is no mlflow code or that the mlflow code has bugs):
         run = mlflow.last_active_run()
         if run is None:
             return
@@ -86,13 +85,13 @@ class MLFlowTracker(Tracker):
         # Log the run:
         MLFlowTracker._log_run(context=context, run=run)
 
-    @classmethod
     def import_run(
-        cls,
+        self,
         project: MlrunProject,
         reference_id: str,
         function_name: str,
         handler: str = None,
+        **kwargs
     ) -> RunObject:
         """
         Import a previous MLFlow experiment run to MLRun.
@@ -130,7 +129,7 @@ class MLFlowTracker(Tracker):
         )
         # Store the run in the MLRun DB, then import the MLFlow data to it:
         ctx.store_run()
-        cls._log_run(context=ctx, run=run, is_offline=True)
+        self._log_run(context=ctx, run=run, is_offline=True)
 
         # Create a rundb in order to update the run's state as completed (can't be done using context)
         rundb = mlrun.get_run_db()
@@ -152,9 +151,8 @@ class MLFlowTracker(Tracker):
 
         return run_object
 
-    @classmethod
     def import_model(
-        cls,
+        self,
         project: MlrunProject,
         reference_id: str,
         key: str = None,
@@ -184,7 +182,7 @@ class MLFlowTracker(Tracker):
         with tempfile.TemporaryDirectory() as temp_dir:
 
             # Log the model:
-            model = cls._log_model(
+            model = self._log_model(
                 context_or_project=project,
                 model_uri=reference_id,
                 key=key,
@@ -196,9 +194,8 @@ class MLFlowTracker(Tracker):
             logger.info("model imported successfully", key=key)
             return model
 
-    @classmethod
     def import_artifact(
-        cls, project: MlrunProject, reference_id: str, key: str = None
+        self, project: MlrunProject, reference_id: str, key: str = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.
@@ -223,7 +220,7 @@ class MLFlowTracker(Tracker):
             )
 
             # Log and return the artifact:
-            artifact = cls._log_artifact(
+            artifact = self._log_artifact(
                 context_or_project=project,
                 key=key,
                 local_path=local_path,
@@ -290,14 +287,18 @@ class MLFlowTracker(Tracker):
                 )
                 # Check if the artifact is a model (will be logged after the artifacts):
                 if artifact.is_dir and os.path.exists(
-                    os.path.join(artifact_local_path, "MLmodel")
+                    os.path.join(
+                        artifact_local_path, "MLmodel"
+                    )  # Add tag to show model dir
                 ):
                     model_paths.append(artifact_local_path)
                 else:
                     # Log the artifact:
                     artifact = MLFlowTracker._log_artifact(
                         context_or_project=context,
-                        key=pathlib.Path(artifact.path).name.replace(".", "_"),
+                        key=pathlib.Path(artifact.path).name.replace(
+                            ".", "_"
+                        ),  # Mlflow has the same name for files but with different extensions, so we add extension to name
                         local_path=artifact_local_path,
                         tmp_path=tmp_dir,
                     )

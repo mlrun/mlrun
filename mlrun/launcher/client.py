@@ -114,9 +114,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             pass
 
     @staticmethod
-    def _log_track_results(
-        is_child: bool, result: dict, run: "mlrun.run.RunObject"
-    ):
+    def _log_track_results(is_child: bool, result: dict, run: "mlrun.run.RunObject"):
         """
         log commands to track results
         in jupyter, displays a table widget with the result

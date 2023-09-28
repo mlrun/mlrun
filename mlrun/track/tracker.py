@@ -31,9 +31,8 @@ class Tracker(ABC):
     * Offline: Manually importing models and artifacts into an MLRun project using the `import_x` methods.
     """
 
-    @classmethod
     @abstractmethod
-    def is_enabled(cls) -> bool:
+    def is_enabled(self) -> bool:
         """
         Checks if tracker is enabled.
 
@@ -41,8 +40,7 @@ class Tracker(ABC):
         """
         pass
 
-    @classmethod
-    def pre_run(cls, context: MLClientCtx):
+    def pre_run(self, context: MLClientCtx):
         """
         Initializes the tracking system for a 3rd party module. This function sets up the necessary components and
         resources to enable tracking of the module.
@@ -51,8 +49,7 @@ class Tracker(ABC):
         """
         pass
 
-    @classmethod
-    def post_run(cls, context: Union[MLClientCtx, dict]):
+    def post_run(self, context: Union[MLClientCtx, dict]):
         """
         Performs post-run tasks for logging 3rd party artifacts generated during the run.
 
@@ -60,9 +57,8 @@ class Tracker(ABC):
         """
         pass
 
-    @classmethod
     def import_run(
-        cls,
+        self,
         project: MlrunProject,
         reference_id: str,
         function_name: str,
@@ -81,9 +77,8 @@ class Tracker(ABC):
         """
         pass
 
-    @classmethod
     def import_model(
-        cls, project: MlrunProject, reference_id: str, **kwargs
+        self, project: MlrunProject, reference_id: str, **kwargs
     ) -> ModelArtifact:
         """
         Import a model from a 3rd party vendor to MLRun.
@@ -95,9 +90,8 @@ class Tracker(ABC):
         """
         pass
 
-    @classmethod
     def import_artifact(
-        cls, project: MlrunProject, reference_id: str, **kwargs
+        self, project: MlrunProject, reference_id: str, **kwargs
     ) -> Artifact:
         """
         Import an artifact from a 3rd party vendor to MLRun.

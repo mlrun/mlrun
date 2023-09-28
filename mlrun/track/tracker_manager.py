@@ -32,17 +32,17 @@ class TrackerManager:
 
         :param _stale: An inner attribute to init a trackers manager in a specific staleness state.
         """
-        self._trackers: List[Type[Tracker]] = []
+        self._trackers: List[Tracker] = []
         self._stale = _stale
 
-    def add_tracker(self, tracker: Type[Tracker]):
+    def add_tracker(self, tracker: Tracker):
         """
         Adds a Tracker to trackers list.
 
         :param tracker: The tracker class to add
         """
         self._trackers.append(tracker)
-        logger.debug("Added tracker", tracker=tracker.__name__)
+        logger.debug("Added tracker", tracker=tracker.__class__.__name__)
 
     def pre_run(self, context: MLClientCtx):
         """
@@ -75,7 +75,10 @@ class TrackerManager:
             try:
                 tracker.post_run(context)
             except Exception as e:
-                logger.warn(f"Tracker {tracker.__name__} failed in post run with the following exception: ", exception=str(e))
+                logger.warn(
+                    f"Tracker {tracker.__name__} failed in post run with the following exception: ",
+                    exception=str(e),
+                )
 
         # Commit changes:
         context.commit()

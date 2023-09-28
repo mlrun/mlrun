@@ -16,6 +16,7 @@ import pathlib
 
 import mlrun
 from mlrun.feature_store.common import RunConfig
+from mlrun.runtimes.function_reference import FunctionReference
 
 function_path = str(pathlib.Path(__file__).parent / "assets" / "function.py")
 
@@ -74,3 +75,14 @@ def test_from_func_run_config_image():
         run_function.spec.build.functionSourceCode
         == code_function.spec.build.functionSourceCode
     )
+
+
+def test_from_reference_run_config_image():
+    function_ref = FunctionReference(
+        kind="job",
+        code="print()",
+    )
+    run_config = RunConfig(function_ref, image="a/b")
+    run_function = run_config.to_function(default_kind="serving", default_image="x/y")
+    assert run_function.kind == "job"
+    assert run_function.spec.image == "a/b"

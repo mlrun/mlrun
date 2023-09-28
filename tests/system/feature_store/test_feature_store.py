@@ -4264,7 +4264,7 @@ class TestFeatureStore(TestMLRunSystem):
             ),
             ("bad", {69: 0}, "int", "pandas"),
             ("hr_is_error", {False: "0", True: "1"}, "bool", "pandas"),
-            ("none_column", {69: 0}, "none", "pandas"),
+            ("none_column", {None: 0}, "none", "pandas"),
             (
                 "department",
                 {"01e9fe31-76de-45f0-9aed-0f94cc97bca0": "regular"},

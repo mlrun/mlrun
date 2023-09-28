@@ -92,7 +92,7 @@ class ModelEndpoints:
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [
-                    server.api.crud.model_monitoring.helpers.clean_feature_name(f.name)
+                    mlrun.feature_store.api.norm_column_name(f.name)
                     for f in model_obj.spec.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
@@ -591,12 +591,8 @@ class ModelEndpoints:
         """
         clean_feature_stats = {}
         clean_feature_names = []
-        for i, (feature, stats) in enumerate(
-            model_endpoint.status.feature_stats.items()
-        ):
-            clean_name = server.api.crud.model_monitoring.helpers.clean_feature_name(
-                feature
-            )
+        for feature, stats in model_endpoint.status.feature_stats.items():
+            clean_name = mlrun.feature_store.api.norm_column_name(feature)
             clean_feature_stats[clean_name] = stats
             # Exclude the label columns from the feature names
             if (

@@ -17,7 +17,7 @@ import mlrun
 from mlrun.datastore.targets import get_offline_target
 
 from ...runtimes import RemoteSparkRuntime
-from ...runtimes.sparkjob.abstract import AbstractSparkRuntime
+from ...runtimes.sparkjob import Spark3Runtime
 from .base import BaseMerger
 
 
@@ -173,10 +173,8 @@ class SparkFeatureMerger(BaseMerger):
 
     @classmethod
     def get_default_image(cls, kind):
-        if kind == AbstractSparkRuntime.kind:
-            return AbstractSparkRuntime._get_default_deployed_mlrun_image_name(
-                with_gpu=False
-            )
+        if kind == Spark3Runtime.kind:
+            return Spark3Runtime._get_default_deployed_mlrun_image_name(with_gpu=False)
         elif kind == RemoteSparkRuntime.kind:
             return RemoteSparkRuntime.default_image
         else:

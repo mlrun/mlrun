@@ -137,12 +137,10 @@ class BaseMerger(abc.ABC):
         )
 
     def _write_to_offline_target(self, timestamp_key=None):
-        # update vector features:
-        self.vector.status.timestamp_key = (
-            timestamp_key
-            if not self._drop_indexes and timestamp_key not in self._drop_columns
-            else None
-        )
+        save_vector = False
+        if not self._drop_indexes and timestamp_key not in self._drop_columns:
+            self.vector.status.timestamp_key = timestamp_key
+            save_vector = True
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -156,7 +154,9 @@ class BaseMerger(abc.ABC):
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
-        self.vector.save()
+            save_vector = True
+        if save_vector:
+            self.vector.save()
 
     def _set_indexes(self, df):
         if self._index_columns and not self._drop_indexes:

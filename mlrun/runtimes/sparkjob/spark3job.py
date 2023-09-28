@@ -773,7 +773,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         """
         Configures the pods (driver and executors) to have V3IO access (via file system and via Hadoop).
 
-        :param mount_v3io_to_executor: Default=True. When False, limits the file system mount to driver pod only.
+        :param mount_v3io_to_executor: When False, limits the file system mount to driver pod only. Default is True.
         """
         super().with_igz_spark(mount_v3io_to_executor)
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:

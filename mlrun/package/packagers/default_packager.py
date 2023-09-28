@@ -195,8 +195,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
       Where 'x' is the artifact type, 'obj' is the object to pack, `key` is the key to name the artifact and `...` are
       additional, custom, log hint configurations. The returned values are the packed artifact and the instructions
-      for unpacking it, or in the case of result, the dictionary of the result with its key and value. The log hint
-      configurations are sent by the user and are mandatory. If unspecified, they get a default value.
+      for unpacking it, or in the case of result, the dictionary of the result with its key and value. configurations 
+      are sent by the user and shouldn't be mandatory, meaning they should have a default value (otherwise, the user 
+      has to add them to every log hint).
     * **The abstract class method** :py:meth:`unpack`: The method is implemented to get a
       :py:meth:`DataItem<mlrun.datastore.base.DataItem>` and send it to the relevant unpacking method by the artifact
       type using the following naming: `"unpack_<artifact_type>"`. (If the artifact type was not provided,

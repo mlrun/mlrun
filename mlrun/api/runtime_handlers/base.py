@@ -73,11 +73,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
-        # We currently don't support removing runtime resources in non k8s env
-        if (
-            not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
-            return {}
+
         namespace = mlrun.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
         pods = self._list_pods(namespace, label_selector)

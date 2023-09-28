@@ -15,6 +15,6 @@
 
 
 """
-The sole purpose of this file is to make the API importable from the 'tests' folder.
+The sole purpose of this file is to make the API importable from the 'tests' folder until they restructured.
 There should be no code here or in any of the files in this folder.
 """

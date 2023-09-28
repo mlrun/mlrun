@@ -28,7 +28,7 @@ from mlrun.db import RunDBInterface
 from server.api.db.base import DBError
 from server.api.db.sqldb.db import SQLDB
 
-# This class is a proxy for the real implementation that sits under db.sqldb
+# This class is a proxy for the real implementation that sits under server.api.db.sqldb
 # The runtime objects (which manages the resources that do the real logic, like Nuclio functions, Dask jobs, etc...)
 # require a RunDB to manage their state, when a user run them locally this db will be a remote httpdb.
 # When the user submits something to run (task, function etc...) this runtime managers actually runs inside the api

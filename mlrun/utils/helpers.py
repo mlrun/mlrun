@@ -119,7 +119,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -689,12 +689,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -940,7 +942,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
-def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None):
+def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None, producer_id=None):
     # remove status, tag, date and old uid from calculation
     object_dict.setdefault("metadata", {})
     tag = object_dict["metadata"].get("tag", None)
@@ -951,10 +953,11 @@ def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None):
     object_updated_timestamp = object_dict["metadata"].pop("updated", None)
     object_created_timestamp = object_dict["metadata"].pop("created", None)
 
-    # make sure we have a key and iteration, as they determine the artifact uniqueness
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
     if not object_dict["metadata"].get("key"):
         raise ValueError("artifact key is not set")
     object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
 
     # calc hash and fill
     data = json.dumps(object_dict, sort_keys=True, default=str).encode()

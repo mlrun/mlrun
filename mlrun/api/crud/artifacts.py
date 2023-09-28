@@ -100,7 +100,7 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        iter: int = 0,
+        iter: int = None,
         project: str = mlrun.mlconf.default_project,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
         producer_id: str = None,

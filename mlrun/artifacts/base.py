@@ -315,9 +315,11 @@ class Artifact(ModelObj):
 
     def get_store_url(self, with_tag=True, project=None):
         """get the artifact uri (store://..) with optional parameters"""
-        tag = self.metadata.tree if with_tag else None
+        # with_tag was using tree instead of tag before the refactor,
+        # so the naming is changed but the behavior is the same
+        tree = self.metadata.tree if with_tag else None
         uri = generate_artifact_uri(
-            project or self.metadata.project, self.spec.db_key, tag, self.metadata.iter
+            project or self.metadata.project, self.spec.db_key, iter=self.metadata.iter, tree=tree
         )
         return get_store_uri(self._store_prefix, uri)
 

@@ -89,7 +89,7 @@ class ArtifactSpec(pydantic.BaseModel):
 
 
 class Artifact(pydantic.BaseModel):
-    kind: ObjectKind = pydantic.Field(ObjectKind.artifact, const=True)
+    kind: str
     metadata: ArtifactMetadata
     spec: ArtifactSpec
     status: ObjectStatus

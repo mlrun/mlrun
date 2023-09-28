@@ -819,7 +819,7 @@ class HTTPRunDB(RunDBInterface):
         if iter:
             params["iter"] = str(iter)
         resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
-        return resp.json()["data"]
+        return resp.json()
 
     def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
         """Delete an artifact.

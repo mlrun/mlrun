@@ -513,7 +513,7 @@ class SQLDB(DBInterface):
             artifact_dict.setdefault("metadata", {})["project"] = project
 
         # calculate uid
-        uid = fill_artifact_object_hash(artifact_dict, "uid", iter)
+        uid = fill_artifact_object_hash(artifact_dict, "uid", iter, producer_id)
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -960,7 +960,7 @@ class SQLDB(DBInterface):
         best_iteration=False,
     ):
         if not uid:
-            uid = fill_artifact_object_hash(artifact, "uid", iteration)
+            uid = fill_artifact_object_hash(artifact, "uid", iteration, producer_id)
 
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)

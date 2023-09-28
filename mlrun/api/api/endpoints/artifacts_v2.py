@@ -183,7 +183,7 @@ async def get_artifact(
     key: str,
     tree: str = None,
     tag: str = None,
-    iter: int = 0,
+    iter: int = None,
     object_uid: str = None,
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),

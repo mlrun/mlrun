@@ -207,10 +207,10 @@ class ModelEndpoints:
         features = []
         if model.spec.inputs:
             for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
-                # feature_name =
+                name = mlrun.feature_store.api.norm_column_name(feature.name)
                 features.append(
                     mlrun.feature_store.Feature(
-                        name=feature.name, value_type=feature.value_type
+                        name=name, value_type=feature.value_type
                     )
                 )
         # Check if features can be found within the feature vector
@@ -221,15 +221,17 @@ class ModelEndpoints:
             fv = run_db.get_feature_vector(name=name, project=project, tag=tag)
             for feature in fv.status.features:
                 if feature["name"] != fv.status.label_column:
+                    name = mlrun.feature_store.api.norm_column_name(feature["name"])
                     features.append(
                         mlrun.feature_store.Feature(
-                            name=feature["name"], value_type=feature["value_type"]
+                            name=name, value_type=feature["value_type"]
                         )
                     )
         else:
             logger.warn(
                 "Could not find any features in the model object and in the Feature Vector"
             )
+        logger.debug("Listed features", features=features)
         return features
 
     @staticmethod

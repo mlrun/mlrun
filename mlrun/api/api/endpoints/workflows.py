@@ -220,7 +220,7 @@ def _is_requested_schedule(
         return workflow_spec.schedule is not None
 
     project_workflow = _get_workflow_by_name(project, name)
-    return bool(project_workflow.get("schedule"))
+    return bool(project_workflow.get("schedule")) if project_workflow else False
 
 
 def _get_workflow_by_name(
@@ -232,14 +232,11 @@ def _get_workflow_by_name(
     :param project:     MLRun project
     :param name:        workflow name
 
-    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
+    :return: workflow as a dict if project has the workflow
     """
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
             return workflow
-    log_and_raise(
-        reason=f"workflow {name} not found in project",
-    )
 
 
 def _fill_workflow_missing_fields_from_project(
@@ -260,6 +257,8 @@ def _fill_workflow_missing_fields_from_project(
     """
     # Verifying workflow exists in project:
     workflow = _get_workflow_by_name(project, workflow_name)
+    if not workflow:
+        workflow = {}
 
     if spec:
         # Merge between the workflow spec provided in the request with existing

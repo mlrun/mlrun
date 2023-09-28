@@ -3254,9 +3254,11 @@ class HTTPRunDB(RunDBInterface):
         }
         if isinstance(
             workflow_spec,
-            (mlrun.common.schemas.WorkflowSpec, mlrun.projects.pipelines.WorkflowSpec),
+            mlrun.common.schemas.WorkflowSpec,
         ):
             req["spec"] = workflow_spec.dict()
+        elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
+            req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image

@@ -177,7 +177,7 @@ class HandlerRuntime(BaseRuntime, ParallelRunner):
             host=socket.gethostname(),
         )
         global_context.set(context)
-        # Running tracking services pre run to detect if some of them should be used and update the env accordingly:
+        # Running tracking services pre run to detect if some of them should be used:
         trackers_manager = self._get_trackers_manager()
         trackers_manager.pre_run(context)
         sout, serr = exec_from_params(handler, runobj, context, self.spec.workdir)
@@ -290,8 +290,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             try:
                 fn = self._get_handler(handler, context)
                 global_context.set(context)
-                # Running tracking services pre run to detect if some of them should be used
-                # and update the env accordingly:
+                # Running tracking services pre run to detect if some of them should be used:
                 trackers_manager = self._get_trackers_manager()
                 trackers_manager.pre_run(context)
                 sout, serr = exec_from_params(fn, runobj, context)
@@ -344,8 +343,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     arg = arg.format(**runobj.spec.parameters)
                     new_args.append(arg)
                 args = new_args
-            # Running tracking services pre run to detect if some of them should be used
-            # and update the env accordingly:
+            # Running tracking services pre run to detect if some of them should be used:
             trackers_manager = self._get_trackers_manager()
             trackers_manager.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)

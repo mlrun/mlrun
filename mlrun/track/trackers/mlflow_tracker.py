@@ -29,9 +29,9 @@ from mlrun.features import Feature
 from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
-
 from mlrun.track.tracker import Tracker
 from mlrun.utils import now_date
+
 
 class MLFlowTracker(Tracker):
     """
@@ -122,20 +122,22 @@ class MLFlowTracker(Tracker):
                 "MLFlow's environment variables."
             )
         run = run[0]  # We are using a run id, so only one will be returned in the list.
-
+        # Create a run spec and metadata for creating the run object to hold the mlflow run:
         run_spec = RunSpec(function=function_name, handler=handler)
         run_metadata = RunMetadata(
             uid=run.info.run_uuid, name=run.info.run_name, project=project.name
         )
         run_object = RunObject(spec=run_spec, metadata=run_metadata)
+        # Create a context from the run object:
         ctx = mlrun.get_or_create_ctx(
             name=run.info.run_name,
             spec=run_object,
         )
+        # Store the run in the MLRun DB, then import the MLFlow data to it:
         ctx.store_run()
         cls._log_run(context=ctx, run=run, is_offline=True)
-        # ctx.commit(completed=True)
 
+        # Create a rundb in order to update the run's state as completed (can't be done using context)
         rundb = mlrun.get_run_db()
         project = run_object.metadata.project
         uid = run_object.metadata.uid
@@ -156,7 +158,6 @@ class MLFlowTracker(Tracker):
         ClientBaseLauncher._log_track_results(
             runtime=RuntimeMock, result=result, run=run_object
         )
-
 
         return run_object
 

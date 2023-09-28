@@ -175,27 +175,6 @@ def test_track_run(rundb_mock, handler):
         _validate_run(run=trainer_run)
 
 
-def _validate_run(run: mlrun.run):
-    # in order to tell mlflow where to look for logged run for comparison
-    client = mlflow.MlflowClient()
-
-    # find the right run
-    run_to_comp = mlflow.last_active_run()
-
-    if not run_to_comp:
-        assert False, "Run not found, test failed"
-
-    # check that values correspond
-    for param in run_to_comp.data.params:
-        assert run_to_comp.data.params[param] == run.spec.parameters[param]
-    for metric in run_to_comp.data.metrics:
-        assert run_to_comp.data.metrics[metric] == run.status.results[metric]
-    assert len(run_to_comp.data.params) == len(run.spec.parameters)
-    # check the number of artifacts corresponds
-    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
-    assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"
-
-
 @pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
 def test_import_run(rundb_mock, handler):
     """
@@ -252,15 +231,6 @@ def test_import_model(rundb_mock, handler):
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
 
-        # Create a MLRun function using the tester source file (all the functions must be located in it):
-        project.set_function(
-            func=__file__,
-            name=f"{handler.__name__}-test",
-            kind="job",
-            image="mlrun/mlrun",
-            requirements=["mlflow"],
-        )
-
         # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
         model_uri = mlflow_run.info.artifact_uri + "/model"
@@ -294,14 +264,6 @@ def test_import_artifact(rundb_mock, handler):
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default1", context=test_directory)
 
-        # Create a MLRun function using the tester source file (all the functions must be located in it):
-        project.set_function(
-            func=__file__,
-            name=f"{handler.__name__}-test",
-            kind="job",
-            image="mlrun/mlrun",
-            requirements=["mlflow"],
-        )
         # Get a list of all artifacts logged by mlflow during last run
         mlflow_run = mlflow.last_active_run()
         client = mlflow.MlflowClient()
@@ -323,3 +285,24 @@ def test_import_artifact(rundb_mock, handler):
 
                 # Validate artifact in project
                 assert project.get_artifact(key)
+
+
+def _validate_run(run: mlrun.run):
+    # in order to tell mlflow where to look for logged run for comparison
+    client = mlflow.MlflowClient()
+
+    # find the right run
+    run_to_comp = mlflow.last_active_run()
+
+    if not run_to_comp:
+        assert False, "Run not found, test failed"
+
+    # check that values correspond
+    for param in run_to_comp.data.params:
+        assert run_to_comp.data.params[param] == run.spec.parameters[param]
+    for metric in run_to_comp.data.metrics:
+        assert run_to_comp.data.metrics[metric] == run.status.results[metric]
+    assert len(run_to_comp.data.params) == len(run.spec.parameters)
+    # check the number of artifacts corresponds
+    num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))
+    assert num_artifacts == len(run.status.artifacts), "Wrong number of artifacts"

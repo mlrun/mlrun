@@ -166,7 +166,7 @@ class CSVSource(BaseSourceDriver):
         )
         if time_field is not None:
             warnings.warn(
-                "CSVSource's time_field parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
+                "CSVSource's time_field parameter is deprecated in 1.4.0 and will be removed in 1.6.0. "
                 "Use parse_dates instead.",
                 # TODO: remove in 1.6.0
                 FutureWarning,

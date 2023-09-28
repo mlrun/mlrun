@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Union, Any
+from typing import Any, Union
 
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.execution import MLClientCtx

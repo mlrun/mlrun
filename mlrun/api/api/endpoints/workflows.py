@@ -267,7 +267,7 @@ def _fill_workflow_missing_fields_from_project(
         workflow = copy.deepcopy(workflow)
         workflow = _update_dict(workflow, spec.dict())
 
-    if not workflow["name"]:
+    if "name" not in workflow:
         log_and_raise(
             reason=f"workflow name {workflow_name} is not found"
             if not workflow

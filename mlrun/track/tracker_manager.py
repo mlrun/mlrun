@@ -42,7 +42,7 @@ class TrackerManager:
         :param tracker: The tracker class to add
         """
         self._trackers.append(tracker)
-        logger.debug("Added tracker", tracker=tracker)
+        logger.debug("Added tracker", tracker=tracker.__name__)
 
     def pre_run(self, context: MLClientCtx):
         """
@@ -85,7 +85,7 @@ class TrackerManager:
 
     def is_stale(self) -> bool:
         """
-        Get the manager's staleness to check if a new one should be initialized instead.
+        Returns manager's staleness. Useful for callee to check if a new one should be initialized instead.
 
         :return: The staleness property.
         """

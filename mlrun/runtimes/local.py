@@ -50,11 +50,11 @@ from .utils import RunError, global_context, log_std
 class ParallelRunner:
     def _get_trackers_manager(self):
         """
-        used to import and call get_trackers_manager from mlrun.track in order to avoid circular imports
+        useful to import and call get_trackers_manager from mlrun.track in order to avoid circular imports
         or imports in multiple spots mid-code
         :return: trackers_manager
         """
-        from ..track import get_trackers_manager
+        from mlrun.track import get_trackers_manager
 
         return get_trackers_manager()
 

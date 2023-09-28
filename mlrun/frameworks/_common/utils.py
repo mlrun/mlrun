@@ -208,7 +208,6 @@ class CommonUtils(ABC):
             np.int16.__name__: ValueType.INT16,
             np.int32.__name__: ValueType.INT32,
             int.__name__: ValueType.INT64,
-            int.__name__: ValueType.INT64,
             np.int64.__name__: ValueType.INT64,
             np.ubyte.__name__: ValueType.UINT8,
             np.uint8.__name__: ValueType.UINT8,

@@ -30,7 +30,7 @@ from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunMetadata, RunObject, RunSpec
 from mlrun.projects import MlrunProject
 from mlrun.track.tracker import Tracker
-from mlrun.utils import now_date
+from mlrun.utils import now_date, logger
 
 
 class MLFlowTracker(Tracker):
@@ -91,7 +91,7 @@ class MLFlowTracker(Tracker):
         cls,
         project: MlrunProject,
         pointer: str,
-        function_name: str = None,
+        function_name: str,
         handler: str = None,
     ) -> RunObject:
         """
@@ -104,11 +104,6 @@ class MLFlowTracker(Tracker):
 
         :return: The newly imported RunObject.
         """
-        # Validate function name was given:
-        if function_name is None:
-            raise ValueError(
-                "For importing a MLFlow experiment run, a MLRun function name must be provided."
-            )
 
         # Get the MLFlow run object:
         run = mlflow.search_runs(
@@ -166,7 +161,7 @@ class MLFlowTracker(Tracker):
         cls,
         project: MlrunProject,
         pointer: str,
-        key: str = None,
+        key: str,
         metrics: dict = None,
         extra_data: dict = None,
     ) -> ModelArtifact:
@@ -181,11 +176,6 @@ class MLFlowTracker(Tracker):
 
         :return: The newly imported ModelArtifact.
         """
-        # Validate key is given:
-        if key is None:
-            raise ValueError(
-                "MLFlow models require a key to import into MLRun - the key of the model artifact to be created."
-            )
 
         # Setup defaults:
         metrics = metrics or {}
@@ -202,7 +192,7 @@ class MLFlowTracker(Tracker):
                 tmp_path=temp_dir,
             )
 
-            print(f"[Info]: model {key} imported successfully")
+            logger.info("model imported successfully", key=key)
             return model
 
     @classmethod
@@ -239,7 +229,7 @@ class MLFlowTracker(Tracker):
                 tmp_path=tmp_dir,
             )
 
-            print(f"[Info]: model {key} imported successfully")
+            logger.info("artifact imported successfully", key=key)
             return artifact
 
     @staticmethod
@@ -311,16 +301,16 @@ class MLFlowTracker(Tracker):
                         tmp_path=tmp_dir,
                     )
                     artifacts[artifact.key] = artifact
-            if model_paths:
-                for model_path in model_paths:
-                    MLFlowTracker._log_model(
-                        context_or_project=context,
-                        model_uri=model_path,
-                        key=pathlib.Path(model_path).stem,
-                        metrics=results,
-                        extra_data=artifacts,
-                        tmp_path=tmp_dir,
-                    )
+
+            for model_path in model_paths:
+                MLFlowTracker._log_model(
+                    context_or_project=context,
+                    model_uri=model_path,
+                    key=pathlib.Path(model_path).stem,
+                    metrics=results,
+                    extra_data=artifacts,
+                    tmp_path=tmp_dir,
+                )
 
     @staticmethod
     def _log_model(

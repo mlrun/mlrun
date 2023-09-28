@@ -319,7 +319,10 @@ class Artifact(ModelObj):
         # so the naming is changed but the behavior is the same
         tree = self.metadata.tree if with_tag else None
         uri = generate_artifact_uri(
-            project or self.metadata.project, self.spec.db_key, iter=self.metadata.iter, tree=tree
+            project or self.metadata.project,
+            self.spec.db_key,
+            iter=self.metadata.iter,
+            tree=tree,
         )
         return get_store_uri(self._store_prefix, uri)
 

@@ -942,7 +942,9 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
-def fill_artifact_object_hash(object_dict, uid_property_name, iteration=None, producer_id=None):
+def fill_artifact_object_hash(
+    object_dict, uid_property_name, iteration=None, producer_id=None
+):
     # remove status, tag, date and old uid from calculation
     object_dict.setdefault("metadata", {})
     tag = object_dict["metadata"].get("tag", None)

@@ -612,7 +612,9 @@ def _migrate_artifacts_batch(
             new_artifact.best_iteration = False
 
         # uid - calculate as the hash of the artifact object
-        uid = fill_artifact_object_hash(artifact_dict, "uid", iteration, producer_id)
+        uid = fill_artifact_object_hash(
+            artifact_dict, "uid", iteration, new_artifact.producer_id
+        )
         new_artifact.uid = uid
 
         # kind - doesn't exist in v1, will be set to "artifact" by default

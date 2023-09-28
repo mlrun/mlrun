@@ -18,7 +18,7 @@ import pydantic
 
 import mlrun.common.types
 
-from .object import ObjectKind, ObjectStatus
+from .object import ObjectStatus
 
 
 class ArtifactCategories(mlrun.common.types.StrEnum):

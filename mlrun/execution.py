@@ -328,8 +328,8 @@ class MLClientCtx(object):
             for artifact in status.get(
                 "artifacts", self._artifacts_manager.artifact_list()
             ):
-                key = artifact["metadata"]["key"]
                 artifact_obj = dict_to_artifact(artifact)
+                key = artifact_obj.key
                 self._artifacts_manager.artifacts[key] = artifact_obj
             self._state = status.get("state", self._state)
 

@@ -18,8 +18,8 @@ from typing import List, Type
 
 from mlrun.config import config as mlconf
 
-from .tracker import Tracker
-from .tracker_manager import TrackerManager
+from mlrun.track.tracker import Tracker
+from mlrun.track.tracker_manager import TrackerManager
 
 # Add a tracker to this list for it to be added into the global tracker manager (only if available in the interpreter):
 _TRACKERS = ["mlflow"]

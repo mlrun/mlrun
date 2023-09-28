@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union, Any
 
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.execution import MLClientCtx
@@ -60,7 +60,7 @@ class Tracker(ABC):
     def import_run(
         self,
         project: MlrunProject,
-        reference_id: str,
+        reference_id: Any,
         function_name: str,
         handler: str = None,
         **kwargs
@@ -78,7 +78,7 @@ class Tracker(ABC):
         pass
 
     def import_model(
-        self, project: MlrunProject, reference_id: str, **kwargs
+        self, project: MlrunProject, reference_id: Any, **kwargs
     ) -> ModelArtifact:
         """
         Import a model from a 3rd party vendor to MLRun.
@@ -91,7 +91,7 @@ class Tracker(ABC):
         pass
 
     def import_artifact(
-        self, project: MlrunProject, reference_id: str, **kwargs
+        self, project: MlrunProject, reference_id: Any, **kwargs
     ) -> Artifact:
         """
         Import an artifact from a 3rd party vendor to MLRun.

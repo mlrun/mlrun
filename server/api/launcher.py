@@ -30,8 +30,6 @@ import server.api.api.utils
 import server.api.crud
 import server.api.runtime_handlers
 
-# must be at the bottom to avoid circular import conflicts and can't use 'from' notation because unit tests mock this
-
 
 class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(

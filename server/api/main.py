@@ -628,7 +628,6 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
     """
-    # Import here to avoid circular import
 
     # When pushing notifications, push notifications only for runs that entered a terminal state
     # since the last time we pushed notifications.

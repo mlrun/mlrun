@@ -26,7 +26,6 @@ import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.utils.auth.providers.base
-import server.api.utils.projects.remotes.leader
 from mlrun.utils import logger
 
 

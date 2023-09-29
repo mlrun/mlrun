@@ -73,7 +73,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
-        # We currently don't support removing runtime resources in non k8s env
+        # We currently don't support listing runtime resources in non k8s env
         if (
             not mlrun.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
         ):

@@ -269,7 +269,7 @@ def _fill_workflow_missing_fields_from_project(
 
     if "name" not in workflow:
         log_and_raise(
-            reason=f"workflow name {workflow_name} is not found"
+            reason=f"workflow {workflow_name} not found in project"
             if not workflow
             else "workflow spec is invalid",
         )

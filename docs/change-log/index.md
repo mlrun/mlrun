@@ -761,6 +761,7 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | run_local | function.run(local=True) |
 | CSVSource's time_field parameter | Use parse_dates to parse timestamps |
+| default_final_state | default_final_step |
 
 
 #### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code

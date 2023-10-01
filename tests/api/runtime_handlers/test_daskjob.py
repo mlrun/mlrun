@@ -17,10 +17,10 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 

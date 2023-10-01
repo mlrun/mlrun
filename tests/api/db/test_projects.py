@@ -19,13 +19,13 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.initial_data
-import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-from mlrun.api.db.base import DBInterface
-from mlrun.api.db.sqldb.models import Project
+import server.api.initial_data
+import server.api.utils.singletons.db
+from server.api.db.base import DBInterface
+from server.api.db.sqldb.models import Project
 
 
 def test_get_project(
@@ -94,14 +94,14 @@ def test_data_migration_enrich_project_state(
         # getting default value from the schema
         assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
         assert project.status.state is None
-    mlrun.api.initial_data._enrich_project_state(db, db_session)
+    server.api.initial_data._enrich_project_state(db, db_session)
     projects = db.list_projects(db_session)
     for project in projects.projects:
         assert project.spec.desired_state == mlrun.common.schemas.ProjectState.online
         assert project.status.state == project.spec.desired_state
     # verify not storing for no reason
     db.store_project = unittest.mock.Mock()
-    mlrun.api.initial_data._enrich_project_state(db, db_session)
+    server.api.initial_data._enrich_project_state(db, db_session)
     assert db.store_project.call_count == 0
 
 

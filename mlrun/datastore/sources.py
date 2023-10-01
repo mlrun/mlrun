@@ -164,6 +164,8 @@ class CSVSource(BaseSourceDriver):
         super().__init__(
             name, path, attributes, key_field, time_field, schedule, **kwargs
         )
+        if parse_dates and not isinstance(parse_dates, list):
+            parse_dates = [parse_dates]
         if time_field is not None:
             warnings.warn(
                 "CSVSource's time_field parameter is deprecated in 1.4.0 and will be removed in 1.6.0. "
@@ -171,8 +173,6 @@ class CSVSource(BaseSourceDriver):
                 # TODO: remove in 1.6.0
                 FutureWarning,
             )
-            if isinstance(parse_dates, (int, str)):
-                parse_dates = [parse_dates]
 
             if parse_dates is None:
                 parse_dates = [time_field]

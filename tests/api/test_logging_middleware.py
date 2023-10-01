@@ -22,8 +22,8 @@ from fastapi.exception_handlers import http_exception_handler
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from mlrun.api.main import app
 from mlrun.utils import logger
+from server.api.main import app
 
 
 class HandledException1(Exception):

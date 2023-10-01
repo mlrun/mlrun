@@ -23,8 +23,8 @@ import yaml
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.common.schemas
+import server.api.crud
 import tests.api.conftest
 from mlrun.config import config
 
@@ -181,7 +181,7 @@ def test_hub_credentials_removed_from_db(
         == {}
     )
     expected_credentials = {
-        mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key): value
+        server.api.crud.Hub()._generate_credentials_secret_key("source_1", key): value
         for key, value in credentials.items()
     }
     k8s_secrets_mock.assert_project_secrets(
@@ -192,7 +192,7 @@ def test_hub_credentials_removed_from_db(
 def test_hub_source_manager(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    manager = mlrun.api.crud.Hub()
+    manager = server.api.crud.Hub()
 
     credentials = {"secret1": "value1", "secret2": "value2"}
     expected_credentials = {}
@@ -200,7 +200,7 @@ def test_hub_source_manager(
         source_dict = _generate_source_dict(i, f"source_{i}", credentials)
         expected_credentials.update(
             {
-                mlrun.api.crud.Hub()._generate_credentials_secret_key(
+                server.api.crud.Hub()._generate_credentials_secret_key(
                     f"source_{i}", key
                 ): value
                 for key, value in credentials.items()
@@ -216,7 +216,7 @@ def test_hub_source_manager(
     manager.remove_source("source_1")
     for key in credentials:
         expected_credentials.pop(
-            mlrun.api.crud.Hub()._generate_credentials_secret_key("source_1", key)
+            server.api.crud.Hub()._generate_credentials_secret_key("source_1", key)
         )
     k8s_secrets_mock.assert_project_secrets(
         config.hub.k8s_secrets_project_name, expected_credentials
@@ -250,7 +250,7 @@ def test_hub_default_source(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
     # This test validates that the default source is valid is its catalog and objects can be retrieved.
-    manager = mlrun.api.crud.Hub()
+    manager = server.api.crud.Hub()
     source_object = mlrun.common.schemas.HubSource.generate_default_source()
     catalog = manager.get_source_catalog(source_object)
     assert len(catalog.catalog) > 0
@@ -326,14 +326,14 @@ def test_hub_get_asset_from_default_source(
 def test_hub_get_asset(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-    manager = mlrun.api.crud.Hub()
+    manager = server.api.crud.Hub()
 
     # Adding hub source with credentials:
     credentials = {"secret": "value"}
 
     source_dict = _generate_source_dict(1, "source", credentials)
     expected_credentials = {
-        mlrun.api.crud.Hub()._generate_credentials_secret_key(
+        server.api.crud.Hub()._generate_credentials_secret_key(
             "source", "secret"
         ): credentials["secret"]
     }

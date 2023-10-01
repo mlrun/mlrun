@@ -1,5 +1,7 @@
 [importlinter]
-root_package=mlrun
+root_packages=
+    mlrun
+    server
 include_external_packages=True
 
 
@@ -10,7 +12,6 @@ source_modules=
     mlrun.common
 
 forbidden_modules=
-    mlrun.api
     mlrun.artifacts
     mlrun.data_types
     mlrun.datastore
@@ -42,34 +43,7 @@ ignore_imports =
 
 [importlinter:contract:mlrun-api]
 name=MLRun modules shouldn't import MLRun API
-type=forbidden
-source_modules=
-    mlrun.artifacts
-    mlrun.common
-    mlrun.data_types
-    mlrun.datastore
-    mlrun.db
-    mlrun.feature_store
-    mlrun.frameworks
-    mlrun.launcher
-    mlrun.model_monitoring
-    mlrun.package
-    mlrun.platforms
-    mlrun.projects
-    mlrun.runtimes
-    mlrun.serving
-    mlrun.utils
-    mlrun.config
-    mlrun.errors
-    mlrun.execution
-    mlrun.features
-    mlrun.k8s_utils
-    mlrun.kfpops
-    mlrun.lists
-    mlrun.model
-    mlrun.render
-    mlrun.run
-    mlrun.secrets
-
-forbidden_modules=
-    mlrun.api
+type=layers
+layers=
+    server
+    mlrun

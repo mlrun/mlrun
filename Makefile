@@ -345,7 +345,7 @@ compile-schemas: ## Compile schemas
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
-	cd go && \
+	cd server/log-collector && \
 	  make compile-schemas
 endif
 
@@ -487,14 +487,13 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	cd mlrun/api; \
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
 		--test-alembic \
-		migrations_sqlite/tests/*
+		server/api/migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -531,22 +530,22 @@ test-package: ## Run mlrun package tests
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
-	cd go && \
+	cd server/log-collector && \
 		make test-unit-local
 
 .PHONY: test-go-dockerized
 test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
-	cd go && \
+	cd server/log-collector && \
 		make test-unit-dockerized
 
 .PHONY: test-go
 test-go-integration: ## Run mlrun go unit tests
-	cd go && \
+	cd server/log-collector && \
 		make test-integration-local
 
 .PHONY: test-go-dockerized
 test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
-	cd go && \
+	cd server/log-collector && \
 		make test-integration-dockerized
 
 .PHONY: run-api-undockerized
@@ -623,12 +622,12 @@ flake8: ## Run flake8 lint
 
 .PHONY: lint-go
 lint-go:
-	cd go && \
+	cd server/log-collector && \
 		make lint
 
 .PHONY: fmt-go
 fmt-go:
-	cd go && \
+	cd server/log-collector && \
 		make fmt
 
 .PHONY: release

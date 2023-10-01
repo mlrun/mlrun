@@ -21,12 +21,11 @@ import deepdiff
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.api.endpoints.runtime_resources
-import mlrun.api.crud
-import mlrun.api.runtime_handlers
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.singletons.k8s
 import mlrun.common.schemas
+import server.api.api.endpoints.runtime_resources
+import server.api.crud
+import server.api.runtime_handlers
+import server.api.utils.auth.verifier
 
 
 def test_list_runtimes_resources_opa_filtering(
@@ -230,7 +229,7 @@ def test_list_runtime_resources_filter_by_kind(
     filtered_kind = mlrun.runtimes.RuntimeKinds.job
 
     _mock_filter_project_resources_by_permissions(monkeypatch)
-    runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(filtered_kind)
+    runtime_handler = server.api.runtime_handlers.get_runtime_handler(filtered_kind)
     with unittest.mock.patch.object(
         runtime_handler,
         "list_resources",
@@ -469,14 +468,14 @@ def _mock_runtime_handlers_delete_resources(
     ):
         if allowed_projects:
             assert (
-                mlrun.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(
+                server.api.api.endpoints.runtime_resources._generate_label_selector_for_allowed_projects(
                     allowed_projects
                 )
                 in label_selector
             )
 
     for kind in kinds:
-        runtime_handler = mlrun.api.runtime_handlers.get_runtime_handler(kind)
+        runtime_handler = server.api.runtime_handlers.get_runtime_handler(kind)
         monkeypatch.setattr(
             runtime_handler, "delete_resources", _assert_delete_resources_label_selector
         )
@@ -724,7 +723,7 @@ def _filter_allowed_projects_from_grouped_by_project_runtime_resources_output(
 
 def _mock_list_resources(monkeypatch, return_value=None):
     monkeypatch.setattr(
-        mlrun.api.crud.RuntimeResources,
+        server.api.crud.RuntimeResources,
         "list_runtime_resources",
         lambda *args, **kwargs: return_value,
     )
@@ -741,7 +740,7 @@ def _mock_filter_project_resources_by_permissions(monkeypatch, return_value=None
         return future
 
     monkeypatch.setattr(
-        mlrun.api.utils.auth.verifier.AuthVerifier,
+        server.api.utils.auth.verifier.AuthVerifier,
         "filter_project_resources_by_permissions",
         _async_mock,
     )

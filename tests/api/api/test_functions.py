@@ -521,33 +521,57 @@ def test_build_function_force_build(
         },
         "image": ".test/my-beautiful-image",
     }
-    mlrun.api.utils.builder.make_dockerfile = unittest.mock.Mock(return_value="")
-    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.Mock(
-        return_value=mlrun.api.utils.singletons.k8s.BasePod()
-    )
-    mlrun.api.utils.builder.resolve_image_target_and_registry_secret = (
-        unittest.mock.Mock(
-            return_value=(".test/my-beautiful-image", "default-docker-registry-secret")
-        )
-    )
-    mlrun.api.utils.builder._resolve_build_requirements = unittest.mock.Mock(
-        return_value=([], [], "/empty/requirements.txt")
-    )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
-        return_value=("pod-name", "namespace")
-    )
-    response = client.post(
-        "build/function",
-        json={"function": function_dict, "force_build": force_build},
-    )
-    assert response.status_code == HTTPStatus.OK.value
 
-    assert mlrun.api.utils.builder.make_kaniko_pod.call_count == expected
-    assert mlrun.api.utils.builder.make_dockerfile.call_count == expected
-    assert (
-        mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
-        == expected
-    )
+    # Mock the functions responsible for the image building
+    with unittest.mock.patch(
+        "server.api.utils.builder.make_dockerfile", return_value=""
+    ):
+        with unittest.mock.patch(
+            "server.api.utils.builder.make_kaniko_pod",
+            return_value=server.api.utils.singletons.k8s.BasePod(),
+        ):
+            with unittest.mock.patch(
+                "server.api.utils.builder.resolve_image_target_and_registry_secret",
+                return_value=(
+                    ".test/my-beautiful-image",
+                    "default-docker-registry-secret",
+                ),
+            ):
+                with unittest.mock.patch(
+                    "server.api.utils.builder._resolve_build_requirements",
+                    return_value=([], [], "/empty/requirements.txt"),
+                ):
+                    with unittest.mock.patch(
+                        "server.api.utils.singletons.k8s.get_k8s_helper"
+                    ) as mock_get_k8s_helper:
+                        mock_get_k8s_helper.return_value.create_pod.return_value = (
+                            "pod-name",
+                            "namespace",
+                        )
+
+                        # call build/function and assert the function was called or not called as expected,
+                        # based on the force_build flag
+                        response = client.post(
+                            "build/function",
+                            json={
+                                "function": function_dict,
+                                "force_build": force_build,
+                            },
+                        )
+                        assert response.status_code == HTTPStatus.OK.value
+
+                        assert (
+                            server.api.utils.builder.make_kaniko_pod.call_count
+                            == expected
+                        )
+                        assert (
+                            server.api.utils.builder.make_dockerfile.call_count
+                            == expected
+                        )
+                        assert (
+                            server.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+                            == expected
+                        )
 
 
 def test_build_function_masks_access_key(

@@ -517,10 +517,10 @@ class Spark3Runtime(KubejobRuntime):
         ] = None,
     ):
         """
-        Enables to control on which k8s node the spark executor will run
+        Enables control of which k8s node the spark executor will run on.
 
         :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param node_selector:   Label selector, only nodes with matching labels are eligible to be picked
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
@@ -550,10 +550,10 @@ class Spark3Runtime(KubejobRuntime):
         ] = None,
     ):
         """
-        Enables to control on which k8s node the spark executor will run
+        Enables control of which k8s node the spark executor will run on.
 
         :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param node_selector:   Label selector, only nodes with matching labels are eligible to be picked
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
@@ -580,7 +580,7 @@ class Spark3Runtime(KubejobRuntime):
         Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_preemption_mode is not supported use with_driver_preemption_mode / with_executor_preemption_mode"
+            "with_preemption_mode is not supported, use with_driver_preemption_mode / with_executor_preemption_mode"
             " to set preemption mode for spark operator"
         )
 
@@ -598,8 +598,8 @@ class Spark3Runtime(KubejobRuntime):
         * **prevent** - The function cannot be scheduled on preemptible nodes
         * **none** - No preemptible configuration will be applied on the function
 
-        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
-        by default it's set to **prevent**
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode.
+        By default it's set to **prevent**
 
         :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
@@ -648,10 +648,10 @@ class Spark3Runtime(KubejobRuntime):
         volume_name: str = "host-path-volume",
     ):
         """
-        Add an host path volume and mount it to the driver pod
+        Add a host path volume and mounts it to the driver pod
         More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
 
-        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it follows the link to the
                             real path
         :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
         :param type:        Type for HostPath Volume Defaults to ""
@@ -672,7 +672,7 @@ class Spark3Runtime(KubejobRuntime):
         Add an host path volume and mount it to the executor pod/s
         More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
 
-        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it follows the link to the
                             real path
         :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
         :param type:        Type for HostPath Volume Defaults to ""
@@ -734,6 +734,11 @@ class Spark3Runtime(KubejobRuntime):
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
+        """
+        Configures the pods (driver and executors) to have V3IO access (via file system and via Hadoop).
+
+        :param mount_v3io_to_executor: When False, limits the file system mount to driver pod only. Default is True.
+        """
         self._update_igz_jars(deps=self._get_igz_deps())
         self.apply(mount_v3io(name="v3io"))
 
@@ -773,7 +778,7 @@ class Spark3Runtime(KubejobRuntime):
 
         Spark operator has multiple options to control the number of cores available to the executor and driver.
         The .coreLimit and .coreRequest parameters can be set for both executor and driver,
-        but they only controls the k8s properties of the pods created to run driver/executor.
+        but they only control the k8s properties of the pods created to run the driver/executor.
         Spark itself uses the spec.[executor|driver].cores parameter to set the parallelism of tasks and cores
         assigned to each task within the pod. This function sets the .cores parameters for the job executed.
 

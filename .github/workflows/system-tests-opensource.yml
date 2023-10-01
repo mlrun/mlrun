@@ -79,7 +79,6 @@ jobs:
       run: |
         pip install \
           -r automation/requirements.txt \
-          -r dockerfiles/test-system/requirements.txt \
           -r dockerfiles/mlrun-api/requirements.txt \
           -r dev-requirements.txt \
           -r extras-requirements.txt \

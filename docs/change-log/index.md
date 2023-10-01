@@ -747,16 +747,11 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.5.0 | ML-4010 | Artifact types that were unused BokehArtifact, ChartArtifact are deprecated. |
 | v1.5.0 | ML-4075 | python 3.7 is deprecated. |
 | v1.5.0 | ML-4366  | MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` |
+| v1.5.0 | ML-3605 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
 
-## Future deprecations
+### Deprecated APIs and CLI
 
-| ID   | When | Description                                                    |
-| --- | ----| ----------------------------------------------------------------- |
-| ML-3605 | v1.5.0 | Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
-
-## Deprecated APIs and CLI
-
-### APIs deprecated in v1.4.0, will be removed from v1.6.0 code
+#### APIs deprecated in v1.4.0, will be removed from v1.6.0 code
 These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them in v1.4.0 and higher.
 
 | Deprecated / to be removed                       | Use instead                                   |
@@ -765,8 +760,10 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | MLRunProject object legacy parameters | metadata and spec  |
 | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | run_local | function.run(local=True) |
+| CSVSource's time_field parameter | Use parse_dates to parse timestamps |
 
-### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code
+
+#### REST APIs deprecated in v1.4.0, will be removed from v1.6.0 code
 | Deprecated                        | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | POST /artifact/{project}/{uid}/{key:path} | /projects/{project}/artifacts/{uid}/{key:path}  |
@@ -778,14 +775,7 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | GET /func/{project}/{name}  | /projects/{project}/functions/{name}  |
 | GET /funcs  | /projects/{project}/functions  |
 
-
- ### APIs deprecated in v1.4.0, will be removed from v1.6.0 code
-| Deprecated / to be removed                       | Use instead                                   |
-| ------------------------------------------------ | --------------------------------------------- |
-| CSVSource's time_field parameter | Use parse_dates to parse timestamps |
-| default_final_state | default_final_step |
-
-### APIs deprecated in v1.3.0, will be removed from v1.6.0 code
+#### APIs deprecated in v1.3.0, will be removed from v1.6.0 code
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | new_pipe_meta | new_pipe_metadata |
@@ -793,13 +783,15 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | objects methods from artifacts list | to_objects |
 
 
-### CLIs deprecated in v1.3.0, will be removed from v1.6.0 code
+#### CLIs deprecated in v1.3.0, will be removed from v1.6.0 code
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | dashboard (nuclio/deploy) | No longer supported on client side |
 |overwrite schedule (project) | Not relevant. Running a schedule is now an  operation |
 
-### APIs removed in v1.5.0 (deprecated in v1.3.0)
+### Removed APIs and CLI
+
+#### APIs removed in v1.5.0 (deprecated in v1.3.0)
 These APIs weree removed from the v1.5.0 code. 
 | Removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
@@ -815,12 +807,12 @@ These APIs weree removed from the v1.5.0 code.
 | The entire `mlrun/mlutils` library               | `mlrun.framework`                     |
 | `run_pipeline`                                   | `project.run`                                     |
 
-### CLI removed in v1.5.0 (deprecated in v1.3.0)
+#### CLI removed in v1.5.0 (deprecated in v1.3.0)
 
 The `--ensure-project` flag of the `mlrun project` CLI command was removed from the v1.5.0 code.
 
 
-### APIs deprecated and removed from v1.3.0 code
+#### APIs deprecated and removed from v1.3.0 code
 These MLRun APIs have been deprecated since at least v1.0.0 and were removed from the code:
 
 | Removed                   | Use instead                                   |
@@ -839,7 +831,7 @@ These MLRun APIs have been deprecated since at least v1.0.0 and were removed fro
 
 
 
-### REST APIs deprecated and removed from v1.3.0 code
+#### REST APIs deprecated and removed from v1.3.0 code
 
 - `pod_status header` from response to `get_log` REST API
 - `client-spec` from response to health API 

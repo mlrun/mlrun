@@ -319,7 +319,7 @@ log-collector: update-version-file
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
@@ -328,7 +328,7 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go push-log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector push-log-collector
 
 .PHONY: pull-log-collector
 pull-log-collector:
@@ -337,7 +337,7 @@ pull-log-collector:
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go pull-log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector pull-log-collector
 
 
 .PHONY: compile-schemas

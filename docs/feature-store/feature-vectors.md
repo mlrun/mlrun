@@ -88,14 +88,7 @@ This means that operations involving brackets are not available.
 When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
 implements the "as_of" join.
 
-   
-The `get_online_feature_service` function utilizes the same graph, but uses QueryByKey on the kv store: all join types in the graph turn 
-into left joins. Consequently, the function performs joins using the latest events for each required entity within each feature set.
-
-You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, and the starting place. 
-See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
-
-Example, assuming three feature sets: [fs1, fs2. fs3]:
+   Example, assuming three feature sets: [fs1, fs2. fs3]:
 ```
 join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
 vector = FeatureVector("myvector", features, 
@@ -111,30 +104,7 @@ Due to the async nature of this action, the response object contains an `fv_resp
 
 `get_offline_features` supports Storey, Dask, Spark Operator, and Remote Spark.
 
-`get_offline_features` expects to receive:
-
-- **feature_vector** &mdash; A feature vector store reference or object.
-- **entity_rows** &mdash; (optional) A dataframe that the features will be joined to. 
-Defaults to the first feature set defined in the features vector's features list, and acts as the base for the vector's joins.
-- **entity_timestamp_column** &mdash; (optional) A specific timestamp column (from the defined features) to act as the base timestamp column. 
-Defaults to the base feature set's timestamp entity.
-- **target** &mdash; A Feature Store target to write the results to.  
-Defaults to return as a return value to the caller.
-- **run_config** &mdash; (optional) A function or a {py:class}`~mlrun.feature_store.RunConfig` to run the feature vector creation process in a remote function.
-- **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
-- **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
-- **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
-- **with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
-- **update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
-- **engine** &mdash; processing engine kind ("local", "dask", or "spark")
-- **engine_args** &mdash; kwargs for the processing engine.
-- **query** &mdash; The query string used to filter rows on the output.
-- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)
-- **order_by** &mdash; Name or list of names to order by. The name or the names in the list can be the feature name or the alias of the 
-feature you pass in the feature list.
-- **timestamp_for_filtering** &mdash; (optional) Used to configure the columns that a time-based filter filters by. By default, the time-based filter is executed using the timestamp_key of each feature set.
-Specifying the `timestamp_for_filtering` param overwrites this default: if it's str it specifies the timestamp column to use in all the feature sets. If it's a dictionary ({<feature set name>: <timestamp column name>, …}) it indicates the timestamp column name 
-for each feature set. The time filtering is performed on each feature set (using `start_time` and `end_time`) before the merge process.
+See {py:meth}`~mlrun.feature_store.get_offline_features` for the list of parameters it expects to receive,
 
 You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. 
 For example:
@@ -300,7 +270,16 @@ svc.get(entities)
 The `entities` can be a list of dictionaries as shown in the example, or a list of lists where the values in the internal 
 list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default. 
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
-frameworks and this eliminates additional glue logic.  
+frameworks and this eliminates additional glue logic. 
+    
+When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
+the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
+into left joins. Consequently, the function performs joins using the latest events for each required 
+entity within each feature set.
+
+You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, 
+and the starting place. 
+See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
 

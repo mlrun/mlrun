@@ -710,6 +710,7 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
+        force_build=force_build,
     )
     runtime.status.build_pod = None
     if status == "skipped":

@@ -2042,11 +2042,12 @@ class MlrunProject(ModelObj):
         # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
         # for consistency
         name = name or resolved_function_name
-        if tag and not name.endswith(f":{tag}"):
-            self.spec.set_function(f"{name}:{tag}", function_object, func)
 
-        self.spec.set_function(name, function_object, func)
-        return name, function_object, func
+        return (
+            f"{name}:{tag}" if tag and not name.endswith(f":{tag}") else name,
+            function_object,
+            func,
+        )
 
     def remove_function(self, name):
         """remove a function from a project

@@ -220,26 +220,24 @@ def _is_requested_schedule(
         return workflow_spec.schedule is not None
 
     project_workflow = _get_workflow_by_name(project, name)
-    return bool(project_workflow.get("schedule"))
+    return bool(project_workflow.get("schedule")) if project_workflow else False
 
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
 ) -> typing.Optional[Dict]:
     """
-    Getting workflow from project
+    Getting workflow from project by name.
 
     :param project:     MLRun project
     :param name:        workflow name
 
-    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
+    :return: workflow as a dict if project has the workflow and empty dict if not.
     """
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
             return workflow
-    log_and_raise(
-        reason=f"workflow {name} not found in project",
-    )
+    return {}
 
 
 def _fill_workflow_missing_fields_from_project(
@@ -258,7 +256,9 @@ def _fill_workflow_missing_fields_from_project(
 
     :return: completed workflow spec
     """
-    # Verifying workflow exists in project:
+
+    # while we expect workflow to be exists on project spec, we might get a case where the workflow is not exists.
+    # this is possible when workflow is not set prior to its execution.
     workflow = _get_workflow_by_name(project, workflow_name)
 
     if spec:
@@ -266,6 +266,13 @@ def _fill_workflow_missing_fields_from_project(
         # workflow while the provided workflow takes precedence over the existing workflow params
         workflow = copy.deepcopy(workflow)
         workflow = _update_dict(workflow, spec.dict())
+
+    if "name" not in workflow:
+        log_and_raise(
+            reason=f"workflow {workflow_name} not found in project"
+            if not workflow
+            else "workflow spec is invalid",
+        )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
     # Overriding arguments of the existing workflow:

@@ -45,20 +45,26 @@ class TrackerExample(Tracker):
     ],
 )
 def test_add_tracker(tracker_list):
+    trackers_manager = TrackerManager()
     # enable tracking in config for inspection
     mlrun.mlconf.external_platform_tracking.enabled = True
-    trackers_manager = TrackerManager()
     for tracker in tracker_list:
         trackers_manager.add_tracker(tracker)
+        # Check insertion location
         assert trackers_manager._trackers[-1] == tracker
+    # Check all tracker inserted correctly, and only wanted trackers
     assert len(trackers_manager._trackers) == len(tracker_list)
 
 
 def test_get_trackers_manager(rundb_mock):
-    # enable tracking in config for inspection
+    # Enable tracking in config for inspection
     mlrun.mlconf.external_platform_tracking.enabled = True
-    trackers_manager = mlrun.track.get_trackers_manager()
+    trackers_manager = mlrun.track.TrackerManager()
     assert type(trackers_manager) is TrackerManager
-    # from here we need to change after we add more trackers
+    # In here we need to change after we add more trackers
     # see that added trackers correspond to project configs
-    assert len(trackers_manager._trackers) == 1
+    assert len(trackers_manager._trackers) == len(mlrun.track.tracker_manager._TRACKERS)
+    # Create a second manager and check they are the same one (singleton check)
+    trackers_manager2 = mlrun.track.TrackerManager()
+    assert trackers_manager is trackers_manager2
+

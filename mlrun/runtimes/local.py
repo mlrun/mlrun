@@ -54,9 +54,9 @@ class ParallelRunner:
         or imports in multiple spots mid-code
         :return: trackers_manager
         """
-        from mlrun.track import get_trackers_manager
+        from mlrun.track import TrackerManager
 
-        return get_trackers_manager()
+        return TrackerManager()
 
     def _get_handler(self, handler, context):
         return handler

@@ -16,11 +16,21 @@ from typing import List, Union
 
 from mlrun.execution import MLClientCtx
 from mlrun.utils import logger
-
+from mlrun.utils.singleton import Singleton
 from .tracker import Tracker
+from mlrun.config import config as mlconf
+import importlib
+import inspect
+
+# Add a tracker to this list for it to be added into the global tracker manager (only if available in the interpreter):
+_TRACKERS = ["mlflow"]
+
+# A list for the available trackers during runtime. It will be setup at the beginning of the run by the function
+# `_collect_available_trackers`:
+_AVAILABLE_TRACKERS: List[Tracker] = None
 
 
-class TrackerManager:
+class TrackerManager(metaclass=Singleton):
     """
     A class for handling multiple `Tracker` instances during a run. The manager is a singleton class and should be
     retrieved using the `mlrun.track.get_trackers_manager` function.
@@ -35,12 +45,28 @@ class TrackerManager:
         self._trackers: List[Tracker] = []
         self._stale = _stale
 
+        # Check general config for tracking usage, if false we return an empty manager
+        if mlconf.external_platform_tracking.enabled:
+
+            # Check if the available trackers were collected:
+            if _AVAILABLE_TRACKERS is None:
+                self._collect_available_trackers()
+
+            # Add relevant trackers (enabled ones by the configuration) to be managed:
+            for available_tracker in _AVAILABLE_TRACKERS:
+                if available_tracker.is_enabled():
+                    self.add_tracker(tracker=available_tracker())
+
     def add_tracker(self, tracker: Tracker):
         """
         Adds a Tracker to trackers list.
 
         :param tracker: The tracker class to add
         """
+        # Check if tracker of same type already in manager
+        if any(isinstance(t, type(tracker)) for t in self._trackers):
+            logger.warn("Tracker already in manager", tracker=tracker)
+
         self._trackers.append(tracker)
         logger.debug("Added tracker", tracker=tracker.__class__.__name__)
 
@@ -94,3 +120,41 @@ class TrackerManager:
         :return: The staleness property.
         """
         return self._stale
+
+    def _collect_available_trackers(self):
+        """
+        Set up the `_AVAILABLE_TRACKERS` list with trackers that were able to be imported. The tracked modules are not in
+        MLRun's requirements and so it trys to import the module file of each and only if it succeeds (not raising
+        `ModuleNotFoundError`) it collects it as an available tracker.
+        """
+        global _AVAILABLE_TRACKERS
+
+        # Initialize an empty list:
+        _AVAILABLE_TRACKERS = []
+
+        # Go over the trackers and try to collect them:
+        for tracker_module_name in _TRACKERS:
+            # Try to import:
+            try:
+                tracker_module = importlib.import_module(
+                    f"mlrun.track.trackers.{tracker_module_name}_tracker"
+                )
+            except ModuleNotFoundError:
+                continue
+            # Look for `Tracker` classes inside:
+            _AVAILABLE_TRACKERS += [
+                member
+                for _, member in inspect.getmembers(
+                    tracker_module,
+                    lambda m: (
+                        # Validate it is declared in the module:
+                        hasattr(m, "__module__")
+                        and m.__module__ == tracker_module.__name__
+                        # Validate it is a `Tracker`:
+                        and isinstance(m, type)
+                        and issubclass(m, Tracker)
+                        # Validate it is not a "protected" `Tracker`:
+                        and not m.__name__.startswith("_")
+                    ),
+                )
+            ]

@@ -912,11 +912,7 @@ def _parse_extra_args(extra_args: str) -> dict:
     current_flag = None
     for arg in extra_args:
         if arg.startswith("--"):
-            if "=" in arg:
-                key, val = arg.split("=")
-                args.setdefault(key, [val])
-            else:
-                current_flag = arg
+            current_flag = arg
             # explicitly set the key in the dictionary
             args.setdefault(current_flag, [])
         elif current_flag:

@@ -18,14 +18,14 @@ import pandas
 import pytest
 from sqlalchemy.orm import Session
 
-import mlrun.api.initial_data
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api.db.base import DBInterface
+import server.api.initial_data
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
+from server.api.db.base import DBInterface
 
 
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
@@ -739,7 +739,7 @@ def test_data_migration_fix_legacy_datasets_large_previews(
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
+    server.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
 
     artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
         db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
@@ -830,7 +830,7 @@ def test_data_migration_fix_datasets_large_previews(
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
+    server.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
 
     artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
         db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid

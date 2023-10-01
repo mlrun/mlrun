@@ -18,8 +18,8 @@ from http import HTTPStatus
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.common.schemas
+import server.api.crud
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
@@ -62,7 +62,7 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "metadata": {"name": "run-name"},
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
-    mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
+    server.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
     good_resp = client.get(
         f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}"
     ).json()
@@ -86,7 +86,7 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         "metadata": {"name": "run-name"},
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
-    mlrun.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
+    server.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
     resp = client.get(
         f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/runs/{run_id}"
     )

@@ -33,7 +33,9 @@ from .notification import NotificationBase, NotificationTypes
 
 
 class _NotificationPusherBase(object):
-    def _push(self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable):
+    def _push(
+        self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
+    ):
 
         if mlrun.utils.helpers.is_running_in_jupyter_notebook():
             # Running in Jupyter notebook.

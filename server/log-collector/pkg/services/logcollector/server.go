@@ -619,12 +619,18 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, lastLogTime); err != nil {
 			// if the pod ended properly, the run will be removed from the state file and the update will fail
 			// we can ignore this error and continue
-			s.Logger.WarnWithCtx(ctx, "Failed to update last log time")
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to update last log time",
+				"runUID", runUID,
+				"err", err.Error())
 		}
 
 		// remove this goroutine from in-current state
 		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to remove item from in memory state",
+				"runUID", runUID,
+				"err", err.Error())
 		}
 
 		if err := recover(); err != nil {
@@ -712,7 +718,9 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		if err != nil {
 			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
 			// by bailing out
-			if !errors.Is(err, common.PodStillRunningError{}) {
+			if !errors.Is(err, common.PodStillRunningError{
+				PodName: podName,
+			}) {
 				s.Logger.WarnWithCtx(ctx,
 					"An error occurred while streaming pod logs",
 					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
@@ -793,7 +801,9 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		// the pod is still running - exit and without error, so the monitoring loop will continue
 		// to stream logs
 		s.Logger.DebugWithCtx(ctx, "Received EOF but pod is still running", "runUID", runUID)
-		return false, common.PodStillRunningError{}
+		return false, common.PodStillRunningError{
+			PodName: podName,
+		}
 	}
 
 	// other error occurred

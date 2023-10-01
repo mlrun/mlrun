@@ -14,6 +14,8 @@
 
 package common
 
+import "fmt"
+
 // error codes
 const (
 	ErrCodeNotFound int32 = iota
@@ -35,8 +37,10 @@ const (
 
 // Custom errors
 
-type PodStillRunningError struct{}
+type PodStillRunningError struct {
+	PodName string
+}
 
 func (e PodStillRunningError) Error() string {
-	return "Pod is still running"
+	return fmt.Sprintf("Pod %s is still running", e.PodName)
 }

@@ -1849,7 +1849,7 @@ class MlrunProject(ModelObj):
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
 
-        resolved_name, tag, function_object, func = self._resolved_function(
+        resolved_function_name, tag, function_object, func = self._resolved_function(
             func,
             name,
             kind,
@@ -1875,7 +1875,7 @@ class MlrunProject(ModelObj):
         )
 
         # save to project spec
-        self._set_function(name, tag, function_object, func)
+        self._set_function(resolved_function_name, tag, function_object, func)
 
         return function_object
 
@@ -1947,7 +1947,7 @@ class MlrunProject(ModelObj):
             requirements_file,
         )
 
-        self._set_function(name, tag, function_object, func)
+        self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
     def _resolved_function(

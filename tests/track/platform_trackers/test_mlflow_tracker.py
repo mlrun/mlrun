@@ -20,6 +20,7 @@ import mlflow
 import mlflow.environment_variables
 import mlflow.xgboost
 import pytest
+import pytest_mock
 import xgboost as xgb
 from sklearn import datasets
 from sklearn.metrics import accuracy_score, log_loss
@@ -27,6 +28,7 @@ from sklearn.model_selection import train_test_split
 
 import mlrun
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
+import mlrun.launcher.local
 
 
 # simple general mlflow example of hand logging
@@ -42,6 +44,23 @@ def simple_run():
             with open(f"{test_dir}/test.txt", "w") as f:
                 f.write("hello world!")
                 mlflow.log_artifacts(test_dir)
+
+
+# simple general mlflow example with interruption in the middle
+def interrupted_run():
+    with mlflow.start_run():
+        # Log some random params and metrics
+        mlflow.log_param("param1", randint(0, 100))
+        mlflow.log_metric("foo", random())
+        mlflow.log_metric("foo", random() + 1)
+        mlflow.log_metric("foo", random() + 2)
+        # Create an artifact and log it
+        with tempfile.TemporaryDirectory() as test_dir:
+            with open(f"{test_dir}/test.txt", "w") as f:
+                f.write("hello world!")
+                mlflow.log_artifacts(test_dir)
+        raise Exception("Testing logging an interrupted run")
+        # more code ...
 
 
 # simple mlflow example of lgb logging
@@ -149,6 +168,48 @@ def test_track_run(rundb_mock, handler):
     then we run some code that is being logged by mlflow using mlrun,
     and finally compare the mlrun we tracked with the original mlflow run using the validate func
     """
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+        # mlflow creates a dir to log the run, this makes it in the tmpdir we create
+        trainer_run = func.run(
+            local=True,
+            handler=handler,
+            artifact_path=test_directory,
+        )
+
+        _validate_run(run=trainer_run)
+
+
+def _mock_wrap_run_result(monkeypatch):
+    """Mock function for `_wrap_run_result`, in order to examine tracked run and avoid run crash"""
+    def _wrap_run_result(*args, **kwargs):
+        return mlrun.run.RunObject.from_dict(args[2])
+    monkeypatch.setattr(mlrun.launcher.local.ClientLocalLauncher, "_wrap_run_result", _wrap_run_result)
+
+
+@pytest.mark.parametrize("handler", ["interrupted_run"])
+def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
+    """
+    This test is for tracking a run logged by mlflow into mlrun while it's running and then crashing.
+    first we mock `_wrap_run_result` in order to catch the run object, then we activate the tracking option in mlconf,
+     then we name the mlflow experiment, then we run some code that is being logged by mlflow using mlrun,
+    and finally compare the mlrun we tracked with the original mlflow run using the validate func
+    """
+    _mock_wrap_run_result(monkeypatch)
     mlrun.mlconf.external_platform_tracking.enabled = True
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
     with tempfile.TemporaryDirectory() as test_directory:

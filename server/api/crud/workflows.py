@@ -52,7 +52,6 @@ class WorkflowRunners(
             name=run_name,
             project=project,
             kind=mlrun.runtimes.RuntimeKinds.job,
-            # For preventing deployment:
             image=image,
         )
 

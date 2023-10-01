@@ -771,6 +771,21 @@ class _RemoteRunner(_PipelineRunner):
                 project_name=project.name,
             )
 
+            # set it relative to project path
+            # as the runner pod will mount and use `load_and_run` which will use the project context
+            # to load the workflow file to.
+            # e.g.
+            # /path/to/project/workflow.py -> ./workflow.py
+            # /path/to/project/subdir/workflow.py -> ./workflow.py
+            if workflow_spec.path:
+                prefix = project.spec.get_code_path()
+                if workflow_spec.path.startswith(prefix):
+                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
+                    relative_prefix = "."
+                    if not workflow_spec.path.startswith("/"):
+                        relative_prefix += "/"
+                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
+
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,

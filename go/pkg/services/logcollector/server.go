@@ -290,6 +290,7 @@ func (s *Server) StartLog(ctx context.Context,
 		request.RunUID,
 		pod.Name,
 		request.ProjectName,
+		request.LastLogTime,
 		startedStreamingGoroutine)
 
 	// wait for the streaming goroutine to start
@@ -607,11 +608,19 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
 	podName,
 	projectName string,
+	lastLogTime int64,
 	startedStreamingGoroutine chan bool) {
 
 	// in case of a panic, remove this goroutine from the current state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
+
+		// update last log time in state manifest, so we can start from the last log time
+		if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, lastLogTime); err != nil {
+			// if the pod ended properly, the run will be removed from the state file and the update will fail
+			// we can ignore this error and continue
+			s.Logger.WarnWithCtx(ctx, "Failed to update last log time")
+		}
 
 		// remove this goroutine from in-current state
 		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
@@ -665,6 +674,12 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	podLogOptions := &v1.PodLogOptions{
 		Follow: true,
 	}
+	// in case we failed in the middle of streaming logs, we want to start from the last log time
+	if lastLogTime > 0 {
+		podLogOptions.SinceTime = &metav1.Time{
+			Time: time.UnixMilli(lastLogTime),
+		}
+	}
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
 	// get the log stream - if the retry times out, the monitoring loop will restart log collection for this runUID
@@ -693,7 +708,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
-		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream)
+		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream, &lastLogTime)
 		if err != nil {
 			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
 			// by bailing out
@@ -737,7 +752,8 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	runUID,
 	podName string,
 	logFile *os.File,
-	stream io.ReadCloser) (bool, error) {
+	stream io.ReadCloser,
+	logTime *int64) (bool, error) {
 
 	// get a buffer from the pool - so we can share buffers across goroutines
 	buf := s.logCollectionBufferPool.Get()
@@ -746,6 +762,7 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	// read from the stream into the buffer
 	// this is non-blocking, it will return immediately if there is nothing to read
 	numBytesRead, err := stream.Read(buf)
+	*logTime = time.Now().UnixMilli()
 
 	if numBytesRead > 0 {
 
@@ -947,6 +964,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						RunUID:      logItem.RunUID,
 						Selector:    logItem.LabelSelector,
 						ProjectName: logItem.Project,
+						LastLogTime: logItem.LastLogTime,
 					}); err != nil {
 
 						s.Logger.WarnWithCtx(ctx,

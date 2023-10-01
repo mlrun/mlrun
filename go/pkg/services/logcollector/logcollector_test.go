@@ -207,6 +207,7 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 		runId,
 		pod.Name,
 		suite.projectName,
+		0,
 		startedChan)
 
 	// wait for log streaming to start

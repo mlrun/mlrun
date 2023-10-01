@@ -89,6 +89,36 @@ func (s *Store) GetState() *statestore.State {
 	return s.State
 }
 
+func (s *Store) UpdateLastLogTime(runUID, project string, lastLogTime int64) error {
+
+	// get the state file of the run
+	if projectRunUIDsInProgress, projectExists := s.State.InProgress.Load(project); projectExists {
+		projectSyncMap, ok := projectRunUIDsInProgress.(*sync.Map)
+		if !ok {
+			return errors.New("Failed to cast project values in state store to sync.Map")
+		}
+
+		// check if run UID already exists in the project
+		if runLogItem, runLogItemExists := projectSyncMap.Load(runUID); runLogItemExists {
+			runLogItem, ok := runLogItem.(statestore.LogItem)
+			if !ok {
+				return errors.New("Failed to cast run log item to statestore.LogItem")
+			}
+			runLogItem.LastLogTime = lastLogTime
+			projectSyncMap.Store(runUID, runLogItem)
+
+			// update the state file
+			s.State.InProgress.Store(project, projectSyncMap)
+		} else {
+			return errors.New("Failed to find run UID in state store")
+		}
+	} else {
+		return errors.New("Failed to find project in state store")
+	}
+
+	return nil
+}
+
 // stateFileUpdateLoop updates the state file periodically
 func (s *Store) stateFileUpdateLoop(ctx context.Context) {
 

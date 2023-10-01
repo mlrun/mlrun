@@ -30,7 +30,6 @@ from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunObject
 from mlrun.projects import MlrunProject
 from mlrun.utils import logger, now_date
-
 from ..tracker import Tracker
 
 
@@ -358,7 +357,6 @@ class MLFlowTracker(Tracker):
                 outputs = MLFlowTracker._schema_to_feature(
                     schema=model_info.signature.outputs
                 )
-
         # Log the model:
         return context_or_project.log_model(
             key=key,
@@ -366,6 +364,7 @@ class MLFlowTracker(Tracker):
             model_file=str(archive_path),
             metrics=metrics,
             labels={
+                "mlflow_flavors": list(model_info.flavors.keys()),
                 "mlflow_run_id": model_info.run_id,
                 "mlflow_version": model_info.mlflow_version,
                 "mlflow_model_uuid": model_info.model_uuid,
@@ -373,6 +372,7 @@ class MLFlowTracker(Tracker):
             extra_data=extra_data,
             inputs=inputs,
             outputs=outputs,
+
         )
 
     @staticmethod

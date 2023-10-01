@@ -163,7 +163,7 @@ class TestDask(TestMLRunSystem):
             client.list_datasets()
 
         # Cluster supposed to be decommissioned
-        with pytest.raises(RuntimeError):
+        with pytest.raises(AttributeError):
             client.restart()
 
     def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):

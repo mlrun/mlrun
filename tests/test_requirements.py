@@ -106,7 +106,6 @@ def test_requirement_specifiers_convention():
         "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
-        "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},

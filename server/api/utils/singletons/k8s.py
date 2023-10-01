@@ -79,6 +79,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         except Exception:
             try:
                 config.load_kube_config(self.config_file)
+                self.running_inside_kubernetes_cluster = True
                 if log:
                     logger.info("using local kubernetes config.")
             except Exception:

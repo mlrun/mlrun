@@ -783,6 +783,7 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | Deprecated / to be removed                       | Use instead                                   |
 | ------------------------------------------------ | --------------------------------------------- |
 | CSVSource's time_field parameter | Use parse_dates to parse timestamps |
+| default_final_state | default_final_step |
 
 ### APIs deprecated in v1.3.0, will be removed from v1.6.0 code
 | Deprecated / to be removed                       | Use instead                                   |

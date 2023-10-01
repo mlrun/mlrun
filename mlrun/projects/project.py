@@ -2039,9 +2039,6 @@ class MlrunProject(ModelObj):
 
         function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
         # resolved_function_name is the name without the tag or the actual function name if it was not specified
-        # if the name contains the tag we only update the tagged entry
-        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
-        # for consistency
         name = name or resolved_function_name
 
         return (
@@ -2053,21 +2050,18 @@ class MlrunProject(ModelObj):
 
     def _set_function(
         self,
-        resolved_function_name: str,
+        name: str,
         tag: str,
         function_object: mlrun.runtimes.BaseRuntime,
         func: dict,
     ):
-        # resolved_function_name is the name without the tag or the actual function name if it was not specified
         # if the name contains the tag we only update the tagged entry
         # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
         # for consistency
-        if tag and not resolved_function_name.endswith(f":{tag}"):
-            self.spec.set_function(
-                f"{resolved_function_name}:{tag}", function_object, func
-            )
+        if tag and not name.endswith(f":{tag}"):
+            self.spec.set_function(f"{name}:{tag}", function_object, func)
 
-        self.spec.set_function(resolved_function_name, function_object, func)
+        self.spec.set_function(name, function_object, func)
 
     def remove_function(self, name):
         """remove a function from a project

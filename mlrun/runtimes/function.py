@@ -563,7 +563,9 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(self, False, builder_env=builder_env, force_build=force_build)
+        data = db.remote_builder(
+            self, False, builder_env=builder_env, force_build=force_build
+        )
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 

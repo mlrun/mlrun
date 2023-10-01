@@ -229,7 +229,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
-                force_build=force_build
+                force_build=force_build,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")

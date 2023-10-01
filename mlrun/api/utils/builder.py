@@ -419,7 +419,13 @@ def build_image(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
 
-    if not inline_code and not source and not commands and not requirements and not force_build:
+    if (
+        not inline_code
+        and not source
+        and not commands
+        and not requirements
+        and not force_build
+    ):
         mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
 

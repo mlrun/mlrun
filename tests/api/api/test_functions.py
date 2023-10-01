@@ -504,6 +504,52 @@ def test_build_function_with_project_repo(
     mlrun.api.utils.builder.build_image = original_build_runtime
 
 
+@pytest.mark.parametrize("force_build, expected", [(True, 1), (False, 0)])
+def test_build_function_force_build(
+    db: sqlalchemy.orm.Session,
+    client: fastapi.testclient.TestClient,
+    force_build,
+    expected,
+):
+    tests.api.api.utils.create_project(client, PROJECT)
+    function_dict = {
+        "kind": "job",
+        "metadata": {
+            "name": "function-name",
+            "project": PROJECT,
+            "tag": "latest",
+        },
+        "image": ".test/my-beautiful-image",
+    }
+    mlrun.api.utils.builder.make_dockerfile = unittest.mock.Mock(return_value="")
+    mlrun.api.utils.builder.make_kaniko_pod = unittest.mock.Mock(
+        return_value=mlrun.api.utils.singletons.k8s.BasePod()
+    )
+    mlrun.api.utils.builder.resolve_image_target_and_registry_secret = (
+        unittest.mock.Mock(
+            return_value=(".test/my-beautiful-image", "default-docker-registry-secret")
+        )
+    )
+    mlrun.api.utils.builder._resolve_build_requirements = unittest.mock.Mock(
+        return_value=([], [], "/empty/requirements.txt")
+    )
+    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
+        return_value=("pod-name", "namespace")
+    )
+    response = client.post(
+        "build/function",
+        json={"function": function_dict, "force_build": force_build},
+    )
+    assert response.status_code == HTTPStatus.OK.value
+
+    assert mlrun.api.utils.builder.make_kaniko_pod.call_count == expected
+    assert mlrun.api.utils.builder.make_dockerfile.call_count == expected
+    assert (
+        mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
+        == expected
+    )
+
+
 def test_build_function_masks_access_key(
     monkeypatch,
     db: sqlalchemy.orm.Session,

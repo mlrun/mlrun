@@ -539,7 +539,7 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build: set True for force building the image, even when no changes were made
+        :param force_build: set True for force building the image
         """
         # todo: verify that the function name is normalized
 

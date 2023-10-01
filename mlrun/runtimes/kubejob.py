@@ -184,6 +184,7 @@ class KubejobRuntime(KubeResource):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             set True for force building the image, even when no changes were made
 
         :return True if the function is ready (deployed)
         """

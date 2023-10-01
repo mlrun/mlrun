@@ -268,6 +268,7 @@ def build_function(
         * True: The existing params are replaced by the new ones
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
+    :param force_build: Force building the image, even when no changes were made
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():

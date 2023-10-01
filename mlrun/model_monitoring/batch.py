@@ -356,7 +356,14 @@ class VirtualDrift:
             # Calculate the feature's drift mean:
             tvd = results[TotalVarianceDistance.NAME]
             hellinger = results[HellingerDistance.NAME]
-            if not tvd or not hellinger:
+            if tvd is None or hellinger is None:
+                logger.warning(
+                    "Can't calculate drift for this feature because at least one of the required"
+                    "statistical metrics is missing",
+                    feature=feature,
+                    tvd=tvd,
+                    hellinger=hellinger,
+                )
                 continue
             metrics_results_dictionary = (tvd + hellinger) / 2
             # Decision rule for drift detection:

@@ -787,7 +787,7 @@ class _RemoteRunner(_PipelineRunner):
             # to load the workflow file to.
             # e.g.
             # /path/to/project/workflow.py -> ./workflow.py
-            # /path/to/project/subdir/workflow.py -> ./subdir/workflow.py
+            # /path/to/project/subdir/workflow.py -> ./workflow.py
             if workflow_spec.path:
                 prefix = project.spec.get_code_path()
                 if workflow_spec.path.startswith(prefix):

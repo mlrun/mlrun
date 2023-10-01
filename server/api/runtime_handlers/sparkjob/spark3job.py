@@ -22,8 +22,7 @@ from kubernetes.client.rest import ApiException
 from sqlalchemy.orm import Session
 
 import mlrun.utils.regex
-from mlrun.api.db.base import DBInterface
-from mlrun.api.runtime_handlers.kubejob import KubeRuntimeHandler
+import server.api.utils.singletons.k8s
 from mlrun.runtimes import RuntimeClassMode, Spark3Runtime
 from mlrun.runtimes.constants import RunStates, SparkApplicationStates
 from mlrun.utils import (
@@ -34,6 +33,8 @@ from mlrun.utils import (
     verify_field_regex,
     verify_list_and_update_in,
 )
+from server.api.db.base import DBInterface
+from server.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 _sparkjob_template = {
     "apiVersion": "sparkoperator.k8s.io/v1beta2",
@@ -332,7 +333,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         code: Optional[str] = None,
     ):
         namespace = meta.namespace
-        k8s = mlrun.api.utils.singletons.k8s.get_k8s_helper()
+        k8s = server.api.utils.singletons.k8s.get_k8s_helper()
         namespace = k8s.resolve_namespace(namespace)
         if code:
             k8s_config_map = k8s_client.V1ConfigMap()

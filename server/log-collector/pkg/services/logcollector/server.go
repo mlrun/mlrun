@@ -39,6 +39,7 @@ import (
 	"github.com/nuclio/logger"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -620,7 +621,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 			// if the pod ended properly, the run will be removed from the state file and the update will fail
 			// we can ignore this error and continue
 			s.Logger.WarnWithCtx(ctx,
-				"Failed to update last log time",
+				"Failed to update last log time, run may have ended",
 				"runUID", runUID,
 				"err", err.Error())
 		}
@@ -790,9 +791,17 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 		pod, err := s.kubeClientSet.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				s.Logger.DebugWithCtx(ctx,
+					"Pod not found, it may have been evicted",
+					"runUID", runUID,
+					"podName", podName)
+				return false, nil
+			}
+			// some other error occurred
 			return false, errors.Wrap(err, "Failed to get pod")
 		}
-		// if the pod not running, it means is done streaming logs and we can stop
+		// if the pod is not running, it is done streaming logs and we can stop
 		if pod.Status.Phase != v1.PodRunning {
 			s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
 			return false, nil

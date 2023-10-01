@@ -953,7 +953,8 @@ def _ingest_with_spark(
             mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
 
         df.persist()
-
+        print(f'df_type: {type(df)} # featureset:{featureset.to_dict()} # infer_options: {infer_options}')
+        print(f'df: {df}')
         _infer_from_static_df(df, featureset, options=infer_options)
 
         key_columns = list(featureset.spec.entities.keys())

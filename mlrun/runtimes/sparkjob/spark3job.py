@@ -40,7 +40,7 @@ class Spark3JobSpec(KubeResourceSpec):
     _jvm_memory_resource_notation = r"^[0-9]+[KkMmGg]$"
 
     # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/55732a6a392cbe1d6546c7ec6823193ab055d2fa/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L181
-    _dict_fields = [
+    _dict_fields = KubeResourceSpec._dict_fields + [
         "driver_resources",
         "executor_resources",
         "job_type",

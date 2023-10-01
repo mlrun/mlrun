@@ -26,21 +26,19 @@ from deepdiff import DeepDiff
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.api.deps
-import mlrun.api.crud
-import mlrun.api.utils.auth
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.singletons.k8s
-import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.launcher.factory
+import server.api.crud
+import server.api.utils.auth
+import server.api.utils.auth.verifier
+import server.api.utils.singletons.project_member
 import tests.api.conftest
-from mlrun.api.utils.scheduler import Scheduler
-from mlrun.api.utils.singletons.db import get_db
 from mlrun.config import config
 from mlrun.runtimes.constants import RunStates
 from mlrun.utils import logger
+from server.api.utils.scheduler import Scheduler
+from server.api.utils.singletons.db import get_db
 
 
 @pytest.fixture()
@@ -55,7 +53,7 @@ async def scheduler(db: Session) -> typing.Generator:
 
     scheduler = Scheduler()
     await scheduler.start(db)
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
+    server.api.utils.singletons.project_member.initialize_project_member()
     yield scheduler
     logger.info("Stopping scheduler")
     await scheduler.stop()
@@ -93,7 +91,7 @@ def create_project(
             name=project_name or config.default_project
         )
     )
-    mlrun.api.crud.Projects().create_project(db, project)
+    server.api.crud.Projects().create_project(db, project)
     return project
 
 
@@ -351,7 +349,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     )
     # stop scheduler, reconfigure to store credentials and start again (upgrade)
     await scheduler.stop()
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     await scheduler.start(db)
@@ -360,11 +358,9 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     # auth info, mock the functions for this
     username = "some-username"
     access_key = "some-access_key"
-    mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner = (
-        unittest.mock.Mock(
-            return_value=mlrun.common.schemas.ProjectOwner(
-                username=username, access_key=access_key
-            )
+    server.api.utils.singletons.project_member.get_project_member().get_project_owner = unittest.mock.Mock(
+        return_value=mlrun.common.schemas.ProjectOwner(
+            username=username, access_key=access_key
         )
     )
     time_to_sleep = (
@@ -375,7 +371,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
     assert (
-        mlrun.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
+        server.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
         == 1
     )
 
@@ -794,7 +790,7 @@ async def test_rescheduling_secrets_storing(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     name = "schedule-name"
@@ -839,7 +835,7 @@ async def test_schedule_crud_secrets_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     for schedule_name in ["valid-secret-key", "invalid/secret/key"]:
@@ -902,7 +898,7 @@ async def test_schedule_access_key_generation(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -910,7 +906,7 @@ async def test_schedule_access_key_generation(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(db, project)
     cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
     access_key = "generated-access-key"
-    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         unittest.mock.Mock(return_value=access_key)
     )
     scheduler.create_schedule(
@@ -922,13 +918,13 @@ async def test_schedule_access_key_generation(
         scheduled_object,
         cron_trigger,
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
     _assert_schedule_auth_secrets(
         k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
 
     access_key = "generated-access-key-2"
-    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         unittest.mock.Mock(return_value=access_key)
     )
     scheduler.update_schedule(
@@ -940,7 +936,7 @@ async def test_schedule_access_key_generation(
         schedule_name,
         labels={"label-key": "label-value"},
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
+    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key.assert_called_once()
     _assert_schedule_auth_secrets(
         k8s_secrets_mock.resolve_auth_secret_name("", access_key), "", access_key
     )
@@ -952,7 +948,7 @@ async def test_schedule_access_key_reference_handling(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     project = config.default_project
@@ -1012,7 +1008,7 @@ async def test_schedule_convert_from_old_credentials_to_new(
     )
 
     auth_info = mlrun.common.schemas.AuthInfo(username=username, access_key=access_key)
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     scheduler._store_schedule_secrets(auth_info, project, schedule_name)
@@ -1514,7 +1510,7 @@ def _assert_schedule_auth_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    auth_data = mlrun.api.crud.Secrets().read_auth_secret(secret_name)
+    auth_data = server.api.crud.Secrets().read_auth_secret(secret_name)
     assert expected_username == auth_data.username
     assert expected_access_key == auth_data.access_key
 
@@ -1526,22 +1522,24 @@ def _assert_schedule_secrets(
     expected_username: str,
     expected_access_key: str,
 ):
-    access_key_secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules,
-        schedule_name,
-        scheduler._secret_access_key_subtype,
+    access_key_secret_key = (
+        server.api.crud.Secrets().generate_client_project_secret_key(
+            server.api.crud.SecretsClientType.schedules,
+            schedule_name,
+            scheduler._secret_access_key_subtype,
+        )
     )
-    username_secret_key = mlrun.api.crud.Secrets().generate_client_project_secret_key(
-        mlrun.api.crud.SecretsClientType.schedules,
+    username_secret_key = server.api.crud.Secrets().generate_client_project_secret_key(
+        server.api.crud.SecretsClientType.schedules,
         schedule_name,
         scheduler._secret_username_subtype,
     )
     key_map_secret_key = (
-        mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-            mlrun.api.crud.SecretsClientType.schedules
+        server.api.crud.Secrets().generate_client_key_map_project_secret_key(
+            server.api.crud.SecretsClientType.schedules
         )
     )
-    secret_value = mlrun.api.crud.Secrets().get_project_secret(
+    secret_value = server.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         access_key_secret_key,
@@ -1550,7 +1548,7 @@ def _assert_schedule_secrets(
         key_map_secret_key=key_map_secret_key,
     )
     assert secret_value == expected_access_key
-    secret_value = mlrun.api.crud.Secrets().get_project_secret(
+    secret_value = server.api.crud.Secrets().get_project_secret(
         project,
         scheduler._secrets_provider,
         username_secret_key,

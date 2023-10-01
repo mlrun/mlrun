@@ -22,9 +22,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.endpoints.feature_store
-import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
+import server.api.api.endpoints.feature_store
+import server.api.utils.auth.verifier
 import tests.api.api.utils
 
 from .base import (
@@ -504,10 +504,10 @@ async def test_verify_feature_vector_features_permissions(
             == {}
         )
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = (
-        unittest.mock.AsyncMock(side_effect=_verify_queried_resources)
+    server.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions = unittest.mock.AsyncMock(
+        side_effect=_verify_queried_resources
     )
-    await mlrun.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
+    await server.api.api.endpoints.feature_store._verify_feature_vector_features_permissions(
         mlrun.common.schemas.AuthInfo(),
         project,
         {"spec": {"features": features, "label_feature": label_feature}},

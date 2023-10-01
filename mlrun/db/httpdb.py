@@ -985,7 +985,7 @@ class HTTPRunDB(RunDBInterface):
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
-            "label_selector": label_selector,
+            "label-selector": label_selector,
             "group-by": group_by,
             "kind": kind,
             "object-id": object_id,

@@ -86,3 +86,14 @@ def test_from_reference_run_config_image():
     run_function = run_config.to_function(default_kind="serving", default_image="x/y")
     assert run_function.kind == "job"
     assert run_function.spec.image == "a/b"
+
+
+def test_from_reference_default_image():
+    function_ref = FunctionReference(
+        kind="job",
+        code="print()",
+    )
+    run_config = RunConfig(function_ref)
+    run_function = run_config.to_function(default_kind="serving", default_image="a/b")
+    assert run_function.kind == "job"
+    assert run_function.spec.image == "a/b"

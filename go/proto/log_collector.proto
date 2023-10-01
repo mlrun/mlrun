@@ -37,6 +37,7 @@ message StartLogRequest {
   string selector = 2;
   string projectName = 3;
   bool bestEffort = 4;
+  int64 lastLogTime = 5;
 }
 
 message GetLogsRequest {

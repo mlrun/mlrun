@@ -204,7 +204,13 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	startedChan := make(chan bool)
 
 	// stream pod logs
-	go suite.logCollectorServer.startLogStreaming(ctx, runId, pod.Name, suite.projectName, startedChan, cancel)
+	go suite.logCollectorServer.startLogStreaming(ctx,
+		runId,
+		pod.Name,
+		suite.projectName,
+		0,
+		startedChan,
+		cancel)
 
 	// wait for log streaming to start
 	started := <-startedChan

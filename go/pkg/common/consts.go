@@ -14,6 +14,8 @@
 
 package common
 
+import "fmt"
+
 // error codes
 const (
 	ErrCodeNotFound int32 = iota
@@ -32,3 +34,13 @@ const (
 	// gRPC has a limit of 4MB, so we set it to 3.75MB in case of overhead
 	DefaultGetLogsBufferSize int = 3.75 * 1024 * 1024 // 3.75MB
 )
+
+// Custom errors
+
+type PodStillRunningError struct {
+	PodName string
+}
+
+func (e PodStillRunningError) Error() string {
+	return fmt.Sprintf("Pod %s is still running", e.PodName)
+}

@@ -314,6 +314,7 @@ async def build_function(
     else:
         with_mlrun = strtobool(data.get("with_mlrun", "on"))
     skip_deployed = data.get("skip_deployed", False)
+    force_build = data.get("force_build", False)
     mlrun_version_specifier = data.get("mlrun_version_specifier")
     fn, ready = await run_in_threadpool(
         _build_function,
@@ -326,6 +327,7 @@ async def build_function(
         data.get("builder_env"),
         client_version,
         client_python_version,
+        force_build,
     )
     return {
         "data": fn.to_dict(),
@@ -709,6 +711,7 @@ def _build_function(
     builder_env=None,
     client_version=None,
     client_python_version=None,
+    force_build=False,
 ):
     fn = None
     ready = None
@@ -860,6 +863,7 @@ def _build_function(
                 builder_env=builder_env,
                 client_version=client_version,
                 client_python_version=client_python_version,
+                force_build=force_build,
             )
         fn.save(versioned=True)
         logger.info("Resolved function", fn=fn.to_yaml())

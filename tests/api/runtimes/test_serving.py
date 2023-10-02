@@ -72,7 +72,9 @@ class TestServingRuntime(TestNuclioRuntime):
 
     @staticmethod
     def _mock_db_remote_deploy_functions():
-        def _remote_db_mock_function(func, with_mlrun, builder_env=None):
+        def _remote_db_mock_function(
+            func, with_mlrun, builder_env=None, force_build=False
+        ):
             server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(func)
             return {
                 "data": {

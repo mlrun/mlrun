@@ -2846,6 +2846,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2867,6 +2868,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
             function,
@@ -2883,6 +2885,7 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
     def build_config(
@@ -2955,6 +2958,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2978,6 +2982,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param force_build:
         """
 
         self.build_config(
@@ -3008,6 +3013,7 @@ class MlrunProject(ModelObj):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
         try:

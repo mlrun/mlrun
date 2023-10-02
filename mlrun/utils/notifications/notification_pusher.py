@@ -55,7 +55,10 @@ class _NotificationPusherBase(object):
             except RuntimeError:
                 event_loop = asyncio.new_event_loop()
 
-            event_loop.run_until_complete(async_push_callback())
+            if not event_loop.is_running():
+                event_loop.run_until_complete(async_push_callback())
+            else:
+                asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
 
         # then push sync notifications
         if not mlrun.config.is_running_as_api():

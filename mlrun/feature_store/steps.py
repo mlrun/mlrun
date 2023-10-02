@@ -155,7 +155,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
 class MapValues(StepToDict, MLRunStep):
     """Map column values to new values"""
 
-    _dict_fields = ["encoded_mapping", "with_original_features", "suffix", "kwargs"]
+    _dict_fields = ["mapping", "encoded_mapping", "with_original_features", "suffix", "kwargs"]
 
     def __init__(
         self,
@@ -189,15 +189,13 @@ class MapValues(StepToDict, MLRunStep):
         if encoded_mapping:
             self.encoded_mapping = encoded_mapping
             if mapping:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Mapvalues __init__ can not get both mapping and encoded_mapping attributes."
-                )
+                print("warning: Mapvalues __init__ got both mapping and encoded_mapping attributes. Ignoring mapping")
         else:
             if mapping:
                 self.encoded_mapping = JsonNonStringKeysEncoder.encode(mapping)
             else:
                 mlrun.errors.MLRunInvalidArgumentError(
-                    "Mapvalues init must get one of the attributes mapping or encoded_mapping"
+                    "Mapvalues init must get at least one of the attributes mapping or encoded_mapping"
                 )
         self.with_original_features = with_original_features
         self.suffix = suffix

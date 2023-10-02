@@ -1826,7 +1826,7 @@ class MlrunProject(ModelObj):
             resolved_function_name,
             function_object,
             func,
-        ) = self._resolved_model_monitoring_function(
+        ) = self._create_model_monitoring_function_helper(
             func,
             application_class,
             name,
@@ -1867,7 +1867,7 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        create a monitoring application object without setting it to the project
+        create a monitoring function object without setting it to the project
 
         examples::
             project.create_model_monitoring_function(application_class_name="MyApp",
@@ -1890,7 +1890,7 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
-        _, function_object, _ = self._resolved_model_monitoring_function(
+        _, function_object, _ = self._create_model_monitoring_function_helper(
             func,
             application_class,
             name,
@@ -1904,7 +1904,7 @@ class MlrunProject(ModelObj):
         )
         return function_object
 
-    def _resolved_model_monitoring_function(
+    def _create_model_monitoring_function_helper(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
@@ -1947,7 +1947,12 @@ class MlrunProject(ModelObj):
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
 
-        resolved_function_name, tag, function_object, func = self._resolved_function(
+        (
+            resolved_function_name,
+            tag,
+            function_object,
+            func,
+        ) = self._create_function_helper(
             func,
             name,
             kind,
@@ -2026,7 +2031,12 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        resolved_function_name, function_object, func = self._resolved_function(
+        (
+            resolved_function_name,
+            tag,
+            function_object,
+            func,
+        ) = self._create_function_helper(
             func,
             name,
             kind,
@@ -2038,7 +2048,7 @@ class MlrunProject(ModelObj):
             requirements_file,
         )
 
-        self._set_function(resolved_function_name, tag, function_object, func)
+        self._set_function_helper(resolved_function_name, tag, function_object, func)
         return function_object
 
     def create_function(
@@ -2098,7 +2108,7 @@ class MlrunProject(ModelObj):
         :returns: function object
         """
 
-        _, function_object, _ = self._resolved_function(
+        _, _, function_object, _ = self._create_function_helper(
             func,
             name,
             kind,
@@ -2111,7 +2121,7 @@ class MlrunProject(ModelObj):
         )
         return function_object
 
-    def _resolved_function(
+    def _create_function_helper(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
@@ -2209,7 +2219,7 @@ class MlrunProject(ModelObj):
             func,
         )
 
-    def _set_function(
+    def _set_function_helper(
         self,
         name: str,
         tag: str,
@@ -2230,23 +2240,23 @@ class MlrunProject(ModelObj):
         :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
+        mlrun.db.get_run_db().delete_function(name=name.lower())
 
-    def remove_model_monitoring_application(self, name):
+    def remove_model_monitoring_function(self, name):
         """remove a function from a project and from the db.
 
         :param name: name of the function (under the project)
         """
-        application = self.get_function(key=name)
+        function = self.get_function(key=name)
         if (
-            application.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+            function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
             == mm_constants.ModelMonitoringAppLabel.VAL
         ):
             self.remove_function(name=name)
-            mlrun.db.get_run_db().delete_function(name=name.lower())
-            logger.info(f"{name} application has been removed from {self.name} project")
+            logger.info(f"{name} function has been removed from {self.name} project")
         else:
             raise logger.error(
-                f"There is no model monitoring application with {name} name"
+                f"There is no model monitoring function with {name} name"
             )
 
     def get_function(
@@ -3348,10 +3358,10 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_model_monitoring_applications(self, name=None, tag=None, labels=None):
-        """Retrieve a list of alll the model monitoring application.
+    def list_model_monitoring_functions(self, name=None, tag=None, labels=None):
+        """Retrieve a list of alll the model monitoring functions.
         example::
-            functions = project.list_model_monitoring_applications()
+            functions = project.list_model_monitoring_functions()
 
         :param name: Return only functions with a specific name.
         :param tag: Return function versions with specific tags.

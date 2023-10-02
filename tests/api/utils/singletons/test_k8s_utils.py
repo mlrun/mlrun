@@ -16,9 +16,9 @@ import unittest.mock
 
 import pytest
 
-import mlrun.api.runtime_handlers.mpijob
-import mlrun.api.utils.singletons.k8s
 import mlrun.runtimes
+import server.api.runtime_handlers.mpijob
+import server.api.utils.singletons.k8s
 
 
 @pytest.mark.parametrize(
@@ -34,7 +34,7 @@ def test_get_logger_pods_label_selector(
     monkeypatch, run_type, mpi_version, extra_selector
 ):
     monkeypatch.setattr(
-        mlrun.api.runtime_handlers.mpijob,
+        server.api.runtime_handlers.mpijob,
         "cached_mpijob_crd_version",
         mpi_version or mlrun.runtimes.constants.MPIJobCRDVersions.default(),
     )
@@ -45,7 +45,7 @@ def test_get_logger_pods_label_selector(
     if extra_selector:
         selector += f",{extra_selector}"
 
-    k8s_helper = mlrun.api.utils.singletons.k8s.K8sHelper(namespace, silent=True)
+    k8s_helper = server.api.utils.singletons.k8s.K8sHelper(namespace, silent=True)
     k8s_helper.list_pods = unittest.mock.MagicMock()
 
     k8s_helper.get_logger_pods(project, uid, run_type)

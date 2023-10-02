@@ -18,10 +18,9 @@ import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.crud
-import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.events.events_factory
 import mlrun.common.schemas
+import server.api.crud
+import server.api.utils.events.events_factory
 import tests.api.conftest
 
 
@@ -48,7 +47,7 @@ class TestEventClient:
 
         username = "some-username"
         events_client = (
-            mlrun.api.utils.events.events_factory.EventsFactory().get_events_client()
+            server.api.utils.events.events_factory.EventsFactory().get_events_client()
         )
         event = events_client.generate_auth_secret_event(
             username=username,
@@ -81,11 +80,11 @@ class TestEventClient:
         valid_secret_value = "some-value-5"
         provider = mlrun.common.schemas.SecretProviderName.kubernetes
         key_map_secret_key = (
-            mlrun.api.crud.Secrets().generate_client_key_map_project_secret_key(
-                mlrun.api.crud.SecretsClientType.schedules
+            server.api.crud.Secrets().generate_client_key_map_project_secret_key(
+                server.api.crud.SecretsClientType.schedules
             )
         )
-        mlrun.api.crud.Secrets().store_project_secrets(
+        server.api.crud.Secrets().store_project_secrets(
             project,
             mlrun.common.schemas.SecretsData(
                 provider=provider, secrets={valid_secret_key: valid_secret_value}
@@ -101,7 +100,7 @@ class TestEventClient:
         self._initialize_client(iguazio_version)
         self.client.emit = unittest.mock.MagicMock()
         monkeypatch.setattr(
-            mlrun.api.utils.events.events_factory.EventsFactory,
+            server.api.utils.events.events_factory.EventsFactory,
             "get_events_client",
             lambda *args, **kwargs: self.client,
         )
@@ -109,7 +108,7 @@ class TestEventClient:
     def _initialize_client(self, version: str = None):
         mlrun.mlconf.igz_version = version
         self.client = (
-            mlrun.api.utils.events.events_factory.EventsFactory.get_events_client()
+            server.api.utils.events.events_factory.EventsFactory.get_events_client()
         )
 
     def _assert_client_was_called(self, iguazio_version: str):

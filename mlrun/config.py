@@ -204,7 +204,7 @@ default_config = {
                 },
                 "request_timeout": 45,  # seconds
             },
-            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            # see server.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,

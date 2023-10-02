@@ -1474,29 +1474,6 @@ def is_file_path(filepath):
     return os.path.isfile(filepath) and ext
 
 
-class DeprecationHelper(object):
-    """A helper class to deprecate old schemas"""
-
-    def __init__(self, new_target, version="1.4.0"):
-        self._new_target = new_target
-        self._version = version
-
-    def _warn(self):
-        warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
-            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
-            FutureWarning,
-        )
-
-    def __call__(self, *args, **kwargs):
-        self._warn()
-        return self._new_target(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        self._warn()
-        return getattr(self._new_target, attr)
-
-
 def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 

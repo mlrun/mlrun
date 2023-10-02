@@ -18,7 +18,7 @@ from typing import Type
 import numpy as np
 import pytest
 
-from mlrun.model_monitoring.model_monitoring_batch import (
+from mlrun.model_monitoring.batch import (
     HellingerDistance,
     HistogramDistanceMetric,
     KullbackLeiblerDivergence,

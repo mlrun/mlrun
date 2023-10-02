@@ -36,7 +36,7 @@ WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorials $HOME/tutorials
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
@@ -57,8 +57,11 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.3.x https://github.com/mlrun/demos.git $HOME/demos && \
-    cd $HOME/demos && ./community_edition_align.sh && cd -
+RUN git clone --branch 1.5.x https://github.com/mlrun/demos.git $HOME/demos && \
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
+    cd $HOME/demos && \
+    ./community_edition_align.sh && \
+    cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \

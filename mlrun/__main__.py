@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -445,7 +446,7 @@ def run(
 @click.option("--archive", "-a", default="", help="destination archive for code (tar)")
 @click.option("--silent", is_flag=True, help="do not show build logs")
 @click.option("--with-mlrun", is_flag=True, help="add MLRun package")
-@click.option("--db", default="", help="save run results to path or DB url")
+@click.option("--db", default="", help="save run results to DB url")
 @click.option(
     "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
 )
@@ -811,7 +812,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         )
 
 
-@main.command()
+@main.command(deprecated=True)
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
 @click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
@@ -839,6 +840,10 @@ def db(
     update_env,
 ):
     """Run HTTP api/database server"""
+    warnings.warn(
+        "The `mlrun db` command is deprecated in 1.5.0 and will be removed in 1.7.0, it is for internal use only.",
+        FutureWarning,
+    )
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
     env["MLRUN_IGNORE_ENV_FILE"] = "true"
@@ -875,7 +880,7 @@ def db(
         p = pathlib.Path(parsed.path[1:]).parent
         p.mkdir(parents=True, exist_ok=True)
 
-    cmd = [executable, "-m", "mlrun.api.main"]
+    cmd = [executable, "-m", "server.api.main"]
     pid = None
     if background:
         print("Starting MLRun API service in the background...")
@@ -917,7 +922,9 @@ def version():
 
 @main.command()
 @click.argument("uid", type=str)
-@click.option("--project", "-p", help="project name")
+@click.option(
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+)
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
 @click.option("--watch", "-w", is_flag=True, help="watch/follow log")

@@ -24,15 +24,15 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.crud as crud
 import mlrun.common.schemas
 import mlrun.runtimes.constants
-from mlrun.api.constants import LogSources
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
+import server.api.crud
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
+from server.api.constants import LogSources
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -71,7 +71,7 @@ class TestRuntimeHandlerBase:
                 },
             },
         }
-        mlrun.api.crud.Runs().store_run(
+        server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
         )
 
@@ -517,7 +517,7 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
             )
-        _, logs = await crud.Logs().get_logs(
+        _, logs = await server.api.crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY
         )
         async for log_line in logs:

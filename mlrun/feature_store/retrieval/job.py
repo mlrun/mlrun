@@ -161,6 +161,13 @@ class RemoteVectorResponse:
         :param df_module: optional, py module used to create the DataFrame (e.g. pd, dd, cudf, ..)
         :param kwargs:    extended DataItem.as_df() args
         """
+        self._is_ready()
+        if not columns:
+            columns = list(self.vector.status.features.keys())
+            if self.with_indexes:
+                columns += self.vector.status.index_keys
+                if self.vector.status.timestamp_key is not None:
+                    columns.append(self.vector.status.timestamp_key)
 
         file_format = kwargs.get("format")
         if not file_format:
@@ -169,9 +176,7 @@ class RemoteVectorResponse:
             columns=columns, df_module=df_module, format=file_format, **kwargs
         )
         if self.with_indexes:
-            df.set_index(
-                list(self.vector.spec.entity_fields.keys()), inplace=True, drop=True
-            )
+            df.set_index(self.vector.status.index_keys, inplace=True, drop=True)
         return df
 
     @property

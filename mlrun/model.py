@@ -559,9 +559,11 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
+        reason=None,
     ):
         self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
         self.name = name or ""
@@ -571,9 +573,11 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+        self.reason = reason
 
         self.validate_notification()
 
@@ -585,11 +589,11 @@ class Notification(ModelObj):
                 "Invalid notification object"
             ) from exc
 
-        # validate that size of notification params doesn't exceed 1 MB, due to k8s default secret size limitation.
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
         # a buffer of 100 KB is added to the size to account for the size of the secret metadata
-        # TODO: split params to params and secret_params, and store secret_params in a secret
         if (
-            len(json.dumps(self.params))
+            len(json.dumps(self.secret_params))
             > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -654,22 +658,22 @@ class HyperParamOptions(ModelObj):
     """Hyper Parameter Options
 
     Parameters:
-        param_file (str):       hyper params input file path/url, instead of inline
-        strategy (str):         hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
-        stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
-        dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
-        max_iterations (int):   max number of runs (in random strategy)
-        max_errors (int):       max number of child runs errors for the overall job to fail
-        teardown_dask (bool):   kill the dask cluster pods after the runs
+        param_file (str):                   hyper params input file path/url, instead of inline
+        strategy (HyperParamStrategies):    hyper param strategy - grid, list or random
+        selector (str):                     selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
+        stop_condition (str):               early stop condition e.g. "accuracy > 0.9"
+        parallel_runs (int):                number of param combinations to run in parallel (over Dask)
+        dask_cluster_uri (str):             db uri for a deployed dask cluster function, e.g. db://myproject/dask
+        max_iterations (int):               max number of runs (in random strategy)
+        max_errors (int):                   max number of child runs errors for the overall job to fail
+        teardown_dask (bool):               kill the dask cluster pods after the runs
     """
 
     def __init__(
         self,
         param_file=None,
-        strategy=None,
-        selector: HyperParamStrategies = None,
+        strategy: typing.Optional[HyperParamStrategies] = None,
+        selector=None,
         stop_condition=None,
         parallel_runs=None,
         dask_cluster_uri=None,
@@ -1215,6 +1219,29 @@ class RunObject(RunTemplate):
     def from_template(cls, template: RunTemplate):
         return cls(template.spec, template.metadata)
 
+    def to_json(self, exclude=None, **kwargs):
+        # Since the `params` attribute within each notification object can be large,
+        # it has the potential to cause errors and is unnecessary for the notification functionality.
+        # Therefore, in this section, we remove the `params` attribute from each notification object.
+        if (
+            exclude_notifications_params := kwargs.get("exclude_notifications_params")
+        ) and exclude_notifications_params:
+            if self.spec.notifications:
+                # Extract and remove 'params' from each notification
+                extracted_params = []
+                for notification in self.spec.notifications:
+                    extracted_params.append(notification.params)
+                    del notification.params
+                # Generate the JSON representation, excluding specified fields
+                json_obj = super().to_json(exclude=exclude)
+                # Restore 'params' back to the notifications
+                for notification, params in zip(
+                    self.spec.notifications, extracted_params
+                ):
+                    notification.params = params
+                return json_obj
+        return super().to_json(exclude=exclude)
+
     @property
     def status(self) -> RunStatus:
         return self._status
@@ -1452,12 +1479,23 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+    def __init__(
+        self,
+        name="",
+        doc="",
+        parameters=None,
+        outputs=None,
+        lineno=-1,
+        has_varargs=None,
+        has_kwargs=None,
+    ):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
         self.outputs = [] if outputs is None else outputs
         self.lineno = lineno
+        self.has_varargs = has_varargs
+        self.has_kwargs = has_kwargs
 
 
 def new_task(
@@ -1625,7 +1663,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,

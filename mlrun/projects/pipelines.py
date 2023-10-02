@@ -186,9 +186,10 @@ class FunctionsDict:
         return self._functions.keys()
 
     def items(self):
-        return {
-            key: self.enrich(function, key) for key, function in self._functions.items()
-        }
+        return [
+            (key, self.enrich(function, key))
+            for key, function in self._functions.items()
+        ]
 
     def __len__(self):
         return len(self._functions)
@@ -763,6 +764,28 @@ class _RemoteRunner(_PipelineRunner):
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
         try:
+            logger.info(
+                "Submitting remote workflow",
+                workflow_engine=workflow_spec.engine,
+                schedule=workflow_spec.schedule,
+                project_name=project.name,
+            )
+
+            # set it relative to project path
+            # as the runner pod will mount and use `load_and_run` which will use the project context
+            # to load the workflow file to.
+            # e.g.
+            # /path/to/project/workflow.py -> ./workflow.py
+            # /path/to/project/subdir/workflow.py -> ./workflow.py
+            if workflow_spec.path:
+                prefix = project.spec.get_code_path()
+                if workflow_spec.path.startswith(prefix):
+                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
+                    relative_prefix = "."
+                    if not workflow_spec.path.startswith("/"):
+                        relative_prefix += "/"
+                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
+
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
@@ -775,6 +798,10 @@ class _RemoteRunner(_PipelineRunner):
                 namespace=namespace,
             )
             if workflow_spec.schedule:
+                logger.info(
+                    "Workflow scheduled successfully",
+                    workflow_response=workflow_response,
+                )
                 return
 
             # Getting workflow id from run:

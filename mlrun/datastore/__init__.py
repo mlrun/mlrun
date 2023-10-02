@@ -31,6 +31,7 @@ __all__ = [
     "RedisStore",
     "DatabricksFileSystemDisableCache",
     "DatabricksFileBugFixed",
+    "get_stream_pusher",
 ]
 
 import fsspec

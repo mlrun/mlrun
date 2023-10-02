@@ -128,6 +128,9 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
             },
             index=data["id"].values,
         )
+        # pandas 2 assert_frame_equal actually checks the index name(s), so we need it
+        data_ref.index.name = "id"
+        data_ref.index.names = ["id"]
     else:
         data_ref = pd.DataFrame(
             {
@@ -145,6 +148,9 @@ def test_pandas_step_onehot(rundb_mock, entities, set_index_before):
             },
             index=[data["id"].values, data["name"].values],
         )
+        # pandas 2 assert_frame_equal actually checks the index name(s), so we need it
+        data_ref.index.name = None
+        data_ref.index.names = ["id", "name"]
 
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(
@@ -318,6 +324,13 @@ def test_pandas_step_mapval(rundb_mock, with_original, entities, set_index_befor
         if len(entities) > 1:
             index = [data[ent].values for ent in entities]
         data_ref = pd.DataFrame({"age": age, "department": department}, index=index)
+        # pandas 2 assert_frame_equal actually checks the index name(s), so we need it
+        if len(entities) > 1:
+            data_ref.index.name = None
+            data_ref.index.names = entities
+        else:
+            data_ref.index.name = "id"
+            data_ref.index.names = ["id"]
 
     assert isinstance(df_pandas, pd.DataFrame)
     pd.testing.assert_frame_equal(

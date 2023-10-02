@@ -575,21 +575,6 @@ class ServingRuntime(RemoteRuntime):
         self.spec.secret_sources.append({"kind": kind, "source": source})
         return self
 
-    def add_secrets_config_to_spec(self):
-        if self.spec.secret_sources:
-            self._secrets = SecretsStore.from_list(self.spec.secret_sources)
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(project=self.metadata.project)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), project=self.metadata.project
-            )
-        else:
-            self._add_k8s_secrets_to_spec(None, project=self.metadata.project)
-
     def deploy(
         self,
         dashboard="",
@@ -638,6 +623,9 @@ class ServingRuntime(RemoteRuntime):
             self.spec.secret_sources = self._secrets.to_serial()
 
         if self._spec.function_refs:
+            # ensure the function is available to the UI while deploying the child functions
+            self.save(versioned=False)
+
             # deploy child functions
             self._add_ref_triggers()
             self._deploy_function_refs()

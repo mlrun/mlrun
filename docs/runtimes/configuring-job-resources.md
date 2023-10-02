@@ -1,5 +1,5 @@
 (configuring-job-resources)=
-# Managing job resources
+# Managing run resources
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
 preferences, and priorities in the logical function object. These are used during the function deployment.
@@ -9,7 +9,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 **In this section**
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
-- [Number of GPUs](#number-of-gpus)
+- [Number of workers and GPUs](#number-of-workers-and-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
@@ -61,11 +61,18 @@ training_function.with_limits(gpus=1)
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
-## Number of GPUs
+## Number of workers and GPUs
 
-When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of 
-workers. You can set the number of workers for each trigger and the number of GPUs for each pod 
-using the MLRun SDK.
+For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](./create-and-use-functions.html#memory-cpu-gpu-resources).
+
+You can change the number of workers after you create the trigger (function object), then you need to 
+redeploy the function.  Examples of changing the number of workers:
+
+{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_http`:</br>
+`serve.with_http(workers=8, worker_timeout=10)`
+
+{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
+`serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
 
 ## Volumes
 

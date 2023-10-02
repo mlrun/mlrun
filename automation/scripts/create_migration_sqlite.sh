@@ -16,7 +16,7 @@
 
 set -e
 
-if [ ! -v  MLRUN_MIGRATION_MESSAGE ]; then
+if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
 	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
 	exit 1
 fi
@@ -25,13 +25,13 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 export ROOT_DIR="${SCRIPT_DIR}/../.."
 
 function cleanup {
-	rm -f "${ROOT_DIR}/mlrun/api/migrations_sqlite/mlrun.db"
+	rm -f "${ROOT_DIR}/server/api/migrations_sqlite/mlrun.db"
 }
 trap cleanup SIGHUP SIGINT SIGTERM EXIT
 
-export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/mlrun/api/migrations_sqlite/mlrun.db?check_same_thread=false"
+export MLRUN_HTTPDB__DSN="sqlite:///${ROOT_DIR}/server/api/migrations_sqlite/mlrun.db?check_same_thread=false"
 
 cleanup
 
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" upgrade head
-alembic -c "${ROOT_DIR}/mlrun/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+alembic -c "${ROOT_DIR}/server/api/alembic.ini" upgrade head
+alembic -c "${ROOT_DIR}/server/api/alembic.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"

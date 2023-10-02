@@ -20,7 +20,7 @@ import mlrun.common.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
 
-from ...utils import update_in, verify_and_update_in, verify_field_regex
+from ...utils import update_in, verify_field_regex
 from ..utils import (
     generate_resources,
     get_gpu_from_resource_requirement,
@@ -388,116 +388,13 @@ class Spark3JobSpec(AbstractSparkJobSpec):
 
 
 class Spark3Runtime(AbstractSparkRuntime):
-    def _enrich_job(self, job):
-        if self.spec.priority_class_name:
-            verify_and_update_in(
-                job,
-                "spec.batchSchedulerOptions.priorityClassName",
-                self.spec.priority_class_name,
-                str,
-            )
+    @property
+    def spec(self) -> Spark3JobSpec:
+        return self._spec
 
-        verify_and_update_in(
-            job,
-            "spec.driver.cores",
-            self.spec.driver_cores or 1,
-            int,
-        )
-        # By default we set this to 1 in the parent class. Here we override the value if requested.
-        if self.spec.executor_cores:
-            verify_and_update_in(
-                job,
-                "spec.executor.cores",
-                self.spec.executor_cores,
-                int,
-            )
-
-        if self.spec.dynamic_allocation:
-            if "enabled" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.enabled",
-                    self.spec.dynamic_allocation["enabled"],
-                )
-            if "initialExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.initialExecutors",
-                    self.spec.dynamic_allocation["initialExecutors"],
-                )
-            if "minExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.minExecutors",
-                    self.spec.dynamic_allocation["minExecutors"],
-                )
-            if "maxExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.maxExecutors",
-                    self.spec.dynamic_allocation["maxExecutors"],
-                )
-        update_in(job, "spec.driver.serviceAccount", "sparkapp")
-        update_in(
-            job, "spec.executor.serviceAccount", self.spec.service_account or "sparkapp"
-        )
-        if self.spec.driver_node_selector:
-            update_in(job, "spec.driver.nodeSelector", self.spec.driver_node_selector)
-        if self.spec.executor_node_selector:
-            update_in(
-                job, "spec.executor.nodeSelector", self.spec.executor_node_selector
-            )
-        if self.spec.driver_tolerations:
-            update_in(job, "spec.driver.tolerations", self.spec.driver_tolerations)
-        if self.spec.executor_tolerations:
-            update_in(job, "spec.executor.tolerations", self.spec.executor_tolerations)
-
-        if self.spec.driver_affinity:
-            update_in(job, "spec.driver.affinity", self.spec.driver_affinity)
-        if self.spec.executor_affinity:
-            update_in(job, "spec.executor.affinity", self.spec.executor_affinity)
-
-        if self.spec.monitoring:
-            if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
-                update_in(job, "spec.monitoring.exposeDriverMetrics", True)
-                update_in(job, "spec.monitoring.exposeExecutorMetrics", True)
-                if "exporter_jar" in self.spec.monitoring:
-                    update_in(
-                        job,
-                        "spec.monitoring.prometheus.jmxExporterJar",
-                        self.spec.monitoring["exporter_jar"],
-                    )
-
-        if self.spec.driver_volume_mounts:
-            update_in(
-                job,
-                "spec.driver.volumeMounts",
-                self.spec.driver_volume_mounts,
-                append=True,
-            )
-        if self.spec.executor_volume_mounts:
-            update_in(
-                job,
-                "spec.executor.volumeMounts",
-                self.spec.executor_volume_mounts,
-                append=True,
-            )
-        if self.spec.driver_java_options:
-            update_in(
-                job,
-                "spec.driver.javaOptions",
-                self.spec.driver_java_options,
-            )
-        if self.spec.executor_java_options:
-            update_in(
-                job,
-                "spec.executor.javaOptions",
-                self.spec.executor_java_options,
-            )
-        return
-
-    def _get_spark_version(self):
-        return "3.1.2"
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def _get_igz_deps(self):
         return {
@@ -510,14 +407,6 @@ class Spark3Runtime(AbstractSparkRuntime):
             ],
             "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
         }
-
-    @property
-    def spec(self) -> Spark3JobSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def with_node_selection(
         self,
@@ -553,10 +442,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         ] = None,
     ):
         """
-        Enables to control on which k8s node the spark executor will run
+        Enables control of which k8s node the spark executor will run on.
 
         :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param node_selector:   Label selector, only nodes with matching labels are eligible to be picked
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
@@ -586,10 +475,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         ] = None,
     ):
         """
-        Enables to control on which k8s node the spark executor will run
+        Enables control of which k8s node the spark executor will run on.
 
         :param node_name:       The name of the k8s node
-        :param node_selector:   Label selector, only nodes with matching labels will be eligible to be picked
+        :param node_selector:   Label selector, only nodes with matching labels are eligible to be picked
         :param affinity:        Expands the types of constraints you can express - see
                                 https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity
                                 for details
@@ -616,7 +505,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
         """
         raise mlrun.errors.MLRunInvalidArgumentTypeError(
-            "with_preemption_mode is not supported use with_driver_preemption_mode / with_executor_preemption_mode"
+            "with_preemption_mode is not supported, use with_driver_preemption_mode / with_executor_preemption_mode"
             " to set preemption mode for spark operator"
         )
 
@@ -634,8 +523,8 @@ class Spark3Runtime(AbstractSparkRuntime):
         * **prevent** - The function cannot be scheduled on preemptible nodes
         * **none** - No preemptible configuration will be applied on the function
 
-        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode,
-        by default it's set to **prevent**
+        The default preemption mode is configurable in mlrun.mlconf.function_defaults.preemption_mode.
+        By default it's set to **prevent**
 
         :param mode: allow | constrain | prevent | none defined in :py:class:`~mlrun.common.schemas.PreemptionModes`
         """
@@ -684,10 +573,10 @@ class Spark3Runtime(AbstractSparkRuntime):
         volume_name: str = "host-path-volume",
     ):
         """
-        Add an host path volume and mount it to the driver pod
+        Add a host path volume and mounts it to the driver pod
         More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
 
-        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it follows the link to the
                             real path
         :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
         :param type:        Type for HostPath Volume Defaults to ""
@@ -708,7 +597,7 @@ class Spark3Runtime(AbstractSparkRuntime):
         Add an host path volume and mount it to the executor pod/s
         More info: https://kubernetes.io/docs/concepts/storage/volumes#hostpath
 
-        :param host_path:   Path of the directory on the host. If the path is a symlink, it will follow the link to the
+        :param host_path:   Path of the directory on the host. If the path is a symlink, it follows the link to the
                             real path
         :param mount_path:  Path within the container at which the volume should be mounted.  Must not contain ':'
         :param type:        Type for HostPath Volume Defaults to ""
@@ -770,6 +659,11 @@ class Spark3Runtime(AbstractSparkRuntime):
                 self.spec.monitoring["exporter_jar"] = exporter_jar
 
     def with_igz_spark(self, mount_v3io_to_executor=True):
+        """
+        Configures the pods (driver and executors) to have V3IO access (via file system and via Hadoop).
+
+        :param mount_v3io_to_executor: When False, limits the file system mount to driver pod only. Default is True.
+        """
         super().with_igz_spark(mount_v3io_to_executor)
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
@@ -783,7 +677,7 @@ class Spark3Runtime(AbstractSparkRuntime):
 
         Spark operator has multiple options to control the number of cores available to the executor and driver.
         The .coreLimit and .coreRequest parameters can be set for both executor and driver,
-        but they only controls the k8s properties of the pods created to run driver/executor.
+        but they only control the k8s properties of the pods created to run the driver/executor.
         Spark itself uses the spec.[executor|driver].cores parameter to set the parallelism of tasks and cores
         assigned to each task within the pod. This function sets the .cores parameters for the job executed.
 

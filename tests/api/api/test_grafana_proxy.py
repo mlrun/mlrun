@@ -27,18 +27,18 @@ from v3io.dataplane import RaiseForStatus
 from v3io_frames import CreateError
 from v3io_frames import frames_pb2 as fpb2
 
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants
 import mlrun.model_monitoring.stores
-from mlrun.api.crud.model_monitoring.grafana import (
-    parse_query_parameters,
-    validate_query_parameters,
-)
+import server.api.utils.clients.iguazio
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
 from mlrun.config import config
 from mlrun.errors import MLRunBadRequestError
 from mlrun.utils.v3io_clients import get_frames_client, get_v3io_client
+from server.api.crud.model_monitoring.grafana import (
+    parse_query_parameters,
+    validate_query_parameters,
+)
 from tests.api.api.test_model_endpoints import _mock_random_endpoint
 
 ENV_PARAMS = {"V3IO_ACCESS_KEY", "V3IO_API", "V3IO_FRAMESD"}
@@ -57,7 +57,7 @@ def test_grafana_proxy_model_endpoints_check_connection(
     db: Session, client: TestClient
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
-    mlrun.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+    server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
             return_value=(
                 mlrun.common.schemas.AuthInfo(

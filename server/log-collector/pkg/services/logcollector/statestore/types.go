@@ -35,6 +35,7 @@ type LogItem struct {
 	RunUID        string `json:"runUID"`
 	LabelSelector string `json:"labelSelector"`
 	Project       string `json:"project"`
+	LastLogTime   int64  `json:"lastLogTime"`
 }
 
 // MarshalledState is a helper struct for marshalling the state
@@ -135,4 +136,6 @@ type StateStore interface {
 
 	// GetState returns the state store state
 	GetState() *State
+
+	UpdateLastLogTime(runUID, project string, lastLogTime int64) error
 }

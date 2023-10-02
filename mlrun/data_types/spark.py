@@ -23,6 +23,7 @@ from pyspark.sql.types import BooleanType, DoubleType, TimestampType
 from mlrun.utils import logger
 
 from .data_types import InferOptions, spark_to_value_type
+from .to_pandas import toPandas
 
 try:
     import pyspark.sql.functions as funcs
@@ -74,7 +75,7 @@ def get_df_preview_spark(df, preview_lines=20):
     """capture preview data from spark df"""
     df = df.limit(preview_lines)
 
-    result_dict = df.toPandas().to_dict(orient="split")
+    result_dict = toPandas(df).to_dict(orient="split")
     return [result_dict["columns"], *result_dict["data"]]
 
 

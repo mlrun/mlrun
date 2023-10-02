@@ -1947,7 +1947,7 @@ class MlrunProject(ModelObj):
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
 
-        resolved_function_name, function_object, func = self._resolved_function(
+        resolved_function_name, tag, function_object, func = self._resolved_function(
             func,
             name,
             kind,
@@ -2037,7 +2037,8 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        self.spec.set_function(resolved_function_name, function_object, func)
+
+        self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
     def create_function(
@@ -2199,15 +2200,29 @@ class MlrunProject(ModelObj):
 
         function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
         # resolved_function_name is the name without the tag or the actual function name if it was not specified
-        # if the name contains the tag we only update the tagged entry
-        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
-        # for consistency
+        name = name or resolved_function_name
 
         return (
-            f":{tag}" if tag and not name.endswith(f":{tag}") else name,
+            name,
+            tag,
             function_object,
             func,
         )
+
+    def _set_function(
+        self,
+        name: str,
+        tag: str,
+        function_object: mlrun.runtimes.BaseRuntime,
+        func: dict,
+    ):
+        # if the name contains the tag we only update the tagged entry
+        # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
+        # for consistency
+        if tag and not name.endswith(f":{tag}"):
+            self.spec.set_function(f"{name}:{tag}", function_object, func)
+
+        self.spec.set_function(name, function_object, func)
 
     def remove_function(self, name):
         """remove a function from a project

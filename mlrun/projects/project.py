@@ -3359,7 +3359,7 @@ class MlrunProject(ModelObj):
             return [mlrun.new_function(runtime=func) for func in functions]
 
     def list_model_monitoring_functions(self, name=None, tag=None, labels=None):
-        """Retrieve a list of alll the model monitoring functions.
+        """Retrieve a list of all the model monitoring functions.
         example::
             functions = project.list_model_monitoring_functions()
 

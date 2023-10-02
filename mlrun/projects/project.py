@@ -2235,7 +2235,7 @@ class MlrunProject(ModelObj):
         self.spec.set_function(name, function_object, func)
 
     def remove_function(self, name):
-        """remove a function from a project
+        """remove a function from a project and from the db.
 
         :param name:    name of the function (under the project)
         """
@@ -2243,7 +2243,7 @@ class MlrunProject(ModelObj):
         mlrun.db.get_run_db().delete_function(name=name.lower())
 
     def remove_model_monitoring_function(self, name):
-        """remove a function from a project and from the db.
+        """remove a monitoring function from a project and from the db.
 
         :param name: name of the function (under the project)
         """

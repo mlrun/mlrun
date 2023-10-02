@@ -37,7 +37,7 @@ WORKDIR $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
 COPY --chown=$NB_UID:$NB_GID ./docs/tutorials $HOME/tutorials
-COPY --chown=$NB_UID:$NB_GID ./docs/tutorial/_static/images/ $HOME/_static/images/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorial/_static/images $HOME/_static/images/tutorial
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
 RUN mkdir data

@@ -43,7 +43,7 @@
 | ML-3370 | Accessing the MLRun hub is now through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech-preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
 | ML-3644 | Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 | ML-4132 | New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
-| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
+| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
 
 ### Runtimes
 | ID    | Description                                                    |

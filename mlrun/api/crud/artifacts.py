@@ -68,7 +68,7 @@ class Artifacts(
         artifact: dict,
         tag: str = "latest",
         iter: int = 0,
-        tree: str = None,
+        producer_id: str = None,
         project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
@@ -81,7 +81,7 @@ class Artifacts(
         if artifact["project"] != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Artifact with conflicting project name - {artifact['project']} while request project : {project}."
-                f"key={key}, tree={tree}"
+                f"key={key}, tree={producer_id}"
             )
 
         return mlrun.api.utils.singletons.db.get_db().create_artifact(
@@ -91,7 +91,7 @@ class Artifacts(
             key,
             tag,
             iteration=iter,
-            tree=tree,
+            tree=producer_id,
             best_iteration=best_iteration,
         )
 

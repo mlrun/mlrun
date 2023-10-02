@@ -64,8 +64,8 @@ async def create_artifact(
         artifact.dict(exclude_none=True),
         tag,
         iteration,
-        tree,
-        project,
+        producer_id=tree,
+        project=project,
     )
     return await run_in_threadpool(
         mlrun.api.crud.Artifacts().get_artifact,

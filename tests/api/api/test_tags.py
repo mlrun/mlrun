@@ -260,6 +260,7 @@ class TestArtifactTags:
         valid_tag_name = "valid_tag"
         invalid_tag_name = "tag$%^#"
         artifact1_labels = {"artifact_name": "artifact1"}
+        tree = "some-tree"
 
         (
             _,
@@ -272,7 +273,7 @@ class TestArtifactTags:
         ) = self._store_artifact(
             client,
             tag=invalid_tag_name,
-            tree="latest",
+            tree=tree,
             labels=artifact1_labels,
             expected_status_code=http.HTTPStatus.BAD_REQUEST.value,
         )
@@ -286,7 +287,7 @@ class TestArtifactTags:
             _,
             _,
         ) = self._store_artifact(
-            client, tag=valid_tag_name, tree="latest", labels=artifact1_labels
+            client, tag=valid_tag_name, tree=tree, labels=artifact1_labels
         )
 
         response = self._append_artifact_tag(

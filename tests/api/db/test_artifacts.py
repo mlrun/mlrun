@@ -102,22 +102,6 @@ def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
 
 
-def test_latest_with_iter(db: DBInterface, db_session: Session):
-    artifact_name_1 = "artifact_name_1"
-    tree = "artifact_tree"
-    artifact_1 = _generate_artifact(artifact_name_1, tree=tree)
-
-    # Use iters with multiple digits, to make sure filtering them via regex works
-    test_iters = [0, 5, 9, 42, 219, 2102]
-    for iter in test_iters:
-        artifact_1["iter"] = iter
-        db.store_artifact(db_session, artifact_name_1, artifact_1, iter=iter)
-
-    artifacts = db.list_artifacts(db_session, tag="latest")
-    print(len(artifacts))
-    print(artifacts)
-
-
 def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_name_1 = "artifact_name_1"
     artifact_kind_1 = ChartArtifact.kind

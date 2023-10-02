@@ -779,7 +779,13 @@ class HTTPRunDB(RunDBInterface):
 
         error = f"store artifact {project}/{key}"
 
-        params = self._resolve_store_artifact_params(iter, tag, tree)
+        params = {}
+        if iter:
+            params["iter"] = str(iter)
+        if tag:
+            params["tag"] = tag
+        if tree:
+            params["tree"] = tree
 
         body = _as_json(artifact)
         self.api_call(
@@ -3425,24 +3431,6 @@ class HTTPRunDB(RunDBInterface):
         path = self._path_of("projects", project, "datastore-profiles")
 
         self.api_call(method="PUT", path=path, json=profile.dict())
-
-    @staticmethod
-    def _resolve_store_artifact_params(iter, tag, tree):
-        """Resolve the store artifact parameters.
-
-        :param iter:    Iteration to set
-        :param tag:     Tag to set
-        :param tree:    Tree (producer id) to set
-        :returns:       A dictionary of the resolved parameters
-        """
-        params = {}
-        if iter:
-            params["iter"] = str(iter)
-        if tag:
-            params["tag"] = tag
-        if tree:
-            params["tree"] = tree
-        return params
 
 
 def _as_json(obj):

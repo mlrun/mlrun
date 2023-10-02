@@ -419,12 +419,13 @@ def build_image(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
 
-    if (
+    if force_build:
+        mlrun.utils.logger.info("forcefully building image")
+    elif (
         not inline_code
         and not source
         and not commands
         and not requirements
-        and not force_build
     ):
         mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
@@ -644,13 +645,15 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if (
+
+    if force_build:
+        mlrun.utils.logger.info("forcefully building image")
+    elif (
         not build.source
         and not build.commands
         and not build.requirements
         and not build.extra
         and not with_mlrun
-        and not force_build
     ):
         if not runtime.spec.image:
             if build.base_image:

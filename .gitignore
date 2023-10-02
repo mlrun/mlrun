@@ -1,4 +1,5 @@
 *.pyc
+__pycache__/
 .aws-secrets
 .idea/
 .ipynb_checkpoints

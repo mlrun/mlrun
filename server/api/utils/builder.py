@@ -421,12 +421,7 @@ def build_image(
 
     if force_build:
         mlrun.utils.logger.info("forcefully building image")
-    elif (
-        not inline_code
-        and not source
-        and not commands
-        and not requirements
-    ):
+    elif not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
 

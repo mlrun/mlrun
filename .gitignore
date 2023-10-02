@@ -34,6 +34,7 @@ docs/contributing.md
 server/api/proto/*pb2*.py
 docs/tutorial/colab/01-mlrun-basics-colab.ipynb
 automation/patch_igz/patch_env.yml
+mlrun/api/
 
 # used for local development.
 # e.g., when developing for mlrun api, you may use this env to preset envvars.

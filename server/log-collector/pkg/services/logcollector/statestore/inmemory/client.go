@@ -43,3 +43,7 @@ func (s *Store) Initialize(ctx context.Context) error {
 func (s *Store) WriteState(state *statestore.State) error {
 	return nil
 }
+
+func (s *Store) UpdateLastLogTime(runUID, project string, lastLogTime int64) error {
+	return nil
+}

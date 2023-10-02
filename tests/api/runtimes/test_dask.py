@@ -107,7 +107,7 @@ class TestDaskRuntime(TestRuntimeBase):
     ):
         scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
-        assert scheduler_container_spec.args == ["dask-scheduler"]
+        assert scheduler_container_spec.args == ["dask", "scheduler"]
 
     def _assert_pods_resources(
         self,

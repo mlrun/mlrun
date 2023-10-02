@@ -3231,6 +3231,11 @@ class HTTPRunDB(RunDBInterface):
             if hasattr(workflow_spec, "image")
             else workflow_spec.get("image", None)
         )
+        workflow_name = name or (
+            workflow_spec.name
+            if hasattr(workflow_spec, "name")
+            else workflow_spec.get("name", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -3238,16 +3243,20 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+        if isinstance(
+            workflow_spec,
+            mlrun.common.schemas.WorkflowSpec,
+        ):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+        req["spec"]["name"] = workflow_name
         response = self.api_call(
             "POST",
-            f"projects/{project}/workflows/{name}/submit",
+            f"projects/{project}/workflows/{workflow_name}/submit",
             json=req,
         )
         return mlrun.common.schemas.WorkflowResponse(**response.json())

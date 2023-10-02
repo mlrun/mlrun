@@ -1,4 +1,4 @@
-click~=8.0.0
+click~=8.1
 paramiko~=2.12
 semver~=3.0
 requests~=2.31

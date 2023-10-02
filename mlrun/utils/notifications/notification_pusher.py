@@ -32,7 +32,62 @@ from mlrun.utils.condition_evaluator import evaluate_condition_in_separate_proce
 from .notification import NotificationBase, NotificationTypes
 
 
-class NotificationPusher(object):
+class _NotificationPusherBase(object):
+    def _push(
+        self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
+    ):
+
+        if mlrun.utils.helpers.is_running_in_jupyter_notebook():
+            # Running in Jupyter notebook.
+            # In this case, we need to create a new thread, run a separate event loop in
+            # that thread, and use it instead of the main_event_loop.
+            # This is necessary because Jupyter Notebook has its own event loop,
+            # but it runs in the main thread. As long as a cell is running,
+            # the event loop will not execute properly
+            self._run_coroutine_in_jupyter_notebook(
+                coroutine_method=async_push_callback
+            )
+        else:
+            # Either running in mlrun api or sdk. in case of mlrun api we are in a separated thread, thus creating
+            # a new event loop. in case of sdk, we are most likely in main thread, thus using the main event loop.
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                event_loop = asyncio.new_event_loop()
+
+            if not event_loop.is_running():
+                event_loop.run_until_complete(async_push_callback())
+            else:
+                asyncio.run_coroutine_threadsafe(async_push_callback(), event_loop)
+
+        # then push sync notifications
+        if not mlrun.config.is_running_as_api():
+            sync_push_callback()
+
+    def _run_coroutine_in_jupyter_notebook(self, coroutine_method):
+        """
+        Execute a coroutine in a Jupyter Notebook environment.
+
+        This function creates a new thread pool executor with a single thread and a new event loop.
+        It sets the created event loop as the current event loop.
+        Then, it submits the coroutine to the event loop and waits for its completion.
+
+        This approach is used in Jupyter Notebook to ensure the proper execution of the event loop in a separate thread,
+        allowing for the asynchronous push operation to be executed while the notebook is running.
+
+        :param coroutine_method: The coroutine method to be executed.
+        :return: The result of the executed coroutine.
+        """
+        thread_pool_executor = ThreadPoolExecutor(1)
+        async_event_loop = asyncio.new_event_loop()
+        thread_pool_executor.submit(asyncio.set_event_loop, async_event_loop).result()
+        result = thread_pool_executor.submit(
+            async_event_loop.run_until_complete, coroutine_method()
+        ).result()
+        return result
+
+
+class NotificationPusher(_NotificationPusherBase):
 
     messages = {
         "completed": "Run completed",
@@ -80,7 +135,7 @@ class NotificationPusher(object):
         if not len(self._sync_notifications) and not len(self._async_notifications):
             return
 
-        def _sync_push():
+        def sync_push():
             for notification_data in self._sync_notifications:
                 try:
                     self._push_notification_sync(
@@ -94,7 +149,7 @@ class NotificationPusher(object):
                         error=mlrun.errors.err_to_str(exc),
                     )
 
-        async def _async_push():
+        async def async_push():
             tasks = []
             for notification_data in self._async_notifications:
                 tasks.append(
@@ -120,28 +175,7 @@ class NotificationPusher(object):
             + len(self._async_notifications),
         )
 
-        # first push async notifications
-        main_event_loop = asyncio.get_event_loop()
-        if not main_event_loop.is_running():
-            # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
-            # We create a new event loop and run the async push function in it.
-            main_event_loop.run_until_complete(_async_push())
-        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
-            # Running in Jupyter notebook.
-            # In this case, we need to create a new thread, run a separate event loop in
-            # that thread, and use it instead of the main_event_loop.
-            # This is necessary because Jupyter Notebook has its own event loop,
-            # but it runs in the main thread. As long as a cell is running,
-            # the event loop will not execute properly
-            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
-        else:
-            # Running in mlrun api, we are in a separate thread from the one in which
-            # the main event loop, so we can just send the notifications to that loop
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
-
-        # then push sync notifications
-        if not mlrun.config.is_running_as_api():
-            _sync_push()
+        self._push(sync_push, async_push)
 
     @staticmethod
     def _should_notify(
@@ -291,7 +325,7 @@ class NotificationPusher(object):
 
         except Exception as exc:
             logger.warning(
-                "Failed to send or update notification",
+                "Failed to send or update async notification",
                 notification=sanitize_notification(notification_object.to_dict()),
                 run_uid=run.metadata.uid,
                 exc=mlrun.errors.err_to_str(exc),
@@ -343,7 +377,7 @@ class NotificationPusher(object):
         )
 
 
-class CustomNotificationPusher(object):
+class CustomNotificationPusher(_NotificationPusherBase):
     def __init__(self, notification_types: typing.List[str] = None):
         notifications = {
             notification_type: NotificationTypes(notification_type).get_notification()()
@@ -369,12 +403,12 @@ class CustomNotificationPusher(object):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
-        def _sync_push():
+        def sync_push():
             for notification_type, notification in self._sync_notifications.items():
                 if self.should_push_notification(notification_type):
                     notification.push(message, severity, runs, custom_html)
 
-        async def _async_push():
+        async def async_push():
             tasks = []
             for notification_type, notification in self._async_notifications.items():
                 if self.should_push_notification(notification_type):
@@ -384,28 +418,7 @@ class CustomNotificationPusher(object):
             # return exceptions to "best-effort" fire all notifications
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # first push async notifications
-        main_event_loop = asyncio.get_event_loop()
-        if not main_event_loop.is_running():
-            # If running mlrun SDK locally (not from jupyter), there isn't necessarily an event loop.
-            # We create a new event loop and run the async push function in it.
-            main_event_loop.run_until_complete(_async_push())
-        elif mlrun.utils.helpers.is_running_in_jupyter_notebook():
-            # Running in Jupyter notebook.
-            # In this case, we need to create a new thread, run a separate event loop in
-            # that thread, and use it instead of the main_event_loop.
-            # This is necessary because Jupyter Notebook has its own event loop,
-            # but it runs in the main thread. As long as a cell is running,
-            # the event loop will not execute properly
-            _run_coroutine_in_jupyter_notebook(coroutine_method=_async_push)
-        else:
-            # Running in mlrun api, we are in a separate thread from the one in which
-            # the main event loop, so we can just send the notifications to that loop
-            asyncio.run_coroutine_threadsafe(_async_push(), main_event_loop)
-
-        # then push sync notifications
-        if not mlrun.config.is_running_as_api():
-            _sync_push()
+        self._push(sync_push, async_push)
 
     def add_notification(
         self,
@@ -528,39 +541,3 @@ def sanitize_notification(notification_dict: dict):
     notification_dict.pop("message", None)
     notification_dict.pop("params", None)
     return notification_dict
-
-
-def _separate_sync_notifications(
-    notifications: typing.List[NotificationBase],
-) -> typing.Tuple[typing.List[NotificationBase], typing.List[NotificationBase]]:
-    sync_notifications = []
-    async_notifications = []
-    for notification in notifications:
-        if notification.is_async:
-            async_notifications.append(notification)
-        else:
-            sync_notifications.append(notification)
-    return sync_notifications, async_notifications
-
-
-def _run_coroutine_in_jupyter_notebook(coroutine_method):
-    """
-    Execute a coroutine in a Jupyter Notebook environment.
-
-    This function creates a new thread pool executor with a single thread and a new event loop.
-    It sets the created event loop as the current event loop.
-    Then, it submits the coroutine to the event loop and waits for its completion.
-
-    This approach is used in Jupyter Notebook to ensure the proper execution of the event loop in a separate thread,
-    allowing for the asynchronous push operation to be executed while the notebook is running.
-
-    :param coroutine_method: The coroutine method to be executed.
-    :return: The result of the executed coroutine.
-    """
-    thread_pool_executer = ThreadPoolExecutor(1)
-    async_event_loop = asyncio.new_event_loop()
-    thread_pool_executer.submit(asyncio.set_event_loop, async_event_loop).result()
-    result = thread_pool_executer.submit(
-        async_event_loop.run_until_complete, coroutine_method()
-    ).result()
-    return result

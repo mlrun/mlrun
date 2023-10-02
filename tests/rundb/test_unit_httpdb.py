@@ -195,7 +195,7 @@ def test_resolve_artifacts_to_tag_objects():
     assert tag_objects.identifiers[0].key == "some-key"
     assert tag_objects.identifiers[0].iter == 1
     assert tag_objects.identifiers[0].kind == "artifact"
-    assert tag_objects.identifiers[0].tree == "some-tree"
+    assert tag_objects.identifiers[0].producer_id == "some-tree"
 
 
 @pytest.mark.parametrize(

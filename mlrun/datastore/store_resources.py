@@ -168,9 +168,7 @@ def get_store_resource(
             )
         except (mlrun.errors.MLRunHTTPError, mlrun.errors.MLRunNotFoundError):
             # in earlier version, tree was used as tag, so we try to read the artifact with tree as tag before failing
-            resource = db.read_artifact(
-                key, project=project, tag=tree, iter=iteration
-            )
+            resource = db.read_artifact(key, project=project, tag=tree, iter=iteration)
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             link_iteration = (

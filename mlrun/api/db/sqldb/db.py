@@ -475,15 +475,10 @@ class SQLDB(DBInterface):
         project="",
         producer_id="",
         best_iteration=False,
-        tree=None,
         always_overwrite=False,
     ) -> str:
         project = project or config.default_project
         tag = tag or "latest"
-
-        # tree is replaced by producer_id, but we still support it for backwards compatibility
-        if tree:
-            producer_id = tree
 
         # handle link artifacts separately
         if artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value:
@@ -494,6 +489,10 @@ class SQLDB(DBInterface):
                 artifact,
                 uid,
             )
+
+        if tag:
+            # fail early if tag is invalid
+            validate_tag_name(tag, "artifact.metadata.tag")
 
         original_uid = uid
 
@@ -548,10 +547,6 @@ class SQLDB(DBInterface):
             )
             self._upsert(session, [db_artifact])
             if tag:
-                # we want to ensure that the tag is valid before storing,
-                # if it isn't, MLRunInvalidArgumentError will be raised
-                validate_tag_name(tag, "artifact.metadata.tag")
-
                 self.tag_objects_v2(
                     session,
                     [db_artifact],
@@ -988,10 +983,6 @@ class SQLDB(DBInterface):
 
         self._upsert(session, [db_artifact])
         if tag:
-            # we want to ensure that the tag is valid before storing,
-            # if it isn't, MLRunInvalidArgumentError will be raised
-            validate_tag_name(tag, "artifact.metadata.tag")
-
             self.tag_objects_v2(
                 session, [db_artifact], project, tag, obj_name_attribute="key"
             )
@@ -1017,7 +1008,7 @@ class SQLDB(DBInterface):
             kind=identifier.kind,
             iter=identifier.iter,
             uid=identifier.uid,
-            producer_id=identifier.tree,
+            producer_id=identifier.producer_id,
             as_records=True,
         )
 

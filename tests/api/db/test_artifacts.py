@@ -516,7 +516,7 @@ def _generate_artifact_with_iterations(
             artifact_body,
             iter=iter,
             project=project,
-            tree=tree,
+            producer_id=tree,
         )
 
 

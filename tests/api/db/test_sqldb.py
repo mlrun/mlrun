@@ -43,14 +43,14 @@ def patch(obj, **kw):
 
 
 def test_list_artifact_tags(db: SQLDB, db_session: Session):
-    db.store_artifact(db_session, "k1", {}, tree="1", tag="t1", project="p1")
-    db.store_artifact(db_session, "k1", {}, tree="2", tag="t2", project="p1")
-    db.store_artifact(db_session, "k1", {}, tree="2", tag="t2", project="p2")
+    db.store_artifact(db_session, "k1", {}, producer_id="1", tag="t1", project="p1")
+    db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p1")
+    db.store_artifact(db_session, "k1", {}, producer_id="2", tag="t2", project="p2")
     db.store_artifact(
-        db_session, "k2", {"kind": "model"}, tree="3", tag="t3", project="p1"
+        db_session, "k2", {"kind": "model"}, producer_id="3", tag="t3", project="p1"
     )
     db.store_artifact(
-        db_session, "k3", {"kind": "dataset"}, tree="4", tag="t4", project="p2"
+        db_session, "k3", {"kind": "dataset"}, producer_id="4", tag="t4", project="p2"
     )
 
     tags = db.list_artifact_tags(db_session, "p1")
@@ -122,19 +122,19 @@ def test_run_iter0(db: SQLDB, db_session: Session):
 def test_artifacts_latest(db: SQLDB, db_session: Session):
     k1, t1, art1 = "k1", "t1", {"a": 1}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, tree=t1, project=prj)
+    db.store_artifact(db_session, k1, art1, producer_id=t1, project=prj)
 
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert art1["a"] == arts[0]["a"], "bad artifact"
 
     t2, art2 = "t2", {"a": 17}
-    db.store_artifact(db_session, k1, art2, tree=t2, project=prj)
+    db.store_artifact(db_session, k1, art2, producer_id=t2, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 1 == len(arts), "count"
     assert art2["a"] == arts[0]["a"], "bad artifact"
 
     k2, t3, art3 = "k2", "t3", {"a": 99}
-    db.store_artifact(db_session, k2, art3, tree=t3, project=prj)
+    db.store_artifact(db_session, k2, art3, producer_id=t3, project=prj)
     arts = db.list_artifacts(db_session, project=prj, tag="latest")
     assert 2 == len(arts), "number"
     assert {17, 99} == set(art["a"] for art in arts), "latest"
@@ -144,8 +144,12 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     k1, t1, art1 = "k1", "t1", {"a": 1, "b": "blubla"}
     t2, art2 = "t2", {"a": 2, "b": "blublu"}
     prj = "p38"
-    db.store_artifact(db_session, k1, art1, tree=t1, iter=1, project=prj, tag="tag1")
-    db.store_artifact(db_session, k1, art2, tree=t2, iter=2, project=prj, tag="tag2")
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag1"
+    )
+    db.store_artifact(
+        db_session, k1, art2, producer_id=t2, iter=2, project=prj, tag="tag2"
+    )
 
     result = db.read_artifact(db_session, k1, "tag1", iter=1, project=prj)
     assert result["metadata"]["tag"] == "tag1"
@@ -201,7 +205,9 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
-    db.store_artifact(db_session, k1, art1, tree=t1, iter=1, project=prj, tag="tag3")
+    db.store_artifact(
+        db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag3"
+    )
     result = db.read_artifact(db_session, k1, "tag3", iter=1, project=prj)
     assert result["metadata"]["tag"] == "tag3"
     expected_results.append(result)

@@ -156,7 +156,6 @@ class DBInterface(ABC):
         project="",
         producer_id=None,
         best_iteration=False,
-        tree=None,
         always_overwrite=False,
     ):
         pass

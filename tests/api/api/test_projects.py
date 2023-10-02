@@ -979,7 +979,7 @@ def _create_resources_of_all_kinds(
                         iter=artifact_iter,
                         tag=artifact_tag,
                         project=project,
-                        tree=artifact_tree,
+                        producer_id=artifact_tree,
                     )
 
     # Create several runs

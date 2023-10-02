@@ -69,7 +69,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         tree: str = None,
-        project: str = mlrun.mlconf.default_project,
+        project: str = None,
     ):
         project = project or mlrun.mlconf.default_project
         # In case project is an empty string the setdefault won't catch it
@@ -134,9 +134,8 @@ class Artifacts(
         iter: typing.Optional[int] = None,
         best_iteration: bool = False,
         format_: mlrun.common.schemas.artifact.ArtifactsFormat = mlrun.common.schemas.artifact.ArtifactsFormat.full,
-        tree: str = None,
+        producer_id: str = None,
     ) -> typing.List:
-        producer_id = tree
         project = project or mlrun.mlconf.default_project
         if labels is None:
             labels = []

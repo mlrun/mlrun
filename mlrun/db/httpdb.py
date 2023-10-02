@@ -767,8 +767,8 @@ class HTTPRunDB(RunDBInterface):
         """
         if uid:
             warnings.warn(
-                "'uid' is deprecated, use 'tree' instead. This will be removed in 1.7.0",
-                # TODO: Remove this in 1.7.0
+                "'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
+                # TODO: Remove this in 1.8.0
                 FutureWarning,
             )
 

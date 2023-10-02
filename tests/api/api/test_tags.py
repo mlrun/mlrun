@@ -86,7 +86,7 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(tree=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -120,8 +120,8 @@ class TestArtifactTags:
             client=client,
             tag=overwrite_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(tree=artifact1_tree),
-                mlrun.common.schemas.ArtifactIdentifier(tree=artifact2_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact2_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -232,7 +232,7 @@ class TestArtifactTags:
             tag=new_tag,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact1_key, tree=artifact1_tree
+                    key=artifact1_key, producer_id=artifact1_tree
                 ),
             ],
         )
@@ -294,7 +294,7 @@ class TestArtifactTags:
             tag=invalid_tag_name,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact1_key, tree=artifact1_tree
+                    key=artifact1_key, producer_id=artifact1_tree
                 ),
             ],
         )
@@ -364,7 +364,7 @@ class TestArtifactTags:
             tag=invalid_tag_name,
             identifiers=[
                 mlrun.common.schemas.ArtifactIdentifier(
-                    key=artifact_key, tree=artifact_tree
+                    key=artifact_key, producer_id=artifact_tree
                 ),
             ],
         )
@@ -393,7 +393,7 @@ class TestArtifactTags:
             client=client,
             tag=new_tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(tree=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.OK.value
@@ -533,7 +533,7 @@ class TestArtifactTags:
             client=client,
             tag=tag,
             identifiers=[
-                mlrun.common.schemas.ArtifactIdentifier(tree=artifact1_tree),
+                mlrun.common.schemas.ArtifactIdentifier(producer_id=artifact1_tree),
             ],
         )
         assert response.status_code == http.HTTPStatus.NO_CONTENT.value

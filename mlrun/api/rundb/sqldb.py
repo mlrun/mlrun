@@ -228,7 +228,7 @@ class SQLRunDB(RunDBInterface):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
-            tree=tree,
+            producer_id=tree,
         )
 
     def del_artifact(self, key, tag="", project="", tree=None, uid=None):

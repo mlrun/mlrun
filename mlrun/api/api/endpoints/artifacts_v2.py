@@ -163,7 +163,7 @@ async def list_artifacts(
         iter=iter,
         best_iteration=best_iteration,
         format_=format_,
-        tree=tree,
+        producer_id=tree,
     )
 
     artifacts = await mlrun.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
@@ -256,7 +256,7 @@ async def delete_artifacts(
         name,
         tag,
         labels,
-        tree=tree,
+        producer_id=tree,
     )
     await mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,

@@ -215,7 +215,7 @@ class RunDBInterface(ABC):
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
                     uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
-                    tree=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )

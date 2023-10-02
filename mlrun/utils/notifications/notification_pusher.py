@@ -48,9 +48,13 @@ class _NotificationPusherBase(object):
                 coroutine_method=async_push_callback
             )
         else:
-            # Either running in mlrun api or sdk. in case of mlrun api we are in a separate thread from the one in which
-            # the main event loop. we cannot use main loop, so creating a new one.
-            event_loop = asyncio.new_event_loop()
+            # Either running in mlrun api or sdk. in case of mlrun api we are in a separated thread, thus creating
+            # a new event loop. in case of sdk, we are most likely in main thread, thus using the main event loop.
+            try:
+                event_loop = asyncio.get_event_loop()
+            except RuntimeError:
+                event_loop = asyncio.new_event_loop()
+
             event_loop.run_until_complete(async_push_callback())
 
         # then push sync notifications

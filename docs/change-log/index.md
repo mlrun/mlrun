@@ -752,7 +752,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 
 ### APIs that will be removed from v1.6.0 code
-These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you try to use them.
 
 | To be removed |Deprecated | API                       | Use instead             |
 | -------| -------| ------------------------------------------------ | --------------------------------------------- |
@@ -785,6 +784,13 @@ These APIs will be removed from the v1.6.0 code. A FutureWarning appears if you 
 | -------| -------| ------------------------------------------------ | --------------------------------------------- |
 | v1.6.0 |  v1.3.0 | dashboard (nuclio/deploy) | No longer supported on client side |
 | v1.6.0 |  v1.3.0 |overwrite schedule (project) | Not relevant. Running a schedule is now an  operation |
+
+### APIs that will be removed from v1.7.0 code
+
+| To be removed |Deprecated | API                       | Use instead             |
+| -------| -------| ------------------------------------------------ | --------------------------------------------- |
+| v1.7.0 |  v1.5.0 |`/files` and `/filestat` | `/projects/{project}/filestat` |
+
 
 ### Removed APIs
 

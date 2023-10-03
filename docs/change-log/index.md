@@ -13,16 +13,10 @@
 
 ## v1.5.0 (5 October 2023)
 
-### Alerts
-| ID    | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
-
-
 ### Data
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2296 | Add ability to manage datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+| ML-2296 | Add ability to manage datastore credentials with datastore profiles. Supports Redis. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
 | ML-3500 | Supports a dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
 
 
@@ -45,6 +39,12 @@
 | ML-4132 | New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 | ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
 
+### Notifications
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
+
+
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -66,6 +66,7 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
 | ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
+| ML-4366 | See [Infrastructure](#infrastructure)
 
 ### Deprecations
 

@@ -1007,7 +1007,9 @@ class BaseRuntimeHandler(ABC):
                 except Exception as exc:
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        "Cleanup failed processing CRD object", crd_name=crd_object_name, exc=err_to_str(exc),
+                        "Cleanup failed processing CRD object",
+                        crd_name=crd_object_name,
+                        exc=err_to_str(exc),
                     )
         self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds

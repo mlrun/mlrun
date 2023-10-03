@@ -50,8 +50,6 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         model_artifact = mlrun.artifacts.model.ModelArtifact(
             model_key, body="a model with body"
         )
-        model_artifact_dict = model_artifact.to_dict()
-        print(model_artifact_dict)
         mlrun.get_run_db().store_artifact(
             model_key,
             model_artifact.to_dict(),

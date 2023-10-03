@@ -243,11 +243,9 @@ class ModelEndpoints:
         """
         Create monitoring feature set with the relevant parquet target.
 
+        :param features:          The features list for the feature set.
         :param model_endpoint:    An object representing the model endpoint.
-        :param model_obj:         An object representing the deployed model.
         :param db_session:        A session that manages the current dialog with the database.
-        :param run_db:            A run db instance which will be used for retrieving the feature vector in case
-                                  the features are not found in the model object.
 
         :return:                  Feature set object for the monitoring of the current model endpoint.
         """

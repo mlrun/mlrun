@@ -34,13 +34,11 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         tree_2 = "some-tree-2"
         tag = "some-tag"
         tag_2 = "some-tag-2"
-        artifact_dict = artifact.to_dict()
-        print(artifact_dict)
         mlrun.get_run_db().store_artifact(
-            key, artifact.to_dict(), uid=tree, tag=tag, project=project_name
+            key, artifact.to_dict(), tree=tree, tag=tag, project=project_name
         )
         mlrun.get_run_db().store_artifact(
-            key, artifact.to_dict(), uid=tree_2, tag=tag_2, project=project_name
+            key, artifact.to_dict(), tree=tree_2, tag=tag_2, project=project_name
         )
 
         model_key = "model-key"

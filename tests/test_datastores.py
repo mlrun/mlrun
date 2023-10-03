@@ -204,7 +204,9 @@ def test_get_store_artifact_url_parsing():
 
 def test_get_store_artifact_url_parsing_with_fallback():
     """
-    This test verifies that for if a store artifact is not found, the tree is used as tree before failing
+    This test verifies that if an artifact is not found with the given url,
+    it falls back to the previous implementation, and the tree is passed as the tag
+    before failing completely.
     """
     db = Mock()
     expected_project = "some_project"

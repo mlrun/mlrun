@@ -33,6 +33,7 @@ import mlrun.secrets
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+import server.api.crud as crud
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -1313,9 +1314,6 @@ class BaseRuntimeHandler(ABC):
     def _ensure_run_logs_collected(
         db: DBInterface, db_session: Session, project: str, uid: str
     ):
-        # import here to avoid circular imports
-        import server.api.crud as crud
-
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
             # this stays for now for backwards compatibility in case we would not use the log collector but rather

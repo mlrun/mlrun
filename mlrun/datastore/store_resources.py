@@ -16,12 +16,12 @@
 
 import mlrun
 from mlrun.config import config
+from mlrun.datastore.targets import get_online_target
 from mlrun.utils.helpers import is_legacy_artifact, parse_artifact_uri
 
 from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
-from .targets import get_online_target
 
 
 def is_store_uri(url):

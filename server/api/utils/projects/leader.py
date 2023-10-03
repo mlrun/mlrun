@@ -410,8 +410,6 @@ class Member(
     def _initialize_follower(
         self, name: str
     ) -> server.api.utils.projects.remotes.follower.Member:
-        # importing here to avoid circular import (db using project member using mlrun follower using db)
-
         followers_classes_map = {
             "mlrun": server.api.crud.Projects(),
             "nuclio": server.api.utils.clients.nuclio.Client(),

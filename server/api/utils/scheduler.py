@@ -1014,7 +1014,7 @@ class Scheduler:
 
     @staticmethod
     async def submit_run_wrapper(
-        scheduler,
+        scheduler: "Scheduler",
         scheduled_object,
         project_name,
         schedule_name,
@@ -1079,23 +1079,14 @@ class Scheduler:
         try:
             db_session = create_session()
 
-            active_runs = server.api.crud.Runs().list_runs(
+            # bail out if schedule is not invokable (e.g.: exceeding concurrency limit)
+            if not Scheduler.schedule_invokable(
                 db_session,
-                states=RunStates.non_terminal_states(),
-                project=project_name,
-                labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
-            )
-            if len(active_runs) >= schedule_concurrency_limit:
-                logger.warn(
-                    "Schedule exceeded concurrency limit, skipping this run",
-                    project=project_name,
-                    schedule_name=schedule_name,
-                    schedule_concurrency_limit=schedule_concurrency_limit,
-                    active_runs=len(active_runs),
-                )
-                scheduler.update_schedule_next_run_time(
-                    db_session, schedule_name, project_name
-                )
+                scheduler,
+                project_name,
+                schedule_name,
+                schedule_concurrency_limit,
+            ):
                 return
 
             # if credentials are needed but missing (will happen for schedules on upgrade from scheduler
@@ -1141,6 +1132,7 @@ class Scheduler:
             # update every finish of a run the next run time, so it would be accessible for worker instances
             job_id = scheduler._resolve_job_id(run_metadata["project"], schedule_name)
             job = scheduler._scheduler.get_job(job_id)
+
             get_db().update_schedule(
                 db_session,
                 run_metadata["project"],
@@ -1151,3 +1143,35 @@ class Scheduler:
             return response
         finally:
             close_session(db_session)
+
+    @staticmethod
+    def schedule_invokable(
+        db_session,
+        scheduler: "Scheduler",
+        project_name,
+        schedule_name,
+        schedule_concurrency_limit,
+    ) -> bool:
+        """
+        Determine whether the schedule should be invoked now.
+        """
+        active_runs = server.api.crud.Runs().list_runs(
+            db_session,
+            states=RunStates.non_terminal_states(),
+            project=project_name,
+            labels=f"{mlrun.common.schemas.constants.LabelNames.schedule_name}={schedule_name}",
+        )
+        if len(active_runs) >= schedule_concurrency_limit:
+            logger.warn(
+                "Schedule exceeded concurrency limit, skipping this run",
+                project=project_name,
+                schedule_name=schedule_name,
+                schedule_concurrency_limit=schedule_concurrency_limit,
+                active_runs=len(active_runs),
+            )
+            scheduler.update_schedule_next_run_time(
+                db_session, schedule_name, project_name
+            )
+            return False
+
+        return True

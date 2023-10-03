@@ -17,6 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from deprecated import deprecated
+
 import mlrun.common.schemas
 import mlrun.model
 
@@ -233,6 +235,13 @@ class DBInterface(ABC):
     ):
         pass
 
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'store_artifact' instead",
+        category=FutureWarning,
+    )
     def store_artifact_v1(
         self,
         session,
@@ -250,7 +259,18 @@ class DBInterface(ABC):
         """
         pass
 
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'read_artifact' instead",
+        category=FutureWarning,
+    )
     def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+        """
+        Read artifact v1 from the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
         pass
 
     # TODO: Make these abstract once filedb implements them

@@ -87,7 +87,7 @@ async def store_artifact(
     tree: str = None,
     tag: str = None,
     iter: int = 0,
-    object_uid: str = None,
+    object_uid: str = Query(None, alias="object-uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -184,7 +184,7 @@ async def get_artifact(
     tree: str = None,
     tag: str = None,
     iter: int = None,
-    object_uid: str = None,
+    object_uid: str = Query(None, alias="object-uid"),
     format_: ArtifactsFormat = Query(ArtifactsFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -216,7 +216,7 @@ async def delete_artifact(
     key: str,
     tree: str = None,
     tag: str = None,
-    object_uid: str = None,
+    object_uid: str = Query(None, alias="object-uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):

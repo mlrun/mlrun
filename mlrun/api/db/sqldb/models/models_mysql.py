@@ -95,6 +95,11 @@ def make_tag_v2(table):
 
 
 def make_artifact_tag(table):
+    """
+    For artifacts, we cannot use tag_v2 because different artifacts with the same key can have the same tag.
+    therefore we need to use the obj_id as the unique constraint.
+    """
+
     class ArtifactTag(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_tags"
         __table_args__ = (

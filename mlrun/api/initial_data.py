@@ -240,7 +240,8 @@ def _perform_data_migrations(db_session: sqlalchemy.orm.Session):
             )
             if current_data_version < 1:
                 raise MLRunPreconditionFailedError(
-                    "Data migration from data version 0 is not supported"
+                    "Data migration from data version 0 is not supported. "
+                    "Upgrade to MLRun <= 1.5.0 before performing this migration"
                 )
             if current_data_version < 2:
                 _perform_version_2_data_migrations(db, db_session)

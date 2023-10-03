@@ -47,8 +47,8 @@ class Artifacts(
 
         if artifact["project"] != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Artifact with conflicting project name - {artifact['project']} while request project : {project}."
-                f"key={key}, producer_id={producer_id}"
+                f"Conflicting project name - storing artifact with project {artifact['project']}"
+                f" into a different project: {project}."
             )
         return mlrun.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -80,8 +80,8 @@ class Artifacts(
 
         if artifact["project"] != project:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Artifact with conflicting project name - {artifact['project']} while request project : {project}."
-                f"key={key}, tree={producer_id}"
+                f"Conflicting project name - storing artifact with project {artifact['project']}"
+                f" into a different project: {project}."
             )
 
         return mlrun.api.utils.singletons.db.get_db().create_artifact(

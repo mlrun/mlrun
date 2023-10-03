@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import sys
 import tempfile
 from random import randint, random
 

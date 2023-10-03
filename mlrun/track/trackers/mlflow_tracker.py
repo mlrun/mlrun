@@ -21,7 +21,6 @@ import mlflow
 import mlflow.entities
 import mlflow.environment_variables
 import mlflow.types
-import pandas as pd
 
 import mlrun
 from mlrun import MLClientCtx, mlconf

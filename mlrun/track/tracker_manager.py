@@ -124,9 +124,9 @@ class TrackerManager(metaclass=Singleton):
 
     def _collect_available_trackers(self):
         """
-        Set up the `_AVAILABLE_TRACKERS` list with trackers that were able to be imported. The tracked modules are not in
-        MLRun's requirements and so it trys to import the module file of each and only if it succeeds (not raising
-        `ModuleNotFoundError`) it collects it as an available tracker.
+        Set up the `_AVAILABLE_TRACKERS` list with trackers that were able to be imported.
+        The tracked modules are not in MLRun's requirements and so it trys to import the module file of each and
+         only if it succeeds (not raising `ModuleNotFoundError`) it collects it as an available tracker.
         """
         global _AVAILABLE_TRACKERS
 

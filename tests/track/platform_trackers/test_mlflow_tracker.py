@@ -21,7 +21,6 @@ import mlflow
 import mlflow.environment_variables
 import mlflow.xgboost
 import pytest
-import pytest_mock
 import xgboost as xgb
 from sklearn import datasets
 from sklearn.metrics import accuracy_score, log_loss

@@ -24,7 +24,6 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import warnings
 from os import environ, path
 
 import dotenv

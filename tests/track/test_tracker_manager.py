@@ -67,4 +67,3 @@ def test_get_trackers_manager(rundb_mock):
     # Create a second manager and check they are the same one (singleton check)
     trackers_manager2 = mlrun.track.TrackerManager()
     assert trackers_manager is trackers_manager2
-

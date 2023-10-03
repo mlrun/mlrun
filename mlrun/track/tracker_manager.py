@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
+import inspect
 from typing import List, Union
 
+from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.utils import logger
 from mlrun.utils.singleton import Singleton
+
 from .tracker import Tracker
-from mlrun.config import config as mlconf
-import importlib
-import inspect
 
 # Add a tracker to this list for it to be added into the global tracker manager (only if available in the interpreter):
 _TRACKERS = ["mlflow"]
@@ -100,7 +101,7 @@ class TrackerManager(metaclass=Singleton):
                 tracker.post_run(context)
             except Exception as e:
                 logger.warn(
-                    f"Tracker {tracker.__name__} failed in post run with the following exception: ",
+                    f"Tracker {tracker.__class__.__name__} failed in post run with the following exception: ",
                     exception=str(e),
                 )
 

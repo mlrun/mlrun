@@ -21,6 +21,7 @@ import mlflow
 import mlflow.entities
 import mlflow.environment_variables
 import mlflow.types
+import pandas as pd
 
 import mlrun
 from mlrun import MLClientCtx, mlconf
@@ -30,6 +31,7 @@ from mlrun.launcher.client import ClientBaseLauncher
 from mlrun.model import RunObject
 from mlrun.projects import MlrunProject
 from mlrun.utils import logger, now_date
+
 from ..tracker import Tracker
 
 
@@ -56,6 +58,19 @@ class MLFlowTracker(Tracker):
         # Check for a user set experiment name via the environment variable:
         experiment_name = mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
 
+        # In case we run a job with number of threads/processes we need to compare all runs before we ran and
+        # after we ran in order to find relevant run
+        all_experiments = [exp.experiment_id for exp in mlflow.search_experiments()]
+        self._pre_runs = set(
+            [
+                run.info.run_id
+                for run in mlflow.search_runs(
+                    experiment_ids=all_experiments,
+                    output_format="list",
+                )
+            ]
+        )
+
         # Check if the user configured for matching the experiment name with the context name:
         if getattr(
             mlconf.external_platform_tracking, mlflow.__name__
@@ -79,8 +94,22 @@ class MLFlowTracker(Tracker):
         # Get the last run (None means no run was created or found,
         # in cases where there is no mlflow code or that the mlflow code has bugs):
         run = mlflow.last_active_run()
+        # In case we don't find the last active run, we need to compare all runs from before our run to the current ones
         if run is None:
-            return
+            all_experiments = [exp.experiment_id for exp in mlflow.search_experiments()]
+            run = (
+                set(
+                    [
+                        run.info.run_id
+                        for run in mlflow.search_runs(
+                            experiment_ids=all_experiments,
+                            output_format="list",
+                        )
+                    ]
+                )
+                ^ self._pre_runs
+            )
+            run = mlflow.get_run(run_id=run.pop())
 
         # Log the run:
         MLFlowTracker._log_run(context=context, run=run)
@@ -372,7 +401,6 @@ class MLFlowTracker(Tracker):
             extra_data=extra_data,
             inputs=inputs,
             outputs=outputs,
-
         )
 
     @staticmethod

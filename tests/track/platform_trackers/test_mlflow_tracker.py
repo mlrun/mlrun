@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os.path
 import tempfile
 from random import randint, random
 
@@ -27,8 +28,8 @@ from sklearn.metrics import accuracy_score, log_loss
 from sklearn.model_selection import train_test_split
 
 import mlrun
-from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 import mlrun.launcher.local
+from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
 
 # simple general mlflow example of hand logging
@@ -194,11 +195,52 @@ def test_track_run(rundb_mock, handler):
         _validate_run(run=trainer_run)
 
 
+@pytest.mark.parametrize("run_name", ["simple_run"])
+def test_track_run_no_handler(rundb_mock, run_name):
+    """
+    This test is for tracking a run logged by mlflow into mlrun while it's running without a handler.
+    first activate the tracking option in mlconf, then we name the mlflow experiment,
+    then we run some code that is being logged by mlflow using mlrun(from a different file in the assets dir),
+    and finally compare the mlrun we tracked with the original mlflow run using the validate func
+    """
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(run_name)
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            os.path.abspath(f"../assets/{run_name}_no_handler.py"),
+            name=run_name,
+            kind="job",
+            image="mlrun/mlrun",
+        )
+        # Mlflow creates a dir to log the run, this makes it in the tmpdir we create
+        trainer_run = func.run(
+            name=f"{run_name}_no_handler",
+            project=project,
+            artifact_path=test_directory,
+            params={"tracking_uri": test_directory},
+            local=True,
+        )
+        # Was added for the tracking in different processes, now remove it before validation
+        trainer_run.spec.parameters.pop("tracking_uri")
+        # Need run id in order to find correct run when loggen in different process
+        run_id = trainer_run.status.results.pop("run_id")
+        _validate_run(run=trainer_run, run_id=run_id)
+
+
 def _mock_wrap_run_result(monkeypatch):
     """Mock function for `_wrap_run_result`, in order to examine tracked run and avoid run crash"""
+
     def _wrap_run_result(*args, **kwargs):
         return mlrun.run.RunObject.from_dict(args[2])
-    monkeypatch.setattr(mlrun.launcher.local.ClientLocalLauncher, "_wrap_run_result", _wrap_run_result)
+
+    monkeypatch.setattr(
+        mlrun.launcher.local.ClientLocalLauncher, "_wrap_run_result", _wrap_run_result
+    )
 
 
 @pytest.mark.parametrize("handler", ["interrupted_run"])
@@ -348,12 +390,14 @@ def test_import_artifact(rundb_mock, handler):
                 assert project.get_artifact(key)
 
 
-def _validate_run(run: mlrun.run):
+def _validate_run(run: mlrun.run, run_id: str = None):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
-
-    # find the right run
-    run_to_comp = mlflow.last_active_run()
+    if not run_id:
+        # find the right run
+        run_to_comp = mlflow.last_active_run()
+    else:
+        run_to_comp = mlflow.get_run(run_id)
 
     if not run_to_comp:
         assert False, "Run not found, test failed"
@@ -363,6 +407,8 @@ def _validate_run(run: mlrun.run):
         assert run_to_comp.data.params[param] == run.spec.parameters[param]
     for metric in run_to_comp.data.metrics:
         assert run_to_comp.data.metrics[metric] == run.status.results[metric]
+    print(f"run params: {run.spec.parameters}")
+    print(f"run to comp params: {run_to_comp.data.params}")
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))

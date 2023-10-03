@@ -18,6 +18,3 @@ from typing import List, Type
 
 from mlrun.track.tracker import Tracker
 from mlrun.track.tracker_manager import TrackerManager
-
-
-

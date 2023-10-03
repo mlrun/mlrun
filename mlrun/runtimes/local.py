@@ -347,24 +347,23 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             trackers_manager = self._get_trackers_manager()
             trackers_manager.pre_run(execution)
             sout, serr = run_exec(cmd, args, env=env, cwd=execution._current_workdir)
-            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
 
-            try:
+            run_obj_dict = runobj.to_dict()  # default value
+            if os.path.isfile(tmp):
                 with open(tmp) as fp:
                     resp = fp.read()
                 remove(tmp)
                 if resp:
-                    runobj_dict = json.loads(resp)
-                    # If trackers where used, this is where we log all data collected to MLRun
-                    runobj_dict = trackers_manager.post_run(runobj_dict)
-                    return runobj_dict
-                logger.error("empty context tmp file")
-            except FileNotFoundError:
+                    run_obj_dict = json.loads(resp)
+                else:
+                    logger.error("empty context tmp file")
+            else:
                 logger.info("no context file found")
-            runobj_dict = runobj.to_dict()
+
             # If trackers where used, this is where we log all data collected to MLRun
-            runobj_dict = trackers_manager.post_run(runobj_dict)
-            return runobj_dict
+            run_obj_dict = trackers_manager.post_run(run_obj_dict)
+            log_std(self._db_conn, runobj, sout, serr, skip=self.is_child, show=False)
+            return run_obj_dict
 
 
 def load_module(file_name, handler, context):

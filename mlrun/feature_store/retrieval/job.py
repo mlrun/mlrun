@@ -163,11 +163,11 @@ class RemoteVectorResponse:
         """
         self._is_ready()
         if not columns:
+            columns = list(self.vector.status.features.keys())
             if self.with_indexes:
-                columns = self.vector.status.index_keys
+                columns += self.vector.status.index_keys
                 if self.vector.status.timestamp_key is not None:
-                    columns.append(self.vector.status.timestamp_key)
-            columns.extend(list(self.vector.status.features.keys()))
+                    columns.insert(0, self.vector.status.timestamp_key)
 
         file_format = kwargs.get("format")
         if not file_format:

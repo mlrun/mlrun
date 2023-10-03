@@ -23,6 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
+    "Spark3Runtime",
     "DatabricksRuntime",
 ]
 

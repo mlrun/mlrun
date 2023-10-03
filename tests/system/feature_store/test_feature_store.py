@@ -1769,10 +1769,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.columns) == 2
         assert "price_m" in resp.columns
 
-        # status should contain original feature name, not its alias
+        # status should contain the alias of the feature and not its original feature name
         features_in_status = [feature.name for feature in vector.status.features]
-        assert "price_max_1h" in features_in_status
-        assert "price_m" not in features_in_status
+        assert "price_max_1h" not in features_in_status
+        assert "price_m" in features_in_status
 
         vector.save()
         stats = vector.get_stats_table()

@@ -1849,7 +1849,7 @@ class MlrunProject(ModelObj):
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
 
-        resolved_function_name, function_object, func = self._resolved_function(
+        resolved_function_name, tag, function_object, func = self._resolved_function(
             func,
             name,
             kind,
@@ -1875,7 +1875,7 @@ class MlrunProject(ModelObj):
         )
 
         # save to project spec
-        self.spec.set_function(resolved_function_name, function_object, func)
+        self._set_function(resolved_function_name, tag, function_object, func)
 
         return function_object
 
@@ -1935,7 +1935,7 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        resolved_function_name, function_object, func = self._resolved_function(
+        resolved_function_name, tag, function_object, func = self._resolved_function(
             func,
             name,
             kind,
@@ -1946,7 +1946,8 @@ class MlrunProject(ModelObj):
             requirements,
             requirements_file,
         )
-        self.spec.set_function(resolved_function_name, function_object, func)
+
+        self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
     def _resolved_function(
@@ -2038,15 +2039,29 @@ class MlrunProject(ModelObj):
 
         function_object.metadata.tag = tag or function_object.metadata.tag or "latest"
         # resolved_function_name is the name without the tag or the actual function name if it was not specified
+        name = name or resolved_function_name
+
+        return (
+            name,
+            tag,
+            function_object,
+            func,
+        )
+
+    def _set_function(
+        self,
+        name: str,
+        tag: str,
+        function_object: mlrun.runtimes.BaseRuntime,
+        func: dict,
+    ):
         # if the name contains the tag we only update the tagged entry
         # if the name doesn't contain the tag (or was not specified) we update both the tagged and untagged entries
         # for consistency
-        name = name or resolved_function_name
         if tag and not name.endswith(f":{tag}"):
             self.spec.set_function(f"{name}:{tag}", function_object, func)
 
         self.spec.set_function(name, function_object, func)
-        return name, function_object, func
 
     def remove_function(self, name):
         """remove a function from a project
@@ -2831,6 +2846,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -2852,6 +2868,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
             function,
@@ -2868,6 +2885,7 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
     def build_config(
@@ -2940,6 +2958,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -2963,6 +2982,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param force_build:
         """
 
         self.build_config(
@@ -2993,6 +3013,7 @@ class MlrunProject(ModelObj):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
         try:

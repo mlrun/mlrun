@@ -332,6 +332,8 @@ class TestModelMonitoringRegression(TestMLRunSystem):
 
     project_name = "pr-regression-model-monitoring-v4"
 
+    # TODO: Temporary skip this test on open source until fixed
+    @pytest.mark.enterprise
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # Main validations:

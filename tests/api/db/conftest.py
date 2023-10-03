@@ -16,13 +16,13 @@ from typing import Generator
 
 import pytest
 
-from mlrun.api.db.session import close_session, create_session
-from mlrun.api.db.sqldb.db import SQLDB
-from mlrun.api.initial_data import init_data
-from mlrun.api.utils.singletons.db import initialize_db
-from mlrun.api.utils.singletons.project_member import initialize_project_member
 from mlrun.common.db.sql_session import _init_engine
 from mlrun.config import config
+from server.api.db.session import close_session, create_session
+from server.api.db.sqldb.db import SQLDB
+from server.api.initial_data import init_data
+from server.api.utils.singletons.db import initialize_db
+from server.api.utils.singletons.project_member import initialize_project_member
 
 
 @pytest.fixture()

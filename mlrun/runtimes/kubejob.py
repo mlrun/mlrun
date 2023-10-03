@@ -172,6 +172,7 @@ class KubejobRuntime(KubeResource):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -183,6 +184,7 @@ class KubejobRuntime(KubeResource):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             set True for force building the image, even when no changes were made
 
         :return True if the function is ready (deployed)
         """
@@ -228,6 +230,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                force_build=force_build,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")

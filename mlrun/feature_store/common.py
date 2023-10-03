@@ -305,7 +305,9 @@ class RunConfig:
                 self.function.requirements = self.requirements
             if self.extra_spec:
                 self.function.spec = self.extra_spec
-            function = self.function.to_function(default_kind, default_image)
+            function = self.function.to_function(
+                default_kind, self.image or default_image
+            )
         elif hasattr(self.function, "apply"):
             function = copy(self.function)
             if self.code:
@@ -316,7 +318,7 @@ class RunConfig:
                 self.function = enrich_function_from_dict(
                     self.function, self.extra_spec
                 )
-            function.spec.image = function.spec.image or default_image
+            function.spec.image = function.spec.image or self.image or default_image
         else:
             function = FunctionReference(
                 self.function,

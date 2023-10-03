@@ -794,6 +794,11 @@ class BaseRuntimeHandler(ABC):
                 True,
                 _verify_pods_removed,
             )
+            logger.debug(
+                "Successfully waited for pods deletion",
+                timeout=timeout,
+                interval=self.wait_for_deletion_interval,
+            )
 
     def _wait_for_crds_underlying_pods_deletion(
         self,
@@ -911,7 +916,7 @@ class BaseRuntimeHandler(ABC):
                         # Don't prevent the deletion for failure in the pre deletion run actions
                         logger.warning(
                             "Failure in pod run pre-deletion actions. Continuing",
-                            exc=repr(exc),
+                            exc=err_to_str(exc),
                             pod_name=pod.metadata.name,
                         )
 
@@ -1000,11 +1005,12 @@ class BaseRuntimeHandler(ABC):
                         namespace,
                     )
                     deleted_crds.append(crd_object)
-                except Exception:
-                    exc = traceback.format_exc()
+                except Exception as exc:
                     crd_object_name = crd_object["metadata"]["name"]
                     logger.warning(
-                        f"Cleanup failed processing CRD object {crd_object_name}: {err_to_str(exc)}. Continuing"
+                        "Cleanup failed processing CRD object",
+                        crd_name=crd_object_name,
+                        exc=err_to_str(exc),
                     )
         self._wait_for_crds_underlying_pods_deletion(deleted_crds, label_selector)
         return deleted_crds
@@ -1034,9 +1040,7 @@ class BaseRuntimeHandler(ABC):
             project=project,
             uid=uid,
         )
-
         self._ensure_run_state(db, db_session, project, uid, name, run_state)
-
         self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _is_runtime_resource_run_in_terminal_state(
@@ -1097,7 +1101,7 @@ class BaseRuntimeHandler(ABC):
             project_run_uid_map[project][uid] = run
 
         # If there are duplications or runs with missing data it probably won't be fixed
-        # Monitoring is running periodically and we don't want to log on every problem we found which will spam the log
+        # Monitoring is running periodically, and we don't want to log on every problem we found which will spam the log
         # so we're aggregating the problems and logging only once per aggregation
         if duplicated_runs:
             logger.warning(

@@ -51,7 +51,7 @@ def get_workflow_engine(engine_kind, local=False):
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
-                "in order to run a local pipeline remotely, please use `engine='remote: local'` instead"
+                "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":

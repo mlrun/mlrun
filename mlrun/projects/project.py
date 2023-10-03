@@ -1271,7 +1271,7 @@ class MlrunProject(ModelObj):
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
         :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp" or "local")
+        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
@@ -1291,8 +1291,9 @@ class MlrunProject(ModelObj):
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
 
-        if image and engine not in ["remote"]:
-            logger.warning("Image is only relevant for remote workflows, ignoring it")
+        # engine could be "remote" or "remote:local"
+        if image and ((engine and "remote" in engine) or schedule):
+            logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:
             if (
@@ -2528,6 +2529,8 @@ class MlrunProject(ModelObj):
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
+
+                # inner could be either kfp or local
                 engine, inner_engine = engine.split(":")
         elif workflow_spec.schedule:
             inner_engine = engine

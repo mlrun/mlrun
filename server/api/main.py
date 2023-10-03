@@ -23,7 +23,6 @@ import typing
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
-import uvicorn
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
@@ -33,6 +32,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
+import server.api.apiuvicorn as uvicorn
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
@@ -743,18 +743,7 @@ def main():
         # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
         config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
 
-    logger.info(
-        "Starting API server",
-        port=config.httpdb.port,
-        debug=config.httpdb.debug,
-    )
-    uvicorn.run(
-        "server.api.main:app",
-        host="0.0.0.0",
-        port=config.httpdb.port,
-        access_log=False,
-        timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
-    )
+    uvicorn.run(logger, httpdb_config=config.httpdb)
 
 
 if __name__ == "__main__":

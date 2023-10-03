@@ -13,7 +13,7 @@
 
 ## v1.5.0 (5 October 2023)
 
-### Data
+### Data store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-2296 | Add ability to manage datastore credentials with datastore profiles. Supports Redis. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
@@ -766,7 +766,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.6.0 |  v1.4.0 | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy' |
 | v1.6.0 |  v1.4.0 | run_local | function.run(local=True) |
 | v1.6.0 |  v1.4.0 | CSVSource's time_field parameter | Use parse_dates to parse timestamps |
-| v1.6.0 |  v1.4.0 | default_final_state | default_final_step |
+| v1.6.0 |  v1.4.0 |  Feature-set set_targets() default_final_state | default_final_step |
 | v1.6.0 |  v1.3.0 | new_pipe_meta | new_pipe_metadata |
 | v1.6.0 |  v1.3.0 | ttl param from pipeline | cleanup_ttl |
 | v1.6.0 |  v1.3.0 | objects methods from artifacts list | to_objects |

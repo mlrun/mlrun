@@ -268,8 +268,11 @@ class ModelEndpoints:
             timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
+        # Set the run db instance with the current db session
+        feature_set._override_run_db(
+            server.api.api.utils.get_run_db_instance(db_session)
+        )
         feature_set.spec.features = features
-
         feature_set.metadata.project = model_endpoint.metadata.project
         feature_set.metadata.labels = {
             mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: model_endpoint.metadata.uid,

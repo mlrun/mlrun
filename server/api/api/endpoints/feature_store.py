@@ -409,6 +409,11 @@ async def ingest_feature_set(
             auth_info,
         )
 
+    # Set the run db instance with the current db session
+    await run_in_threadpool(
+        feature_set._override_run_db,
+        server.api.api.utils.get_run_db_instance(db_session),
+    )
     if ingest_parameters.targets:
         data_targets = [
             DataTargetBase.from_dict(data_target.dict())

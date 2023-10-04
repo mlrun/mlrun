@@ -28,7 +28,9 @@ class RunDBFactory(
         self._last_db_url = None
         self._rundb_container = RunDBContainer()
 
-    def create_run_db(self, url="", secrets=None, force_reconnect=False):
+    def create_run_db(
+        self, url="", secrets=None, force_reconnect=False
+    ) -> mlrun.db.RunDBInterface:
         """Returns the runtime database"""
         if not url:
             url = mlrun.db.get_or_set_dburl("./")

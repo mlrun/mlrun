@@ -476,8 +476,8 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     :returns: function object
     """
     is_hub_uri = False
-    if url.startswith("db://"):
-        url = url[5:]
+    if url.startswith(mlrun.utils.db_prefix):
+        url = url.removeprefix(mlrun.utils.db_prefix)
         _project, name, tag, hash_key = parse_versioned_object_uri(url)
         db = mlrun.db.get_run_db(db or mlrun.db.get_or_set_dburl(), secrets=secrets)
         runtime = db.get_function(name, _project, tag, hash_key)
@@ -486,12 +486,19 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
     else:
         url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
+    return compile_imported_function(project, runtime, new_name, from_hub=is_hub_uri)
+
+
+def compile_imported_function(
+    project_name, runtime, new_name: typing.Optional[str] = None, from_hub=False
+) -> mlrun.runtimes.BaseRuntime:
     function = new_function(runtime=runtime)
-    project = project or mlrun.mlconf.default_project
+    project_name = project_name or mlrun.mlconf.default_project
+
     # When we're importing from the hub we want to assign to a target project, otherwise any store on it will
     # simply default to the default project
-    if project and is_hub_uri:
-        function.metadata.project = project
+    if from_hub:
+        function.metadata.project = project_name
     if new_name:
         function.metadata.name = mlrun.utils.helpers.normalize_name(new_name)
     return function
@@ -521,9 +528,8 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
-            dir = path.dirname(code_file)
-            if dir:
-                makedirs(dir, exist_ok=True)
+            if path.dirname(code_file):
+                makedirs(path.dirname(code_file), exist_ok=True)
             with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:

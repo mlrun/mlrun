@@ -82,7 +82,7 @@ def api_config_test():
     # same for the launcher container
     launcher_factory = mlrun.launcher.factory.LauncherFactory()
     launcher_factory._launcher_container.override(
-        mlrun.api.launcher.ServerSideLauncherContainer
+        server.api.launcher.ServerSideLauncherContainer
     )
 
     yield

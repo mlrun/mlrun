@@ -181,12 +181,8 @@ def test_submit_job_ensure_function_has_auth_set(
 
 
 def test_submit_schedule_job_from_hub_from_ui(
-    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock, monkeypatch
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
-    monkeypatch.setattr(
-        mlrun.api.rundb.sqldb.SQLRunDB, "list_hub_sources", _mock_list_hub_sources
-    )
-
     project = "my-proj1"
     hub_function_uri = "hub://aggregate"
 

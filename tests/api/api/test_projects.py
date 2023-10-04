@@ -44,7 +44,7 @@ import server.api.utils.singletons.project_member
 import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
-from mlrun.api.db.sqldb.models import (
+from server.api.db.sqldb.models import (
     ArtifactV2,
     Entity,
     Feature,

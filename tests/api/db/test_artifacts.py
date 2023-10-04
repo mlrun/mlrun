@@ -20,10 +20,10 @@ import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
-import mlrun.api.db.sqldb.models
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+import server.api.db.sqldb.models
 import server.api.initial_data
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
@@ -742,7 +742,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     # validate the migration succeeded
     query_all = db._query(
         db_session,
-        mlrun.api.db.sqldb.models.ArtifactV2,
+        server.api.db.sqldb.models.ArtifactV2,
     )
     new_artifacts = query_all.all()
     assert len(new_artifacts) == 2
@@ -764,7 +764,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
         query = db._query(
             db_session,
-            mlrun.api.db.sqldb.models.ArtifactV2,
+            server.api.db.sqldb.models.ArtifactV2,
             key=expected["key"],
         )
         artifact = query.one_or_none()

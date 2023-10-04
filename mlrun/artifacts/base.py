@@ -313,11 +313,17 @@ class Artifact(ModelObj):
         """get the absolute target path for the artifact"""
         return self.spec.target_path
 
-    def get_store_url(self, with_tag=True, project=None):
+    def get_store_url(self, with_tag=True, project=None, with_tree=True):
         """get the artifact uri (store://..) with optional parameters"""
-        tag = self.metadata.tree if with_tag else None
+        tag = self.metadata.tag if with_tag else None
+        tree = self.metadata.tree if with_tree else None
+
         uri = generate_artifact_uri(
-            project or self.metadata.project, self.spec.db_key, tag, self.metadata.iter
+            project or self.metadata.project,
+            self.spec.db_key,
+            iter=self.metadata.iter,
+            tree=tree,
+            tag=tag,
         )
         return get_store_uri(self._store_prefix, uri)
 

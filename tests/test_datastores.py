@@ -115,6 +115,7 @@ def test_get_store_artifact_url_parsing():
             "key": "artifact_key",
             "tag": None,
             "iter": None,
+            "tree": None,
         },
         {
             "url": "store://project_name/artifact_key",
@@ -122,20 +123,23 @@ def test_get_store_artifact_url_parsing():
             "key": "artifact_key",
             "tag": None,
             "iter": None,
+            "tree": None,
         },
         {
             "url": "store://Project_Name/Artifact_Key@ABC",
             "project": "Project_Name",
             "key": "Artifact_Key",
-            "tag": "ABC",
+            "tag": None,
             "iter": None,
+            "tree": "ABC",
         },
         {
             "url": "store://project_name/artifact_key@a5dc8e34a46240bb9a07cd9deb3609c7",
             "project": "project_name",
             "key": "artifact_key",
-            "tag": "a5dc8e34a46240bb9a07cd9deb3609c7",
+            "tag": None,
             "iter": None,
+            "tree": "a5dc8e34a46240bb9a07cd9deb3609c7",
         },
         {
             "url": "store://project_name/artifact_key#1",
@@ -143,6 +147,7 @@ def test_get_store_artifact_url_parsing():
             "key": "artifact_key",
             "tag": None,
             "iter": 1,
+            "tree": None,
         },
         {
             "url": "store://project_name/artifact_key:latest",
@@ -150,6 +155,7 @@ def test_get_store_artifact_url_parsing():
             "key": "artifact_key",
             "tag": "latest",
             "iter": None,
+            "tree": None,
         },
         {
             "url": "store:///ArtifacT_key#1:some_Tag",
@@ -157,13 +163,15 @@ def test_get_store_artifact_url_parsing():
             "key": "ArtifacT_key",
             "tag": "some_Tag",
             "iter": 1,
+            "tree": None,
         },
         {
-            "url": "store:///ArtifacT_key#1@Some_Tag",
+            "url": "store:///ArtifacT_key#1@Some_Tree",
             "project": "default",
             "key": "ArtifacT_key",
-            "tag": "Some_Tag",
+            "tag": None,
             "iter": 1,
+            "tree": "Some_Tree",
         },
         {
             "url": "store://Project_Name/Artifact_Key:ABC",
@@ -171,6 +179,7 @@ def test_get_store_artifact_url_parsing():
             "key": "Artifact_Key",
             "tag": "ABC",
             "iter": None,
+            "tree": None,
         },
     ]
     for case in cases:
@@ -179,16 +188,48 @@ def test_get_store_artifact_url_parsing():
         expected_key = case["key"]
         expected_tag = case["tag"]
         expected_iter = case["iter"]
+        expected_tree = case["tree"]
 
-        def mock_read_artifact(key, tag=None, iter=None, project=""):
+        def mock_read_artifact(key, tag=None, iter=None, project="", tree=None):
             assert expected_project == project
             assert expected_key == key
             assert expected_tag == tag
             assert expected_iter == iter
+            assert expected_tree == tree
             return {}
 
         db.read_artifact = mock_read_artifact
         mlrun.datastore.store_resources.get_store_resource(url, db)
+
+
+def test_get_store_artifact_url_parsing_with_fallback():
+    """
+    This test verifies that if an artifact is not found with the given url,
+    it falls back to the previous implementation, and the tree is passed as the tag
+    before failing completely.
+    """
+    db = Mock()
+    expected_project = "some_project"
+    expected_key = "some_key"
+    expected_tree = "some_tree"
+    expected_iteration = 1
+
+    url = f"store://{expected_project}/{expected_key}#{expected_iteration}@{expected_tree}"
+
+    db.read_artifact = Mock(
+        side_effect=[
+            mlrun.errors.MLRunNotFoundError("Artifact not found"),
+            {},
+        ]
+    )
+    mlrun.datastore.store_resources.get_store_resource(url, db)
+    assert db.read_artifact.call_count == 2
+    db.read_artifact.assert_called_with(
+        expected_key,
+        project=expected_project,
+        tag=expected_tree,
+        iter=expected_iteration,
+    )
 
 
 @pytest.mark.parametrize("legacy_format", [False, True])
@@ -224,7 +265,7 @@ def test_get_store_resource_with_linked_artifacts(legacy_format):
 
     mock_artifacts = [link_artifact, model_artifact]
 
-    def mock_read_artifact(key, tag=None, iter=None, project=""):
+    def mock_read_artifact(key, tag=None, iter=None, project="", tree=None):
         for artifact in mock_artifacts:
             key_ = f"{key}#{iter}" if iter else key
             if artifact.key == key_:

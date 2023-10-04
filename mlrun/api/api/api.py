@@ -18,6 +18,7 @@ import mlrun.api.api.deps
 import mlrun.config
 from mlrun.api.api.endpoints import (
     artifacts,
+    artifacts_v2,
     auth,
     background_tasks,
     client_spec,
@@ -46,6 +47,7 @@ from mlrun.api.api.endpoints import (
     workflows,
 )
 
+# v1 router
 api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
 api_router.include_router(
     artifacts.router,
@@ -127,9 +129,7 @@ api_router.include_router(
 )
 api_router.include_router(grafana_proxy.router, tags=["grafana", "model-endpoints"])
 api_router.include_router(model_endpoints.router, tags=["model-endpoints"])
-
 api_router.include_router(jobs.router, tags=["jobs"])
-
 api_router.include_router(
     hub.router,
     tags=["hub"],
@@ -145,7 +145,6 @@ api_router.include_router(
     tags=["tags"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )
-
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
@@ -159,5 +158,13 @@ api_router.include_router(
 api_router.include_router(
     datastore_profile.router,
     tags=["datastores"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+
+# v2 Router
+api_v2_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
+api_v2_router.include_router(
+    artifacts_v2.router,
+    tags=["artifacts"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

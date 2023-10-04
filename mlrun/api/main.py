@@ -34,7 +34,7 @@ import mlrun.lists
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
-from mlrun.api.api.api import api_router
+from mlrun.api.api.api import api_router, api_v2_router
 from mlrun.api.db.session import close_session, create_session
 from mlrun.api.initial_data import init_data
 from mlrun.api.middlewares import init_middlewares
@@ -59,6 +59,7 @@ from mlrun.utils import logger
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+V2_API_PREFIX = f"{API_PREFIX}/v2"
 
 # When pushing notifications, push notifications only for runs that entered a terminal state
 # since the last time we pushed notifications.
@@ -86,6 +87,7 @@ app = fastapi.FastAPI(
     default_response_class=fastapi.responses.ORJSONResponse,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
+app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api.
 # /api points to /api/v1 since it is used externally, and we don't want to break it.

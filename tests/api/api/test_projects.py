@@ -47,7 +47,7 @@ import mlrun.errors
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
 from mlrun.api.db.sqldb.models import (
-    Artifact,
+    ArtifactV2,
     Entity,
     Feature,
     FeatureSet,
@@ -573,7 +573,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
-        (artifact["db_key"], artifact["iter"])
+        (artifact["spec"]["db_key"], artifact["metadata"]["iter"])
         for artifact in response.json()["artifacts"]
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
@@ -601,7 +601,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
     mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
     mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
     mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
@@ -615,9 +614,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
 
     assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
         distinct_function_names
-    )
-    assert mlrun.api.utils.singletons.db.get_db().del_artifact.call_count == len(
-        distinct_artifact_keys
     )
     assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
@@ -956,29 +952,34 @@ def _create_resources_of_all_kinds(
                 )
 
     # Create several artifacts with several tags
-    artifact = {
-        "bla": "blabla",
-        "labels": labels,
+    artifact_template = {
+        "metadata": {"labels": labels},
+        "spec": {},
+        "kind": "artifact",
         "status": {"bla": "blabla"},
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
-    artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
+    artifact_trees = ["some_tree", "some_tree2", "some_tree3"]
     artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
     for artifact_key in artifact_keys:
-        for artifact_uid in artifact_uids:
+        for artifact_tree in artifact_trees:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
-                    artifact["iter"] = artifact_iter
-                    artifact["tag"] = artifact_tag
-                    artifact["uid"] = artifact_uid
+                    artifact = copy.deepcopy(artifact_template)
+                    artifact["metadata"]["iter"] = artifact_iter
+                    artifact["metadata"]["tag"] = artifact_tag
+                    artifact["metadata"]["tree"] = artifact_tree
+
+                    # pass a copy of the artifact to the store function, otherwise the store function will change the
+                    # original artifact
                     db.store_artifact(
                         db_session,
                         artifact_key,
                         artifact,
-                        artifact_uid,
-                        artifact_iter,
-                        artifact_tag,
-                        project,
+                        iter=artifact_iter,
+                        tag=artifact_tag,
+                        project=project,
+                        producer_id=artifact_tree,
                     )
 
     # Create several runs
@@ -1186,8 +1187,8 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
+            or cls.__name__ == "Artifact"
             or cls.__name__ == "Log"
-            or cls.__name__ == "ArtifactV2"
             or (
                 cls.__tablename__ == "projects_labels"
                 and project_member_mode == "follower"
@@ -1199,8 +1200,8 @@ def _assert_db_resources_in_project(
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
-            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_v2_tags":
-                # ArtifactV2 is new and not in use yet, so skip for now
+            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
                 continue
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
@@ -1220,11 +1221,11 @@ def _assert_db_resources_in_project(
                     .filter(Run.project == project)
                     .count()
                 )
-            if cls.__tablename__ == "artifacts_labels":
+            if cls.__tablename__ == "artifacts_v2_labels":
                 number_of_cls_records = (
-                    db_session.query(Artifact)
+                    db_session.query(ArtifactV2)
                     .join(cls)
-                    .filter(Artifact.project == project)
+                    .filter(ArtifactV2.project == project)
                     .count()
                 )
             if cls.__tablename__ == "feature_sets_labels":
@@ -1271,8 +1272,8 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
-            if cls.__tablename__ == "artifacts_v2_labels":
-                # ArtifactV2 is new and not in use yet, so skip for now
+            if cls.__tablename__ == "artifacts_labels":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
                 continue
         elif cls.__name__ == "Project":
             number_of_cls_records = (

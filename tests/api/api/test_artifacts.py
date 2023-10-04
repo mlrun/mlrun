@@ -184,7 +184,10 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
     resp = client.get(project_artifacts_path)
     assert (
         deepdiff.DeepDiff(
-            [artifact["tag"] for artifact in resp.json()["artifacts"]],
+            [
+                artifact.get("metadata", {}).get("tag", None)
+                for artifact in resp.json()["artifacts"]
+            ],
             ["latest", "latest", TAG, TAG],
             ignore_order=True,
         )
@@ -230,7 +233,10 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         assert resp.status_code == HTTPStatus.OK.value
         assert (
             deepdiff.DeepDiff(
-                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                [
+                    artifact.get("metadata", {}).get("tag", None)
+                    for artifact in resp.json()["artifacts"]
+                ],
                 ["latest", "latest", TAG, TAG],
                 ignore_order=True,
             )

@@ -17,8 +17,6 @@ import os
 import tempfile
 
 import deepdiff
-import numpy
-import pandas
 import pytest
 from sqlalchemy.orm import Session
 
@@ -41,28 +39,28 @@ def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
     artifact_1 = _generate_artifact(artifact_name_1, tree=tree)
     artifact_2 = _generate_artifact(artifact_name_2, tree=tree)
 
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_name_1,
         artifact_1,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_name_2,
         artifact_2,
     )
-    artifacts = db.list_artifacts_v2(db_session)
+    artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == 2
 
-    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_1)
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1)
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_1
 
-    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_2)
+    artifacts = db.list_artifacts(db_session, name=artifact_name_2)
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_2
 
-    artifacts = db.list_artifacts_v2(db_session, name="~artifact_name")
+    artifacts = db.list_artifacts(db_session, name="~artifact_name")
     assert len(artifacts) == 2
 
 
@@ -77,26 +75,30 @@ def test_list_artifact_iter_parameter(db: DBInterface, db_session: Session):
     test_iters = [0, 5, 9, 42, 219, 2102]
     for iter in test_iters:
         artifact_1["iter"] = artifact_2["iter"] = iter
-        db.store_artifact_v2(db_session, artifact_name_1, artifact_1, iter=iter)
-        db.store_artifact_v2(db_session, artifact_name_2, artifact_2, iter=iter)
+        db.store_artifact(db_session, artifact_name_1, artifact_1, iter=iter)
+        db.store_artifact(db_session, artifact_name_2, artifact_2, iter=iter)
 
     # No filter on iter. All are expected
-    artifacts = db.list_artifacts_v2(db_session)
+    artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == len(test_iters) * 2
+
+    # look for the artifact with the "latest" tag
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, tag="latest")
+    assert len(artifacts) == 1
 
     # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
     for iter in test_iters:
-        artifacts = db.list_artifacts_v2(db_session, iter=iter)
+        artifacts = db.list_artifacts(db_session, iter=iter)
         assert len(artifacts) == 2
         for artifact in artifacts:
             assert artifact["iter"] == iter
 
     # Negative test
-    artifacts = db.list_artifacts_v2(db_session, iter=666)
+    artifacts = db.list_artifacts(db_session, iter=666)
     assert len(artifacts) == 0
 
     # Iter filter and a name filter, make sure query composition works
-    artifacts = db.list_artifacts_v2(db_session, name=artifact_name_1, iter=2102)
+    artifacts = db.list_artifacts(db_session, name=artifact_name_1, iter=2102)
     assert len(artifacts) == 1
 
 
@@ -109,24 +111,24 @@ def test_list_artifact_kind_filter(db: DBInterface, db_session: Session):
     artifact_1 = _generate_artifact(artifact_name_1, kind=artifact_kind_1, tree=tree)
     artifact_2 = _generate_artifact(artifact_name_2, kind=artifact_kind_2, tree=tree)
 
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_name_1,
         artifact_1,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_name_2,
         artifact_2,
     )
-    artifacts = db.list_artifacts_v2(db_session)
+    artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == 2
 
-    artifacts = db.list_artifacts_v2(db_session, kind=artifact_kind_1)
+    artifacts = db.list_artifacts(db_session, kind=artifact_kind_1)
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_1
 
-    artifacts = db.list_artifacts_v2(db_session, kind=artifact_kind_2)
+    artifacts = db.list_artifacts(db_session, kind=artifact_kind_2)
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_2
 
@@ -152,28 +154,28 @@ def test_list_artifact_category_filter(db: DBInterface, db_session: Session):
         (artifact_name_3, artifact_3),
         (artifact_name_4, artifact_4),
     ]:
-        db.store_artifact_v2(
+        db.store_artifact(
             db_session,
             artifact_name,
             artifact_object,
         )
 
-    artifacts = db.list_artifacts_v2(db_session)
+    artifacts = db.list_artifacts(db_session)
     assert len(artifacts) == 4
 
-    artifacts = db.list_artifacts_v2(
+    artifacts = db.list_artifacts(
         db_session, category=mlrun.common.schemas.ArtifactCategories.model
     )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_3
 
-    artifacts = db.list_artifacts_v2(
+    artifacts = db.list_artifacts(
         db_session, category=mlrun.common.schemas.ArtifactCategories.dataset
     )
     assert len(artifacts) == 1
     assert artifacts[0]["metadata"]["key"] == artifact_name_4
 
-    artifacts = db.list_artifacts_v2(
+    artifacts = db.list_artifacts(
         db_session, category=mlrun.common.schemas.ArtifactCategories.other
     )
     assert len(artifacts) == 2
@@ -193,55 +195,62 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
         artifact_1_key, kind=artifact_1_kind, tree=artifact_1_with_kind_tree
     )
 
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_body,
         tag=artifact_1_tag,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_with_kind_body,
         tag=artifact_2_tag,
     )
-    artifact = db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_1_tag)
+    artifact = db.read_artifact(db_session, artifact_1_key, tag=artifact_1_tag)
     assert artifact["kind"] == "artifact"
-    artifact = db.read_artifact_v2(
+    artifact = db.read_artifact(
         db_session, artifact_1_key, tag="latest", raise_on_not_found=False
     )
     assert artifact is not None
-    artifacts = db.list_artifacts_v2(db_session, artifact_1_key, tag=artifact_2_tag)
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag=artifact_2_tag)
     assert len(artifacts) == 1
     assert artifacts[0]["kind"] == artifact_1_kind
-    artifacts = db.list_artifacts_v2(db_session, artifact_1_key, tag="latest")
+    artifacts = db.list_artifacts(db_session, artifact_1_key, tag="latest")
     assert len(artifacts) == 1
 
 
 def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
+    project = "artifact_project"
     artifact_key = "artifact_key_1"
     artifact_1_tree = "artifact_tree_1"
     artifact_2_tree = "artifact_tree_2"
-    artifact_1_body = _generate_artifact(artifact_key, tree=artifact_1_tree)
-    artifact_2_body = _generate_artifact(artifact_key, tree=artifact_2_tree)
+    artifact_1_body = _generate_artifact(
+        artifact_key, tree=artifact_1_tree, project=project
+    )
+    artifact_2_body = _generate_artifact(
+        artifact_key, tree=artifact_2_tree, project=project
+    )
     artifact_1_tag = "artifact-tag-1"
     artifact_2_tag = "artifact-tag-2"
 
     # we use deepcopy to avoid changing the original dict
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_key,
         copy.deepcopy(artifact_1_body),
         tag=artifact_1_tag,
+        project=project,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_key,
         copy.deepcopy(artifact_2_body),
         tag=artifact_2_tag,
+        project=project,
     )
-    artifacts = db.list_artifacts_v2(db_session, artifact_key, tag="*")
-    assert len(artifacts) == 3  # also latest is returned
+    artifacts = db.list_artifacts(db_session, artifact_key, tag="*", project=project)
+    assert len(artifacts) == 3  # latest is also returned
 
     # ids are auto generated using this util function
     expected_uids = [
@@ -267,10 +276,10 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
         )
         == {}
     )
-    artifact = db.read_artifact_v2(db_session, artifact_key, tag=artifact_1_tag)
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_1_tag)
     assert artifact["metadata"]["uid"] == expected_uids[0]
     assert artifact["metadata"]["tag"] == artifact_1_tag
-    artifact = db.read_artifact_v2(db_session, artifact_key, tag=artifact_2_tag)
+    artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
     assert artifact["metadata"]["uid"] == expected_uids[1]
     assert artifact["metadata"]["tag"] == artifact_2_tag
 
@@ -289,29 +298,29 @@ def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     artifact_1_tag = "artifact-tag-1"
     artifact_2_tag = "artifact-tag-2"
 
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_body,
         tag=artifact_1_tag,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_2_key,
         artifact_2_body,
         tag=artifact_2_tag,
     )
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_2_tag)
+        db.read_artifact(db_session, artifact_1_key, tag=artifact_2_tag)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
-        db.read_artifact_v2(db_session, artifact_2_key, tag=artifact_1_tag)
+        db.read_artifact(db_session, artifact_2_key, tag=artifact_1_tag)
     # just verifying it's not raising
-    db.read_artifact_v2(db_session, artifact_1_key, tag=artifact_1_tag)
-    db.read_artifact_v2(db_session, artifact_2_key, tag=artifact_2_tag)
+    db.read_artifact(db_session, artifact_1_key, tag=artifact_1_tag)
+    db.read_artifact(db_session, artifact_2_key, tag=artifact_2_tag)
     # check list
-    artifacts = db.list_artifacts_v2(db_session, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
     assert len(artifacts) == 1
-    artifacts = db.list_artifacts_v2(db_session, tag=artifact_2_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 1
 
 
@@ -325,25 +334,25 @@ def test_delete_artifacts_tag_filter(db: DBInterface, db_session: Session):
     artifact_1_tag = "artifact-tag-one"
     artifact_2_tag = "artifact-tag-two"
 
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_body,
         tag=artifact_1_tag,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_2_key,
         artifact_2_body,
         tag=artifact_2_tag,
     )
-    db.del_artifacts_v2(db_session, tag=artifact_1_tag)
-    artifacts = db.list_artifacts_v2(db_session, tag=artifact_1_tag)
+    db.del_artifacts(db_session, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_1_tag)
     assert len(artifacts) == 0
-    artifacts = db.list_artifacts_v2(db_session, tag=artifact_2_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 1
-    db.del_artifacts_v2(db_session, tag=artifact_2_tag)
-    artifacts = db.list_artifacts_v2(db_session, tag=artifact_2_tag)
+    db.del_artifacts(db_session, tag=artifact_2_tag)
+    artifacts = db.list_artifacts(db_session, tag=artifact_2_tag)
     assert len(artifacts) == 0
 
 
@@ -366,7 +375,7 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
     ]:
         # we copy the artifact body to avoid changing the original dict
         artifact = copy.deepcopy(artifact_body)
-        db.store_artifact_v2(
+        db.store_artifact(
             db_session,
             artifact_key,
             artifact,
@@ -374,21 +383,21 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
             project=project,
         )
 
-    artifacts = db.list_artifacts_v2(db_session, project=project, name=artifact_1_key)
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_1_key)
     # Should return 2 tags ('latest' and artifact_1_tag)
     assert len(artifacts) == 2
-    artifacts = db.list_artifacts_v2(db_session, project=project, tag=artifact_2_tag)
+    artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag)
     assert len(artifacts) == 1
-    artifacts = db.list_artifacts_v2(db_session, project=project, tag=artifact_2_tag_2)
+    artifacts = db.list_artifacts(db_session, project=project, tag=artifact_2_tag_2)
     assert len(artifacts) == 1
 
-    db.del_artifact_v2(db_session, artifact_1_key, project=project, tag=artifact_1_tag)
-    artifacts = db.list_artifacts_v2(db_session, name=artifact_1_key)
+    db.del_artifact(db_session, artifact_1_key, project=project, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, name=artifact_1_key)
     assert len(artifacts) == 0
 
     # Negative test - wrong tag, no deletions
-    db.del_artifact_v2(db_session, artifact_2_key, project=project, tag=artifact_1_tag)
-    artifacts = db.list_artifacts_v2(db_session, project=project, name=artifact_2_key)
+    db.del_artifact(db_session, artifact_2_key, project=project, tag=artifact_1_tag)
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
 
     # Should return 3 tags ('latest' and artifact_2_tag and artifact_2_tag_2)
     assert len(artifacts) == 3
@@ -401,18 +410,16 @@ def test_delete_artifact_tag_filter(db: DBInterface, db_session: Session):
         == {}
     )
 
-    tags = db.list_artifact_tags_v2(db_session, project)
+    tags = db.list_artifact_tags(db_session, project)
     assert len(tags) == 3
 
     # Delete the artifact object (should delete all tags of the same artifact object)
-    db.del_artifact_v2(
-        db_session, artifact_2_key, tag=artifact_2_tag_2, project=project
-    )
-    artifacts = db.list_artifacts_v2(db_session, project=project, name=artifact_2_key)
+    db.del_artifact(db_session, artifact_2_key, tag=artifact_2_tag_2, project=project)
+    artifacts = db.list_artifacts(db_session, project=project, name=artifact_2_key)
     assert len(artifacts) == 0
 
     # Assert all tags were deleted
-    tags = db.list_artifact_tags_v2(db_session, project)
+    tags = db.list_artifact_tags(db_session, project)
     assert len(tags) == 0
 
 
@@ -425,25 +432,25 @@ def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     artifact_2_body = _generate_artifact(artifact_2_key, tree=artifact_2_tree)
 
     # Store each twice - once with no iter, and once with an iter
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_body,
     )
     artifact_1_body["iter"] = 42
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_1_key,
         artifact_1_body,
         iter=42,
     )
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_2_key,
         artifact_2_body,
     )
     artifact_2_body["iter"] = 42
-    db.store_artifact_v2(
+    db.store_artifact(
         db_session,
         artifact_2_key,
         artifact_2_body,
@@ -451,7 +458,7 @@ def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     )
 
     def _list_and_assert_count(key, count, iter=None):
-        results = db.list_artifacts_v2(db_session, name=key, iter=iter)
+        results = db.list_artifacts(db_session, name=key, iter=iter)
         assert len(results) == count
         return results
 
@@ -487,12 +494,13 @@ def _generate_artifact_with_iterations(
         if iter == 0:
             artifact_body["spec"]["link_iteration"] = best_iter
         artifact_body["spec"]["iter"] = iter
-        db.store_artifact_v2(
+        db.store_artifact(
             db_session,
             key,
             artifact_body,
             iter=iter,
             project=project,
+            producer_id=tree,
         )
 
 
@@ -540,10 +548,8 @@ def test_list_artifacts_best_iter_with_tagged_iteration(
         key=artifact_key_2,
         iter=best_iter,
     )
-    db.append_tag_to_artifacts_v2(
-        db_session, project, tag, [identifier_1, identifier_2]
-    )
-    results = db.list_artifacts_v2(
+    db.append_tag_to_artifacts(db_session, project, tag, [identifier_1, identifier_2])
+    results = db.list_artifacts(
         db_session, project=project, tag=tag, best_iteration=True
     )
     assert len(results) == 2
@@ -589,13 +595,13 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
     # Add non-hyper-param artifact. Single object with iter 0, not pointing at anything
     artifact_body = _generate_artifact(artifact_no_link_key, artifact_no_link_tree)
     artifact_body["spec"]["iter"] = 0
-    db.store_artifact_v2(db_session, artifact_no_link_key, artifact_body, iter=0)
+    db.store_artifact(db_session, artifact_no_link_key, artifact_body, iter=0)
 
-    results = db.list_artifacts_v2(db_session, name="~artifact")
+    results = db.list_artifacts(db_session, name="~artifact")
     # we don't store link artifacts in the DB, so we expect 2 * num_iters - 1, plus a regular artifact
     assert len(results) == (num_iters - 1) * 2 + 1
 
-    results = db.list_artifacts_v2(db_session, name=artifact_1_key, best_iteration=True)
+    results = db.list_artifacts(db_session, name=artifact_1_key, best_iteration=True)
     assert len(results) == 1 and results[0]["spec"]["iter"] == best_iter_1
 
     expected_iters = {
@@ -603,7 +609,7 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
         artifact_2_key: best_iter_2,
         artifact_no_link_key: 0,
     }
-    results = db.list_artifacts_v2(db_session, name="~artifact", best_iteration=True)
+    results = db.list_artifacts(db_session, name="~artifact", best_iteration=True)
     assert len(results) == 3
     for artifact in results:
         artifact_name = artifact["metadata"]["key"]
@@ -612,20 +618,20 @@ def test_list_artifacts_best_iter(db: DBInterface, db_session: Session):
             and expected_iters[artifact_name] == artifact["spec"]["iter"]
         )
 
-    results = db.list_artifacts_v2(
+    results = db.list_artifacts(
         db_session, best_iteration=True, category=ArtifactCategories.model
     )
     assert len(results) == 1 and results[0]["spec"]["iter"] == best_iter_1
 
     # Should get only object-2 (which is of dataset type) without the link artifact
-    results = db.list_artifacts_v2(db_session, category=ArtifactCategories.dataset)
+    results = db.list_artifacts(db_session, category=ArtifactCategories.dataset)
     assert len(results) == num_iters - 1
     for artifact in results:
         assert artifact["metadata"]["key"] == artifact_2_key
 
     # Negative test - asking for both best_iter and iter
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        results = db.list_artifacts_v2(
+        results = db.list_artifacts(
             db_session, name="~artifact", best_iteration=True, iter=0
         )
 
@@ -669,198 +675,12 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
     )
 
     for category in [ArtifactCategories.model, None]:
-        results = db.list_artifacts_v2(
+        results = db.list_artifacts(
             db_session, tag="*", best_iteration=True, category=category
         )
         assert len(results) == 3
         for result in results:
             assert result["metadata"]["tag"] == "latest"
-
-
-def test_data_migration_fix_legacy_datasets_large_previews(
-    data_migration_db: DBInterface,
-    db_session: Session,
-):
-    artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
-    artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
-    artifact_with_valid_preview = mlrun.artifacts.dataset.LegacyDatasetArtifact(
-        artifact_with_valid_preview_key,
-        df=pandas.DataFrame(
-            [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
-        ),
-    )
-    data_migration_db._store_artifact(
-        db_session,
-        artifact_with_valid_preview_key,
-        artifact_with_valid_preview.to_dict(),
-        artifact_with_valid_preview_uid,
-    )
-
-    artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
-    artifact_with_invalid_preview_uid = "artifact-with-invalid-preview-uid"
-    artifact_with_invalid_preview = mlrun.artifacts.dataset.LegacyDatasetArtifact(
-        artifact_with_invalid_preview_key,
-        df=pandas.DataFrame(
-            numpy.random.randint(
-                0, 10, size=(10, mlrun.artifacts.dataset.max_preview_columns * 3)
-            )
-        ),
-        ignore_preview_limits=True,
-    )
-    data_migration_db._store_artifact(
-        db_session,
-        artifact_with_invalid_preview_key,
-        artifact_with_invalid_preview.to_dict(),
-        artifact_with_invalid_preview_uid,
-    )
-
-    # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
-
-    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
-        db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
-    )
-    assert (
-        deepdiff.DeepDiff(
-            artifact_with_valid_preview_after_migration,
-            artifact_with_valid_preview.to_dict(),
-            ignore_order=True,
-            exclude_paths=["root['updated']", "root['tag']", "root['db_key']"],
-        )
-        == {}
-    )
-
-    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
-        db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
-    )
-    assert (
-        deepdiff.DeepDiff(
-            artifact_with_invalid_preview_after_migration,
-            artifact_with_invalid_preview.to_dict(),
-            ignore_order=True,
-            exclude_paths=[
-                "root['updated']",
-                "root['header']",
-                "root['stats']",
-                "root['schema']",
-                "root['preview']",
-                "root['tag']",
-                "root['db_key']",
-            ],
-        )
-        == {}
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["header"])
-        == mlrun.artifacts.dataset.max_preview_columns
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["stats"])
-        == mlrun.artifacts.dataset.max_preview_columns - 1
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["preview"][0])
-        == mlrun.artifacts.dataset.max_preview_columns
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["schema"]["fields"])
-        == mlrun.artifacts.dataset.max_preview_columns + 1
-    )
-
-
-def test_data_migration_fix_datasets_large_previews(
-    data_migration_db: DBInterface,
-    db_session: Session,
-):
-    artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
-    artifact_with_valid_preview_uid = "artifact-with-valid-preview-uid"
-    artifact_with_valid_preview = mlrun.artifacts.dataset.DatasetArtifact(
-        artifact_with_valid_preview_key,
-        df=pandas.DataFrame(
-            [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
-        ),
-    )
-    data_migration_db._store_artifact(
-        db_session,
-        artifact_with_valid_preview_key,
-        artifact_with_valid_preview.to_dict(),
-        artifact_with_valid_preview_uid,
-    )
-
-    artifact_with_invalid_preview_key = "artifact-with-invalid-preview-key"
-    artifact_with_invalid_preview_uid = "artifact-with-invalid-preview-uid"
-    artifact_with_invalid_preview = mlrun.artifacts.dataset.DatasetArtifact(
-        artifact_with_invalid_preview_key,
-        df=pandas.DataFrame(
-            numpy.random.randint(
-                0, 10, size=(10, mlrun.artifacts.dataset.max_preview_columns * 3)
-            )
-        ),
-        ignore_preview_limits=True,
-    )
-    data_migration_db._store_artifact(
-        db_session,
-        artifact_with_invalid_preview_key,
-        artifact_with_invalid_preview.to_dict(),
-        artifact_with_invalid_preview_uid,
-    )
-
-    # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
-
-    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
-        db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
-    )
-    assert (
-        deepdiff.DeepDiff(
-            artifact_with_valid_preview_after_migration,
-            artifact_with_valid_preview.to_dict(),
-            ignore_order=True,
-            exclude_paths=[
-                "root['metadata']['updated']",
-                "root['metadata']['tag']",
-                "root['spec']['db_key']",
-            ],
-        )
-        == {}
-    )
-
-    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
-        db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
-    )
-    assert (
-        deepdiff.DeepDiff(
-            artifact_with_invalid_preview_after_migration,
-            artifact_with_invalid_preview.to_dict(),
-            ignore_order=True,
-            exclude_paths=[
-                "root['metadata']['updated']",
-                "root['spec']['header']",
-                "root['status']['stats']",
-                "root['spec']['schema']",
-                "root['status']['preview']",
-                "root['metadata']['tag']",
-                "root['spec']['db_key']",
-            ],
-        )
-        == {}
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["header"])
-        == mlrun.artifacts.dataset.max_preview_columns
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["status"]["stats"])
-        == mlrun.artifacts.dataset.max_preview_columns - 1
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["status"]["preview"][0])
-        == mlrun.artifacts.dataset.max_preview_columns
-    )
-    assert (
-        len(artifact_with_invalid_preview_after_migration["spec"]["schema"]["fields"])
-        == mlrun.artifacts.dataset.max_preview_columns + 1
-    )
 
 
 def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
@@ -884,7 +704,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     artifact_body["metadata"]["key"] = artifact_key
     artifact_body["metadata"]["iter"] = 2
     artifact_body["metadata"]["project"] = project
-    db.store_artifact(
+    db.store_artifact_v1(
         db_session, artifact_key, artifact_body, artifact_uid, project=project
     )
 
@@ -899,7 +719,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         "length": 100,
         "preview": 5,
     }
-    db.store_artifact(
+    db.store_artifact_v1(
         db_session,
         legacy_artifact_key,
         legacy_artifact,
@@ -932,13 +752,13 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             "key": artifact_key,
             "uid": artifact_uid,
             "project": project,
-            "iteration": 2,
+            "iter": 2,
         },
         {
             "key": legacy_artifact_key,
             "uid": legacy_artifact_uid,
             "project": None,
-            "iteration": None,
+            "iter": None,
         },
     ]:
         # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
@@ -952,7 +772,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         assert artifact.key == expected["key"]
         assert artifact.producer_id == expected["uid"]
         assert artifact.project == expected["project"]
-        assert artifact.iteration == expected["iteration"]
+        assert artifact.iteration == expected["iter"]
 
         artifact_dict = artifact.full_object
         assert len(artifact_dict) > 0
@@ -966,10 +786,12 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
 
         # validate the original artifact was deleted
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            db.read_artifact(db_session, expected["key"], project=expected["project"])
+            db.read_artifact_v1(
+                db_session, expected["key"], project=expected["project"]
+            )
 
 
-def _generate_artifact(name, uid=None, kind=None, tree=None):
+def _generate_artifact(name, uid=None, kind=None, tree=None, project=None):
     artifact = {
         "metadata": {"key": name},
         "spec": {"src_path": "/some/path"},
@@ -982,5 +804,7 @@ def _generate_artifact(name, uid=None, kind=None, tree=None):
         artifact["metadata"]["uid"] = uid
     if tree:
         artifact["metadata"]["tree"] = tree
+    if project:
+        artifact["metadata"]["project"] = project
 
     return artifact

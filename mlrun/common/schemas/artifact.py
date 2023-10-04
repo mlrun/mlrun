@@ -18,6 +18,8 @@ import pydantic
 
 import mlrun.common.types
 
+from .object import ObjectStatus
+
 
 class ArtifactCategories(mlrun.common.types.StrEnum):
     model = "model"
@@ -51,6 +53,7 @@ class ArtifactIdentifier(pydantic.BaseModel):
     key: typing.Optional[str]
     iter: typing.Optional[int]
     uid: typing.Optional[str]
+    producer_id: typing.Optional[str]
     # TODO support hash once saved as a column in the artifacts table
     # hash: typing.Optional[str]
 
@@ -58,3 +61,35 @@ class ArtifactIdentifier(pydantic.BaseModel):
 class ArtifactsFormat(mlrun.common.types.StrEnum):
     full = "full"
     legacy = "legacy"
+
+
+class ArtifactMetadata(pydantic.BaseModel):
+    key: str
+    project: str
+    iter: typing.Optional[int]
+    tree: typing.Optional[str]
+    tag: typing.Optional[str]
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class ArtifactSpec(pydantic.BaseModel):
+    src_path: typing.Optional[str]
+    target_path: typing.Optional[str]
+    viewer: typing.Optional[str]
+    inline: typing.Optional[str]
+    size: typing.Optional[int]
+    db_key: typing.Optional[str]
+    extra_data: typing.Optional[typing.Dict[str, typing.Any]]
+    unpackaging_instructions: typing.Optional[typing.Dict[str, typing.Any]]
+
+    class Config:
+        extra = pydantic.Extra.allow
+
+
+class Artifact(pydantic.BaseModel):
+    kind: str
+    metadata: ArtifactMetadata
+    spec: ArtifactSpec
+    status: ObjectStatus

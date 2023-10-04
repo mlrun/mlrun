@@ -17,6 +17,8 @@ import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from deprecated import deprecated
+
 import mlrun.common.schemas
 import mlrun.model
 
@@ -150,15 +152,43 @@ class DBInterface(ABC):
         session,
         key,
         artifact,
-        uid,
+        uid=None,
         iter=None,
         tag="",
         project="",
+        producer_id=None,
+        best_iteration=False,
+        always_overwrite=False,
     ):
         pass
 
     @abstractmethod
-    def read_artifact(self, session, key, tag="", iter=None, project=""):
+    def create_artifact(
+        self,
+        session,
+        project,
+        artifact,
+        key,
+        tag="",
+        uid=None,
+        iteration=None,
+        tree="",
+        best_iteration=False,
+    ):
+        pass
+
+    @abstractmethod
+    def read_artifact(
+        self,
+        session,
+        key,
+        tag="",
+        iter=None,
+        project="",
+        producer_id: str = None,
+        uid: str = None,
+        raise_on_not_found: bool = True,
+    ):
         pass
 
     @abstractmethod
@@ -176,95 +206,71 @@ class DBInterface(ABC):
         iter: int = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        uid=None,
+        producer_id=None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, session, key, tag="", project=""):
-        pass
-
-    @abstractmethod
-    def del_artifacts(self, session, name="", project="", tag="", labels=None):
-        pass
-
-    # Artifact v2 APIs - Delete when v1 is deprecated!
-    def store_artifact_v2(
-        self,
-        session,
-        key,
-        artifact,
-        uid=None,
-        iter=None,
-        tag="",
-        project="",
-        best_iteration=False,
-        always_overwrite=False,
-    ):
-        pass
-
-    def list_artifacts_v2(
-        self,
-        session,
-        name=None,
-        project=None,
-        tag=None,
-        uid=None,
-        labels=None,
-        since=None,
-        until=None,
-        kind=None,
-        category: mlrun.common.schemas.ArtifactCategories = None,
-        iter: int = None,
-        best_iteration: bool = False,
-        as_records: bool = False,
-    ):
-        pass
-
-    def read_artifact_v2(
-        self,
-        session,
-        key: str,
-        project: str = None,
-        iter: int = None,
-        producer_id: str = None,
-        tag: str = None,
-        uid: str = None,
-        raise_on_not_found: bool = True,
-    ):
-        pass
-
-    def del_artifact_v2(
+    def del_artifact(
         self, session, key, tag="", project="", uid=None, producer_id=None
     ):
         pass
 
-    def del_artifacts_v2(
-        self, session, name="", project="", tag=None, labels=None, ids=None, tree=None
+    @abstractmethod
+    def del_artifacts(
+        self,
+        session,
+        name="",
+        project="",
+        tag="*",
+        labels=None,
+        ids=None,
+        producer_id=None,
     ):
         pass
 
-    def list_artifact_tags_v2(
+    def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ):
         pass
 
-    def overwrite_artifacts_with_tag_v2(
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'store_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'store_artifact' instead",
+        category=FutureWarning,
+    )
+    def store_artifact_v1(
         self,
         session,
-        project,
-        tag,
-        identifiers: typing.List[mlrun.common.schemas.ArtifactIdentifier],
+        key,
+        artifact,
+        uid,
+        iter=None,
+        tag="",
+        project="",
+        tag_artifact=True,
     ):
+        """
+        Store artifact v1 in the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
         pass
 
-    def append_tag_to_artifacts_v2(
-        self,
-        session,
-        project: str,
-        tag: str,
-        identifiers: List[mlrun.common.schemas.ArtifactIdentifier],
-    ):
+    # TODO: remove in 1.8.0
+    @deprecated(
+        version="1.8.0",
+        reason="'read_artifact_v1' will be removed from this file in 1.8.0, use "
+        "'read_artifact' instead",
+        category=FutureWarning,
+    )
+    def read_artifact_v1(self, session, key, tag="", iter=None, project=""):
+        """
+        Read artifact v1 from the DB, this is the deprecated legacy artifact format
+        and is only left for testing purposes
+        """
         pass
 
     # TODO: Make these abstract once filedb implements them
@@ -633,14 +639,6 @@ class DBInterface(ABC):
         uid=None,
     ):
         pass
-
-    def list_artifact_tags(
-        self,
-        session,
-        project,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-    ):
-        return []
 
     def create_hub_source(
         self, session, ordered_source: mlrun.common.schemas.IndexedHubSource

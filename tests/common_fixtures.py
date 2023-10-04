@@ -224,11 +224,13 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[key] = artifact
         return artifact
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
+    def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
         return self._artifacts.get(key, None)
 
     def list_artifacts(
@@ -239,12 +241,11 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        kind=None,
-        category=None,
         iter: int = None,
         best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:

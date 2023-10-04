@@ -95,6 +95,25 @@ def make_tag_v2(table):
     return Tag
 
 
+def make_artifact_tag(table):
+    class ArtifactTag(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = f"{table}_tags"
+        __table_args__ = (
+            UniqueConstraint("project", "name", "obj_id", name=f"_{table}_tags_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(String(255, collation=SQLCollationUtil.collation()))
+        obj_id = Column(Integer, ForeignKey(f"{table}.id"))
+        obj_name = Column(String(255, collation=SQLCollationUtil.collation()))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
+    return ArtifactTag
+
+
 def make_notification(table):
     class Notification(Base, mlrun.utils.db.BaseModel):
         __tablename__ = f"{table}_notifications"
@@ -148,7 +167,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore")
 
     # deprecated, use ArtifactV2 instead
-    # TODO: remove in 1.7.0. Note that removing it will require upgrading mlrun in at least 2 steps:
+    # TODO: remove in 1.8.0. Note that removing it will require upgrading mlrun in at least 2 steps:
     #  1. upgrade to 1.6.x which will create the new table
     #  2. upgrade to 1.7.x which will remove the old table
     class Artifact(Base, mlrun.utils.db.HasStruct):
@@ -179,7 +198,7 @@ with warnings.catch_warnings():
         )
 
         Label = make_label(__tablename__)
-        Tag = make_tag_v2(__tablename__)
+        Tag = make_artifact_tag(__tablename__)
 
         id = Column(Integer, primary_key=True)
         key = Column(String(255, collation=SQLCollationUtil.collation()))

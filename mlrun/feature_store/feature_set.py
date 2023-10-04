@@ -424,6 +424,9 @@ class FeatureSet(ModelObj):
         else:
             return mlrun.get_run_db()
 
+    def _override_run_db(self, run_db):
+        self._run_db = run_db
+
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pathlib
+from urllib.parse import urlparse
 
 import fsspec
 from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
@@ -20,6 +21,7 @@ from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
 import mlrun.errors
 
 from .base import DataStore, FileStats
+from .datastore_profile import datastore_profile_read
 
 
 class DatabricksFileBugFixed(DatabricksFile):
@@ -78,14 +80,32 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
     def _ls_from_cache(self, path):
         pass
 
+    @classmethod
+    def _strip_protocol(cls, url):  # In order to work with profiles.
+        if url.startswith("ds://"):
+            parsed_url = urlparse(url)
+            url = parsed_url.path[1:]
+        return super()._strip_protocol(url)
+
 
 # dbfs objects will be represented with the following URL: dbfs://<path>
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        if not endpoint:
-            endpoint = self._get_secret_or_env("DATABRICKS_HOST")
-        self.endpoint = endpoint
+        if schema == "ds":
+            # if endpoint:
+            #     raise mlrun.errors.MLRunInvalidArgumentError(
+            #         "Trying to use endpoint and profile at dbfs datastore."
+            #     )
+            if secrets:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Trying to use secret and profile at dbfs datastore."
+                )
+            self.endpoint = ""
+        else:
+            if not endpoint:
+                endpoint = self._get_secret_or_env("DATABRICKS_HOST")
+            self.endpoint = endpoint
         self.get_filesystem(silent=False)
 
     def get_filesystem(self, silent=True):
@@ -95,9 +115,16 @@ class DBFSStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
+        if self.kind == "ds":
+            datastore_profile = datastore_profile_read(self.name)
+            token = datastore_profile.token
+            instance = datastore_profile.endpoint_url
+        else:
+            token = self._get_secret_or_env("DATABRICKS_TOKEN")
+            instance = self._get_secret_or_env("DATABRICKS_HOST")
         return dict(
-            token=self._get_secret_or_env("DATABRICKS_TOKEN"),
-            instance=self._get_secret_or_env("DATABRICKS_HOST"),
+            token=token,
+            instance=instance,
         )
 
     def _verify_filesystem_and_key(self, key: str):

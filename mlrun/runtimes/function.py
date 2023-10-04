@@ -301,9 +301,6 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def add_volume(self, local, remote, name="fs", access_key="", user=""):
-        raise Exception("deprecated, use .apply(mount_v3io())")
-
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
 
@@ -1151,12 +1148,6 @@ async def submit(session, url, run, semaphore, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
-
-
-def _fullname(project, name):
-    if project:
-        return f"{project}-{name}"
-    return name
 
 
 def get_fullname(name, project, tag):

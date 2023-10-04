@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 import mlrun
-from mlrun import new_task, run_local
+from mlrun import new_task
 from mlrun.artifacts import PlotArtifact
 from tests.system.base import TestMLRunSystem
 
@@ -113,7 +113,8 @@ class TestBasics(TestMLRunSystem):
         )
 
     def test_inline_code(self):
-        run_object = run_local(self._inline_task.with_params(p1=7))
+        function = mlrun.new_function(name="inline-task", kind="job")
+        run_object = function.run(self._inline_task.with_params(p1=7), local=True)
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 
         run_uid = run_object.uid()
@@ -122,10 +123,12 @@ class TestBasics(TestMLRunSystem):
         assert run_object.state() == "completed"
 
     def test_inline_code_with_param_file(self):
-        run_object = run_local(
+        function = mlrun.new_function(name="inline-task-with-param-file", kind="job")
+        run_object = function.run(
             self._inline_task.with_param_file(
                 str(self.assets_path / "params.csv"), "max.accuracy"
-            )
+            ),
+            local=True,
         )
         self._logger.debug("Finished running task", run_object=run_object.to_dict())
 

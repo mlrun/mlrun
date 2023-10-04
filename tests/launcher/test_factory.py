@@ -17,7 +17,6 @@ import typing
 
 import pytest
 
-import mlrun.api.launcher
 import mlrun.launcher.base
 import mlrun.launcher.factory
 import mlrun.launcher.local

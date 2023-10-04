@@ -26,19 +26,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.api.utils
-import mlrun.api.main
-import mlrun.api.rundb.sqldb
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.clients.chief
-import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.singletons.k8s
+import server.api.main
+import server.api.utils.auth.verifier
+import server.api.utils.clients.chief
+import server.api.utils.singletons.k8s
 import tests.api.api.utils
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
-ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"
 
 
@@ -67,15 +64,15 @@ access_key = "12345"
 @pytest.fixture()
 def pod_create_mock():
     create_pod_orig_function = (
-        mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
+        server.api.utils.singletons.k8s.get_k8s_helper().create_pod
     )
     _get_project_secrets_raw_data_orig_function = (
-        mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
+        server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
+    server.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
         return_value=("pod-name", "namespace")
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         unittest.mock.Mock(return_value={})
     )
 
@@ -93,25 +90,25 @@ def pod_create_mock():
     )
 
     authenticate_request_orig_function = (
-        mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
+        server.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    server.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    yield server.api.utils.singletons.k8s.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
+    server.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
         create_pod_orig_function
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    server.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )
 
@@ -393,7 +390,7 @@ def test_submit_job_with_hyper_params_file(
 
     # Create test-specific mocks
     monkeypatch.setattr(
-        mlrun.api.utils.auth.verifier.AuthVerifier(),
+        server.api.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",
         auth_info_mock,
     )
@@ -443,12 +440,12 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
         image="mlrun/mlrun",
     )
 
-    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        mlrun.api.utils.clients.chief,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )

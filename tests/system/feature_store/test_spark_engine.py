@@ -1364,6 +1364,10 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
+        if timestamp_key is not None:
+            target_df.drop(
+                columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
+            )
         target_df.set_index(key, drop=True, inplace=True)
 
         source_df = source.to_dataframe()

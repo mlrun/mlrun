@@ -350,6 +350,7 @@ class RunDBMock:
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         function = func.to_dict()
         status = NuclioStatus(

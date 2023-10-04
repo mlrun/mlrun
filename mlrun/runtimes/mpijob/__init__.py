@@ -19,6 +19,7 @@ from dependency_injector import containers, providers
 from mlrun.config import config
 
 from .. import MPIJobCRDVersions
+from .abstract import AbstractMPIJobRuntime
 from .v1 import MpiRuntimeV1
 from .v1alpha1 import MpiRuntimeV1Alpha1
 

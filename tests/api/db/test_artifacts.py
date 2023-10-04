@@ -21,15 +21,15 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.api.db.sqldb.models
-import mlrun.api.initial_data
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
-from mlrun.api.db.base import DBInterface
+import server.api.initial_data
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
+from server.api.db.base import DBInterface
 
 
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
@@ -733,8 +733,8 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         with tempfile.TemporaryDirectory() as temp_dir:
             os.chdir(temp_dir)
 
-            # perform the migration
-            mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+        # perform the migration
+        server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
     finally:
         # change working directory back to original directory
         os.chdir(current_dir)

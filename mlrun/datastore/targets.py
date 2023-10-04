@@ -544,11 +544,7 @@ class BaseStoreTarget(DataTargetBase):
                             break
                 # Partitioning will be performed on timestamp_key and then on self.partition_cols
                 # (We might want to give the user control on this order as additional functionality)
-                partition_cols = (
-                    partition_cols + (self.partition_cols or [])
-                    if partition_cols
-                    else self.partition_cols
-                )
+                partition_cols += self.partition_cols or []
             storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
                 target_df,
@@ -1351,7 +1347,7 @@ class KafkaTarget(BaseStoreTarget):
         attrs = {}
         if bootstrap_servers is not None:
             attrs["bootstrap_servers"] = bootstrap_servers
-        if bootstrap_servers is not None:
+        if producer_options is not None:
             attrs["producer_options"] = producer_options
 
         super().__init__(*args, attributes=attrs, **kwargs)
@@ -1369,10 +1365,15 @@ class KafkaTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
-        attributes = copy(self.attributes)
-        bootstrap_servers = attributes.pop("bootstrap_servers", None)
-        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+        if self.path and self.path.startswith("ds://"):
+            datastore_profile = datastore_profile_read(self.path)
+            attributes = datastore_profile.attributes()
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic = datastore_profile.topic
+        else:
+            attributes = copy(self.attributes)
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
             name=self.name or "KafkaTarget",

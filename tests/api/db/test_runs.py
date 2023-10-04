@@ -17,9 +17,10 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy.orm import Session
 
-import mlrun.api.db.sqldb.helpers
-import mlrun.api.initial_data
-from mlrun.api.db.base import DBInterface
+import mlrun.model
+import server.api.db.sqldb.helpers
+import server.api.initial_data
+from server.api.db.base import DBInterface
 
 
 def test_list_runs_name_filter(db: DBInterface, db_session: Session):
@@ -227,7 +228,7 @@ def test_data_migration_align_runs_table(db: DBInterface, db_session: Session):
         db._upsert(db_session, [run], ignore=True)
 
     # run the migration
-    mlrun.api.initial_data._align_runs_table(db, db_session)
+    server.api.initial_data._align_runs_table(db, db_session)
 
     # assert after migration column start time aligned to the body start time
     runs = db._find_runs(db_session, None, "*", None).all()
@@ -253,7 +254,7 @@ def test_data_migration_align_runs_table_with_empty_run_body(
     db._upsert(db_session, [run], ignore=True)
 
     # run the migration
-    mlrun.api.initial_data._align_runs_table(db, db_session)
+    server.api.initial_data._align_runs_table(db, db_session)
 
     runs = db._find_runs(db_session, None, "*", None).all()
     assert len(runs) == 1
@@ -365,7 +366,7 @@ def _change_run_record_to_before_align_runs_migration(run, time_before_creation)
     run_dict = run.struct
 
     # change only the start_time column (and not the field in the body) to be earlier
-    assert mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+    assert server.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
     run.start_time = time_before_creation
 
     # change name column to be empty
@@ -384,12 +385,12 @@ def _ensure_run_after_align_runs_migration(
     run_dict = run.struct
 
     # ensure start time aligned
-    assert mlrun.api.db.sqldb.helpers.run_start_time(run_dict) == db._add_utc_timezone(
+    assert server.api.db.sqldb.helpers.run_start_time(run_dict) == db._add_utc_timezone(
         run.start_time
     )
     if time_before_creation is not None:
         assert (
-            mlrun.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
+            server.api.db.sqldb.helpers.run_start_time(run_dict) > time_before_creation
         )
 
     # ensure name column filled

@@ -17,17 +17,17 @@ from tempfile import mkdtemp
 
 import pytest
 
-import mlrun.api.rundb.sqldb
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.project_member
 import mlrun.db.factory
 import mlrun.errors
-from mlrun.api.initial_data import init_data
-from mlrun.api.rundb import sqldb
-from mlrun.api.utils.singletons.db import initialize_db
+import server.api.rundb.sqldb
+import server.api.utils.singletons.db
+import server.api.utils.singletons.project_member
 from mlrun.common.db.sql_session import _init_engine, create_session
 from mlrun.config import config
 from mlrun.db.base import RunDBInterface
+from server.api.initial_data import init_data
+from server.api.rundb import sqldb
+from server.api.utils.singletons.db import initialize_db
 from tests.conftest import new_run, run_now
 
 dbs = [
@@ -54,8 +54,8 @@ def db(request):
 
     db.connect()
     if request.param == "sql":
-        mlrun.api.utils.singletons.db.initialize_db(db.db)
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        server.api.utils.singletons.db.initialize_db(db.db)
+        server.api.utils.singletons.project_member.initialize_project_member()
     return db
 
 
@@ -181,4 +181,4 @@ def test_list_runs(db: RunDBInterface):
 def test_container_override():
     factory = mlrun.db.factory.RunDBFactory()
     run_db = factory.create_run_db(url="mock://")
-    assert isinstance(run_db, mlrun.api.rundb.sqldb.SQLRunDB)
+    assert isinstance(run_db, server.api.rundb.sqldb.SQLRunDB)

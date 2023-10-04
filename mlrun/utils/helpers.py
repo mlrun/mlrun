@@ -33,6 +33,7 @@ from typing import Any, List, Optional, Tuple
 import anyio
 import git
 import numpy as np
+import packaging.version
 import pandas
 import semver
 import yaml
@@ -1518,27 +1519,38 @@ def is_file_path(filepath):
     return os.path.isfile(filepath) and ext
 
 
-class DeprecationHelper(object):
-    """A helper class to deprecate old schemas"""
+def normalize_workflow_name(name, project_name):
+    return name.removeprefix(project_name + "-")
 
-    def __init__(self, new_target, version="1.4.0"):
-        self._new_target = new_target
-        self._version = version
 
-    def _warn(self):
-        warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
-            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
-            FutureWarning,
-        )
+# run_in threadpool is taken from fastapi to allow us to run sync functions in a threadpool
+# without importing fastapi in the client
+async def run_in_threadpool(func, *args, **kwargs):
+    if kwargs:
+        # run_sync doesn't accept 'kwargs', so bind them in here
+        func = functools.partial(func, **kwargs)
+    return await anyio.to_thread.run_sync(func, *args)
 
-    def __call__(self, *args, **kwargs):
-        self._warn()
-        return self._new_target(*args, **kwargs)
 
-    def __getattr__(self, attr):
-        self._warn()
-        return getattr(self._new_target, attr)
+def is_explicit_ack_supported(context):
+    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
+    return hasattr(context, "trigger") and context.trigger in [
+        "v3io-stream",
+        "v3ioStream",
+        "kafka-cluster",
+        "kafka",
+    ]
+
+
+def line_terminator_kwargs():
+    # pandas 1.5.0 renames line_terminator to lineterminator
+    line_terminator_parameter = (
+        "lineterminator"
+        if packaging.version.Version(pandas.__version__)
+        >= packaging.version.Version("1.5.0")
+        else "line_terminator"
+    )
+    return {line_terminator_parameter: "\n"}
 
 
 def normalize_workflow_name(name, project_name):

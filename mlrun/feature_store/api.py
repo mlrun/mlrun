@@ -16,7 +16,6 @@ import importlib.util
 import pathlib
 import sys
 import typing
-import warnings
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -27,6 +26,7 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.datastore_profile import datastore_profile_embed_url_scheme
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
@@ -63,7 +63,7 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import get_merger, run_merge_job
+from .retrieval import RemoteVectorResponse, get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
@@ -107,7 +107,7 @@ def get_offline_features(
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, Dict[str, str]] = None,
-) -> OfflineVectorResponse:
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -533,6 +533,21 @@ def ingest(
     targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
+    if (
+        isinstance(source, DataSource)
+        and source.path
+        and source.path.startswith("ds://")
+    ):
+        source.path = datastore_profile_embed_url_scheme(source.path)
+
+    for target in targets_to_ingest:
+        if (
+            isinstance(target, DataTargetBase)
+            and target.path
+            and target.path.startswith("ds://")
+        ):
+            target.path = datastore_profile_embed_url_scheme(target.path)
+
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
@@ -649,7 +664,6 @@ def preview(
     featureset: FeatureSet,
     source,
     entity_columns: list = None,
-    timestamp_key: str = None,
     namespace=None,
     options: InferOptions = None,
     verbose: bool = False,
@@ -666,13 +680,11 @@ def preview(
             quotes_set,
             quotes_df,
             entity_columns=["ticker"],
-            timestamp_key="time",
         )
 
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema (for discovery of entities, features in featureset), index, stats,
                            histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
@@ -689,17 +701,6 @@ def preview(
         )
 
     options = options if options is not None else InferOptions.default()
-    if timestamp_key is not None:
-        warnings.warn(
-            "preview's 'timestamp_key' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-            "Pass this parameter to 'FeatureSet' instead.",
-            # TODO: Remove this API in 1.5.0
-            FutureWarning,
-        )
-        featureset.spec.timestamp_key = timestamp_key
-        for step in featureset.graph.steps.values():
-            if step.class_name == "storey.AggregateByKey":
-                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame

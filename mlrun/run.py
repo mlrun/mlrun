@@ -28,7 +28,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import nuclio
 import yaml
-from deprecated import deprecated
 from kfp import Client
 
 import mlrun.common.schemas
@@ -41,7 +40,7 @@ from .config import config as mlconf
 from .datastore import store_manager
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
-from .model import BaseMetadata, RunObject, RunTemplate
+from .model import RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
     HandlerRuntime,

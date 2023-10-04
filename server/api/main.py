@@ -89,6 +89,7 @@ async def lifespan(app_: fastapi.FastAPI):
 
     await teardown_api()
 
+
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
 # that keep failing start logs requests.

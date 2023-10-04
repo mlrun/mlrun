@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Tuple
 import fastapi.concurrency
 import mergedeep
 import pytz
-from sqlalchemy import and_, distinct, func, or_, text, MetaData
+from sqlalchemy import MetaData, and_, distinct, func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, aliased
 

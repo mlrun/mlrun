@@ -21,8 +21,6 @@ import sqlalchemy.orm
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import server.api.initial_data
-import server.api.utils.singletons.db
 from server.api.db.base import DBInterface
 from server.api.db.sqldb.models import Project
 

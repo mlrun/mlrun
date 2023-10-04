@@ -331,12 +331,6 @@ def _rename_marketplace_kind_to_hub(
 
 
 def _perform_version_4_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
-):
-    _update_default_hub_source(db, db_session)
-
-
-def _perform_version_4_data_migrations(
     db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _update_default_hub_source(db, db_session)
@@ -480,13 +474,13 @@ def _resolve_current_data_version(
 
 
 def _perform_version_5_data_migrations(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     _migrate_artifacts_table_v2(db, db_session)
 
 
 def _migrate_artifacts_table_v2(
-    db: mlrun.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
+    db: server.api.db.sqldb.db.SQLDB, db_session: sqlalchemy.orm.Session
 ):
     """
     Migrate the old artifacts table to the new artifacts_v2 table, including their respective tags and labels.
@@ -498,7 +492,7 @@ def _migrate_artifacts_table_v2(
 
     # count the total number of artifacts to migrate
     total_artifacts_count = db._query(
-        db_session, mlrun.api.db.sqldb.models.Artifact
+        db_session, server.api.db.sqldb.models.Artifact
     ).count()
     batch_size = config.artifacts.artifact_migration_batch_size
 
@@ -532,18 +526,18 @@ def _migrate_artifacts_table_v2(
 
     # drop the old artifacts table, including their labels and tags tables
     db.delete_table_records(
-        db_session, mlrun.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
+        db_session, server.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
     )
     db.delete_table_records(
-        db_session, mlrun.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
+        db_session, server.api.db.sqldb.models.Artifact.Tag, raise_on_not_exists=False
     )
     db.delete_table_records(
-        db_session, mlrun.api.db.sqldb.models.Artifact, raise_on_not_exists=False
+        db_session, server.api.db.sqldb.models.Artifact, raise_on_not_exists=False
     )
 
 
 def _migrate_artifacts_batch(
-    db: mlrun.api.db.sqldb.db.SQLDB,
+    db: server.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     last_migrated_artifact_id: int,
     batch_size: int,
@@ -554,14 +548,14 @@ def _migrate_artifacts_batch(
     link_artifact_ids = []
 
     # get artifacts from the db, sorted by id
-    query = db._query(db_session, mlrun.api.db.sqldb.models.Artifact)
+    query = db._query(db_session, server.api.db.sqldb.models.Artifact)
     if last_migrated_artifact_id > 0:
         # skip the artifacts that were already migrated
         query = query.filter(
-            mlrun.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
+            server.api.db.sqldb.models.Artifact.id > last_migrated_artifact_id
         )
 
-    query = query.order_by(mlrun.api.db.sqldb.models.Artifact.id).limit(batch_size)
+    query = query.order_by(server.api.db.sqldb.models.Artifact.id).limit(batch_size)
 
     artifacts = query.all()
 
@@ -570,7 +564,7 @@ def _migrate_artifacts_batch(
         return None, None
 
     for artifact in artifacts:
-        new_artifact = mlrun.api.db.sqldb.models.ArtifactV2()
+        new_artifact = server.api.db.sqldb.models.ArtifactV2()
 
         artifact_dict = artifact.struct
 
@@ -708,7 +702,7 @@ def _migrate_artifact_tags(
 
 
 def _mark_best_iteration_artifacts(
-    db: mlrun.api.db.sqldb.db.SQLDB,
+    db: server.api.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
     link_artifact_ids: list,
 ):
@@ -716,8 +710,8 @@ def _mark_best_iteration_artifacts(
 
     # get all link artifacts
     link_artifacts = (
-        db_session.query(mlrun.api.db.sqldb.models.Artifact)
-        .filter(mlrun.api.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
+        db_session.query(server.api.db.sqldb.models.Artifact)
+        .filter(server.api.db.sqldb.models.Artifact.id.in_(link_artifact_ids))
         .all()
     )
 
@@ -750,13 +744,13 @@ def _mark_best_iteration_artifacts(
             continue
 
         # get the artifacts attached to the link artifact
-        query = db._query(db_session, mlrun.api.db.sqldb.models.ArtifactV2).filter(
-            mlrun.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
-            mlrun.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
+        query = db._query(db_session, server.api.db.sqldb.models.ArtifactV2).filter(
+            server.api.db.sqldb.models.ArtifactV2.key == link_artifact_key,
+            server.api.db.sqldb.models.ArtifactV2.iteration == link_iteration,
         )
         if link_tree:
             query = query.filter(
-                mlrun.api.db.sqldb.models.ArtifactV2.producer_id == link_tree
+                server.api.db.sqldb.models.ArtifactV2.producer_id == link_tree
             )
 
         artifact = query.one_or_none()

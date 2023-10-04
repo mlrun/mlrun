@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 
+import itertools
 import os
 import typing
 
@@ -92,7 +93,7 @@ class ModelEndpoints:
             # Get labels from model object if not found in model endpoint object
             if not model_endpoint.spec.label_names and model_obj.spec.outputs:
                 model_label_names = [
-                    server.api.crud.model_monitoring.helpers.clean_feature_name(f.name)
+                    mlrun.feature_store.api.norm_column_name(f.name)
                     for f in model_obj.spec.outputs
                 ]
                 model_endpoint.spec.label_names = model_label_names
@@ -107,7 +108,13 @@ class ModelEndpoints:
                 == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
             ):
                 monitoring_feature_set = cls.create_monitoring_feature_set(
-                    model_endpoint, model_obj, db_session, run_db
+                    features=cls._get_features(
+                        model=model_obj,
+                        run_db=run_db,
+                        project=model_endpoint.metadata.project,
+                    ),
+                    model_endpoint=model_endpoint,
+                    db_session=db_session,
                 )
                 # Link model endpoint object to feature set URI
                 model_endpoint.status.monitoring_feature_set_uri = (
@@ -191,20 +198,54 @@ class ModelEndpoints:
         return self._convert_into_model_endpoint_object(endpoint=model_endpoint_record)
 
     @staticmethod
-    def create_monitoring_feature_set(
-        model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        model_obj: mlrun.artifacts.ModelArtifact,
-        db_session: sqlalchemy.orm.Session,
+    def _get_features(
+        model: mlrun.artifacts.ModelArtifact,
+        project: str,
         run_db: server.api.rundb.sqldb.SQLRunDB,
-    ):
+    ) -> list[mlrun.feature_store.Feature]:
+        """Get features to the feature set according to the model object"""
+        features = []
+        if model.spec.inputs:
+            for feature in itertools.chain(model.spec.inputs, model.spec.outputs):
+                name = mlrun.feature_store.api.norm_column_name(feature.name)
+                features.append(
+                    mlrun.feature_store.Feature(
+                        name=name, value_type=feature.value_type
+                    )
+                )
+        # Check if features can be found within the feature vector
+        elif model.spec.feature_vector:
+            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
+                model.spec.feature_vector
+            )
+            fv = run_db.get_feature_vector(name=name, project=project, tag=tag)
+            for feature in fv.status.features:
+                if feature["name"] != fv.status.label_column:
+                    name = mlrun.feature_store.api.norm_column_name(feature["name"])
+                    features.append(
+                        mlrun.feature_store.Feature(
+                            name=name, value_type=feature["value_type"]
+                        )
+                    )
+        else:
+            logger.warn(
+                "Could not find any features in the model object and in the Feature Vector"
+            )
+        logger.debug("Listed features", features=features)
+        return features
+
+    @staticmethod
+    def create_monitoring_feature_set(
+        features: list[mlrun.feature_store.Feature],
+        model_endpoint: mlrun.common.schemas.ModelEndpoint,
+        db_session: sqlalchemy.orm.Session,
+    ) -> mlrun.feature_store.FeatureSet:
         """
         Create monitoring feature set with the relevant parquet target.
 
+        :param features:          The features list for the feature set.
         :param model_endpoint:    An object representing the model endpoint.
-        :param model_obj:         An object representing the deployed model.
         :param db_session:        A session that manages the current dialog with the database.
-        :param run_db:            A run db instance which will be used for retrieving the feature vector in case
-                                  the features are not found in the model object.
 
         :return:                  Feature set object for the monitoring of the current model endpoint.
         """
@@ -227,48 +268,15 @@ class ModelEndpoints:
             timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
         )
-        feature_set.metadata.project = model_endpoint.metadata.project
+        feature_set.spec.features = features
 
+        feature_set.metadata.project = model_endpoint.metadata.project
         feature_set.metadata.labels = {
             mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: model_endpoint.metadata.uid,
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_CLASS: model_endpoint.spec.model_class,
         }
 
         feature_set.metadata.tag = model_endpoint.metadata.uid + "_"
-
-        # Add features to the feature set according to the model object
-        if model_obj.spec.inputs:
-            for feature in model_obj.spec.inputs:
-                feature_set.add_feature(
-                    mlrun.feature_store.Feature(
-                        name=feature.name, value_type=feature.value_type
-                    )
-                )
-            for feature in model_obj.spec.outputs:
-                feature_set.add_feature(
-                    mlrun.feature_store.Feature(
-                        name=feature.name, value_type=feature.value_type
-                    )
-                )
-        # Check if features can be found within the feature vector
-        elif model_obj.spec.feature_vector:
-            _, name, _, tag, _ = mlrun.utils.helpers.parse_artifact_uri(
-                model_obj.spec.feature_vector
-            )
-            fv = run_db.get_feature_vector(
-                name=name, project=model_endpoint.metadata.project, tag=tag
-            )
-            for feature in fv.status.features:
-                if feature["name"] != fv.status.label_column:
-                    feature_set.add_feature(
-                        mlrun.feature_store.Feature(
-                            name=feature["name"], value_type=feature["value_type"]
-                        )
-                    )
-        else:
-            logger.warn(
-                "Could not find any features in the model object and in the Feature Vector"
-            )
 
         # Define parquet target for this feature set
         parquet_path = (
@@ -591,12 +599,8 @@ class ModelEndpoints:
         """
         clean_feature_stats = {}
         clean_feature_names = []
-        for i, (feature, stats) in enumerate(
-            model_endpoint.status.feature_stats.items()
-        ):
-            clean_name = server.api.crud.model_monitoring.helpers.clean_feature_name(
-                feature
-            )
+        for feature, stats in model_endpoint.status.feature_stats.items():
+            clean_name = mlrun.feature_store.api.norm_column_name(feature)
             clean_feature_stats[clean_name] = stats
             # Exclude the label columns from the feature names
             if (

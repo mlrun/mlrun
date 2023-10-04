@@ -57,7 +57,6 @@ from .run import (
     get_pipeline,
     import_function,
     new_function,
-    run_local,
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server

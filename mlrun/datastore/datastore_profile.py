@@ -134,6 +134,13 @@ class DatastoreProfileS3(DatastoreProfile):
     secret_key: typing.Optional[str] = None
 
 
+class DatastoreProfileDBFS(DatastoreProfile):
+    type: str = pydantic.Field("dbfs")
+    _private_attributes = ("token",)
+    endpoint_url: typing.Optional[str] = None  # host
+    token: typing.Optional[str] = None
+
+
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
     _private_attributes = ("username", "password")

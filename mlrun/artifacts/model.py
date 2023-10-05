@@ -140,7 +140,8 @@ class ModelArtifact(Artifact):
     ):
 
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
-        if model_file and "://" in model_file:
+        model_file = str(model_file or "")
+        if model_file and "/" in model_file:
             model_dir = path.dirname(model_file)
             model_file = path.basename(model_file)
 
@@ -289,42 +290,15 @@ class ModelArtifact(Artifact):
         # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True and the user
         # didn't pass target_path explicitly, then target_path will be calculated right before uploading the artifact
         # using `resolve_<body/file>_target_hash_path`
-        target_model_path = (
-            path.join(self.spec.target_path, self.spec.model_file)
-            if self.spec.target_path
-            else None
+        target_model_path = None
+        if self.spec.target_path:
+            target_model_path = path.join(
+                self.spec.target_path, path.basename(self.spec.model_file)
+            )
+
+        target_model_path = self._upload_body_or_file(
+            artifact_path, target_model_path=target_model_path
         )
-        body = self.spec.get_body()
-        if body:
-            if not target_model_path:
-                (
-                    self.metadata.hash,
-                    target_model_path,
-                ) = self.resolve_body_target_hash_path(
-                    body=body, artifact_path=artifact_path
-                )
-            self._upload_body(
-                body, target=target_model_path, artifact_path=artifact_path
-            )
-        else:
-            src_model_path = _get_src_path(self, self.spec.model_file)
-            if not path.isfile(src_model_path):
-                raise ValueError(f"model file {src_model_path} not found")
-
-            if not target_model_path:
-                (
-                    self.metadata.hash,
-                    target_model_path,
-                ) = self.resolve_file_target_hash_path(
-                    source_path=src_model_path, artifact_path=artifact_path
-                )
-
-            self._upload_file(
-                src_model_path,
-                target_path=target_model_path,
-                artifact_path=artifact_path,
-            )
-
         upload_extra_data(
             artifact=self, extra_data=self.spec.extra_data, artifact_path=artifact_path
         )
@@ -341,7 +315,7 @@ class ModelArtifact(Artifact):
                 body=spec_body, artifact_path=artifact_path
             )
 
-            # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path will be
+            # if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash outputs True, then target_path
             # will point to the artifact path which is where the model and all its extra data are stored
             self.spec.target_path = (
                 artifact_path + "/"
@@ -351,12 +325,52 @@ class ModelArtifact(Artifact):
             # unlike in extra_data, which stores for each key the path to the file, in target_path we store the
             # target path dir, and because we generated the target path of the model from the artifact hash,
             # the model_file doesn't represent the actual target file name of the model, so we need to update it
-            self.spec.model_target_file = target_model_path.split("/")[-1]
+            self.spec.model_target_file = path.basename(target_model_path)
 
         spec_target_path = spec_target_path or path.join(
-            self.spec.target_path, model_spec_filename
+            self.spec.target_path, path.basename(model_spec_filename)
         )
         store_manager.object(url=spec_target_path).put(spec_body)
+
+    def _upload_body_or_file(
+        self,
+        artifact_path: str,
+        target_model_path: str = None,
+    ):
+
+        body = self.spec.get_body()
+        if body:
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_body_target_hash_path(
+                    body=body, artifact_path=artifact_path
+                )
+            self._upload_body(
+                body, target=target_model_path, artifact_path=artifact_path
+            )
+
+        else:
+            src_model_path = _get_src_path(self, self.spec.model_file)
+            if not path.isfile(src_model_path):
+                raise ValueError(f"Model file {src_model_path} not found")
+
+            if not target_model_path:
+                (
+                    self.metadata.hash,
+                    target_model_path,
+                ) = self.resolve_file_target_hash_path(
+                    source_path=src_model_path, artifact_path=artifact_path
+                )
+
+            self._upload_file(
+                src_model_path,
+                target_path=target_model_path,
+                artifact_path=artifact_path,
+            )
+
+        return target_model_path
 
     def _get_file_body(self):
         body = self.spec.get_body()

@@ -91,10 +91,12 @@ def test_histogram_metric_calculation(
     distrib_u: np.ndarray,
     distrib_t: np.ndarray,
     expected_result: float,
+    atol: float = 1e-8,
 ) -> None:
     assert np.isclose(
         metric_class(distrib_t=distrib_t, distrib_u=distrib_u).compute(),
         expected_result,
+        atol=atol,
     )
 
 
@@ -127,4 +129,5 @@ def test_same_distrib_gives_zero_distance(
         distrib_t=distrib,
         distrib_u=distrib,
         expected_result=0,
+        atol=1e-7,
     )

@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import copy
-import os
 import tempfile
 
 import deepdiff
@@ -21,6 +20,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
 import mlrun.utils
 import server.api.db.sqldb.models
@@ -727,17 +727,14 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         project=project,
     )
 
-    try:
-        # change working directory to temp directory so the state file will be created there
-        current_dir = os.getcwd()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.chdir(temp_dir)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # change the state file path to the temp directory for the test only
+        mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            temp_dir + "/_artifact_migration_state.json"
+        )
 
         # perform the migration
         server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
-    finally:
-        # change working directory back to original directory
-        os.chdir(current_dir)
 
     # validate the migration succeeded
     query_all = db._query(

@@ -79,20 +79,6 @@ def api_config_test():
     rundb_factory._rundb_container.reset_override()
     launcher_factory._launcher_container.reset_override()
 
-    # same for the launcher container
-    launcher_factory = mlrun.launcher.factory.LauncherFactory()
-    launcher_factory._launcher_container.override(
-        server.api.launcher.ServerSideLauncherContainer
-    )
-
-    yield
-
-    mlrun.config._is_running_as_api = None
-
-    # reset factory container overrides
-    rundb_factory._rundb_container.reset_override()
-    launcher_factory._launcher_container.reset_override()
-
 
 @pytest.fixture()
 def db() -> Generator:

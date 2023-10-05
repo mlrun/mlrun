@@ -19,6 +19,7 @@ import tempfile
 import traceback
 import typing
 import uuid
+import warnings
 
 import kfp.compiler
 from kfp import dsl
@@ -51,7 +52,7 @@ def get_workflow_engine(engine_kind, local=False):
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
-                "in order to run a local pipeline remotely, please use `engine='remote: local'` instead"
+                "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
@@ -76,11 +77,20 @@ class WorkflowSpec(mlrun.model.ModelObj):
         args=None,
         name=None,
         handler=None,
+        # TODO: deprecated, remove in 1.6.0
+        ttl=None,
         args_schema: dict = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
         image: str = None,
     ):
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
         self.engine = engine
         self.code = code
         self.path = path
@@ -771,6 +781,21 @@ class _RemoteRunner(_PipelineRunner):
                 project_name=project.name,
             )
 
+            # set it relative to project path
+            # as the runner pod will mount and use `load_and_run` which will use the project context
+            # to load the workflow file to.
+            # e.g.
+            # /path/to/project/workflow.py -> ./workflow.py
+            # /path/to/project/subdir/workflow.py -> ./workflow.py
+            if workflow_spec.path:
+                prefix = project.spec.get_code_path()
+                if workflow_spec.path.startswith(prefix):
+                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
+                    relative_prefix = "."
+                    if not workflow_spec.path.startswith("/"):
+                        relative_prefix += "/"
+                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
+
             workflow_response = run_db.submit_workflow(
                 project=project.name,
                 name=workflow_name,
@@ -894,6 +919,8 @@ def load_and_run(
     namespace: str = None,
     sync: bool = False,
     dirty: bool = False,
+    # TODO: deprecated, remove in 1.6.0
+    ttl: int = None,
     engine: str = None,
     local: bool = None,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
@@ -921,6 +948,8 @@ def load_and_run(
     :param namespace:           kubernetes namespace if other than default
     :param sync:                force functions sync before run
     :param dirty:               allow running the workflow when the git repo is dirty
+    :param ttl:                 pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                                workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
     :param engine:              workflow engine running the workflow.
                                 supported values are 'kfp' (default) or 'local'
     :param local:               run local pipeline with local functions (set local=True in function.run())
@@ -929,6 +958,14 @@ def load_and_run(
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
     """
+    if ttl:
+        warnings.warn(
+            "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+            "This will be removed in 1.6.0",
+            # TODO: Remove this in 1.6.0
+            FutureWarning,
+        )
+
     try:
         project = mlrun.load_project(
             context=f"./{project_name}",

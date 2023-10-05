@@ -1047,7 +1047,7 @@ class HTTPRunDB(RunDBInterface):
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
-            "label_selector": label_selector,
+            "label-selector": label_selector,
             "group-by": group_by,
             "kind": kind,
             "object-id": object_id,
@@ -1474,6 +1474,8 @@ class HTTPRunDB(RunDBInterface):
         namespace=None,
         artifact_path=None,
         ops=None,
+        # TODO: deprecated, remove in 1.6.0
+        ttl=None,
         cleanup_ttl=None,
     ):
         """Submit a KFP pipeline for execution.
@@ -1486,9 +1488,18 @@ class HTTPRunDB(RunDBInterface):
         :param namespace: Kubernetes namespace to execute the pipeline in.
         :param artifact_path: A path to artifacts used by this pipeline.
         :param ops: Transformers to apply on all ops in the pipeline.
+        :param ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the workflow
+            and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param cleanup_ttl: pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                             workflow and all its resources are deleted)
         """
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
 
         if isinstance(pipeline, str):
             pipe_file = pipeline
@@ -3291,6 +3302,11 @@ class HTTPRunDB(RunDBInterface):
             if hasattr(workflow_spec, "image")
             else workflow_spec.get("image", None)
         )
+        workflow_name = name or (
+            workflow_spec.name
+            if hasattr(workflow_spec, "name")
+            else workflow_spec.get("name", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -3298,16 +3314,20 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+        if isinstance(
+            workflow_spec,
+            mlrun.common.schemas.WorkflowSpec,
+        ):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+        req["spec"]["name"] = workflow_name
         response = self.api_call(
             "POST",
-            f"projects/{project}/workflows/{name}/submit",
+            f"projects/{project}/workflows/{workflow_name}/submit",
             json=req,
         )
         return mlrun.common.schemas.WorkflowResponse(**response.json())

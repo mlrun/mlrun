@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import collections
+import copy
 import json
 import re
 import traceback
@@ -37,6 +38,7 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
+import mlrun.utils.notifications.notification_pusher
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
@@ -44,8 +46,14 @@ from mlrun.api.utils.singletons.logs_dir import get_logs_dir
 from mlrun.api.utils.singletons.scheduler import get_scheduler
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.config import config
+from mlrun.db import RunDBInterface
 from mlrun.errors import err_to_str
-from mlrun.run import import_function, new_function
+from mlrun.run import (
+    compile_imported_function,
+    extend_hub_uri_if_needed,
+    import_function_to_dict,
+    new_function,
+)
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import get_in, logger
 
@@ -133,7 +141,7 @@ def get_secrets(
 
 def get_run_db_instance(
     db_session: Session,
-):
+) -> RunDBInterface:
     # TODO: getting the run db should be done seamlessly by the run db factory and not require this logic to
     #  inject the session
     db = get_db()
@@ -166,8 +174,23 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
         function = new_function(runtime=function_dict)
     else:
         if "://" in function_url:
-            function = import_function(
-                url=function_url, project=task.get("metadata", {}).get("project")
+            project_name = task.get("metadata", {}).get("project")
+            hub_function = False
+            db = mlrun.api.api.utils.get_run_db_instance(db_session)
+            if function_url.startswith(mlrun.utils.db_prefix):
+                url = function_url.removeprefix(mlrun.utils.db_prefix)
+                _project_name, name, tag, hash_key = parse_versioned_object_uri(url)
+                runtime = db.get_function(name, _project_name, tag, hash_key)
+                if not runtime:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Function {name}:{tag} not found in the DB",
+                    )
+            else:
+                url, hub_function = extend_hub_uri_if_needed(function_url, db=db)
+                runtime = import_function_to_dict(url)
+
+            function = compile_imported_function(
+                project_name, runtime, from_hub=hub_function
             )
         else:
             project, name, tag, hash_key = parse_versioned_object_uri(function_url)
@@ -935,7 +958,14 @@ def submit_run_sync(
 
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
-        logger.info("Submitting run", function=fn.to_dict(), task=task)
+
+        task_for_logging = copy.deepcopy(task)
+        for notification in task_for_logging["spec"].get("notifications", []):
+            mlrun.utils.notifications.notification_pusher.sanitize_notification(
+                notification
+            )
+
+        logger.info("Submitting run", function=fn.to_dict(), task=task_for_logging)
         schedule = data.get("schedule")
         if schedule:
             cron_trigger = schedule
@@ -1011,7 +1041,7 @@ def submit_run_sync(
             reason=f"runtime error: {err_to_str(err)}",
         )
 
-    logger.info("Run submission succeeded", response=response)
+    logger.info("Run submission succeeded", run_uid=run_uid, function=fn.metadata.name)
     return project, fn.kind, run_uid, {"data": response}
 
 

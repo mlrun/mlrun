@@ -26,7 +26,7 @@ import uuid
 import warnings
 import zipfile
 from os import environ, makedirs, path, remove
-from typing import Callable, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import dotenv
 import git
@@ -69,13 +69,7 @@ from ..utils import (
     logger,
     update_in,
 )
-from ..utils.clones import (
-    add_credentials_git_remote_url,
-    clone_git,
-    clone_tgz,
-    clone_zip,
-    get_repo_url,
-)
+from ..utils.clones import clone_git, clone_tgz, clone_zip, get_repo_url
 from ..utils.helpers import ensure_git_branch, resolve_git_reference_from_source
 from ..utils.notifications import CustomNotificationPusher, NotificationTypes
 from .operations import (
@@ -1271,7 +1265,7 @@ class MlrunProject(ModelObj):
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
         :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp" or "local")
+        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
@@ -1290,6 +1284,10 @@ class MlrunProject(ModelObj):
             raise ValueError(
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
+
+        # engine could be "remote" or "remote:local"
+        if image and ((engine and "remote" in engine) or schedule):
+            logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:
             if (
@@ -2144,29 +2142,19 @@ class MlrunProject(ModelObj):
         """get a list of all the project function names"""
         return [func["name"] for func in self.spec.functions]
 
-    def pull(
-        self,
-        branch: str = None,
-        remote: str = None,
-        secrets: Union[SecretsStore, dict] = None,
-    ):
+    def pull(self, branch=None, remote=None):
         """pull/update sources from git or tar into the context dir
 
         :param branch:  git branch, if not the current one
         :param remote:  git remote, if other than origin
-        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
         """
         url = self.spec.origin_url
         if url and url.startswith("git://"):
             if not self.spec.repo:
                 raise ValueError("repo was not initialized, use load_project()")
+            branch = branch or self.spec.repo.active_branch.name
             remote = remote or "origin"
-            self._run_authenticated_git_action(
-                action=self.spec.repo.git.pull,
-                remote=remote,
-                args=[remote, branch or self.spec.repo.active_branch.name],
-                secrets=secrets or {},
-            )
+            self.spec.repo.git.pull(remote, branch)
         elif url and url.endswith(".tar.gz"):
             clone_tgz(url, self.spec.context, self._secrets)
         elif url and url.endswith(".zip"):
@@ -2193,38 +2181,19 @@ class MlrunProject(ModelObj):
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
-    def push(
-        self,
-        branch,
-        message=None,
-        update=True,
-        remote: str = None,
-        add: list = None,
-        author_name: str = None,
-        author_email: str = None,
-        secrets: Union[SecretsStore, dict] = None,
-    ):
+    def push(self, branch, message=None, update=True, remote=None, add: list = None):
         """update spec and push updates to remote git repo
 
-        :param branch:       target git branch
-        :param message:      git commit message
-        :param update:       update files (git add update=True)
-        :param remote:       git remote, default to origin
-        :param add:          list of files to add
-        :param author_name:  author's git user name to be used on this commit
-        :param author_email: author's git user email to be used on this commit
-        :param secrets:      dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
+        :param branch:  target git branch
+        :param message: git commit message
+        :param update:  update files (git add update=True)
+        :param remote:  git remote, default to origin
+        :param add:     list of files to add
         """
         repo = self.spec.repo
         if not repo:
             raise ValueError("git repo is not set/defined")
         self.save()
-
-        with repo.config_writer() as config:
-            if author_name:
-                config.set_value("user", "name", author_name)
-            if author_email:
-                config.set_value("user", "email", author_email)
 
         add = add or []
         add.append("project.yaml")
@@ -2239,9 +2208,8 @@ class MlrunProject(ModelObj):
             except git.exc.GitCommandError as exc:
                 if "Please tell me who you are" in str(exc):
                     warning_message = (
-                        'Git is not configured. Either use "author_name", "author_email" and "secrets" parameters or '
-                        "run the following commands from the terminal and run git push once to store "
-                        "your credentials:\n"
+                        "Git is not configured, please run the following commands and run git push from the terminal "
+                        "once to store your credentials:\n"
                         '\tgit config --global user.email "<my@email.com>"\n'
                         '\tgit config --global user.name "<name>"\n'
                         "\tgit config --global credential.helper store\n"
@@ -2253,14 +2221,7 @@ class MlrunProject(ModelObj):
 
         if not branch:
             raise ValueError("please specify the remote branch")
-
-        remote = remote or "origin"
-        self._run_authenticated_git_action(
-            action=repo.git.push,
-            remote=remote,
-            args=[remote, branch],
-            secrets=secrets or {},
-        )
+        repo.git.push(remote or "origin", branch)
 
     def sync_functions(self, names: list = None, always=True, save=False):
         """reload function objects from specs and files"""
@@ -2420,12 +2381,16 @@ class MlrunProject(ModelObj):
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
+        # TODO: deprecated, remove in 1.6.0
+        ttl: int = None,
         engine: str = None,
         local: bool = None,
         schedule: typing.Union[
             str, mlrun.common.schemas.ScheduleCronTrigger, bool
         ] = None,
         timeout: int = None,
+        # TODO: deprecated, remove in 1.6.0
+        overwrite: bool = False,
         source: str = None,
         cleanup_ttl: int = None,
     ) -> _PipelineRunStatus:
@@ -2445,6 +2410,8 @@ class MlrunProject(ModelObj):
         :param sync:      force functions sync before run
         :param watch:     wait for pipeline completion
         :param dirty:     allow running the workflow when the git repo is dirty
+        :param ttl:       pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
+                          workflow and all its resources are deleted) (deprecated, use cleanup_ttl instead)
         :param engine:    workflow engine running the workflow.
                           supported values are 'kfp' (default), 'local' or 'remote'.
                           for setting engine for remote running use 'remote:local' or 'remote:kfp'.
@@ -2455,6 +2422,8 @@ class MlrunProject(ModelObj):
                           https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
                           for using the pre-defined workflow's schedule, set `schedule=True`
         :param timeout:   timeout in seconds to wait for pipeline completion (watch will be activated)
+        :param overwrite: (deprecated) replacing the schedule of the same workflow (under the same name) if exists
+                          with the new one.
         :param source:    remote source to use instead of the actual `project.spec.source` (used when engine is remote).
                           for other engines the source is to validate that the code is up-to-date
         :param cleanup_ttl:
@@ -2462,6 +2431,22 @@ class MlrunProject(ModelObj):
                           workflow and all its resources are deleted)
         :returns: run id
         """
+
+        if ttl:
+            warnings.warn(
+                "'ttl' is deprecated, use 'cleanup_ttl' instead. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
+
+        if overwrite:
+            warnings.warn(
+                "'overwrite' is deprecated, running a schedule is now an upsert operation. "
+                "This will be removed in 1.6.0",
+                # TODO: Remove this in 1.6.0
+                FutureWarning,
+            )
 
         arguments = arguments or {}
         need_repo = self.spec._need_repo()
@@ -2495,7 +2480,9 @@ class MlrunProject(ModelObj):
         else:
             workflow_spec = self.spec._workflows[name].copy()
             workflow_spec.merge_args(arguments)
-        workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
+        workflow_spec.cleanup_ttl = (
+            cleanup_ttl or ttl or workflow_spec.cleanup_ttl or workflow_spec.ttl
+        )
         workflow_spec.run_local = local
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
@@ -2510,6 +2497,8 @@ class MlrunProject(ModelObj):
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
+
+                # inner could be either kfp or local
                 engine, inner_engine = engine.split(":")
         elif workflow_spec.schedule:
             inner_engine = engine
@@ -3313,40 +3302,6 @@ class MlrunProject(ModelObj):
         :raise MLRunInvalidArgumentError: In case the packager was not in the list.
         """
         self.spec.remove_custom_packager(packager=packager)
-
-    def _run_authenticated_git_action(
-        self,
-        action: Callable,
-        remote: str,
-        args: list = [],
-        kwargs: dict = {},
-        secrets: Union[SecretsStore, dict] = None,
-    ):
-        """Run an arbitrary Git routine while the remote is enriched with secrets
-        Enrichment of the remote URL is undone before this method returns
-        If no secrets are provided, remote remains untouched
-
-        :param action:  git callback that may require authentication
-        :param remote:  git remote to be temporarily enriched with secrets
-        :param args:    positional arguments to be passed along to action
-        :param kwargs:  keyword arguments to be passed along to action
-        :param secrets: dict or SecretsStore with Git credentials e.g. secrets={"GIT_TOKEN": token}
-        """
-        clean_remote = self.spec.repo.remotes[remote].url
-        enriched_remote, is_remote_enriched = add_credentials_git_remote_url(
-            clean_remote, secrets=secrets or {}
-        )
-        try:
-            if is_remote_enriched:
-                self.spec.repo.remotes[remote].set_url(enriched_remote, clean_remote)
-            action(*args, **kwargs)
-        except RuntimeError as e:
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to run Git action: {action}"
-            ) from e
-        finally:
-            if is_remote_enriched:
-                self.spec.repo.remotes[remote].set_url(clean_remote, enriched_remote)
 
 
 def _set_as_current_default_project(project: MlrunProject):

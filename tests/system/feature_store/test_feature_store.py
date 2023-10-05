@@ -1765,10 +1765,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.columns) == 2
         assert "price_m" in resp.columns
 
-        # status should contain original feature name, not its alias
+        # status should contain the alias of the feature and not its original feature name
         features_in_status = [feature.name for feature in vector.status.features]
-        assert "price_max_1h" in features_in_status
-        assert "price_m" not in features_in_status
+        assert "price_max_1h" not in features_in_status
+        assert "price_m" in features_in_status
 
         vector.save()
         stats = vector.get_stats_table()
@@ -3228,7 +3228,7 @@ class TestFeatureStore(TestMLRunSystem):
         fstore.ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         quotes_set = fstore.FeatureSet(
-            "stock-quotes", entities=[fstore.Entity("ticker")]
+            "stock-quotes", entities=[fstore.Entity("ticker")], timestamp_key="time"
         )
 
         quotes_set.graph.to("storey.Extend", _fn="({'extra': event['bid'] * 77})").to(
@@ -3249,7 +3249,6 @@ class TestFeatureStore(TestMLRunSystem):
             quotes_set,
             quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 
@@ -4110,7 +4109,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -4123,7 +4124,6 @@ class TestFeatureStore(TestMLRunSystem):
             data_set,
             source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
         expected_df = pd.DataFrame(

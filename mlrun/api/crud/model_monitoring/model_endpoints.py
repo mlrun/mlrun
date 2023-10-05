@@ -72,6 +72,12 @@ class ModelEndpoints:
                 )
             )
 
+            mlrun.utils.helpers.verify_field_of_type(
+                field_name="model_endpoint.spec.model_uri",
+                field_value=model_obj,
+                expected_type=mlrun.artifacts.ModelArtifact,
+            )
+
             # Get stats from model object if not found in model endpoint object
             if not model_endpoint.status.feature_stats and hasattr(
                 model_obj, "feature_stats"
@@ -220,6 +226,11 @@ class ModelEndpoints:
             entities=[mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID],
             timestamp_key=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             description=f"Monitoring feature set for endpoint: {model_endpoint.spec.model}",
+        )
+
+        # Set the run db instance with the current db session
+        feature_set._override_run_db(
+            mlrun.api.api.utils.get_run_db_instance(db_session)
         )
         feature_set.metadata.project = model_endpoint.metadata.project
 

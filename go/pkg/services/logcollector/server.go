@@ -30,6 +30,7 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/common"
 	"github.com/mlrun/mlrun/pkg/common/bufferpool"
+	mlruncontext "github.com/mlrun/mlrun/pkg/context"
 	"github.com/mlrun/mlrun/pkg/framework"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/factory"
@@ -39,6 +40,7 @@ import (
 	"github.com/nuclio/logger"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -283,14 +285,19 @@ func (s *Server) StartLog(ctx context.Context,
 		}, err
 	}
 
+	// create a child context before calling goroutines, so it won't be canceled
+	// TODO: use https://pkg.go.dev/golang.org/x/tools@v0.5.0/internal/xcontext
+	logStreamCtx, cancelCtxFunc := mlruncontext.NewDetachedWithCancel(ctx)
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(context.WithoutCancel(ctx),
+	go s.startLogStreaming(logStreamCtx,
 		request.RunUID,
 		pod.Name,
 		request.ProjectName,
-		startedStreamingGoroutine)
+		request.LastLogTime,
+		startedStreamingGoroutine,
+		cancelCtxFunc)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
@@ -574,8 +581,8 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		"project", request.Project,
 		"numRunIDs", len(request.RunUIDs))
 
+	// remove each run uid from the state
 	errGroup, _ := errgroup.WithContext(ctx)
-	errGroup.SetLimit(10)
 	var failedToDeleteRunUIDs []string
 	for _, runUID := range request.RunUIDs {
 		runUID := runUID
@@ -607,15 +614,33 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	runUID,
 	podName,
 	projectName string,
-	startedStreamingGoroutine chan bool) {
+	lastLogTime int64,
+	startedStreamingGoroutine chan bool,
+	cancelCtxFunc context.CancelFunc) {
 
 	// in case of a panic, remove this goroutine from the current state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
 
+		// cancel all other goroutines spawned from this one
+		defer cancelCtxFunc()
+
+		// update last log time in state manifest, so we can start from the last log time
+		if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, lastLogTime); err != nil {
+			// if the pod ended properly, the run will be removed from the state file and the update will fail
+			// we can ignore this error and continue
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to update last log time, run may have ended",
+				"runUID", runUID,
+				"err", err.Error())
+		}
+
 		// remove this goroutine from in-current state
 		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
-			s.Logger.WarnWithCtx(ctx, "Failed to remove item from in memory state")
+			s.Logger.WarnWithCtx(ctx,
+				"Failed to remove item from in memory state",
+				"runUID", runUID,
+				"err", err.Error())
 		}
 
 		if err := recover(); err != nil {
@@ -665,6 +690,12 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	podLogOptions := &v1.PodLogOptions{
 		Follow: true,
 	}
+	// in case we failed in the middle of streaming logs, we want to start from the last log time
+	if lastLogTime > 0 {
+		podLogOptions.SinceTime = &metav1.Time{
+			Time: time.UnixMilli(lastLogTime),
+		}
+	}
 	restClientRequest := s.kubeClientSet.CoreV1().Pods(s.namespace).GetLogs(podName, podLogOptions)
 
 	// get the log stream - if the retry times out, the monitoring loop will restart log collection for this runUID
@@ -693,11 +724,17 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
-		keepLogging, err = s.streamPodLogs(ctx, runUID, file, stream)
+		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream, &lastLogTime)
 		if err != nil {
-			s.Logger.WarnWithCtx(ctx,
-				"An error occurred while streaming pod logs",
-				"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
+			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
+			// by bailing out
+			if !errors.Is(err, common.PodStillRunningError{
+				PodName: podName,
+			}) {
+				s.Logger.WarnWithCtx(ctx,
+					"An error occurred while streaming pod logs",
+					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
+			}
 
 			// fatal error, bail out
 			// note that when function is returned, a defer function will remove the
@@ -730,9 +767,11 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 // streamPodLogs streams logs from a pod to a file
 func (s *Server) streamPodLogs(ctx context.Context,
-	runUID string,
+	runUID,
+	podName string,
 	logFile *os.File,
-	stream io.ReadCloser) (bool, error) {
+	stream io.ReadCloser,
+	logTime *int64) (bool, error) {
 
 	// get a buffer from the pool - so we can share buffers across goroutines
 	buf := s.logCollectionBufferPool.Get()
@@ -741,6 +780,7 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	// read from the stream into the buffer
 	// this is non-blocking, it will return immediately if there is nothing to read
 	numBytesRead, err := stream.Read(buf)
+	*logTime = time.Now().UnixMilli()
 
 	if numBytesRead > 0 {
 
@@ -754,10 +794,34 @@ func (s *Server) streamPodLogs(ctx context.Context,
 		}
 	}
 
-	// if error is EOF, the pod is done streaming logs (deleted/completed/failed)
+	// if error is EOF, it either means the pod is done streaming logs, or the logs in the apiserver were rotated,
+	// in such case we need to get a new stream
 	if err == io.EOF {
-		s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
-		return false, nil
+
+		pod, err := s.kubeClientSet.CoreV1().Pods(s.namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				s.Logger.DebugWithCtx(ctx,
+					"Pod not found, it may have been evicted",
+					"runUID", runUID,
+					"podName", podName)
+				return false, nil
+			}
+			// some other error occurred
+			return false, errors.Wrap(err, "Failed to get pod")
+		}
+		// if the pod is not running, it is done streaming logs and we can stop
+		if pod.Status.Phase != v1.PodRunning {
+			s.Logger.DebugWithCtx(ctx, "Pod logs are done streaming", "runUID", runUID)
+			return false, nil
+		}
+
+		// the pod is still running - exit and without error, so the monitoring loop will continue
+		// to stream logs
+		s.Logger.DebugWithCtx(ctx, "Received EOF but pod is still running", "runUID", runUID)
+		return false, common.PodStillRunningError{
+			PodName: podName,
+		}
 	}
 
 	// other error occurred
@@ -928,6 +992,7 @@ func (s *Server) monitorLogCollection(ctx context.Context) {
 						RunUID:      logItem.RunUID,
 						Selector:    logItem.LabelSelector,
 						ProjectName: logItem.Project,
+						LastLogTime: logItem.LastLogTime,
 					}); err != nil {
 
 						s.Logger.WarnWithCtx(ctx,

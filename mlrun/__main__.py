@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -591,6 +592,13 @@ def build(
     default="",
     help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
 )
+# TODO: Remove in 1.6.0
+@click.option(
+    "--dashboard",
+    "-d",
+    default="",
+    help="Deprecated. Keep empty to allow auto-detect by MLRun API",
+)
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
 @click.option("--kind", "-k", default=None, help="runtime sub kind")
@@ -609,6 +617,7 @@ def deploy(
     spec,
     source,
     func_url,
+    dashboard,
     project,
     model,
     tag,
@@ -668,6 +677,14 @@ def deploy(
         for k, v in list2dict(env).items():
             function.set_env(k, v)
     function.verbose = verbose
+
+    if dashboard:
+        warnings.warn(
+            "'--dashboard' is deprecated in 1.3.0, and will be removed in 1.6.0, "
+            "Keep '--dashboard' value empty to allow auto-detection by MLRun API.",
+            # TODO: Remove in 1.6.0
+            FutureWarning,
+        )
 
     try:
         addr = function.deploy(project=project, tag=tag)
@@ -1006,6 +1023,14 @@ def logs(uid, project, offset, db, watch):
     "https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron."
     "For using the pre-defined workflow's schedule, set --schedule 'true'",
 )
+# TODO: Remove in 1.6.0
+@click.option(
+    "--overwrite-schedule",
+    "-os",
+    is_flag=True,
+    help="Deprecated (Saving schedules is now an upsert opertaion)."
+    " Overwrite a schedule when submitting a new one with the same name.",
+)
 @click.option(
     "--save-secrets",
     is_flag=True,
@@ -1045,6 +1070,7 @@ def project(
     timeout,
     schedule,
     notifications,
+    overwrite_schedule,
     save_secrets,
     save,
 ):
@@ -1134,6 +1160,7 @@ def project(
                 local=local,
                 schedule=schedule,
                 timeout=timeout,
+                overwrite=overwrite_schedule,
             )
         except Exception as err:
             print(traceback.format_exc())

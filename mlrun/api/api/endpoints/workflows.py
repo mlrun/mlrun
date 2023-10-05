@@ -17,7 +17,7 @@ import copy
 import traceback
 import typing
 from http import HTTPStatus
-from typing import Dict
+from typing import Dict, Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -53,6 +53,12 @@ async def submit_workflow(
         mlrun.api.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(mlrun.api.api.deps.get_db_session),
+    client_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    client_python_version: Optional[str] = fastapi.Header(
+        None, alias=mlrun.common.schemas.HeaderNames.python_version
+    ),
 ):
     """
     Submitting a workflow of existing project.
@@ -64,15 +70,17 @@ async def submit_workflow(
     in case of simply running a workflow, the returned run_id value is the id of the run of the auxiliary function.
     For getting the id and status of the workflow, use the `get_workflow_id` endpoint with the returned run id.
 
-    :param project:             name of the project
-    :param name:                name of the workflow
-    :param request:             fastapi request for supporting rerouting to chief if needed
-    :param workflow_request:    the request includes: workflow spec, arguments for the workflow, artifact path
-                                as the artifact target path of the workflow, source url of the project for overriding
-                                the existing one, run name to override the default: 'workflow-runner-<workflow name>'
-                                and kubernetes namespace if other than default
-    :param auth_info:           auth info of the request
-    :param db_session:          session that manages the current dialog with the database
+    :param project:               name of the project
+    :param name:                  name of the workflow
+    :param request:               fastapi request for supporting rerouting to chief if needed
+    :param workflow_request:      the request includes: workflow spec, arguments for the workflow, artifact path
+                                  as the artifact target path of the workflow, source url of the project for overriding
+                                  the existing one, run name to override the default: 'workflow-runner-<workflow name>'
+                                  and kubernetes namespace if other than default
+    :param auth_info:             auth info of the request
+    :param db_session:            session that manages the current dialog with the database
+    :param client_version:        SDK version used by the client
+    :param client_python_version: Python version running on client environment
 
     :returns: response that contains the project name, workflow name, name of the workflow,
              status, run id (in case of a single run) and schedule (in case of scheduling)
@@ -162,6 +170,18 @@ async def submit_workflow(
     run_uid = None
     status = None
     workflow_action = "schedule" if workflow_spec.schedule else "run"
+    workflow_runner.metadata.labels.update(
+        {
+            "job-type": "workflow-runner",
+            "workflow": workflow_request.spec.name,
+        }
+    )
+    if client_version is not None:
+        workflow_runner.metadata.labels["mlrun/client_version"] = client_version
+    if client_python_version is not None:
+        workflow_runner.metadata.labels[
+            "mlrun/client_python_version"
+        ] = client_python_version
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -220,26 +240,24 @@ def _is_requested_schedule(
         return workflow_spec.schedule is not None
 
     project_workflow = _get_workflow_by_name(project, name)
-    return bool(project_workflow.get("schedule"))
+    return bool(project_workflow.get("schedule")) if project_workflow else False
 
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.Project, name: str
 ) -> typing.Optional[Dict]:
     """
-    Getting workflow from project
+    Getting workflow from project by name.
 
     :param project:     MLRun project
     :param name:        workflow name
 
-    :return: workflow as a dict if project has the workflow, otherwise raises a bad request exception
+    :return: workflow as a dict if project has the workflow and empty dict if not.
     """
     for workflow in project.spec.workflows:
         if workflow["name"] == name:
             return workflow
-    log_and_raise(
-        reason=f"workflow {name} not found in project",
-    )
+    return {}
 
 
 def _fill_workflow_missing_fields_from_project(
@@ -258,7 +276,9 @@ def _fill_workflow_missing_fields_from_project(
 
     :return: completed workflow spec
     """
-    # Verifying workflow exists in project:
+
+    # while we expect workflow to be exists on project spec, we might get a case where the workflow is not exists.
+    # this is possible when workflow is not set prior to its execution.
     workflow = _get_workflow_by_name(project, workflow_name)
 
     if spec:
@@ -266,6 +286,13 @@ def _fill_workflow_missing_fields_from_project(
         # workflow while the provided workflow takes precedence over the existing workflow params
         workflow = copy.deepcopy(workflow)
         workflow = _update_dict(workflow, spec.dict())
+
+    if "name" not in workflow:
+        log_and_raise(
+            reason=f"workflow {workflow_name} not found in project"
+            if not workflow
+            else "workflow spec is invalid",
+        )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)
     # Overriding arguments of the existing workflow:

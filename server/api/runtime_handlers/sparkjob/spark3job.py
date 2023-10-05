@@ -184,11 +184,11 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:
             code = f"""
-    import mlrun.__main__ as ml
-    ctx = ml.main.make_context('main', {args})
-    with ctx:
-        result = ml.main.invoke(ctx)
-    """
+import mlrun.__main__ as ml
+ctx = ml.main.make_context('main', {args})
+with ctx:
+    result = ml.main.invoke(ctx)
+"""
 
         update_in(job, "spec.driver.env", extra_env + runtime.spec.env)
         update_in(job, "spec.executor.env", extra_env + runtime.spec.env)

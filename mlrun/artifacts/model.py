@@ -328,7 +328,7 @@ class ModelArtifact(Artifact):
             self.spec.model_target_file = path.basename(target_model_path)
 
         spec_target_path = spec_target_path or path.join(
-            self.spec.target_path, path.basename(model_spec_filename)
+            self.spec.target_path, model_spec_filename
         )
         store_manager.object(url=spec_target_path).put(spec_body)
 

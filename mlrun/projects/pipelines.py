@@ -51,7 +51,7 @@ def get_workflow_engine(engine_kind, local=False):
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
-                "in order to run a local pipeline remotely, please use `engine='remote: local'` instead"
+                "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
     if not engine_kind or engine_kind == "kfp":
@@ -770,6 +770,21 @@ class _RemoteRunner(_PipelineRunner):
                 schedule=workflow_spec.schedule,
                 project_name=project.name,
             )
+
+            # set it relative to project path
+            # as the runner pod will mount and use `load_and_run` which will use the project context
+            # to load the workflow file to.
+            # e.g.
+            # /path/to/project/workflow.py -> ./workflow.py
+            # /path/to/project/subdir/workflow.py -> ./workflow.py
+            if workflow_spec.path:
+                prefix = project.spec.get_code_path()
+                if workflow_spec.path.startswith(prefix):
+                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
+                    relative_prefix = "."
+                    if not workflow_spec.path.startswith("/"):
+                        relative_prefix += "/"
+                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
 
             workflow_response = run_db.submit_workflow(
                 project=project.name,

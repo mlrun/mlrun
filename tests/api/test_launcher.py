@@ -19,12 +19,11 @@ from contextlib import nullcontext as does_not_raise
 import pytest
 from fastapi.testclient import TestClient
 
-import mlrun.api.api.utils
-import mlrun.api.launcher
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+import server.api.launcher
+import server.api.utils.clients.iguazio
 import tests.api.api.utils
 
 
@@ -45,7 +44,7 @@ def test_create_server_side_launcher(is_remote, local, expectation):
             is_remote,
             local=local,
         )
-        assert isinstance(launcher, mlrun.api.launcher.ServerSideLauncher)
+        assert isinstance(launcher, server.api.launcher.ServerSideLauncher)
 
 
 def test_enrich_runtime_with_auth_info(
@@ -53,7 +52,7 @@ def test_enrich_runtime_with_auth_info(
 ):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     monkeypatch.setattr(
-        mlrun.api.utils.clients.iguazio,
+        server.api.utils.clients.iguazio,
         "AsyncClient",
         lambda *args, **kwargs: unittest.mock.AsyncMock(),
     )

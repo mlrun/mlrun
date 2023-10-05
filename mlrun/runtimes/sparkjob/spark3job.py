@@ -19,22 +19,39 @@ import kubernetes.client
 import mlrun.common.schemas.function
 import mlrun.errors
 import mlrun.runtimes.pod
+from mlrun.config import config
 
-from ...utils import update_in, verify_and_update_in, verify_field_regex
+from ...execution import MLClientCtx
+from ...model import RunObject
+from ...platforms.iguazio import mount_v3io, mount_v3iod
+from ...utils import update_in, verify_field_regex
+from ..kubejob import KubejobRuntime
+from ..pod import KubeResourceSpec
 from ..utils import (
     generate_resources,
     get_gpu_from_resource_requirement,
+    get_item_name,
     verify_limits,
     verify_requests,
 )
-from .abstract import AbstractSparkJobSpec, AbstractSparkRuntime
 
 
-class Spark3JobSpec(AbstractSparkJobSpec):
+class Spark3JobSpec(KubeResourceSpec):
     _jvm_memory_resource_notation = r"^[0-9]+[KkMmGg]$"
 
     # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/55732a6a392cbe1d6546c7ec6823193ab055d2fa/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L181
-    _dict_fields = AbstractSparkJobSpec._dict_fields + [
+    _dict_fields = KubeResourceSpec._dict_fields + [
+        "driver_resources",
+        "executor_resources",
+        "job_type",
+        "python_version",
+        "spark_version",
+        "restart_policy",
+        "deps",
+        "main_class",
+        "spark_conf",
+        "hadoop_conf",
+        "use_default_image",
         "monitoring",
         "driver_node_selector",
         "executor_node_selector",
@@ -140,6 +157,22 @@ class Spark3JobSpec(AbstractSparkJobSpec):
             security_context=security_context,
             clone_target_dir=clone_target_dir,
         )
+
+        self._driver_resources = self.enrich_resources_with_default_pod_resources(
+            "driver_resources", driver_resources
+        )
+        self._executor_resources = self.enrich_resources_with_default_pod_resources(
+            "executor_resources", executor_resources
+        )
+        self.spark_conf = spark_conf or {}
+        self.hadoop_conf = hadoop_conf or {}
+        self.job_type = job_type
+        self.python_version = python_version
+        self.spark_version = spark_version
+        self.restart_policy = restart_policy or {}
+        self.deps = deps or {}
+        self.main_class = main_class
+        self.use_default_image = use_default_image
 
         self.driver_resources = driver_resources or {}
         self.executor_resources = executor_resources or {}
@@ -386,118 +419,47 @@ class Spark3JobSpec(AbstractSparkJobSpec):
                     resource_value,
                 )
 
+    @property
+    def driver_resources(self) -> dict:
+        return self._driver_resources
 
-class Spark3Runtime(AbstractSparkRuntime):
-    def _enrich_job(self, job):
-        if self.spec.priority_class_name:
-            verify_and_update_in(
-                job,
-                "spec.batchSchedulerOptions.priorityClassName",
-                self.spec.priority_class_name,
-                str,
-            )
-
-        verify_and_update_in(
-            job,
-            "spec.driver.cores",
-            self.spec.driver_cores or 1,
-            int,
+    @driver_resources.setter
+    def driver_resources(self, resources):
+        self._driver_resources = self.enrich_resources_with_default_pod_resources(
+            "driver_resources", resources
         )
-        # By default we set this to 1 in the parent class. Here we override the value if requested.
-        if self.spec.executor_cores:
-            verify_and_update_in(
-                job,
-                "spec.executor.cores",
-                self.spec.executor_cores,
-                int,
-            )
 
-        if self.spec.dynamic_allocation:
-            if "enabled" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.enabled",
-                    self.spec.dynamic_allocation["enabled"],
-                )
-            if "initialExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.initialExecutors",
-                    self.spec.dynamic_allocation["initialExecutors"],
-                )
-            if "minExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.minExecutors",
-                    self.spec.dynamic_allocation["minExecutors"],
-                )
-            if "maxExecutors" in self.spec.dynamic_allocation:
-                update_in(
-                    job,
-                    "spec.dynamicAllocation.maxExecutors",
-                    self.spec.dynamic_allocation["maxExecutors"],
-                )
-        update_in(job, "spec.driver.serviceAccount", "sparkapp")
-        update_in(
-            job, "spec.executor.serviceAccount", self.spec.service_account or "sparkapp"
+    @property
+    def executor_resources(self) -> dict:
+        return self._executor_resources
+
+    @executor_resources.setter
+    def executor_resources(self, resources):
+        self._executor_resources = self.enrich_resources_with_default_pod_resources(
+            "executor_resources", resources
         )
-        if self.spec.driver_node_selector:
-            update_in(job, "spec.driver.nodeSelector", self.spec.driver_node_selector)
-        if self.spec.executor_node_selector:
-            update_in(
-                job, "spec.executor.nodeSelector", self.spec.executor_node_selector
-            )
-        if self.spec.driver_tolerations:
-            update_in(job, "spec.driver.tolerations", self.spec.driver_tolerations)
-        if self.spec.executor_tolerations:
-            update_in(job, "spec.executor.tolerations", self.spec.executor_tolerations)
 
-        if self.spec.driver_affinity:
-            update_in(job, "spec.driver.affinity", self.spec.driver_affinity)
-        if self.spec.executor_affinity:
-            update_in(job, "spec.executor.affinity", self.spec.executor_affinity)
 
-        if self.spec.monitoring:
-            if "enabled" in self.spec.monitoring and self.spec.monitoring["enabled"]:
-                update_in(job, "spec.monitoring.exposeDriverMetrics", True)
-                update_in(job, "spec.monitoring.exposeExecutorMetrics", True)
-                if "exporter_jar" in self.spec.monitoring:
-                    update_in(
-                        job,
-                        "spec.monitoring.prometheus.jmxExporterJar",
-                        self.spec.monitoring["exporter_jar"],
-                    )
+class Spark3Runtime(KubejobRuntime):
+    group = "sparkoperator.k8s.io"
+    version = "v1beta2"
+    apiVersion = group + "/" + version
+    kind = "spark"
+    plural = "sparkapplications"
 
-        if self.spec.driver_volume_mounts:
-            update_in(
-                job,
-                "spec.driver.volumeMounts",
-                self.spec.driver_volume_mounts,
-                append=True,
-            )
-        if self.spec.executor_volume_mounts:
-            update_in(
-                job,
-                "spec.executor.volumeMounts",
-                self.spec.executor_volume_mounts,
-                append=True,
-            )
-        if self.spec.driver_java_options:
-            update_in(
-                job,
-                "spec.driver.javaOptions",
-                self.spec.driver_java_options,
-            )
-        if self.spec.executor_java_options:
-            update_in(
-                job,
-                "spec.executor.javaOptions",
-                self.spec.executor_java_options,
-            )
-        return
+    # the dot will make the api prefix the configured registry to the image name
+    default_mlrun_image = ".spark-job-default-image"
+    gpu_suffix = "-cuda"
+    code_script = "spark-function-code.py"
+    code_path = "/etc/config/mlrun"
 
-    def _get_spark_version(self):
-        return "3.1.2"
+    @property
+    def spec(self) -> Spark3JobSpec:
+        return self._spec
+
+    @spec.setter
+    def spec(self, spec):
+        self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def _get_igz_deps(self):
         return {
@@ -510,14 +472,6 @@ class Spark3Runtime(AbstractSparkRuntime):
             ],
             "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
         }
-
-    @property
-    def spec(self) -> Spark3JobSpec:
-        return self._spec
-
-    @spec.setter
-    def spec(self, spec):
-        self._spec = self._verify_dict(spec, "spec", Spark3JobSpec)
 
     def with_node_selection(
         self,
@@ -540,6 +494,16 @@ class Spark3Runtime(AbstractSparkRuntime):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 "Tolerations can be set in spark runtime but not in with_node_selection"
                 "Instead, use with_driver_node_selection and with_executor_node_selection to set tolerations"
+            )
+        if node_name:
+            raise NotImplementedError(
+                "Setting node name is not supported for spark runtime"
+            )
+        # TODO add affinity support
+        # https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/blob/master/pkg/apis/sparkoperator.k8s.io/v1beta2/types.go#L491
+        if affinity:
+            raise NotImplementedError(
+                "Setting affinity is not supported for spark runtime"
             )
         super().with_node_selection(node_name, node_selector, affinity, tolerations)
 
@@ -775,7 +739,33 @@ class Spark3Runtime(AbstractSparkRuntime):
 
         :param mount_v3io_to_executor: When False, limits the file system mount to driver pod only. Default is True.
         """
-        super().with_igz_spark(mount_v3io_to_executor)
+        self._update_igz_jars(deps=self._get_igz_deps())
+        self.apply(mount_v3io(name="v3io"))
+
+        # if we only want to mount v3io on the driver, move v3io
+        # mounts from common volume mounts to driver volume mounts
+        if not mount_v3io_to_executor:
+            v3io_mounts = []
+            non_v3io_mounts = []
+            for mount in self.spec.volume_mounts:
+                if get_item_name(mount) == "v3io":
+                    v3io_mounts.append(mount)
+                else:
+                    non_v3io_mounts.append(mount)
+            self.spec.volume_mounts = non_v3io_mounts
+            self.spec.driver_volume_mounts += v3io_mounts
+
+        self.apply(
+            mount_v3iod(
+                namespace=config.namespace,
+                v3io_config_configmap="spark-operator-v3io-config",
+            )
+        )
+        if config.spark_history_server_path:
+            self.spec.spark_conf["spark.eventLog.enabled"] = "true"
+            self.spec.spark_conf["spark.eventLog.dir"] = (
+                "file://" + config.spark_history_server_path
+            )
         if "enabled" not in self.spec.monitoring or self.spec.monitoring["enabled"]:
             self._with_monitoring(
                 exporter_jar="/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
@@ -811,3 +801,243 @@ class Spark3Runtime(AbstractSparkRuntime):
                     f"driver_cores must be an integer greater than or equal to 1. Got: {driver_cores}"
                 )
             self.spec.driver_cores = driver_cores
+
+    @classmethod
+    def _get_default_deployed_mlrun_image_name(cls, with_gpu=False):
+        suffix = cls.gpu_suffix if with_gpu else ""
+        return cls.default_mlrun_image + suffix
+
+    @classmethod
+    def deploy_default_image(cls, with_gpu=False):
+        from mlrun.run import new_function
+
+        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
+        sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
+
+        # setting required resources
+        sj.with_executor_requests(cpu=1, mem="512m")
+        sj.with_driver_requests(cpu=1, mem="512m")
+
+        sj.deploy()
+        mlrun.db.get_run_db().delete_function(name=sj.metadata.name)
+
+    def _is_using_gpu(self):
+        driver_limits = self.spec.driver_resources.get("limits")
+        driver_gpu = None
+        if driver_limits:
+            _, driver_gpu = self._get_gpu_type_and_quantity(resources=driver_limits)
+
+        executor_limits = self.spec.executor_resources.get("limits")
+        executor_gpu = None
+        if executor_limits:
+            _, executor_gpu = self._get_gpu_type_and_quantity(resources=executor_limits)
+
+        return bool(driver_gpu or executor_gpu)
+
+    @property
+    def _default_image(self):
+        if config.spark_app_image_tag and config.spark_app_image:
+            return (
+                config.spark_app_image
+                + (self.gpu_suffix if self._is_using_gpu() else "")
+                + ":"
+                + config.spark_app_image_tag
+            )
+        return None
+
+    def deploy(
+        self,
+        watch=True,
+        with_mlrun=True,
+        skip_deployed=False,
+        is_kfp=False,
+        mlrun_version_specifier=None,
+        builder_env: dict = None,
+        show_on_failure: bool = False,
+    ):
+        """deploy function, build container with dependencies
+
+        :param watch:                   wait for the deploy to complete (and print build logs)
+        :param with_mlrun:              add the current mlrun package to the container build
+        :param skip_deployed:           skip the build if we already have an image for the function
+        :param is_kfp:                  deploy as part of a kfp pipeline
+        :param mlrun_version_specifier: which mlrun package version to include (if not current)
+        :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
+                                        e.g. builder_env={"GIT_TOKEN": token}
+        :param show_on_failure:         show logs only in case of build failure
+
+        :return True if the function is ready (deployed)
+        """
+        # connect will populate the config from the server config
+        mlrun.db.get_run_db()
+        if not self.spec.build.base_image:
+            self.spec.build.base_image = self._default_image
+        return super().deploy(
+            watch=watch,
+            with_mlrun=with_mlrun,
+            skip_deployed=skip_deployed,
+            is_kfp=is_kfp,
+            mlrun_version_specifier=mlrun_version_specifier,
+            builder_env=builder_env,
+            show_on_failure=show_on_failure,
+        )
+
+    @staticmethod
+    def _get_gpu_type_and_quantity(resources):
+        gpu_type = [
+            resource_type
+            for resource_type in resources.keys()
+            if resource_type not in ["cpu", "memory"]
+        ]
+        if len(gpu_type) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Sparkjob supports only a single gpu type"
+            )
+        gpu_quantity = resources[gpu_type[0]] if gpu_type else 0
+        return gpu_type[0] if gpu_type else None, gpu_quantity
+
+    def _pre_run(self, runobj: RunObject, execution: MLClientCtx):
+        if self.spec.build.source and self.spec.build.load_source_on_run:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Sparkjob does not support loading source code on run, "
+                "use func.with_source_archive(pull_at_runtime=False)"
+            )
+
+        super()._pre_run(runobj, execution)
+
+    def _update_igz_jars(self, deps):
+        if not self.spec.deps:
+            self.spec.deps = {}
+        if "jars" in deps:
+            if "jars" not in self.spec.deps:
+                self.spec.deps["jars"] = []
+            self.spec.deps["jars"] += deps["jars"]
+        if "files" in deps:
+            if "files" not in self.spec.deps:
+                self.spec.deps["files"] = []
+            self.spec.deps["files"] += deps["files"]
+
+    def with_limits(
+        self,
+        mem=None,
+        cpu=None,
+        gpus=None,
+        gpu_type="nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        raise NotImplementedError(
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
+        )
+
+    def with_requests(self, mem=None, cpu=None, patch: bool = False):
+        raise NotImplementedError(
+            "In spark runtimes, use 'with_driver_requests' & 'with_executor_requests'"
+        )
+
+    def gpus(self, gpus, gpu_type="nvidia.com/gpu"):
+        raise NotImplementedError(
+            "In spark runtimes, use 'with_driver_limits' & 'with_executor_limits'"
+        )
+
+    def with_executor_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set executor pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("executor_resources", mem, cpu, patch=patch)
+
+    def with_executor_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set executor pod limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "executor_resources", None, cpu, gpus, gpu_type, patch=patch
+        )
+
+    def with_driver_requests(
+        self, mem: str = None, cpu: str = None, patch: bool = False
+    ):
+        """
+        set driver pod required cpu/memory/gpu resources
+        by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
+        """
+        self.spec._verify_and_set_requests("driver_resources", mem, cpu, patch=patch)
+
+    def with_driver_limits(
+        self,
+        cpu: str = None,
+        gpus: int = None,
+        gpu_type: str = "nvidia.com/gpu",
+        patch: bool = False,
+    ):
+        """
+        set driver pod cpu limits
+        by default it overrides the whole limits section, if you wish to patch specific resources use `patch=True`.
+        """
+        # in spark operator there is only use of mem passed through requests,
+        # limits is set to the same value so passing mem=None
+        self.spec._verify_and_set_limits(
+            "driver_resources", None, cpu, gpus, gpu_type, patch=patch
+        )
+
+    def with_restart_policy(
+        self,
+        restart_type="OnFailure",
+        retries=0,
+        retry_interval=10,
+        submission_retries=3,
+        submission_retry_interval=20,
+    ):
+        """set restart policy
+        restart_type=OnFailure/Never/Always"""
+        update_in(self.spec.restart_policy, "type", restart_type)
+        update_in(self.spec.restart_policy, "retries", retries)
+        update_in(self.spec.restart_policy, "retry_interval", retry_interval)
+        update_in(self.spec.restart_policy, "submission_retries", submission_retries)
+        update_in(
+            self.spec.restart_policy,
+            "submission_retry_interval",
+            submission_retry_interval,
+        )
+
+    def with_source_archive(
+        self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+    ):
+        """load the code from git/tar/zip archive at runtime or build
+
+        :param source:          valid path to git, zip, or tar file, e.g.
+                                git://github.com/mlrun/something.git
+                                http://some/url/file.zip
+        :param handler:         default function handler
+        :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
+        :param pull_at_runtime: not supported for spark runtime, must be False
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
+        """
+        if pull_at_runtime:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "pull_at_runtime is not supported for spark runtime, use pull_at_runtime=False"
+            )
+
+        super().with_source_archive(
+            source, workdir, handler, pull_at_runtime, target_dir
+        )
+
+    def is_deployed(self):
+        if (
+            not self.spec.build.source
+            and not self.spec.build.commands
+            and not self.spec.build.extra
+        ):
+            return True
+        return super().is_deployed()

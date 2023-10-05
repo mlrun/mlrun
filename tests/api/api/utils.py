@@ -18,11 +18,6 @@ from http import HTTPStatus
 import httpx
 from fastapi.testclient import TestClient
 
-import mlrun.api.api.endpoints.functions
-import mlrun.api.crud
-import mlrun.api.utils
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.schemas

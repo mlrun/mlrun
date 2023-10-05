@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import mlrun.model
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -31,8 +31,8 @@ class ModelEndpointSpec(mlrun.model.ModelObj):
         model: Optional[str] = "",
         model_class: Optional[str] = "",
         model_uri: Optional[str] = "",
-        feature_names: Optional[List[str]] = None,
-        label_names: Optional[List[str]] = None,
+        feature_names: Optional[list[str]] = None,
+        label_names: Optional[list[str]] = None,
         stream_path: Optional[str] = "",
         algorithm: Optional[str] = "",
         monitor_configuration: Optional[dict] = None,
@@ -62,10 +62,10 @@ class ModelEndpointStatus(mlrun.model.ModelObj):
         error_count: Optional[int] = 0,
         drift_status: Optional[str] = "",
         drift_measures: Optional[dict] = None,
-        metrics: Optional[Dict[str, Dict[str, Any]]] = None,
-        features: Optional[List[Dict[str, Any]]] = None,
-        children: Optional[List[str]] = None,
-        children_uids: Optional[List[str]] = None,
+        metrics: Optional[dict[str, dict[str, Any]]] = None,
+        features: Optional[list[dict[str, Any]]] = None,
+        children: Optional[list[str]] = None,
+        children_uids: Optional[list[str]] = None,
         endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value,
         monitoring_feature_set_uri: Optional[str] = "",
         state: Optional[str] = "",

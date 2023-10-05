@@ -1423,6 +1423,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target_df = target.as_df()
         target_df.set_index(key, drop=True, inplace=True)
         assert resp_df.equals(target_df)
+        assert "department" not in resp_df
 
     # ML-2802, ML-3397
     @pytest.mark.parametrize(

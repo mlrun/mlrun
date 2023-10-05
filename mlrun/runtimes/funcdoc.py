@@ -16,18 +16,20 @@ import ast
 import inspect
 import re
 
+from deprecated import deprecated
+
 from mlrun.model import FunctionEntrypoint
 
 
-def type_name(ann):
+def type_name(ann, empty_is_none=False):
     if ann is inspect.Signature.empty:
-        return ""
+        return None if empty_is_none else ""
     return getattr(ann, "__name__", str(ann))
 
 
 def inspect_default(value):
     if value is inspect.Signature.empty:
-        return ""
+        return None
     return repr(value)
 
 
@@ -41,12 +43,14 @@ def inspect_param(param: inspect.Parameter) -> dict:
 # We're using dict and not classes (here and in func_dict) since this goes
 # directly to YAML
 def param_dict(name="", type="", doc="", default=""):
-    return {
-        "default": default,
+    return_value = {
         "doc": doc,
         "name": name,
         "type": type,
     }
+    if default is not None:
+        return_value["default"] = default
+    return return_value
 
 
 def func_dict(
@@ -69,6 +73,12 @@ def func_dict(
     }
 
 
+# TODO: remove in 1.7.0
+@deprecated(
+    version="1.5.0",
+    reason="'func_info' is deprecated and will be removed in 1.7.0, use 'ast_func_info' instead",
+    category=FutureWarning,
+)
 def func_info(fn) -> dict:
     sig = inspect.signature(fn)
     doc = inspect.getdoc(fn) or ""
@@ -77,7 +87,9 @@ def func_info(fn) -> dict:
         name=fn.__name__,
         doc=doc,
         params=[inspect_param(p) for p in sig.parameters.values()],
-        returns=param_dict(type=type_name(sig.return_annotation)),
+        returns=param_dict(
+            type=type_name(sig.return_annotation, empty_is_none=True), default=None
+        ),
         lineno=func_lineno(fn),
     )
 
@@ -173,7 +185,9 @@ def parse_rst(docstring: str):
 
 def ast_func_info(func: ast.FunctionDef):
     doc = ast.get_docstring(func) or ""
-    rtype = getattr(func.returns, "id", "")
+    rtype = None
+    if func.returns:
+        rtype = ast.unparse(func.returns)
     params = [ast_param_dict(p) for p in func.args.args]
     # adds info about *args and **kwargs to the function doc
     has_varargs = func.args.vararg is not None
@@ -187,7 +201,7 @@ def ast_func_info(func: ast.FunctionDef):
         name=func.name,
         doc=doc,
         params=params,
-        returns=param_dict(type=rtype),
+        returns=param_dict(type=rtype, default=None),
         lineno=func.lineno,
         has_varargs=has_varargs,
         has_kwargs=has_kwargs,
@@ -204,7 +218,6 @@ def ast_param_dict(param: ast.arg) -> dict:
         "name": param.arg,
         "type": ann_type(param.annotation) if param.annotation else "",
         "doc": "",
-        "default": "",
     }
 
 
@@ -288,6 +301,8 @@ def as_func(handler):
         parameters=[clean(p) for p in handler["params"]],
         outputs=[ret] if ret else None,
         lineno=handler["lineno"],
+        has_varargs=handler["has_varargs"],
+        has_kwargs=handler["has_kwargs"],
     ).to_dict()
 
 

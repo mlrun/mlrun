@@ -21,6 +21,10 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
 
+# Update existing requirements to remedy basic security vulnerabilities
+# e.g.: wheel, requests, etc.
+RUN conda update --all --use-local --yes && conda clean --all --quiet --yes
+
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context

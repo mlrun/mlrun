@@ -14,7 +14,6 @@
 import inspect
 import os
 import typing
-import uuid
 from enum import Enum
 
 import dotenv
@@ -36,15 +35,12 @@ from ..k8s_utils import (
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
 )
-from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in
+from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
-    get_k8s,
-    get_resource_labels,
     set_named_item,
     verify_limits,
     verify_requests,
@@ -1169,169 +1165,6 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    def _get_meta(self, runobj, unique=False):
-        namespace = get_k8s().resolve_namespace()
-
-        labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        new_meta = k8s_client.V1ObjectMeta(
-            namespace=namespace,
-            annotations=self.metadata.annotations or runobj.metadata.annotations,
-            labels=labels,
-        )
-
-        name = runobj.metadata.name or "mlrun"
-        norm_name = f"{normalize_name(name)}-"
-        if unique:
-            norm_name += uuid.uuid4().hex[:8]
-            new_meta.name = norm_name
-            runobj.set_label("mlrun/job", norm_name)
-        else:
-            new_meta.generate_name = norm_name
-        return new_meta
-
-    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj=runobj, project=project)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
-            )
-        else:
-            self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
-
-    def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
-        secret_name = (
-            k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
-        )
-        if not secret_name:
-            logger.warning(
-                "No k8s secret provided. Azure key vault will not be available"
-            )
-            return
-
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        secret_path = mlconf.secret_stores.azure_vault.secret_path.replace("~", "/root")
-        volumes = [
-            {
-                "name": "azure-vault-secret",
-                "secret": {"defaultMode": 420, "secretName": secret_name},
-            }
-        ]
-        volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-
-    def _add_k8s_secrets_to_spec(
-        self,
-        secrets,
-        runobj=None,
-        project=None,
-        encode_key_names=True,
-    ):
-        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
-        # project secrets, to allow project secret keys to override them
-        global_secret_name = (
-            mlconf.secret_stores.kubernetes.global_function_env_secret_name
-        )
-        if mlrun.config.is_running_as_api() and global_secret_name:
-            global_secrets = get_k8s().get_secret_data(global_secret_name)
-            for key, value in global_secrets.items():
-                env_var_name = (
-                    SecretsStore.k8s_env_variable_name_for_secret(key)
-                    if encode_key_names
-                    else key
-                )
-                self.set_env_from_secret(env_var_name, global_secret_name, key)
-
-        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
-        # it's a different case than None (not asking for project secrets at all).
-        if (
-            secrets is None
-            and not mlconf.secret_stores.kubernetes.auto_add_project_secrets
-        ):
-            return
-
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add k8s secrets")
-            return
-
-        secret_name = get_k8s().get_project_secret_name(project_name)
-        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
-        # in the nuclio remote-dashboard flow, which causes dependency problems.
-        existing_secret_keys = get_k8s().get_project_secret_keys(
-            project_name, filter_internal=True
-        )
-
-        # If no secrets were passed or auto-adding all secrets, we need all existing keys
-        if not secrets:
-            secrets = {
-                key: SecretsStore.k8s_env_variable_name_for_secret(key)
-                if encode_key_names
-                else key
-                for key in existing_secret_keys
-            }
-
-        for key, env_var_name in secrets.items():
-            if key in existing_secret_keys:
-                self.set_env_from_secret(env_var_name, secret_name, key)
-
-        # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
-        # can be initialized with those env variables as secrets
-        if not encode_key_names and secrets.keys():
-            self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
-
-    def _add_vault_params_to_spec(self, runobj=None, project=None):
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add vault parameters")
-            return
-
-        service_account_name = (
-            mlconf.secret_stores.vault.project_service_account_name.format(
-                project=project_name
-            )
-        )
-
-        project_vault_secret_name = get_k8s().get_project_vault_secret_name(
-            project_name, service_account_name
-        )
-        if project_vault_secret_name is None:
-            logger.info(f"No vault secret associated with project {project_name}")
-            return
-
-        volumes = [
-            {
-                "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
-            }
-        ]
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-
-        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
-
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append(
-            {
-                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": f"project:{project_name}",
-            }
-        )
-        # In case remote URL is different than local URL, use it. Else, use the local URL
-        vault_url = mlconf.secret_stores.vault.remote_url
-        if vault_url == "":
-            vault_url = mlconf.secret_stores.vault.url
-
-        self.spec.env.append(
-            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
-        )
-
     def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:
             logger.debug(
@@ -1367,25 +1200,6 @@ class KubeResource(BaseRuntime):
                 )
 
         self.spec.validate_service_account(allowed_service_accounts)
-
-
-def kube_resource_spec_to_pod_spec(
-    kube_resource_spec: KubeResourceSpec, container: k8s_client.V1Container
-):
-    return k8s_client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=kube_resource_spec.volumes,
-        service_account=kube_resource_spec.service_account,
-        node_name=kube_resource_spec.node_name,
-        node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity,
-        priority_class_name=kube_resource_spec.priority_class_name
-        if len(mlconf.get_valid_function_priority_class_names())
-        else None,
-        tolerations=kube_resource_spec.tolerations,
-        security_context=kube_resource_spec.security_context,
-    )
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

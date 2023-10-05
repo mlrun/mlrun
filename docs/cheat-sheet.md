@@ -142,10 +142,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.7'
+        python-version: '3.9'
         architecture: 'x64'
     
     - name: Install mlrun
@@ -220,7 +220,7 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-models")
+dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/mlrun")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = 'NodePort'
@@ -1103,7 +1103,7 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-models")
+dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/mlrun")
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

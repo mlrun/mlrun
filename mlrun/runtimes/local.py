@@ -30,7 +30,6 @@ from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
 
-from distributed import Client, as_completed
 from nuclio import Event
 
 import mlrun
@@ -52,6 +51,8 @@ class ParallelRunner:
         return handler
 
     def _get_dask_client(self, options):
+        from distributed import Client
+
         if options.dask_cluster_uri:
             function = mlrun.import_function(options.dask_cluster_uri)
             return function.client, function.metadata.name
@@ -60,6 +61,9 @@ class ParallelRunner:
     def _parallel_run_many(
         self, generator, execution: MLClientCtx, runobj: RunObject
     ) -> RunList:
+        # TODO: this flow assumes we use dask - move it to dask runtime
+        from distributed import as_completed
+
         if self.spec.build.source and generator.options.dask_cluster_uri:
             # the attached dask cluster will not have the source code when we clone the git on run
             raise mlrun.errors.MLRunRuntimeError(

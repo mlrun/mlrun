@@ -96,7 +96,13 @@ class HellingerDistance(HistogramDistanceMetric, metric_name="hellinger"):
 
         :returns: Hellinger Distance
         """
-        return np.sqrt(1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)))
+        return np.sqrt(
+            max(
+                1 - np.sum(np.sqrt(self.distrib_u * self.distrib_t)),
+                0,  # numerical errors may produce small negative numbers, e.g. -1e-16.
+                # However, Cauchy-Schwarz inequality assures this number is in the range [0, 1]
+            )
+        )
 
 
 class KullbackLeiblerDivergence(HistogramDistanceMetric, metric_name="kld"):

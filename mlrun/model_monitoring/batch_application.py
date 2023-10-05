@@ -89,7 +89,7 @@ class BatchApplicationProcessor:
         )
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.APPS_PARQUET,
         )
         self.storage_options = None
         if not mlrun.mlconf.is_ce_mode():
@@ -304,6 +304,7 @@ class BatchApplicationProcessor:
                 current_stats,
                 feature_stats,
                 parquet_directory,
+                start_time,
                 end_time,
                 endpoint_id,
                 latest_request,
@@ -345,76 +346,66 @@ class BatchApplicationProcessor:
             self.batch_dict[pair_list[0]] = float(pair_list[1])
 
     @staticmethod
-    def _get_parquet_path(
-        parquet_directory: str, schedule_time: datetime.datetime, endpoint_id: str
-    ):
-        schedule_time_str = ""
-        for unit, fmt in [
-            ("year", "%Y"),
-            ("month", "%m"),
-            ("day", "%d"),
-            ("hour", "%H"),
-            ("minute", "%M"),
-        ]:
-            schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
+    def _get_parquet_path(parquet_directory: str, endpoint_id: str):
         endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID}={endpoint_id}"
-
-        return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
+        return f"{parquet_directory}/{endpoint_str}"
 
     def _delete_old_parquet(self):
         """Delete all the sample parquets that were saved yesterday - (
         change it to be configurable & and more simple)"""
-        _, schedule_time = BatchApplicationProcessor._get_interval_range(
-            self.batch_dict
-        )
-        threshold_date = schedule_time - datetime.timedelta(days=1)
-        threshold_year = threshold_date.year
-        threshold_month = threshold_date.month
-        threshold_day = threshold_date.day
-
-        base_directory = get_monitoring_parquet_path(
-            project=self.project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
-        )
-        target = ParquetTarget(path=base_directory)
-        fs = target._get_store().get_filesystem()
-
-        try:
-            # List all subdirectories in the base directory
-            years_subdirectories = fs.listdir(base_directory)
-
-            for y_subdirectory in years_subdirectories:
-                year = int(y_subdirectory["name"].split("/")[-1].split("=")[1])
-                if year == threshold_year:
-                    month_subdirectories = fs.listdir(y_subdirectory["name"])
-                    for m_subdirectory in month_subdirectories:
-                        month = int(m_subdirectory["name"].split("/")[-1].split("=")[1])
-                        if month == threshold_month:
-                            day_subdirectories = fs.listdir(m_subdirectory["name"])
-                            for d_subdirectory in day_subdirectories:
-                                day = int(
-                                    d_subdirectory["name"].split("/")[-1].split("=")[1]
-                                )
-                                if day == threshold_day - 1:
-                                    fs.rm(path=d_subdirectory["name"], recursive=True)
-                        elif month == threshold_month - 1 and threshold_day == 1:
-                            fs.rm(path=m_subdirectory["name"], recursive=True)
-                elif (
-                    year == threshold_year - 1
-                    and threshold_month == 1
-                    and threshold_day == 1
-                ):
-                    fs.rm(path=y_subdirectory["name"], recursive=True)
-        except FileNotFoundError as exc:
-            logger.warn(
-                f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
-            )
+        # _, schedule_time = BatchApplicationProcessor._get_interval_range(
+        #     self.batch_dict
+        # )
+        # threshold_date = schedule_time - datetime.timedelta(days=1)
+        # threshold_year = threshold_date.year
+        # threshold_month = threshold_date.month
+        # threshold_day = threshold_date.day
+        #
+        # base_directory = get_monitoring_parquet_path(
+        #     project=self.project,
+        #     kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+        # )
+        # target = ParquetTarget(path=base_directory)
+        # fs = target._get_store().get_filesystem()
+        #
+        # try:
+        #     # List all subdirectories in the base directory
+        #     years_subdirectories = fs.listdir(base_directory)
+        #
+        #     for y_subdirectory in years_subdirectories:
+        #         year = int(y_subdirectory["name"].split("/")[-1].split("=")[1])
+        #         if year == threshold_year:
+        #             month_subdirectories = fs.listdir(y_subdirectory["name"])
+        #             for m_subdirectory in month_subdirectories:
+        #                 month = int(m_subdirectory["name"].split("/")[-1].split("=")[1])
+        #                 if month == threshold_month:
+        #                     day_subdirectories = fs.listdir(m_subdirectory["name"])
+        #                     for d_subdirectory in day_subdirectories:
+        #                         day = int(
+        #                             d_subdirectory["name"].split("/")[-1].split("=")[1]
+        #                         )
+        #                         if day == threshold_day - 1:
+        #                             fs.rm(path=d_subdirectory["name"], recursive=True)
+        #                 elif month == threshold_month - 1 and threshold_day == 1:
+        #                     fs.rm(path=m_subdirectory["name"], recursive=True)
+        #         elif (
+        #             year == threshold_year - 1
+        #             and threshold_month == 1
+        #             and threshold_day == 1
+        #         ):
+        #             fs.rm(path=y_subdirectory["name"], recursive=True)
+        # except FileNotFoundError as exc:
+        #     logger.warn(
+        #         f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
+        #     )
+        return
 
     @staticmethod
     def _push_to_applications(
         current_stats,
         feature_stats,
         parquet_directory,
+        start_time,
         end_time,
         endpoint_id,
         latest_request,
@@ -428,6 +419,7 @@ class BatchApplicationProcessor:
         :param current_stats:       Current statistics of input data.
         :param feature_stats:       Statistics of train features.
         :param parquet_directory:   Directory where sample Parquet files are stored.
+        :param start_time:          Start time of the monitoring schedule.
         :param end_time:            End time of the monitoring schedule.
         :param endpoint_id:         Identifier for the model endpoint.
         :param latest_request:      Timestamp of the latest model request.
@@ -440,10 +432,12 @@ class BatchApplicationProcessor:
             mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
             mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
                 parquet_directory=parquet_directory,
-                schedule_time=end_time,
                 endpoint_id=endpoint_id,
             ),
-            mm_constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
+            mm_constants.ApplicationEvent.START_PROCESSING_TIME: start_time.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constants.ApplicationEvent.END_PROCESSING_TIME: end_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
@@ -503,13 +497,13 @@ class BatchApplicationProcessor:
                 mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
                     endpoint_id
                 ],
-                "scheduled_time": [end_time],
+                "end_processing_time": [end_time],
             }
         )
         offline_response = fstore.get_offline_features(
             feature_vector=vector,
             entity_rows=entity_rows,
-            entity_timestamp_column="scheduled_time",
+            entity_timestamp_column="end_processing_time",
             start_time=start_time,
             end_time=end_time,
             timestamp_for_filtering=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,

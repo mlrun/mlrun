@@ -173,21 +173,7 @@ class ModelMonitoringWriter(StepToDict):
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
-            return _AppResultEvent(
-                {
-                    key: event[key]
-                    for key in (
-                        WriterEvent.ENDPOINT_ID,
-                        WriterEvent.SCHEDULE_TIME,
-                        WriterEvent.APPLICATION_NAME,
-                        WriterEvent.RESULT_NAME,
-                        WriterEvent.RESULT_KIND,
-                        WriterEvent.RESULT_VALUE,
-                        WriterEvent.RESULT_STATUS,
-                        WriterEvent.RESULT_EXTRA_DATA,
-                    )
-                }
-            )
+            return _AppResultEvent({key: event[key] for key in WriterEvent.list()})
         except KeyError as err:
             raise _WriterEventValueError(
                 "The received event misses some keys compared to the expected "

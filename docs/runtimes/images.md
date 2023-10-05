@@ -44,7 +44,6 @@ For example, running `MLRUN_VERSION=x.y.z make docker-images` generates these im
 - mlrun/mlrun-gpu:x.y.z
 - mlrun/jupyter:x.y.z
 - mlrun/ml-base:x.y.z
-- mlrun/ml-models:x.y.z
 
 You can also build only a specific image, for example, `make mlrun` (builds only the api image).
 

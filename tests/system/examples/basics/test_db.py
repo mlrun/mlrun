@@ -38,10 +38,8 @@ class TestDB(TestMLRunSystem):
         )
 
         self._logger.debug("Running dummy task")
-        function = mlrun.new_function(name="dummy", kind="job")
-        run_object = function.run(
-            task, command="training.py", workdir=str(self.assets_path), local=True
-        )
+        function = mlrun.new_function(name="dummy", kind="job", command="training.py")
+        run_object = function.run(task, workdir=str(self.assets_path), local=True)
         self._logger.debug(
             "Finished running dummy task", run_object=run_object.to_dict()
         )

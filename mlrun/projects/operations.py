@@ -24,6 +24,10 @@ from .pipelines import enrich_function_object, pipeline_context
 
 def _get_engine_and_function(function, project=None):
     is_function_object = not isinstance(function, str)
+    if not is_function_object and not function:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "function name (str) or object must be specified"
+        )
     project = project or pipeline_context.project
     if not is_function_object:
         if function.startswith(hub_prefix):

@@ -56,6 +56,7 @@ yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
 
 hub_prefix = "hub://"
+db_prefix = "db://"
 DB_SCHEMA = "store"
 
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
@@ -698,11 +699,12 @@ def generate_artifact_uri(project, key, tag=None, iter=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
+def extend_hub_uri_if_needed(uri, db=None) -> Tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
+    :param db: DB interface
 
     :return: A tuple of:
                [0] = Extended URI of item
@@ -712,7 +714,10 @@ def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     if not is_hub_uri:
         return uri, is_hub_uri
 
-    db = mlrun.get_run_db()
+    # for backward compatibility
+    if not db:
+        db = mlrun.get_run_db()
+
     name = uri.removeprefix(hub_prefix)
     tag = "latest"
     source_name = ""

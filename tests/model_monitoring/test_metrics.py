@@ -102,7 +102,7 @@ def _norm_arr(arr: np.ndarray) -> np.ndarray:
     arr_sum = arr.sum()
     if not arr_sum:
         return np.array([1])
-    return arr_sum / arr_sum.sum()
+    return arr / arr_sum.sum()
 
 
 @pytest.mark.parametrize(

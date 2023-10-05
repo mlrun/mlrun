@@ -201,6 +201,10 @@ class ModelMonitoringApplication(StepToDict):
                      [7] = (str) endpoint id
                      [8] = (str) output stream uri
         """
+        start_time = pd.Timestamp(
+            event[mm_constant.ApplicationEvent.START_PROCESSING_TIME]
+        )
+        end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_PROCESSING_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
             ModelMonitoringApplication._dict_to_histogram(
@@ -211,9 +215,9 @@ class ModelMonitoringApplication(StepToDict):
             ),
             ParquetTarget(
                 path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
-            ).as_df(),
-            pd.Timestamp(event[mm_constant.ApplicationEvent.START_PROCESSING_TIME]),
-            pd.Timestamp(event[mm_constant.ApplicationEvent.END_PROCESSING_TIME]),
+            ).as_df(start_time=start_time, end_time=end_time),
+            start_time,
+            end_time,
             pd.Timestamp(event[mm_constant.ApplicationEvent.LAST_REQUEST]),
             event[mm_constant.ApplicationEvent.ENDPOINT_ID],
             event[mm_constant.ApplicationEvent.OUTPUT_STREAM_URI],

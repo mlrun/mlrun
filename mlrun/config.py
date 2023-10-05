@@ -37,6 +37,7 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.errors
 from mlrun.errors import err_to_str
 
@@ -1012,10 +1013,7 @@ class Config:
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project)
 
-            if (
-                application_name
-                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
-            ):
+            if application_name != mm_constant.MonitoringFunctionNames.STREAM:
                 return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
                     project=project,
                     kind=kind

@@ -528,8 +528,8 @@ def import_function_to_dict(url, secrets=None):
                 raise ValueError("exec path (spec.command) must be relative")
             url = url[: url.rfind("/") + 1] + code_file
             code = get_object(url, secrets)
-            if path.dirname(code_file):
-                makedirs(path.dirname(code_file), exist_ok=True)
+            if code_dir := path.dirname(code_file):
+                makedirs(code_dir, exist_ok=True)
             with open(code_file, "wb") as fp:
                 fp.write(code)
         elif cmd:

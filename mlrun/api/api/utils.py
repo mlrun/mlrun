@@ -175,7 +175,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
     else:
         if "://" in function_url:
             project_name = task.get("metadata", {}).get("project")
-            hub_function = function_url.startswith(mlrun.utils.hub_prefix)
+            hub_function = False
             db = mlrun.api.api.utils.get_run_db_instance(db_session)
             if function_url.startswith(mlrun.utils.db_prefix):
                 url = function_url.removeprefix(mlrun.utils.db_prefix)
@@ -183,7 +183,7 @@ def _generate_function_and_task_from_submit_run_body(db_session: Session, data):
                 runtime = db.get_function(name, _project_name, tag, hash_key)
                 if not runtime:
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"function {name}:{tag} not found in the DB",
+                        f"Function {name}:{tag} not found in the DB",
                     )
             else:
                 url, hub_function = extend_hub_uri_if_needed(function_url, db=db)

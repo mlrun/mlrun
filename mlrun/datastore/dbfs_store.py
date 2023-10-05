@@ -85,6 +85,7 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
         if url.startswith("ds://"):
             parsed_url = urlparse(url)
             url = parsed_url.path[1:]
+            url = f"/{url}" if url and url[0] != "/" else url
         return super()._strip_protocol(url)
 
 

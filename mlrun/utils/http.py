@@ -58,9 +58,6 @@ class HTTPSessionWithRetry(requests.Session):
         requests.exceptions.ConnectTimeout,
         requests.exceptions.ReadTimeout,
         urllib3.exceptions.ReadTimeoutError,
-        # may occur when connection breaks during the request.
-        requests.exceptions.ChunkedEncodingError,
-        urllib3.exceptions.InvalidChunkLength,
     ]
 
     def __init__(

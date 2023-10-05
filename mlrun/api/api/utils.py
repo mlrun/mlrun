@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import collections
-import copy
 import json
 import re
 import traceback
@@ -38,7 +37,6 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
-import mlrun.utils.notifications.notification_pusher
 from mlrun.api.db.sqldb.db import SQLDB
 from mlrun.api.rundb.sqldb import SQLRunDB
 from mlrun.api.utils.singletons.db import get_db
@@ -937,14 +935,7 @@ def submit_run_sync(
 
         run_db = get_run_db_instance(db_session)
         fn.set_db_connection(run_db)
-
-        task_for_logging = copy.deepcopy(task)
-        for notification in task_for_logging["spec"].get("notifications", []):
-            mlrun.utils.notifications.notification_pusher.sanitize_notification(
-                notification
-            )
-
-        logger.info("Submitting run", function=fn.to_dict(), task=task_for_logging)
+        logger.info("Submitting run", function=fn.to_dict(), task=task)
         schedule = data.get("schedule")
         if schedule:
             cron_trigger = schedule
@@ -1020,7 +1011,7 @@ def submit_run_sync(
             reason=f"runtime error: {err_to_str(err)}",
         )
 
-    logger.info("Run submission succeeded", run_uid=run_uid, function=fn.metadata.name)
+    logger.info("Run submission succeeded", response=response)
     return project, fn.kind, run_uid, {"data": response}
 
 

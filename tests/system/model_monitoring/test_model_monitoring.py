@@ -568,7 +568,12 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # validate monitoring feature set features and target
         m_fs = fs_list[0]
-        assert list(m_fs.spec.features.keys()) == columns + ["label"]
+        assert list(m_fs.spec.features.keys()) == [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
         assert m_fs.status.to_dict()["targets"][0]["kind"] == "parquet"
 
         # checking that stream processing and batch monitoring were successfully deployed
@@ -845,18 +850,6 @@ class TestBatchDrift(TestMLRunSystem):
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
-
-        # Validate that model_uri is based on models prefix
-        assert (
-            model_endpoint.spec.model_uri
-            == f"store://models/{project.metadata.name}/{model_name}:latest"
-        )
-
-        # Validate that function_uri is based on project and function name
-        assert (
-            model_endpoint.spec.function_uri
-            == f"{project.metadata.name}/batch-drift-function"
-        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured

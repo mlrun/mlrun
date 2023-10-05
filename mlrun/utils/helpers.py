@@ -33,7 +33,6 @@ from typing import Any, List, Optional, Tuple
 import anyio
 import git
 import numpy as np
-import packaging.version
 import pandas
 import semver
 import yaml
@@ -1516,14 +1515,3 @@ def is_explicit_ack_supported(context):
         "kafka-cluster",
         "kafka",
     ]
-
-
-def line_terminator_kwargs():
-    # pandas 1.5.0 renames line_terminator to lineterminator
-    line_terminator_parameter = (
-        "lineterminator"
-        if packaging.version.Version(pandas.__version__)
-        >= packaging.version.Version("1.5.0")
-        else "line_terminator"
-    )
-    return {line_terminator_parameter: "\n"}

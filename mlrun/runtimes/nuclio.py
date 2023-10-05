@@ -65,7 +65,7 @@ def nuclio_jobs_handler(context, event):
     if out:
         context.logger.info(f"logging run results to: {out}")
 
-    newspec = event.body or {}
+    newspec = event.body
     if newspec and not isinstance(newspec, dict):
         newspec = json.loads(newspec)
 
@@ -75,7 +75,6 @@ def nuclio_jobs_handler(context, event):
         autocommit=False,
         log_stream=context.logger,
         host=socket.gethostname(),
-        store_run=False,
     )
 
     # Inject project secrets from env. variables to the context

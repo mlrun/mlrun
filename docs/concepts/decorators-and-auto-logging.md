@@ -122,6 +122,8 @@ If you use only the name without the type, the following mapping is used:
 | bytearray                | Object        |
 | matplotlib.pyplot.Figure | Plot          |
 | plotly.graph_objs.Figure | Plot          |
+| bokeh.plotting.Figure    | Plot          |
+
 
 Refer to the {py:func}`mlrun.handler` for more details.
 

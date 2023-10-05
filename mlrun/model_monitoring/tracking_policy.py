@@ -26,7 +26,10 @@ class TrackingPolicy(mlrun.model.ModelObj):
     model monitoring stream.
     """
 
-    _dict_fields = ["default_batch_image", "stream_image", "application_batch"]
+    _dict_fields = [
+        "default_batch_image",
+        "stream_image",
+    ]
 
     def __init__(
         self,
@@ -35,7 +38,6 @@ class TrackingPolicy(mlrun.model.ModelObj):
         ] = mlrun.common.schemas.schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
-        application_batch: bool = False,
     ):
         """
         Initialize TrackingPolicy object.
@@ -48,7 +50,6 @@ class TrackingPolicy(mlrun.model.ModelObj):
                                             is mlrun/mlrun.
         :param stream_image:                The image of the model monitoring stream real-time function. By default,
                                             the image is mlrun/mlrun.
-        :param application_batch
         """
         if isinstance(default_batch_intervals, str):
             default_batch_intervals = (
@@ -59,7 +60,6 @@ class TrackingPolicy(mlrun.model.ModelObj):
         self.default_batch_intervals = default_batch_intervals
         self.default_batch_image = default_batch_image
         self.stream_image = stream_image
-        self.application_batch = application_batch
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):

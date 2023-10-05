@@ -11,7 +11,6 @@ mlrun-execution-context
 decorators-and-auto-logging
 submitting-tasks-jobs-to-functions
 workflow-overview
-/runtimes/configuring-job-resources
 scheduled-jobs
 notifications
 ```

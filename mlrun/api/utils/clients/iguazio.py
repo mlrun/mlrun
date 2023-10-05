@@ -352,17 +352,13 @@ class Client(
         params = {}
         if updated_after is not None:
             time_string = updated_after.isoformat().split("+")[0]
-            params["filter[updated_at]"] = f"[$gt]{time_string}Z"
+            params = {"filter[updated_at]": f"[$gt]{time_string}Z"}
         if page_size is None:
             page_size = (
                 mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
             )
         if page_size is not None:
             params["page[size]"] = int(page_size)
-
-        # avoid getting projects that are in the process of being deleted
-        # this is done to avoid race condition between deleting the project flow and sync mechanism
-        params["filter[operational_status]"] = "[$ne]deleting"
 
         response = self._send_request_to_api(
             "GET",

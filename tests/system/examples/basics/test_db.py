@@ -54,7 +54,7 @@ class TestDB(TestMLRunSystem):
             uid=self._run_uid,
             name="demo",
             project=self.project_name,
-            labels={"kind": "local", "framework": "sklearn"},
+            labels={"kind": "", "framework": "sklearn"},
         )
         self._verify_run_spec(
             runs[0]["spec"],

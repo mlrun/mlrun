@@ -13,37 +13,42 @@ click~=8.0.0
 # with the new features, therefore limiting to 1.8.13
 kfp~=1.8.0, <1.8.14
 nest-asyncio~=1.0
-ipython~=8.10
+ipython~=8.0
 nuclio-jupyter~=0.9.12
 # >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
 numpy>=1.16.5, <1.23.0
-pandas>=1.2, <3
+# limiting pandas to <1.5.0 since 1.5.0 causes exception in storey on casting from ns to us
+pandas~=1.2, <1.5.0
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
 # <12 to prevent bugs due to major upgrading
 pyarrow>=10.0, <12
 pyyaml~=5.1
-requests~=2.31
+requests~=2.22
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
 v3io~=0.5.21
 # pydantic 1.10.8 fixes a bug with literal and typing-extension 4.6.0
 # https://docs.pydantic.dev/latest/changelog/#v1108-2023-05-23
 pydantic~=1.10, >=1.10.8
+# blacklist 3.8.12 due to a bug not being able to collect traceback of exceptions
+orjson~=3.3, <3.8.12
 mergedeep~=1.3
-v3io-frames~=0.10.7
+v3io-frames~=0.10.4
 semver~=3.0
-dask~=2023.9.0
-distributed~=2023.9.0
+dask~=2021.11.2
+distributed~=2021.11.2
+# iguazio systems are running 1.17-1.21 so ideally we would use 17.X or later, but kfp limiting to <13.0
+kubernetes~=12.0
 dependency-injector~=4.41
 fsspec>=2023.1,<2023.7
 v3iofs~=0.1.15
-storey~=1.6.0
+storey~=1.5.6
+deepdiff~=5.0
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above
-setuptools~=68.2
+setuptools~=65.5
 deprecated~=1.2
 jinja2~=3.1
 anyio~=3.5
-orjson~=3.9

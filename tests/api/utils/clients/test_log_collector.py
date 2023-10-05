@@ -267,8 +267,8 @@ class TestLogCollector:
         message = f"{failure_message}, error: {error_message}"
         assert (
             deepdiff.DeepDiff(
-                str(error),
-                str(expected_mlrun_error(message)),
+                error,
+                expected_mlrun_error(message),
             )
             == {}
         )

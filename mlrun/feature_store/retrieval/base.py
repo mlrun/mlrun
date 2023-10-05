@@ -21,7 +21,7 @@ import pandas as pd
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
-from mlrun.feature_store.feature_vector import JoinGraph
+from mlrun.feature_store.feature_vector import Feature, JoinGraph
 
 from ...utils import logger, str_to_timestamp
 from ..feature_vector import OfflineVectorResponse
@@ -136,11 +136,7 @@ class BaseMerger(abc.ABC):
             order_by=order_by,
         )
 
-    def _write_to_offline_target(self, timestamp_key=None):
-        save_vector = False
-        if not self._drop_indexes and timestamp_key not in self._drop_columns:
-            self.vector.status.timestamp_key = timestamp_key
-            save_vector = True
+    def _write_to_offline_target(self):
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -148,14 +144,18 @@ class BaseMerger(abc.ABC):
                     "target path was not specified"
                 )
             self._target.set_resource(self.vector)
-            size = self._target.write_dataframe(
-                self._result_df, timestamp_key=self.vector.status.timestamp_key
-            )
+            size = self._target.write_dataframe(self._result_df)
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
-            save_vector = True
-        if save_vector:
+                self.vector.save()
+        if not self._drop_indexes:
+            self.vector.spec.entity_fields = [
+                Feature(name=feature, value_type=self._result_df[feature].dtype)
+                if self._result_df[feature].dtype.name != "object"
+                else Feature(name=feature, value_type="str")
+                for feature in self._index_columns
+            ]
             self.vector.save()
 
     def _set_indexes(self, df):
@@ -361,7 +361,7 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_offline_target(timestamp_key=result_timestamp)
+        self._write_to_offline_target()
         return OfflineVectorResponse(self)
 
     def init_online_vector_service(

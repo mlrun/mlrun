@@ -149,7 +149,7 @@ gen_func = code_to_function(name='train_iris',
                             filename='train_iris.py',
                             handler='train_iris',
                             kind='job',
-                            image='mlrun/mlrun')
+                            image='mlrun/ml-models')
 
 train_iris_func = project.set_function(gen_func).apply(auto_mount())
 
@@ -200,7 +200,7 @@ gen_func = code_to_function(name='test_model',
                             filename='test_model.py',
                             handler='test_model',
                             kind='job',
-                            image='mlrun/mlrun')
+                            image='mlrun/ml-models')
 
 func = project.set_function(gen_func).apply(auto_mount())
 

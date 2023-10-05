@@ -165,7 +165,6 @@ class FeatureVectorStatus(ModelObj):
         preview=None,
         run_uri=None,
         index_keys=None,
-        timestamp_key=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -178,7 +177,6 @@ class FeatureVectorStatus(ModelObj):
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
-        self.timestamp_key = timestamp_key
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -633,7 +631,7 @@ class FeatureVector(ModelObj):
             feature_set_fields:  list of field (name, alias) per featureset
         """
         processed_features = {}  # dict of name to (featureset, feature object)
-        feature_set_objects = self.feature_set_objects or {}
+        feature_set_objects = {}
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
@@ -697,14 +695,13 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, alias in fields:
+            for name, _ in fields:
                 if name in feature_set.status.stats and update_stats:
                     self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    feature.name = alias or name
-                    self.status.features[alias or name] = feature
+                    self.status.features[name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
@@ -730,6 +727,7 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
+        all_fs_entities: List[str] = None,
         impute_policy: dict = None,
         requested_columns: List[str] = None,
     ):
@@ -738,6 +736,7 @@ class OnlineVectorService:
 
         self._controller = graph.controller
         self._index_columns = index_columns
+        self._all_fs_entities = all_fs_entities
         self._impute_values = {}
         self._requested_columns = requested_columns
 
@@ -866,7 +865,7 @@ class OnlineVectorService:
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
-                    for name in self.vector.status.index_keys:
+                    for name in self._all_fs_entities:
                         data.pop(name, None)
                 if not any(data.values()):
                     data = None

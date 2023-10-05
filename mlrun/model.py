@@ -1219,29 +1219,6 @@ class RunObject(RunTemplate):
     def from_template(cls, template: RunTemplate):
         return cls(template.spec, template.metadata)
 
-    def to_json(self, exclude=None, **kwargs):
-        # Since the `params` attribute within each notification object can be large,
-        # it has the potential to cause errors and is unnecessary for the notification functionality.
-        # Therefore, in this section, we remove the `params` attribute from each notification object.
-        if (
-            exclude_notifications_params := kwargs.get("exclude_notifications_params")
-        ) and exclude_notifications_params:
-            if self.spec.notifications:
-                # Extract and remove 'params' from each notification
-                extracted_params = []
-                for notification in self.spec.notifications:
-                    extracted_params.append(notification.params)
-                    del notification.params
-                # Generate the JSON representation, excluding specified fields
-                json_obj = super().to_json(exclude=exclude)
-                # Restore 'params' back to the notifications
-                for notification, params in zip(
-                    self.spec.notifications, extracted_params
-                ):
-                    notification.params = params
-                return json_obj
-        return super().to_json(exclude=exclude)
-
     @property
     def status(self) -> RunStatus:
         return self._status
@@ -1479,23 +1456,12 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(
-        self,
-        name="",
-        doc="",
-        parameters=None,
-        outputs=None,
-        lineno=-1,
-        has_varargs=None,
-        has_kwargs=None,
-    ):
+    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
         self.outputs = [] if outputs is None else outputs
         self.lineno = lineno
-        self.has_varargs = has_varargs
-        self.has_kwargs = has_kwargs
 
 
 def new_task(
@@ -1663,7 +1629,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, object] = None,
+        attributes: Dict[str, str] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,

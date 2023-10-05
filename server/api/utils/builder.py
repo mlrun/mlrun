@@ -14,7 +14,6 @@
 import os.path
 import pathlib
 import re
-import tempfile
 import textwrap
 import typing
 from base64 import b64decode, b64encode
@@ -104,6 +103,10 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
+        dock += f"USER root\n"
+        dock += f"RUN mkdir -p {workdir}\n"
+        dock += f"RUN chown iguazio:iguazio {workdir}\n"
+        dock += f"USER iguazio\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
@@ -495,12 +498,10 @@ def build_image(
         not runtime.spec.clone_target_dir
         or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # use a temp dir for permissions and set it as the workdir
-        tmpdir = tempfile.mkdtemp()
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("/mlrun", relative_workdir)
 
     dock = make_dockerfile(
         base_image,

@@ -103,10 +103,10 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        dock += f"USER root\n"
+        dock += "USER root\n"
         dock += f"RUN mkdir -p {workdir}\n"
         dock += f"RUN chown iguazio:iguazio {workdir}\n"
-        dock += f"USER iguazio\n"
+        dock += "USER iguazio\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):

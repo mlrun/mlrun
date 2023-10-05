@@ -47,6 +47,8 @@ class HistogramDistanceMetric(abc.ABC):
 
     :args distrib_t: array of distribution t (usually the latest dataset distribution)
     :args distrib_u: array of distribution u (usually the sample dataset distribution)
+
+    Each distribution must contain nonnegative floats that sum up to 1.0.
     """
 
     distrib_t: np.ndarray

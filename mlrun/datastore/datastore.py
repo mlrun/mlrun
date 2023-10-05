@@ -226,3 +226,6 @@ class StoreManager:
             self._stores[store_key] = store
         # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
         return store, url if store.kind == "file" else subpath
+
+    def reset_secrets(self):
+        self._secrets = {}

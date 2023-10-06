@@ -72,7 +72,7 @@ class ConsoleNotification(NotificationBase):
         if isinstance(severity, mlrun.common.schemas.NotificationSeverity):
             return severity
         elif isinstance(severity, str) and (
-            severity_lowercase := severity.lower()
+            (severity_lowercase := severity.lower())
             in set(mlrun.common.schemas.NotificationSeverity)
         ):
             return mlrun.common.schemas.NotificationSeverity(severity_lowercase)

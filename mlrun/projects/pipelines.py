@@ -16,7 +16,6 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
-import traceback
 import typing
 import uuid
 import warnings
@@ -913,7 +912,7 @@ def github_webhook(request):
 
 
 def load_and_run(
-    context: mlrun.MLClientCtx,
+    context: mlrun.execution.MLClientCtx,
     url: str = None,
     project_name: str = "",
     init_git: bool = None,

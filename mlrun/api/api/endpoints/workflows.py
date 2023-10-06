@@ -142,7 +142,7 @@ async def submit_workflow(
 
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
-    workflow_runner = await run_in_threadpool(
+    workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
         mlrun.api.crud.WorkflowRunners().create_runner,
         run_name=updated_request.run_name
         or mlrun.mlconf.workflows.default_workflow_runner_name.format(

@@ -23,7 +23,7 @@ from mlrun.k8s_utils import sanitize_label_value
         ("my-value", "my-value"),
         ("foo%bar", "foo-bar"),
         (
-            "very{long}[string](value)#with#\several\|illegal|;characters;'present'",
+            "very{long}[string](value)#with#$several$|illegal|;characters;'present'",
             "very-long--string--value--with--several--illegal--characters--p",
         ),
         ("0.0.0+unstable", "0.0.0-unstable"),

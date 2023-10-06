@@ -720,10 +720,10 @@ class _LocalRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.succeeded
         except Exception as exc:
             err = exc
-            logger.error(err_to_str(exc))
+            logger.exception("workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
-                mlrun.common.schemas.NotificationSeverity.Error,
+                mlrun.common.schemas.NotificationSeverity.ERROR,
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -846,7 +846,7 @@ class _RemoteRunner(_PipelineRunner):
 
         except Exception as exc:
             err = exc
-            logger.error(err_to_str(exc))
+            logger.exception("workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,

@@ -32,6 +32,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
+from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils.helpers import logger
 from server.api.api.utils import log_and_raise
 
@@ -172,15 +173,17 @@ async def submit_workflow(
     workflow_runner.metadata.labels.update(
         {
             "job-type": "workflow-runner",
-            "workflow": workflow_request.spec.name,
+            "workflow": sanitize_label_value(workflow_request.spec.name),
         }
     )
     if client_version is not None:
-        workflow_runner.metadata.labels["mlrun/client_version"] = client_version
+        workflow_runner.metadata.labels["mlrun/client_version"] = sanitize_label_value(
+            client_version
+        )
     if client_python_version is not None:
         workflow_runner.metadata.labels[
             "mlrun/client_python_version"
-        ] = client_python_version
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(

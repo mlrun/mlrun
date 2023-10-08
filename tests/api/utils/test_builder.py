@@ -806,10 +806,10 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 @pytest.mark.parametrize(
     "clone_target_dir,expected_workdir",
     [
-        (None, r"WORKDIR .*\/tmp.*\/mlrun"),
-        ("", r"WORKDIR .*\/tmp.*\/mlrun"),
-        ("./path/to/code", r"WORKDIR .*\/tmp.*\/mlrun\/path\/to\/code"),
-        ("rel_path", r"WORKDIR .*\/tmp.*\/mlrun\/rel_path"),
+        (None, r"WORKDIR .*\/mlrun"),
+        ("", r"WORKDIR .*\/mlrun"),
+        ("./path/to/code", r"WORKDIR .*\/mlrun\/path\/to\/code"),
+        ("rel_path", r"WORKDIR .*\/mlrun\/rel_path"),
         ("/some/workdir", r"WORKDIR \/some\/workdir"),
     ],
 )
@@ -843,7 +843,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
             if not line.startswith(("ARG", "ENV"))
         ]
         expected_workdir_re = re.compile(expected_workdir)
-        assert expected_workdir_re.match(dockerfile_lines[1])
+        assert expected_workdir_re.match(dockerfile_lines[5])
 
 
 @pytest.mark.parametrize(

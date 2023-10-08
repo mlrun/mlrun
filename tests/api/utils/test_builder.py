@@ -898,15 +898,13 @@ def test_builder_source(monkeypatch, source, expectation):
 
             if source.endswith(".zip"):
                 expected_output_re = re.compile(
-                    rf"COPY {expected_source} .*/tmp.*/mlrun/source"
+                    rf"COPY {expected_source} .*/mlrun/source"
                 )
                 expected_line_index = 3
 
             else:
-                expected_output_re = re.compile(
-                    rf"ADD {expected_source} .*/tmp.*/mlrun"
-                )
-                expected_line_index = 2
+                expected_output_re = re.compile(rf"ADD {expected_source} .*/mlrun")
+                expected_line_index = 6
 
             assert expected_output_re.match(
                 dockerfile_lines[expected_line_index].strip()

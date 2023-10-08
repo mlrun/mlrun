@@ -25,7 +25,7 @@
 | --- | ----------------------------------------------------------------- |
 | ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
 | ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html). |  
-
+| ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |

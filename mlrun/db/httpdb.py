@@ -2260,14 +2260,16 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all child objects when deleting the project.
         """
 
-        path = f"projects/{name}"
+        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            return self._wait_for_project_to_be_deleted(name)
+            logger.info("Project is being deleted", project_name=name)
+            self._wait_for_project_to_be_deleted(name)
+        logger.info("Project deleted", project_name=name)
 
     def store_project(
         self,

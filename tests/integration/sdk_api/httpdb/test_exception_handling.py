@@ -66,7 +66,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
             match=r"422 Client Error: Unprocessable Entity for url: "
-            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name: "
+            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name(.*): "
             r"Failed deleting project some-project-name details: \[{'loc':"
             r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
             r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"

@@ -843,7 +843,7 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
             if not line.startswith(("ARG", "ENV"))
         ]
         expected_workdir_re = re.compile(expected_workdir)
-        assert expected_workdir_re.match(dockerfile_lines[3])
+        assert expected_workdir_re.match(dockerfile_lines[5])
 
 
 @pytest.mark.parametrize(
@@ -904,7 +904,7 @@ def test_builder_source(monkeypatch, source, expectation):
 
             else:
                 expected_output_re = re.compile(rf"ADD {expected_source} .*/mlrun")
-                expected_line_index = 4
+                expected_line_index = 6
 
             assert expected_output_re.match(
                 dockerfile_lines[expected_line_index].strip()

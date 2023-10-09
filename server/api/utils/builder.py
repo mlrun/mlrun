@@ -103,9 +103,10 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        # Create work directory and assign ownership to current user
-        dock += f"RUN su root -c 'mkdir -p {workdir}'\n"
-        dock += f"RUN su root -c 'chown `whoami` {workdir}'\n"
+        dock += "USER root\n"
+        dock += f"RUN mkdir -p {workdir}\n"
+        dock += f"RUN chown iguazio:iguazio {workdir}\n"
+        dock += "USER iguazio\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):

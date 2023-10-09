@@ -291,8 +291,6 @@ class DataStore:
                     # Pass the underlying file system
                     kwargs["filesystem"] = file_system
                 elif storage_options:
-                    # If it's a datastore profile,
-                    # the storage_options are already incorporated into the filesystem object.
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:

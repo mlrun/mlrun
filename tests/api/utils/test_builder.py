@@ -897,9 +897,7 @@ def test_builder_source(monkeypatch, source, expectation):
                 _, expected_source = os.path.split(source)
 
             if source.endswith(".zip"):
-                expected_output_re = re.compile(
-                    rf"COPY {expected_source} ~/source"
-                )
+                expected_output_re = re.compile(rf"COPY {expected_source} ~/source")
                 expected_line_index = 3
 
             else:

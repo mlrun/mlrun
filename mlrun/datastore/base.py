@@ -285,7 +285,14 @@ class DataStore:
         if file_system:
             if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
                 storage_options = self.get_storage_options()
-                if storage_options:
+                if url.startswith("ds://"):
+                    parsed_url = urllib.parse.urlparse(url)
+                    url = parsed_url.path[1:]
+                    # Pass the underlying file system
+                    kwargs["filesystem"] = file_system
+                elif storage_options:
+                    # If it's a datastore profile,
+                    # the storage_options are already incorporated into the filesystem object.
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:

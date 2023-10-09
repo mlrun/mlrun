@@ -806,10 +806,10 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 @pytest.mark.parametrize(
     "clone_target_dir,expected_workdir",
     [
-        (None, r"WORKDIR ~\/mlrun"),
-        ("", r"WORKDIR ~\/mlrun"),
-        ("./path/to/code", r"WORKDIR ~\/mlrun\/path\/to\/code"),
-        ("rel_path", r"WORKDIR ~\/mlrun\/rel_path"),
+        (None, r"WORKDIR ~\/"),
+        ("", r"WORKDIR ~\/"),
+        ("./path/to/code", r"WORKDIR ~\/path\/to\/code"),
+        ("rel_path", r"WORKDIR ~\/rel_path"),
         ("/some/workdir", r"WORKDIR \/some\/workdir"),
     ],
 )

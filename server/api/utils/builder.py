@@ -103,10 +103,6 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        dock += "USER root\n"
-        dock += f"RUN mkdir -p {workdir}\n"
-        dock += f"RUN chown iguazio:iguazio {workdir}\n"
-        dock += "USER iguazio\n"
         dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
@@ -501,7 +497,7 @@ def build_image(
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join("/mlrun", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("~", relative_workdir)
 
     dock = make_dockerfile(
         base_image,

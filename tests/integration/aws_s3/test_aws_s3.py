@@ -219,20 +219,22 @@ class TestAwsS3:
         # Create the DataFrames
         df1 = pd.DataFrame(data1)
         df2 = pd.DataFrame(data2)
-        temp_file1 = tempfile.mktemp(suffix=".parquet")
-        temp_file2 = tempfile.mktemp(suffix=".parquet")
-        # Save DataFrames as Parquet files
-        df1.to_parquet(temp_file1, index=False)
-        df2.to_parquet(temp_file2, index=False)
-        #  upload
-        dt1 = mlrun.run.get_dataitem(parquets_url + "/df1.parquet")
-        dt2 = mlrun.run.get_dataitem(parquets_url + "/df2.parquet")
-        dt1.upload(src_path=temp_file1)
-        dt2.upload(src_path=temp_file2)
-        dt1.as_df()
-        dt2.as_df()
-        dt_dir = mlrun.run.get_dataitem(parquets_url)
-        tested_df = dt_dir.as_df(format="parquet")
-
-        expected_df = pd.concat([df1, df2], ignore_index=True)
-        assert_frame_equal(tested_df, expected_df)
+        with tempfile.NamedTemporaryFile(
+            suffix=".parquet", delete=True
+        ) as temp_file1, tempfile.NamedTemporaryFile(
+            suffix=".parquet", delete=True
+        ) as temp_file2:
+            # Save DataFrames as Parquet files
+            df1.to_parquet(temp_file1.name, index=False)
+            df2.to_parquet(temp_file2.name, index=False)
+            #  upload
+            dt1 = mlrun.run.get_dataitem(parquets_url + "/df1.parquet")
+            dt2 = mlrun.run.get_dataitem(parquets_url + "/df2.parquet")
+            dt1.upload(src_path=temp_file1.name)
+            dt2.upload(src_path=temp_file2.name)
+            dt1.as_df()
+            dt2.as_df()
+            dt_dir = mlrun.run.get_dataitem(parquets_url)
+            tested_df = dt_dir.as_df(format="parquet")
+            expected_df = pd.concat([df1, df2], ignore_index=True)
+            assert_frame_equal(tested_df, expected_df)

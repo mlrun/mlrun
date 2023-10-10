@@ -205,6 +205,8 @@ class TestAwsS3:
 
     def test_directory(self, use_datastore_profile):
         param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        for p in credential_params:
+            os.environ[p] = config["env"][p]
         parquet_dir = f"/parquets{uuid.uuid4()}"
         parquets_url = param["bucket_path"] + parquet_dir
         #  generate dfs

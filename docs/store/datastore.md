@@ -147,7 +147,7 @@ After you create a profile object, you make it available on remote pods by calli
 Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
    `profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
-   The username and password parameters are optional. 
+    The username and password parameters are optional. 
 2. Register it within the project:<br>
    `project.register_datastore_profile(profile)`
 2. Use the profile by specifying the 'ds' URI scheme. For example:<br>
@@ -156,10 +156,21 @@ Create a data store profile in the context of a project. Example of creating a R
 	explicitly in the URI using the format:<br>
     `RedisNoSqlTarget(path="ds://another_project@test_profile")`
     
+Similarly, for Kafka:
+`profile = DatastoreProfileKafkaTarget(name="test_profile",bootstrap_servers="localhost", topic="test_topic")`
+`register_temporary_client_datastore_profile(profile)` or `project.register_datastore_profile(profile)`
+`KafkaTarget(path="ds://test_profile")`
+
+And S3:
+`profile = DatastoreProfileS3(name="test_profile")`
+`register_temporary_client_datastore_profile(profile)` or `project.register_datastore_profile(profile)`
+`ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")`
+
 To access a profile from the client/sdk, register the profile locally by calling
 `register_temporary_client_datastore_profile()` with a profile object.
 You can also choose to retrieve the public information of an already registered profile by calling 
-`project.get_datastore_profile()` and then adding the private credentials before registering it locally:
+`project.get_datastore_profile()` and then adding the private credentials before registering it locally.
+For example, using Redis:
 ```
 redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
@@ -167,7 +178,9 @@ register_temporary_client_datastore_profile(local_redis_profile)
 ```
 
 See also:
-- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profile` 
+
+/api/mlrun.projects.html#mlrun.projects.MlrunProject.list_datastore_profiles
+- {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.register_temporary_client_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
@@ -177,6 +190,6 @@ the profiles. Access to private attributes is restricted to applications running
 
 
 ```{Admonition} Note
-This feature currently only supports Redis.
+This feature currently supports Kafka, Redis, and S3.
 ```
 

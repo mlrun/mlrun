@@ -1024,9 +1024,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         ]
 
     def test_batch_drift(self) -> None:
-        project = mlrun.get_run_db().get_project(self.project_name)
-        context = mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context")
-        project.log_model(
+        self.project.log_model(
             self.model_name,
             body=pickle.dumps(self.classif),
             model_file="classif.pkl",
@@ -1037,13 +1035,13 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
-            model_path=project.get_artifact_uri(
+            model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=context,
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
         )

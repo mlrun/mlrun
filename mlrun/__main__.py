@@ -33,6 +33,7 @@ import yaml
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
@@ -1451,13 +1452,13 @@ def add_notification_to_project(
 
 
 def send_workflow_error_notification(
-    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+    run_id: str, mlproject: mlrun.projects.MlrunProject, error: Exception
 ):
     message = (
-        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
+        f":x: Failed to run scheduled workflow {run_id} in Project {mlproject.name} !\n"
         f"error: ```{err_to_str(error)}```"
     )
-    project.notifiers.push(
+    mlproject.notifiers.push(
         message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
     )
 

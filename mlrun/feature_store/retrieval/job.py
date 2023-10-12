@@ -171,7 +171,8 @@ class RemoteVectorResponse:
                     columns.insert(0, self.vector.status.timestamp_key)
             if self.drop_columns:
                 for drop_col in self.drop_columns:
-                    columns.remove(drop_col)
+                    if drop_col in columns:
+                        columns.remove(drop_col)
 
         file_format = kwargs.get("format")
         if not file_format:

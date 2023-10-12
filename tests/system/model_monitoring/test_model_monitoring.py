@@ -1024,7 +1024,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             for feat in self.columns + [self.y_name]
         ]
 
-    def test_batch_drift(self) -> None:
+    def test_inference_feature_set(self) -> None:
         self.project.log_model(
             self.model_name,
             body=pickle.dumps(self.classif),

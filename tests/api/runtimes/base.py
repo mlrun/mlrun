@@ -64,7 +64,7 @@ class TestRuntimeBase:
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
-        self.requirements_file = str(self.assets_path / "requirements.txt")
+        self.requirements_file = str(self.assets_path / "requirements-test.txt")
 
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
         # TODO: Vault: uncomment when vault returns to be relevant

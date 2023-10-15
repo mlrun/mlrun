@@ -940,7 +940,7 @@ class ParquetTarget(BaseStoreTarget):
             if drop_cols:
                 # if these columns aren't present for some reason, that's no reason to fail
                 result.drop(columns=drop_cols, inplace=True, errors="ignore")
-            return result
+        return result
 
     def is_single_file(self):
         if self.path:

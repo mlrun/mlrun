@@ -729,6 +729,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
 | ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
+| ML-4740 | When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item. | Prepare suitable Data-item and provide it to the batch-rerun UI. | v1.5.0 |
 
     
 ## Limitations

@@ -18,11 +18,11 @@ import boto3
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range
+from .base import DataStoreWithBucket, FileStats, get_range
 from .datastore_profile import datastore_profile_read
 
 
-class S3Store(DataStore):
+class S3Store(DataStoreWithBucket):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
@@ -163,42 +163,34 @@ class S3Store(DataStore):
 
         return storage_options
 
-    def get_bucket_and_key(self, key):
-        path = self._join(key)[1:]
-        if self.endpoint:
-            return self.endpoint, path
-        directories = path.split("/")
-        bucket = directories[0]
-        return bucket, path[len(bucket) + 1 :]
-
     def upload(self, key, src_path):
-        bucket, key = self.get_bucket_and_key(key)
+        bucket, key, _ = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=open(src_path, "rb"))
 
     def get(self, key, size=None, offset=0):
-        bucket, key = self.get_bucket_and_key(key)
+        bucket, key, _ = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
         if size or offset:
             return obj.get(Range=get_range(size, offset))["Body"].read()
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
-        bucket, key = self.get_bucket_and_key(key)
+        bucket, key, _ = self.get_bucket_and_key(key)
         self.s3.Object(bucket, key).put(Body=data)
 
     def stat(self, key):
-        bucket, key = self.get_bucket_and_key(key)
+        bucket, key, _ = self.get_bucket_and_key(key)
         obj = self.s3.Object(bucket, key)
         size = obj.content_length
         modified = obj.last_modified
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
-        bucket, key = self.get_bucket_and_key(key)
+        bucket, key, _ = self.get_bucket_and_key(key)
         if not key.endswith("/"):
             key += "/"
         # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
-        # "absolute paths". Therefore, we are are removing leading / from path filter.
+        # "absolute paths". Therefore, we are removing leading / from path filter.
         if key.startswith("/"):
             key = key[1:]
         key_length = len(key)

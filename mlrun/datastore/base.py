@@ -15,6 +15,7 @@ import tempfile
 import urllib.parse
 from base64 import b64encode
 from os import path, remove
+from pathlib import Path
 from typing import Optional, Union
 
 import dask.dataframe as dd
@@ -329,6 +330,20 @@ class DataStore:
 
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+
+class DataStoreWithBucket(DataStore):
+    def get_bucket_and_key(self, key: str):
+        if not self._filesystem:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Performing actions on data-item without a valid filesystem"
+            )
+        key_path = self._join(key)[1:]
+        if self.kind != "ds":
+            return self.endpoint, key_path, Path(self.endpoint, key_path).as_posix()
+        directories = key_path.split("/")
+        bucket = directories[0]
+        return bucket, key_path[len(bucket) + 1 :], key_path
 
 
 class DataItem:

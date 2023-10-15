@@ -27,9 +27,14 @@ import pytest
 
 import mlrun.common.schemas
 import mlrun.errors
-import server.api.utils.events.iguazio
 from mlrun.config import config
 from tests.system.base import TestMLRunSystem
+
+# This is a copy from server/api/utils/events/iguazio.py because the system tests simulate user env
+# where this module is not available
+PROJECT_SECRET_CREATED = "Security.Project.Secret.Created"
+PROJECT_SECRET_UPDATED = "Security.Project.Secret.Updated"
+PROJECT_SECRET_DELETED = "Security.Project.Secret.Deleted"
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -49,7 +54,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         self.project.set_secrets(secrets=secrets)
 
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_CREATED,
+            PROJECT_SECRET_CREATED,
             now,
             "secret_keys",
             secret_key,
@@ -60,7 +65,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         secrets.update({another_secret_key: "one"})
         self.project.set_secrets(secrets=secrets)
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_UPDATED,
+            PROJECT_SECRET_UPDATED,
             now,
             "secret_keys",
             another_secret_key,
@@ -70,7 +75,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         now = datetime.datetime.utcnow()
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+            PROJECT_SECRET_DELETED,
             now,
             "project_name",
             self.project_name,
@@ -101,7 +106,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             self._igz_mgmt_client,
             filter_by={
                 "source": "mlrun-api",
-                "kind": server.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "kind": PROJECT_SECRET_DELETED,
                 "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
             },
         )
@@ -110,7 +115,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         now = datetime.datetime.utcnow()
         self.project.set_secrets(secrets=secrets)
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_CREATED,
+            PROJECT_SECRET_CREATED,
             now,
             "project_name",
             self.project_name,
@@ -124,7 +129,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # project secret should remain (updated)
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_UPDATED,
+            PROJECT_SECRET_UPDATED,
             now,
             "secret_keys",
             secret_key1,
@@ -134,7 +139,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
         now = datetime.datetime.utcnow()
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
         self._ensure_audit_events(
-            server.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+            PROJECT_SECRET_DELETED,
             now,
             "project_name",
             self.project_name,
@@ -152,7 +157,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             self._igz_mgmt_client,
             filter_by={
                 "source": "mlrun-api",
-                "kind": server.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "kind": PROJECT_SECRET_DELETED,
                 "timestamp_iso8601": f"[$ge]{now.isoformat()}Z",
             },
         )
@@ -163,7 +168,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
             self._igz_mgmt_client,
             filter_by={
                 "source": "mlrun-api",
-                "kind": server.api.utils.events.iguazio.PROJECT_SECRET_DELETED,
+                "kind": PROJECT_SECRET_DELETED,
                 "timestamp_iso8601": f"[$ge]{start.isoformat()}Z",
             },
         )

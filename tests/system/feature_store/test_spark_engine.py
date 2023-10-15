@@ -1424,8 +1424,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
-        if timestamp_key != drop_column:
-            target_df.drop(columns=["year", "month", "day", "hour"], inplace=True)
         target_df.set_index(key, drop=True, inplace=True)
         assert resp_df.equals(target_df)
 

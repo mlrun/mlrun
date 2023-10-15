@@ -133,16 +133,17 @@ def run_merge_job(
         watch=run_config.watch,
     )
     logger.info(f"feature vector merge job started, run id = {run.uid()}")
-    return RemoteVectorResponse(vector, run, with_indexes)
+    return RemoteVectorResponse(vector, run, with_indexes, drop_columns)
 
 
 class RemoteVectorResponse:
     """get_offline_features response object"""
 
-    def __init__(self, vector, run, with_indexes=False):
+    def __init__(self, vector, run, with_indexes=False, drop_columns=None):
         self.run = run
         self.vector = vector
         self.with_indexes = with_indexes or self.vector.spec.with_indexes
+        self.drop_columns = drop_columns
 
     @property
     def status(self):
@@ -168,6 +169,10 @@ class RemoteVectorResponse:
                 columns += self.vector.status.index_keys
                 if self.vector.status.timestamp_key is not None:
                     columns.insert(0, self.vector.status.timestamp_key)
+            if self.drop_columns:
+                for drop_col in self.drop_columns:
+                    if drop_col in columns:
+                        columns.remove(drop_col)
 
         file_format = kwargs.get("format")
         if not file_format:

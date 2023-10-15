@@ -288,7 +288,12 @@ class DataStore:
                 or self._is_dd(df_module)
             ):
                 storage_options = self.get_storage_options()
-                if storage_options:
+                if url.startswith("ds://"):
+                    parsed_url = urllib.parse.urlparse(url)
+                    url = parsed_url.path[1:]
+                    # Pass the underlying file system
+                    kwargs["filesystem"] = file_system
+                elif storage_options:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:

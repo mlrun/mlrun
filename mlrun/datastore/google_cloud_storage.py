@@ -13,27 +13,42 @@
 # limitations under the License.
 import os
 import tempfile
-from pathlib import Path
+from urllib.parse import urlparse
 
-import fsspec
+from gcsfs.core import GCSFileSystem
 
 import mlrun.errors
 from mlrun.utils import logger
 
-from .base import DataStore, FileStats
+from .base import DataStoreWithBucket, FileStats
+from .datastore_profile import datastore_profile_read
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
 
-class GoogleCloudStorageStore(DataStore):
+class GCSFileSystemWithDS(GCSFileSystem):
+    @classmethod
+    def _strip_protocol(cls, url):
+        if url.startswith("ds://"):
+            parsed_url = urlparse(url)
+            url = parsed_url.path[1:]
+        return super()._strip_protocol(url)
+
+
+class GoogleCloudStorageStore(DataStoreWithBucket):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-
+        if schema == "ds":
+            if secrets:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Trying to use secret and profile at dbfs datastore."
+                )
+            self.endpoint = ""
         # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
         # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
         # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
         # we just read a specific env. variable, write it to a temp file and point the env variable to it.
-        if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
+        elif "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
             gcp_credentials = self._get_secret_or_env("GCP_CREDENTIALS")
             if gcp_credentials:
                 with tempfile.NamedTemporaryFile(
@@ -61,32 +76,39 @@ class GoogleCloudStorageStore(DataStore):
                     "Google gcsfs not installed, run pip install gcsfs"
                 ) from exc
             return None
-
-        self._filesystem = fsspec.filesystem("gcs", **self.get_storage_options())
+        self._filesystem = GCSFileSystemWithDS(**self.get_storage_options())  # todo
         return self._filesystem
 
     def get_storage_options(self):
+        if self.kind == "ds":
+            datastore_profile = datastore_profile_read(self.name)
+            google_application_credentials = (
+                datastore_profile.google_application_credentials
+            )
+            gcp_credentials = datastore_profile.gcp_credentials
+            if google_application_credentials:
+                credentials_file_name = google_application_credentials
+            elif gcp_credentials:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".json", delete=False
+                ) as credentials_file:
+                    credentials_file.write(gcp_credentials)
+                    credentials_file_name = credentials_file.name
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Datastore profile must have google_application_credentials or gcp_credentials."
+                )
+            return dict(token=credentials_file_name)
         return dict(token=self._get_secret_or_env("GCS_TOKEN"))
 
-    def _prepare_path_and_verify_filesystem(self, key):
-        if not self._filesystem:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Performing actions on data-item without a valid filesystem"
-            )
-
-        key = key.strip("/")
-        path = Path(self.endpoint, key).as_posix()
-        return path
-
     def get(self, key, size=None, offset=0):
-        path = self._prepare_path_and_verify_filesystem(key)
-
+        _, _, path = self.get_bucket_and_key(key)
         end = offset + size if size else None
         blob = self._filesystem.cat_file(path, start=offset, end=end)
         return blob
 
     def put(self, key, data, append=False):
-        path = self._prepare_path_and_verify_filesystem(key)
+        _, _, path = self.get_bucket_and_key(key)
 
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -105,11 +127,11 @@ class GoogleCloudStorageStore(DataStore):
             f.write(data)
 
     def upload(self, key, src_path):
-        path = self._prepare_path_and_verify_filesystem(key)
+        _, _, path = self.get_bucket_and_key(key)
         self._filesystem.put_file(src_path, path, overwrite=True)
 
     def stat(self, key):
-        path = self._prepare_path_and_verify_filesystem(key)
+        _, _, path = self.get_bucket_and_key(key)
 
         files = self._filesystem.ls(path, detail=True)
         if len(files) == 1 and files[0]["type"] == "file":
@@ -121,14 +143,14 @@ class GoogleCloudStorageStore(DataStore):
             raise ValueError("Operation expects to receive a single file!")
         return FileStats(size, modified)
 
-    def listdir(self, key):
-        path = self._prepare_path_and_verify_filesystem(key)
+    def listdir(self, key: str):
+        bucket, _, path = self.get_bucket_and_key(key)
         if self._filesystem.isfile(path):
             return key
         remote_path = f"{path}/**"
         files = self._filesystem.glob(remote_path)
-        key_length = len(key)
+        path_length = len(path) - len(bucket)
         files = [
-            f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
+            f.split("/", 1)[1][path_length:] for f in files if len(f.split("/")) > 1
         ]
         return files

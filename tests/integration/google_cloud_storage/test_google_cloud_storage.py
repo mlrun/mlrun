@@ -104,6 +104,12 @@ class TestGoogleCloudStorage:
 
         dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
         assert self._object_path in dir_list, "File not in container dir-list"
+        listdir_parent = mlrun.run.get_dataitem(
+            os.path.dirname(self._object_url)
+        ).listdir()
+        assert (
+            os.path.basename(self._object_path) in listdir_parent
+        ), "File not in parent dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(self._blob_url)
         upload_data_item.upload(test_filename)

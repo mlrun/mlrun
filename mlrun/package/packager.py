@@ -269,7 +269,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
         it matches, it looks for the artifact type in the list returned from `get_supported_artifact_types`.
 
         :param data_item:     The input data item to check if unpackable.
-        :param type_hint:     The type hint of the input to unpack.
+        :param type_hint:     The type hint of the input to unpack (the object type to be unpacked).
         :param artifact_type: The artifact type to unpack the object as.
 
         :return: True if unpackable and False otherwise.
@@ -277,8 +277,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
         # Check type (ellipses means any type):
         if cls.PACKABLE_OBJECT_TYPE is not ...:
             if not TypeHintUtils.is_matching(
-                object_type=cls.PACKABLE_OBJECT_TYPE,
-                type_hint=type_hint,
+                object_type=type_hint,  # The type hint is the expected object type the MLRun function wants.
+                type_hint=cls.PACKABLE_OBJECT_TYPE,
                 reduce_type_hint=False,
             ):
                 return False

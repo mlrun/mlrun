@@ -28,7 +28,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import nuclio
 import yaml
-from deprecated import deprecated
 from kfp import Client
 
 import mlrun.common.schemas
@@ -41,7 +40,7 @@ from .config import config as mlconf
 from .datastore import store_manager
 from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
-from .model import BaseMetadata, RunObject, RunTemplate
+from .model import RunObject, RunTemplate
 from .runtimes import (
     DaskCluster,
     HandlerRuntime,
@@ -103,122 +102,6 @@ class RunStatuses(object):
             for status in RunStatuses.all()
             if status not in RunStatuses.stable_statuses()
         ]
-
-
-# TODO: remove in 1.6.0
-@deprecated(
-    version="1.4.0",
-    reason="'run_local' will be removed in 1.6.0, use 'function.run(local=True)' instead",
-    category=FutureWarning,
-)
-def run_local(
-    task=None,
-    command="",
-    name: str = "",
-    args: list = None,
-    workdir=None,
-    project: str = "",
-    tag: str = "",
-    secrets=None,
-    handler=None,
-    params: dict = None,
-    inputs: dict = None,
-    artifact_path: str = "",
-    mode: str = None,
-    allow_empty_resources=None,
-    notifications: List[mlrun.model.Notification] = None,
-    returns: list = None,
-):
-    """Run a task on function/code (.py, .ipynb or .yaml) locally,
-
-    example::
-
-        # define a task
-        task = new_task(params={'p1': 8}, out_path=out_path)
-        # run
-        run = run_local(spec, command='src/training.py', workdir='src')
-
-    or specify base task parameters (handler, params, ..) in the call::
-
-        run = run_local(handler=my_function, params={'x': 5})
-
-    :param task:     task template object or dict (see RunTemplate)
-    :param command:  command/url/function
-    :param name:     ad hook function name
-    :param args:     command line arguments (override the ones in command)
-    :param workdir:  working dir to exec in
-    :param project:  function project (none for 'default')
-    :param tag:      function version tag (none for 'latest')
-    :param secrets:  secrets dict if the function source is remote (s3, v3io, ..)
-
-    :param handler:  pointer or name of a function handler
-    :param params:   input parameters (dict)
-    :param inputs:   Input objects to pass to the handler. Type hints can be given so the input will be parsed
-                     during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
-                     in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
-    :param artifact_path: default artifact output path
-    :param mode:    Runtime mode for more details head to `mlrun.new_function`
-    :param allow_empty_resources:   Allow passing non materialized set/vector as input to jobs
-                                    (allows to have function which don't depend on having targets,
-                                    e.g a function which accepts a feature vector uri and generate
-                                     the offline vector e.g. parquet_ for it if it doesn't exist)
-    :param notifications:   list of notifications to push when the run is completed
-    :param returns:  List of configurations for how to log the returning values from the handler's run (as artifacts or
-                     results). The list's length must be equal to the amount of returning objects. A configuration may
-                     be given as:
-
-                     * A string of the key to use to log the returning value as result or as an artifact. To specify
-                       The artifact type, it is possible to pass a string in the following structure:
-                       "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                       type is specified, the object's default artifact type will be used.
-                     * A dictionary of configurations to use when logging. Further info per object type and artifact
-                       type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-
-    :return: run object
-    """
-
-    function_name = name
-    if command and isinstance(command, str):
-        sp = command.split()
-        command = sp[0]
-        if len(sp) > 1:
-            args = args or []
-            args = sp[1:] + args
-        function_name = function_name or pathlib.Path(command).stem
-
-    meta = BaseMetadata(function_name, project=project, tag=tag)
-    command, runtime = load_func_code(command, workdir, secrets=secrets, name=name)
-
-    if runtime:
-        if task:
-            handler = handler or task.spec.handler
-        handler = handler or runtime.spec.default_handler or ""
-        meta = runtime.metadata.copy()
-        meta.project = project or meta.project
-        meta.tag = tag or meta.tag
-
-    # if the handler has module prefix force "local" (vs "handler") runtime
-    kind = "local" if isinstance(handler, str) and "." in handler else ""
-    fn = new_function(meta.name, command=command, args=args, mode=mode, kind=kind)
-    fn.metadata = meta
-    setattr(fn, "_is_run_local", True)
-    if workdir:
-        fn.spec.workdir = str(workdir)
-    fn.spec.allow_empty_resources = allow_empty_resources
-    if runtime:
-        # copy the code/base-spec to the local function (for the UI and code logging)
-        fn.spec.description = runtime.spec.description
-        fn.spec.build = runtime.spec.build
-    return fn.run(
-        task,
-        name=name,
-        handler=handler,
-        params=params,
-        inputs=inputs,
-        returns=returns,
-        artifact_path=artifact_path,
-        notifications=notifications,
-    )
 
 
 def function_to_module(code="", workdir=None, secrets=None, silent=False):

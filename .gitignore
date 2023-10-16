@@ -1,8 +1,10 @@
 *.pyc
+__pycache__/
 .aws-secrets
 .idea/
 .ipynb_checkpoints
 .pytest_cache/
+.hypothesis/
 .vscode/
 .bin
 build

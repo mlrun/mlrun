@@ -94,10 +94,6 @@ class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         if schema == "ds":
-            # if endpoint:
-            #     raise mlrun.errors.MLRunInvalidArgumentError(
-            #         "Trying to use endpoint and profile at dbfs datastore."
-            #     )
             if secrets:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Trying to use secret and profile at dbfs datastore."

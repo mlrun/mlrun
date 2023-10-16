@@ -39,7 +39,6 @@ import yaml
 
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -656,7 +655,7 @@ class Config:
                         if not skip_errors:
                             raise exc
                         print(
-                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                            f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}"
                         )
 
     def dump_yaml(self, stream=None):
@@ -805,7 +804,7 @@ class Config:
     def verify_security_context_enrichment_mode_is_allowed(self):
         if (
             config.function.spec.security_context.enrichment_mode
-            == mlrun.common.schemas.SecurityContextEnrichmentModes.disabled.value
+            == mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled
         ):
             return
 

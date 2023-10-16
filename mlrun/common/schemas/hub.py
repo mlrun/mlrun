@@ -19,8 +19,8 @@ from pydantic import BaseModel, Extra, Field
 
 import mlrun.common.types
 import mlrun.errors
+from mlrun import config
 from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.config import config
 
 
 # Defining a different base class (not ObjectMetadata), as there's no project, and it differs enough to

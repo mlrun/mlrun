@@ -240,6 +240,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "kafka_target": DatastoreProfileKafkaTarget,
             "kafka_source": DatastoreProfileKafkaSource,
             "dbfs": DatastoreProfileDBFS,
+            "gcs": DatastoreProfileGCS,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

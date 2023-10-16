@@ -32,6 +32,7 @@ import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
+from mlrun.k8s_utils import sanitize_label_value
 from mlrun.utils.helpers import logger
 from server.api.api.utils import log_and_raise
 
@@ -141,7 +142,7 @@ async def submit_workflow(
 
     # This function is for loading the project and running workflow remotely.
     # In this way we can schedule workflows (by scheduling a job that runs the workflow)
-    workflow_runner = await run_in_threadpool(
+    workflow_runner: mlrun.run.KubejobRuntime = await run_in_threadpool(
         server.api.crud.WorkflowRunners().create_runner,
         run_name=updated_request.run_name
         or mlrun.mlconf.workflows.default_workflow_runner_name.format(
@@ -172,15 +173,17 @@ async def submit_workflow(
     workflow_runner.metadata.labels.update(
         {
             "job-type": "workflow-runner",
-            "workflow": workflow_request.spec.name,
+            "workflow": sanitize_label_value(workflow_request.spec.name),
         }
     )
     if client_version is not None:
-        workflow_runner.metadata.labels["mlrun/client_version"] = client_version
+        workflow_runner.metadata.labels["mlrun/client_version"] = sanitize_label_value(
+            client_version
+        )
     if client_python_version is not None:
         workflow_runner.metadata.labels[
             "mlrun/client_python_version"
-        ] = client_python_version
+        ] = sanitize_label_value(client_python_version)
     try:
         if workflow_spec.schedule:
             await run_in_threadpool(
@@ -302,7 +305,7 @@ def _fill_workflow_missing_fields_from_project(
     return workflow_spec
 
 
-def _update_dict(dict_1: dict, dict_2: dict):
+def _update_dict(dict_1: dict, dict_2: collections.abc.Mapping):
     """
     Update two dictionaries included nested dictionaries (recursively).
     :param dict_1: The dict to update

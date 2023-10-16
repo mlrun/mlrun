@@ -17,6 +17,9 @@ from typing import Type
 
 import numpy as np
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import arrays
 
 from mlrun.model_monitoring.batch import (
     HellingerDistance,
@@ -31,30 +34,34 @@ from mlrun.model_monitoring.batch import (
     itertools.chain(
         [
             (
-                [
-                    0.07101131,
-                    0.25138296,
-                    0.03700347,
-                    0.06843929,
-                    0.11482246,
-                    0.1339393,
-                    0.0503426,
-                    0.05639414,
-                    0.13406714,
-                    0.08259733,
-                ],
-                [
-                    0.17719221,
-                    0.0949423,
-                    0.02982267,
-                    0.19927063,
-                    0.19288318,
-                    0.00137802,
-                    0.07398598,
-                    0.05829106,
-                    0.06771774,
-                    0.10451622,
-                ],
+                np.array(
+                    [
+                        0.07101131,
+                        0.25138296,
+                        0.03700347,
+                        0.06843929,
+                        0.11482246,
+                        0.1339393,
+                        0.0503426,
+                        0.05639414,
+                        0.13406714,
+                        0.08259733,
+                    ]
+                ),
+                np.array(
+                    [
+                        0.17719221,
+                        0.0949423,
+                        0.02982267,
+                        0.19927063,
+                        0.19288318,
+                        0.00137802,
+                        0.07398598,
+                        0.05829106,
+                        0.06771774,
+                        0.10451622,
+                    ]
+                ),
                 class_,
                 result,
             )
@@ -66,8 +73,8 @@ from mlrun.model_monitoring.batch import (
         ],
         [
             (
-                [0.0, 0.16666667, 0.33333333, 0.5],
-                [0.5, 0.33333333, 0.16666667, 0.0],
+                np.array([0.0, 0.16666667, 0.33333333, 0.5]),
+                np.array([0.5, 0.33333333, 0.16666667, 0.0]),
                 class_,
                 result,
             )
@@ -81,30 +88,46 @@ from mlrun.model_monitoring.batch import (
 )
 def test_histogram_metric_calculation(
     metric_class: Type[HistogramDistanceMetric],
-    distrib_u: list[float],
-    distrib_t: list[float],
+    distrib_u: np.ndarray,
+    distrib_t: np.ndarray,
     expected_result: float,
+    atol: float = 1e-8,
 ) -> None:
-    distrib_u, distrib_t = np.asarray(distrib_u), np.asarray(distrib_t)
     assert np.isclose(
         metric_class(distrib_t=distrib_t, distrib_u=distrib_u).compute(),
         expected_result,
+        atol=atol,
     )
 
 
+def _norm_arr(arr: np.ndarray) -> np.ndarray:
+    arr_sum = arr.sum()
+    if not arr_sum:
+        return np.array([1])
+    return arr / arr_sum.sum()
+
+
 @pytest.mark.parametrize(
-    ("distrib", "metric_class"),
-    itertools.product(
-        [[1], [0.5, 0.5], [0.2, 0, 0.1, 0.09, 0, 0.61]],
-        HistogramDistanceMetric.__subclasses__(),
-    ),
+    "metric_class",
+    HistogramDistanceMetric.__subclasses__(),
+)
+@given(
+    distrib=st.builds(
+        _norm_arr,
+        arrays(
+            dtype=np.float64,
+            elements=st.floats(min_value=0, max_value=1),
+            shape=st.integers(min_value=1, max_value=500),
+        ),
+    )
 )
 def test_same_distrib_gives_zero_distance(
-    distrib: list[float], metric_class: Type[HistogramDistanceMetric]
+    distrib: np.ndarray, metric_class: Type[HistogramDistanceMetric]
 ) -> None:
     return test_histogram_metric_calculation(
         metric_class=metric_class,
         distrib_t=distrib,
         distrib_u=distrib,
         expected_result=0,
+        atol=1e-7,
     )

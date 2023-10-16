@@ -16,7 +16,6 @@ import builtins
 import importlib.util as imputil
 import os
 import tempfile
-import traceback
 import typing
 import uuid
 
@@ -430,6 +429,7 @@ class _PipelineRunStatus:
         project: "mlrun.projects.MlrunProject",
         workflow: WorkflowSpec = None,
         state: str = "",
+        exc: Exception = None,
     ):
         """
         :param run_id:      unique id of the pipeline run
@@ -437,18 +437,24 @@ class _PipelineRunStatus:
         :param project:     mlrun project
         :param workflow:    workflow with spec on how to run the pipeline
         :param state:       the current state of the pipeline run
+        :param exc:         exception that was raised during the pipeline run
         """
         self.run_id = run_id
         self.project = project
         self.workflow = workflow
         self._engine = engine
         self._state = state
+        self._exc = exc
 
     @property
     def state(self):
         if self._state not in mlrun.run.RunStatuses.stable_statuses():
             self._state = self._engine.get_state(self.run_id, self.project)
         return self._state
+
+    @property
+    def exc(self):
+        return self._exc
 
     def wait_for_completion(self, timeout=None, expected_statuses=None):
         self._state = self._engine.wait_for_completion(
@@ -576,7 +582,7 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
-        id = _run_pipeline(
+        run_id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
             arguments=workflow_spec.args,
@@ -588,11 +594,11 @@ class _KFPRunner(_PipelineRunner):
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
-            id,
+            run_id,
             True,
         )
         pipeline_context.clear()
-        return _PipelineRunStatus(id, cls, project=project, workflow=workflow_spec)
+        return _PipelineRunStatus(run_id, cls, project=project, workflow=workflow_spec)
 
     @staticmethod
     def wait_for_completion(run_id, project=None, timeout=None, expected_statuses=None):
@@ -697,14 +703,16 @@ class _LocalRunner(_PipelineRunner):
         project.notifiers.push_pipeline_start_message(
             project.metadata.name, pipeline_id=workflow_id
         )
+        err = None
         try:
             workflow_handler(**workflow_spec.args)
             state = mlrun.run.RunStatuses.succeeded
-        except Exception as e:
-            trace = traceback.format_exc()
-            logger.error(trace)
+        except Exception as exc:
+            err = exc
+            logger.exception("workflow run failed")
             project.notifiers.push(
-                f":x: Workflow {workflow_id} run failed!, error: {e}\n{trace}", "error"
+                f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
+                mlrun.common.schemas.NotificationSeverity.ERROR,
             )
             state = mlrun.run.RunStatuses.failed
         mlrun.run.wait_for_runs_completion(pipeline_context.runs_map.values())
@@ -717,7 +725,12 @@ class _LocalRunner(_PipelineRunner):
         if original_source:
             project.set_source(source=original_source)
         return _PipelineRunStatus(
-            workflow_id, cls, project=project, workflow=workflow_spec, state=state
+            workflow_id,
+            cls,
+            project=project,
+            workflow=workflow_spec,
+            state=state,
+            exc=err,
         )
 
     @staticmethod
@@ -763,6 +776,7 @@ class _RemoteRunner(_PipelineRunner):
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
         inner_engine = get_workflow_engine(workflow_spec.engine)
         run_db = mlrun.get_run_db()
+        err = None
         try:
             logger.info(
                 "Submitting remote workflow",
@@ -818,35 +832,28 @@ class _RemoteRunner(_PipelineRunner):
             )
             workflow_id = response.workflow_id
             # After fetching the workflow_id the workflow executed successfully
-            state = mlrun.run.RunStatuses.succeeded
-            pipeline_context.clear()
 
-        except Exception as e:
-            trace = traceback.format_exc()
-            logger.error(trace)
+        except Exception as exc:
+            err = exc
+            logger.exception("workflow run failed")
             project.notifiers.push(
-                f":x: Workflow {workflow_name} run failed!, error: {e}\n{trace}",
-                "error",
+                f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
+                mlrun.common.schemas.NotificationSeverity.ERROR,
             )
             state = mlrun.run.RunStatuses.failed
-            return _PipelineRunStatus(
-                run_id=workflow_id,
-                engine=inner_engine,
-                project=project,
-                workflow=workflow_spec,
-                state=state,
+        else:
+            state = mlrun.run.RunStatuses.succeeded
+            project.notifiers.push_pipeline_start_message(
+                project.metadata.name,
             )
-
-        project.notifiers.push_pipeline_start_message(
-            project.metadata.name,
-        )
-        pipeline_context.clear()
+            pipeline_context.clear()
         return _PipelineRunStatus(
             run_id=workflow_id,
             engine=inner_engine,
             project=project,
             workflow=workflow_spec,
             state=state,
+            exc=err,
         )
 
 
@@ -894,7 +901,7 @@ def github_webhook(request):
 
 
 def load_and_run(
-    context,
+    context: mlrun.execution.MLClientCtx,
     url: str = None,
     project_name: str = "",
     init_git: bool = None,
@@ -1000,5 +1007,7 @@ def load_and_run(
         local=local,
     )
     context.log_result(key="workflow_id", value=run.run_id)
-
     context.log_result(key="engine", value=run._engine.engine, commit=True)
+
+    if run.state == mlrun.run.RunStatuses.failed:
+        raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc

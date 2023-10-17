@@ -43,7 +43,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
-            mlrun.runtimes.sparkjob.abstract.AbstractSparkJobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.function.NuclioSpec: [

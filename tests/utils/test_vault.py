@@ -90,7 +90,7 @@
 #     # It executes on the API server
 #     project.set_secrets(
 #         {"aws_key": aws_key_value, "github_key": github_key_value},
-#         provider=mlrun.api.schemas.SecretProviderName.vault,
+#         provider=mlrun.common.schemas.SecretProviderName.vault,
 #     )
 #
 #     # This API executes on the client side

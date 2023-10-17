@@ -277,9 +277,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     assert len(project_function_objects) == len(expected_function_objects)
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
+        project_function = project_function_objects[function_name].to_dict()
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
-                project_function_objects[function_name].to_dict(),
+                project_function,
                 function_object.to_dict(),
                 ignore_order=True,
                 exclude_paths=["root['spec']['build']['code_origin']"],

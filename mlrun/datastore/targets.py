@@ -484,6 +484,7 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
+            df = self.prepare_spark_df(df, key_column, timestamp_key, options)
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
@@ -513,36 +514,41 @@ class BaseStoreTarget(DataTargetBase):
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            partition_cols = []
-            if target_path.endswith(".parquet") or target_path.endswith(".pq"):
-                partition_cols = None
             target_df = df
-            if timestamp_key and (
-                self.partitioned or self.time_partitioning_granularity
-            ):
-                target_df = df.copy(deep=False)
-                time_partitioning_granularity = self.time_partitioning_granularity
-                if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = (
-                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
-                    )
-                for unit, fmt in [
-                    ("year", "%Y"),
-                    ("month", "%m"),
-                    ("day", "%d"),
-                    ("hour", "%H"),
-                    ("minute", "%M"),
-                ]:
-                    partition_cols.append(unit)
-                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
-                        date_format=fmt
-                    )
-                    if unit == time_partitioning_granularity:
-                        break
+            partition_cols = None  # single parquet file
+            if not target_path.endswith(".parquet") and not target_path.endswith(
+                ".pq"
+            ):  # directory
+                partition_cols = []
+                if timestamp_key and (
+                    self.partitioned or self.time_partitioning_granularity
+                ):
+                    target_df = df.copy(deep=False)
+                    time_partitioning_granularity = self.time_partitioning_granularity
+                    if not time_partitioning_granularity and self.partitioned:
+                        time_partitioning_granularity = (
+                            mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                        )
+                    for unit, fmt in [
+                        ("year", "%Y"),
+                        ("month", "%m"),
+                        ("day", "%d"),
+                        ("hour", "%H"),
+                        ("minute", "%M"),
+                    ]:
+                        partition_cols.append(unit)
+                        target_df[unit] = pd.DatetimeIndex(
+                            target_df[timestamp_key]
+                        ).format(date_format=fmt)
+                        if unit == time_partitioning_granularity:
+                            break
+                # Partitioning will be performed on timestamp_key and then on self.partition_cols
+                # (We might want to give the user control on this order as additional functionality)
+                partition_cols += self.partition_cols or []
             storage_options = self._get_store().get_storage_options()
             self._write_dataframe(
                 target_df,
-                storage_options,
+                self.storage_options or storage_options,
                 target_path,
                 partition_cols=partition_cols,
                 **kwargs,
@@ -690,7 +696,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options={}):
         return df
 
     def get_dask_options(self):
@@ -909,7 +915,7 @@ class ParquetTarget(BaseStoreTarget):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self.get_target_path()).as_df(
+        result = mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             format="parquet",
@@ -918,11 +924,59 @@ class ParquetTarget(BaseStoreTarget):
             time_column=time_column,
             **kwargs,
         )
+        if not columns:
+            drop_cols = []
+            if self.time_partitioning_granularity:
+                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
+                    drop_cols.append(col)
+                    if col == self.time_partitioning_granularity:
+                        break
+            elif (
+                self.partitioned
+                and not self.partition_cols
+                and not self.key_bucketing_number
+            ):
+                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+            if drop_cols:
+                # if these columns aren't present for some reason, that's no reason to fail
+                result.drop(columns=drop_cols, inplace=True, errors="ignore")
+        return result
 
     def is_single_file(self):
         if self.path:
             return self.path.endswith(".parquet") or self.path.endswith(".pq")
         return False
+
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
+        # If partitioning by time, add the necessary columns
+        if (
+            timestamp_key
+            and isinstance(spark_options, dict)
+            and "partitionBy" in spark_options
+        ):
+            from pyspark.sql.functions import (
+                dayofmonth,
+                hour,
+                minute,
+                month,
+                second,
+                year,
+            )
+
+            time_unit_to_op = {
+                "year": year,
+                "month": month,
+                "day": dayofmonth,
+                "hour": hour,
+                "minute": minute,
+                "second": second,
+            }
+            timestamp_col = df[timestamp_key]
+            for partition in spark_options["partitionBy"]:
+                if partition not in df.columns and partition in time_unit_to_op:
+                    op = time_unit_to_op[partition]
+                    df = df.withColumn(partition, op(timestamp_col))
+        return df
 
 
 class CSVTarget(BaseStoreTarget):
@@ -973,7 +1027,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1067,7 +1121,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         raise NotImplementedError()
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1139,7 +1193,7 @@ class NoSqlTarget(NoSqlBaseTarget):
             spark_options["columnUpdate"] = True
         return spark_options
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
@@ -1232,7 +1286,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
         endpoint, uri = self._get_server_endpoint()
         return endpoint
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
@@ -1310,7 +1364,7 @@ class KafkaTarget(BaseStoreTarget):
         attrs = {}
         if bootstrap_servers is not None:
             attrs["bootstrap_servers"] = bootstrap_servers
-        if bootstrap_servers is not None:
+        if producer_options is not None:
             attrs["producer_options"] = producer_options
 
         super().__init__(*args, attributes=attrs, **kwargs)
@@ -1328,10 +1382,15 @@ class KafkaTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
-        attributes = copy(self.attributes)
-        bootstrap_servers = attributes.pop("bootstrap_servers", None)
-        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+        if self.path and self.path.startswith("ds://"):
+            datastore_profile = datastore_profile_read(self.path)
+            attributes = datastore_profile.attributes()
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic = datastore_profile.topic
+        else:
+            attributes = copy(self.attributes)
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
             name=self.name or "KafkaTarget",

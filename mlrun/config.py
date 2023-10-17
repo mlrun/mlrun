@@ -37,8 +37,8 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -204,7 +204,7 @@ default_config = {
                 },
                 "request_timeout": 45,  # seconds
             },
-            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            # see server.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
@@ -286,7 +286,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "disabled",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -403,6 +403,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -417,6 +418,7 @@ default_config = {
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10000,
         "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
@@ -536,7 +538,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -550,6 +552,7 @@ default_config = {
         "mode": "legacy",
         # interval for collecting and sending runs which require their logs to be collected
         "periodic_start_log_interval": 10,
+        "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
@@ -652,7 +655,7 @@ class Config:
                         if not skip_errors:
                             raise exc
                         print(
-                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                            f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}"
                         )
 
     def dump_yaml(self, stream=None):
@@ -799,9 +802,10 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
-        #  importing mlrun.api
-        if config.function.spec.security_context.enrichment_mode == "disabled":
+        if (
+            config.function.spec.security_context.enrichment_mode
+            == mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled
+        ):
             return
 
         igz_version = self.get_parsed_igz_version()
@@ -981,20 +985,22 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
+        application_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
-        :param project:        Project name.
-        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
-        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
-                               path for the provided kind. If it doesn't exist, use the default path.
-                               If the target path is offline and the offline path is already a full path in the
-                               configuration, then the result will be that path as-is. If the offline path is a
-                               relative path, then the result will be based on the project artifact path and the offline
-                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
-                               path instead.
-        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
-                               relative artifact path will be taken from the global MLRun artifact path.
+        :param project:         Project name.
+        :param kind:            Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:          Can be either online or offline. If the target is online, then we try to get a specific
+                                path for the provided kind. If it doesn't exist, use the default path.
+                                If the target path is offline and the offline path is already a full path in the
+                                configuration, then the result will be that path as-is. If the offline path is a
+                                relative path, then the result will be based on the project artifact path and the
+                                offline relative path. If project artifact path wasn't provided, then we use MLRun
+                                artifact path instead.
+        :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
+                                relative artifact path will be taken from the global MLRun artifact path.
+        :param application_name:Application name, None for model_monitoring_stream.
 
         :return: Full configured path for the provided kind.
         """
@@ -1006,8 +1012,22 @@ class Config:
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project)
+
+            if (
+                application_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+            ):
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project,
+                    kind=kind
+                    if application_name is None
+                    else f"{kind}-{application_name.lower()}",
+                )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project, kind=kind
+                project=project,
+                kind=kind
+                if application_name is None
+                else f"{kind}-{application_name.lower()}",
             )
 
         # Get the current offline path from the configuration

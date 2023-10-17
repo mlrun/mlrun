@@ -19,8 +19,8 @@ import pytest
 from sqlalchemy.orm import Session as DBSession
 
 import mlrun.common.schemas
-from mlrun.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 from mlrun.artifacts import ModelArtifact
+from server.api.crud.model_monitoring.model_endpoints import ModelEndpoints
 
 
 @pytest.fixture
@@ -39,13 +39,13 @@ def model_endpoint() -> mlrun.common.schemas.ModelEndpoint:
 
 @pytest.fixture
 def _patch_external_resources() -> Iterator[None]:
-    with patch("mlrun.api.api.utils.get_run_db_instance", autospec=True):
+    with patch("server.api.api.utils.get_run_db_instance", autospec=True):
         with patch(
             "mlrun.datastore.store_resources.get_store_resource",
             return_value=ModelArtifact(),
         ):
             with patch(
-                "mlrun.api.crud.model_monitoring.model_endpoints.get_model_endpoint_store",
+                "server.api.crud.model_monitoring.model_endpoints.get_model_endpoint_store",
                 autospec=True,
             ):
                 yield

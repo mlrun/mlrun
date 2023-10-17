@@ -44,7 +44,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             )
 
         # mlrun exception - mlrun code raises an mlrun exception because we're creating a project with invalid name
-        # This is handled in the mlrun/api/main.py::http_status_error_handler
+        # This is handled in the server/api/main.py::http_status_error_handler
         invalid_project_name = "some_project"
         # Not using client class cause it does validation on client side and we want to fail on server side
         project = mlrun.common.schemas.Project(
@@ -66,7 +66,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunHTTPError,
             match=r"422 Client Error: Unprocessable Entity for url: "
-            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name: "
+            rf"http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project-name(.*): "
             r"Failed deleting project some-project-name details: \[{'loc':"
             r" \['header', 'x-mlrun-deletion-strategy'], 'msg': \"value is not a valid enumeration member; "
             r"permitted: 'restrict', 'restricted', 'cascade', 'cascading', 'check'\", 'type': 'type_error.enum',"

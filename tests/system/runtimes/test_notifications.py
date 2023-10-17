@@ -39,6 +39,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             ].items():
                 if notification_name == error_notification.name:
                     assert notification["status"] == "error"
+                    assert len(notification["reason"]) > 0
                 elif notification_name == success_notification.name:
                     assert notification["status"] == "sent"
 

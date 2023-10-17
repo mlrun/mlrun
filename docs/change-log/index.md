@@ -63,6 +63,7 @@
 | ML-4066 | The Online types list of the Target Store now includes Redis. | 
 | ML-4167 | Supports downloading the .yaml file from the Projects page. |
 | ML-4571 | The Model Endpoints page now displays the drift threshold and the drift actual value. |
+|ML-4756| The Recents list in Jobs and Wrkflows (Projects pane) now displays the last 48 hours. |
 
 ### Breaking changes
 | ID   | Description                                                    |
@@ -77,10 +78,10 @@
 
 | ID   | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-|ML-4075  | Python 3.7 is not supported.|
+| ML-4075  | Python 3.7 is not supported.|
 | NA | [APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).  |
 | ML-4042 | [APIs deprecated in v1.5.0](##apis-deprecated-in-v1-5-0-removed-in-v1-6-0) and [CLIs deprecated in v1.5.0](##cli-deprecated-in-v1-5-0-removed-in-v1-6-0).  | 
-|  | 
+
 
 ###  Closed issues
 | ID   | Description                                                    |

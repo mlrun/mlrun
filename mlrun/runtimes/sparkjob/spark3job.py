@@ -448,7 +448,8 @@ class Spark3Runtime(KubejobRuntime):
     plural = "sparkapplications"
 
     # the dot will make the api prefix the configured registry to the image name
-    default_mlrun_image = ".spark-job-default-image"
+    default_image = ".spark-job-default-image"
+    default_image_function = "spark-default-image-deploy"
     gpu_suffix = "-cuda"
     code_script = "spark-function-code.py"
     code_path = "/etc/config/mlrun"
@@ -805,13 +806,13 @@ class Spark3Runtime(KubejobRuntime):
     @classmethod
     def _get_default_deployed_mlrun_image_name(cls, with_gpu=False):
         suffix = cls.gpu_suffix if with_gpu else ""
-        return cls.default_mlrun_image + suffix
+        return cls.default_image + suffix
 
     @classmethod
     def deploy_default_image(cls, with_gpu=False):
         from mlrun.run import new_function
 
-        sj = new_function(kind=cls.kind, name="spark-default-image-deploy-temp")
+        sj = new_function(kind=cls.kind, name=cls.default_image_function)
         sj.spec.build.image = cls._get_default_deployed_mlrun_image_name(with_gpu)
 
         # setting required resources
@@ -819,7 +820,6 @@ class Spark3Runtime(KubejobRuntime):
         sj.with_driver_requests(cpu=1, mem="512m")
 
         sj.deploy()
-        mlrun.db.get_run_db().delete_function(name=sj.metadata.name)
 
     def _is_using_gpu(self):
         driver_limits = self.spec.driver_resources.get("limits")
@@ -1034,10 +1034,20 @@ class Spark3Runtime(KubejobRuntime):
         )
 
     def is_deployed(self):
+        from mlrun.run import new_function
+
         if (
             not self.spec.build.source
             and not self.spec.build.commands
             and not self.spec.build.extra
+            and not self.spec.build.image
+            and self.metadata.name != self.default_image_function
         ):
-            return True
+            function_with_default_image = new_function(
+                kind=Spark3Runtime.kind, name=self.default_image_function
+            )
+            function_with_default_image.spec.build.image = (
+                self._get_default_deployed_mlrun_image_name(with_gpu=False)
+            )
+            return function_with_default_image.is_deployed()
         return super().is_deployed()

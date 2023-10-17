@@ -14,7 +14,6 @@
 import os.path
 import pathlib
 import re
-import tempfile
 import textwrap
 import typing
 from base64 import b64decode, b64encode
@@ -495,12 +494,10 @@ def build_image(
         not runtime.spec.clone_target_dir
         or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # use a temp dir for permissions and set it as the workdir
-        tmpdir = tempfile.mkdtemp()
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("/home", relative_workdir)
 
     dock = make_dockerfile(
         base_image,

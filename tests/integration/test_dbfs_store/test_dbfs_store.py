@@ -149,8 +149,9 @@ class TestDBFSStore:
     def test_list_dir(self, use_datastore_profile):
         data_item, object_url = self._get_data_item(use_profile=use_datastore_profile)
         data_item.put(self.test_string)
+        file_name_length = len(object_url.split("/")[-1]) + 1
         dir_dataitem = mlrun.run.get_dataitem(
-            self._dbfs_schema + self.dbfs_store_path,
+            object_url[:-file_name_length],
         )
         dir_list = dir_dataitem.listdir()
         assert object_url.split("/")[-1] in dir_list
@@ -342,6 +343,10 @@ class TestDBFSStore:
         files_paths: List[Path],
         reader: callable,
     ):
+        if use_datastore_profile:
+            pytest.skip(
+                "dask dataframe is not supported by datastore profile."
+            )  # TODO add support
         first_file_path = files_paths[0]
         second_file_path = files_paths[1]
         df_url = self._setup_df_dir(

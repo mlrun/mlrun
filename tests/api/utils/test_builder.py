@@ -806,10 +806,10 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 @pytest.mark.parametrize(
     "clone_target_dir,expected_workdir",
     [
-        (None, r"WORKDIR /home"),
-        ("", r"WORKDIR /home"),
-        ("./path/to/code", r"WORKDIR /home/path/to/code"),
-        ("rel_path", r"WORKDIR /home/rel_path"),
+        (None, r"WORKDIR /home/mlrun_code"),
+        ("", r"WORKDIR /home/mlrun_code"),
+        ("./path/to/code", r"WORKDIR /home/mlrun_code/path/to/code"),
+        ("rel_path", r"WORKDIR /home/mlrun_code/rel_path"),
         ("/some/workdir", r"WORKDIR /some/workdir"),
     ],
 )
@@ -897,11 +897,15 @@ def test_builder_source(monkeypatch, source, expectation):
                 _, expected_source = os.path.split(source)
 
             if source.endswith(".zip"):
-                expected_output_re = re.compile(rf"COPY {expected_source} /home/source")
+                expected_output_re = re.compile(
+                    rf"COPY {expected_source} /home/mlrun_code/source"
+                )
                 expected_line_index = 3
 
             else:
-                expected_output_re = re.compile(rf"ADD {expected_source} /home")
+                expected_output_re = re.compile(
+                    rf"ADD {expected_source} /home/mlrun_code"
+                )
                 expected_line_index = 2
 
             assert expected_output_re.match(

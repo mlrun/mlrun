@@ -497,7 +497,7 @@ def build_image(
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join("/home", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("/home/mlrun_code", relative_workdir)
 
     dock = make_dockerfile(
         base_image,

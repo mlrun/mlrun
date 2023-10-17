@@ -48,6 +48,8 @@ class S3Store(DataStoreWithBucket):
             profile_name = self._get_secret_or_env("AWS_PROFILE")
             assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
 
+        self.get_filesystem()
+
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
             client = boto3.client(

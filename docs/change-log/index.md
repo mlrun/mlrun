@@ -11,7 +11,15 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.5.0 (5 October 2023)
+## v1.5.0 (18 October 2023)
+
+### Breaking changes
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
+| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
+| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new image mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
+
 
 ### Data store
 | ID    | Description                                                    |
@@ -26,6 +34,7 @@
 | ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
 | ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html). |  
 | ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).
+
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -37,7 +46,7 @@
 | ML-3370 | Accessing the MLRun hub is now through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech-preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
 | ML-3644 | Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 | ML-4132 | New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
-| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new model mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
+
 
 ### Notifications
 | ID    | Description                                                    |
@@ -55,18 +64,14 @@
 ### UI
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
-| ML-2811 | New Batch Inference wizard. |
+| ML-2811 | New Batch Inference wizard. Tech Preview.|
 | ML-2815 | The new Batch Run wizard replaces the previous New job. |
 | ML-3584 | The Model Endpoints page now displays the Function Tag. |
+| ML-4066 | The Online types list of the Target Store now includes Redis. | 
 | ML-4167 | Supports downloading the .yaml file from the Projects page. |
+| ML-4571 | The Model Endpoints page now displays the drift threshold and the drift actual value. |
 
 
-### Breaking changes
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
-| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
-| ML-4366 | See [Infrastructure](#infrastructure)
 
 ### Deprecations
 
@@ -742,6 +747,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3824 | MLRun supports TensorFlow up to 2.11. | NA | v1.3.1 |
 | ML-3731 | When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`. | To see the error, use `mlrun.db.get_pipelines()` instead. |
 | ML-3743 | Setting AWS credentials as project secret cause a build failure on EKS configured with ECR. | When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
+| ML-4767 | Use PyTorch versions up to and including than 2.0.1, but not higher.  |
 
 ## Deprecations and removed code
 

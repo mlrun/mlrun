@@ -949,7 +949,6 @@ def upload_extra_data(
     """upload extra data to the artifact store"""
     if not extra_data:
         return
-    # TODO: change to use `artifact.spec` when removing legacy artifacts
     target_path = artifact.target_path
     for key, item in extra_data.items():
 
@@ -970,7 +969,7 @@ def upload_extra_data(
                 os.path.join(artifact.src_path, item) if artifact.src_path else item
             )
             if not os.path.isfile(src_path):
-                raise ValueError(f"extra data file {src_path} not found")
+                raise ValueError(f"Extra data file {src_path} not found")
 
             if target_path:
                 target = os.path.join(target_path, item)

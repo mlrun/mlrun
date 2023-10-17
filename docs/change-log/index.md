@@ -13,13 +13,6 @@
 
 ## v1.5.0 (18 October 2023)
 
-### Breaking changes
-| ID   | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
-| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
-| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new image mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
-
 
 ### Data store
 | ID    | Description                                                    |
@@ -70,6 +63,13 @@
 | ML-4066 | The Online types list of the Target Store now includes Redis. | 
 | ML-4167 | Supports downloading the .yaml file from the Projects page. |
 | ML-4571 | The Model Endpoints page now displays the drift threshold and the drift actual value. |
+
+### Breaking changes
+| ID   | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3823 | The default format of `list projects` returns project names only. You can either get names or projects (`name_only`) and do a `get` only on the specific project you want (preferable), or get the full list (`full`).  [View in Git](https://github.com/mlrun/mlrun/pull/4198).|
+| ML-4171 | The Redis target implementation changed. Features-sets that use Redis as online targets must be recreated. [View in Git](https://github.com/mlrun/storey/pull/449).|
+| ML-4366 | The MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` were deprecated and removed. The new image mlrun/mlrun-gpu is added. Additional dependencies must be installed on an as-need basis. See [MLRun images](../runtimes/images.html#mlrun-images). |
 
 
 

@@ -63,7 +63,7 @@
 | ML-4066 | The Online types list of the Target Store now includes Redis. | 
 | ML-4167 | Supports downloading the .yaml file from the Projects page. |
 | ML-4571 | The Model Endpoints page now displays the drift threshold and the drift actual value. |
-|ML-4756| The Recents list in Jobs and Wrkflows (Projects pane) now displays the last 48 hours. |
+|ML-4756 | The Recents list in Jobs and Workflows (Projects pane) now displays the last 48 hours. |
 
 ### Breaking changes
 | ID   | Description                                                    |

@@ -20,14 +20,6 @@
 | ML-2296 | Add ability to manage datastore credentials with datastore profiles. Supports Redis. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
 | ML-3500 | Supports a dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
 
-
-### Documentation
-| ID    | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
-| ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html). |  
-| ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).
-
 ### Feature store
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
@@ -41,16 +33,11 @@
 | ML-4132 | New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 
 
-### Notifications
-| ID    | Description                                                    |
-| --- | ----------------------------------------------------------------- |
-| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
-
-
 ### Runtimes
 | ID    | Description                                                    |
 | --- | ----------------------------------------------------------------- |
 | ML-3501 | Supports running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
+| ML-3854 | Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
 | ML-4059 | Supports adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
 
@@ -64,6 +51,13 @@
 | ML-4167 | Supports downloading the .yaml file from the Projects page. |
 | ML-4571 | The Model Endpoints page now displays the drift threshold and the drift actual value. |
 |ML-4756 | The Recents list in Jobs and Workflows (Projects pane) now displays the last 48 hours. |
+
+### Documentation
+| ID    | Description                                                    |
+| --- | ----------------------------------------------------------------- |
+| ML-3763 | Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
+| ML-4420 | Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html). |  
+| ML-2380 | Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).
 
 ### Breaking changes
 | ID   | Description                                                    |
@@ -734,9 +728,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ML-3480 | Documentation: request details on label parameter of feature set definition | NA                        | v1.2.1 |
 | NA | The feature store does not support schema evolution and does not have schema enforcement. | NA | v1.2.1 | 
 | ML-3633 | Fail to import a context from dict | When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)` | v1.3.0 |
-| ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | 1.3.0 |
+| ML-3640 | When running a remote function/workflow, the `context` global parameter is not automatically injected. | Use `get_or_create_ctx` | v1.3.0 |
 | ML-4740 | When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item. | Prepare suitable Data-item and provide it to the batch-rerun UI. | v1.5.0 |
-
+| ML-4758 | In rare cases, deleting a project is unsuccessful and results in an error message. | Delete again | v1.5.0 |
     
 ## Limitations
 

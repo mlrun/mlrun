@@ -734,12 +734,12 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 def format_summary_from_kfp_run(
     kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
 ):
-    logger.debug("Formatting summary from KFP run", kfp_run=kfp_run, project=project)
     override_project = project if project and project != "*" else None
     dag, project, message = generate_kfp_dag_and_resolve_project(
         kfp_run, override_project
     )
     run_id = get_in(kfp_run, "run.id")
+    logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
     # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
     if not run_db:
@@ -763,6 +763,7 @@ def format_summary_from_kfp_run(
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
+    logger.debug("Completed summary formatting", run_id=run_id, project=project)
     return short_run
 
 

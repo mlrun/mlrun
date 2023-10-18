@@ -734,6 +734,7 @@ def generate_kfp_dag_and_resolve_project(run, project=None):
 def format_summary_from_kfp_run(
     kfp_run, project=None, run_db: "mlrun.db.RunDBInterface" = None
 ):
+    logger.debug("Formatting summary from KFP run", kfp_run=kfp_run, project=project)
     override_project = project if project and project != "*" else None
     dag, project, message = generate_kfp_dag_and_resolve_project(
         kfp_run, override_project

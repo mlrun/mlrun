@@ -149,6 +149,12 @@ class Pipelines(
                         raise mlrun.errors.MLRunNotFoundError(
                             f"Pipeline run with id {run_id} is not of project {project}"
                         )
+                logger.debug(
+                    "Got kfp run",
+                    run_id=run_id,
+                    run_name=run.get("name"),
+                    project=project,
+                )
                 run = self._format_run(
                     db_session, run, format_, api_run_detail.to_dict()
                 )
@@ -244,6 +250,9 @@ class Pipelines(
         format_: mlrun.common.schemas.PipelinesFormat = mlrun.common.schemas.PipelinesFormat.metadata_only,
         api_run_detail: typing.Optional[dict] = None,
     ) -> dict:
+        logger.debug(
+            "Formatting pipeline run", run_name=run.get("name"), format=format_
+        )
         run["project"] = self.resolve_project_from_pipeline(run)
         if format_ == mlrun.common.schemas.PipelinesFormat.full:
             return run

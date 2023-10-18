@@ -169,8 +169,11 @@ it would have to be designed so that the job/function state will be saved when s
 
 Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.
-- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
+- Constrain: The function pod only runs on spot nodes, and does not run if none is available. 
 - Prevent: Default. The function pod cannot run on a spot node. 
+
+To change the default function preemption mode, it is required to override mlrun the api configuration 
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREENPTION_MODE" envvar to either one of the above modes).
 
 ### UI configuration
 

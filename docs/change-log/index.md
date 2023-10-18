@@ -11,46 +11,46 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
-## v1.5.0 (18 October 2023)
+## v1.5.0 (19 October 2023)
 
 
 ### Data store
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
-|ML-2296|Add ability to manage datastore credentials with datastore profiles. Supports Redis. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
-|ML-3500|Supports a dbfs data store (Databricks file system) data store. See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
+|ML-2296|Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+|ML-3500|Support for dbfs data store (Databricks file system). See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
 
 ### Feature store
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
-|ML-3784|Supports feature vector-defined feature-set relations and join-type (per-join). Tech-preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.html#feature-vector-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947).|
+|ML-3784|Support for feature vector-defined feature-set relations and join-type (per-join). Tech Preview. See [Feature vector with different entities and complex joins](../feature-store/feature-vectors.html#feature-vector-with-different-entities-and-complex-joins) and [view in Git](https://github.com/mlrun/mlrun/pull/3947).|
 
 ### Infrastructure
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
-|ML-3370|Accessing the MLRun hub is now through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech-preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
-|ML-3644|Supports self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
-|ML-4132|New remote function `http_client_kwargs` used to pass any parameter supported in the requests.request method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
+|ML-3370|Accessing the MLRun hub is now available through a service API. This will enable implementing better function version selection and combining hub functions from different sources. Tech Preview. [View in Git](https://github.com/mlrun/mlrun/pull/3384).|
+|ML-3644|Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
+|ML-4132|The `invoke` function can now receive any parameter supported in the `requests.request` method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 
 
 ### Runtimes
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
-|ML-3501|Supports running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
-|ML-3854|Add webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
-|ML-4059|Supports adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:class}`~mlrun.projects.html#mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
+|ML-3501|Support for running Spark jobs on Databricks cluster. See {ref}`databricks`. [View in Git](https://github.com/mlrun/mlrun/pull/3996). |
+|ML-3854|Support for webhook notification. See webhook in [Notification Kinds](../concepts/notifications.html#notification-kinds) and [view in Git](https://github.com/mlrun/mlrun/pull/3946). |
+|ML-4059|Support for adding env vars or secrets to the docker build during runtime. See [Extra arguments](../runtimes/image-build.html#extra-arguments),  {py:meth}`~mlrun.projects.MlrunProject.build_config` and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 
 
 ### UI
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
 |ML-2811|New Batch Inference wizard. Tech Preview.|
-|ML-2815|The new Batch Run wizard replaces the previous New job. |
+|ML-2815|New Batch Run wizard that replaces the previous New job page. |
 |ML-3584|The Model Endpoints page now displays the Function Tag. |
 |ML-4066|The Online types list of the Target Store now includes Redis.|
-|ML-4167|Supports downloading the .yaml file from the Projects page. |
+|ML-4167|The Projects page now supports downloading the .yaml file. |
 |ML-4571|The Model Endpoints page now displays the drift threshold and the drift actual value. |
-|ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays the last 48 hours. |
+|ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays a maximum of the last 48 hours. |
 
 ### Documentation
 |ID   |Description                                                    |
@@ -70,12 +70,7 @@
 
 ### Deprecations
 
-|ID  |Description                                                    |
-|---|----------------------------------------------------------------- |
-|ML-4075 |Python 3.7 is not supported.|
-|NA|See [Deprecations and removed code](#deprecations-and-removed-code).|
-|ML-4042|See [Deprecations and removed code](#deprecations-and-removed-code).|
-
+See [Deprecations and removed code](#deprecations-and-removed-code).
 
 ###  Closed issues
 |ID  |Description                                                    |
@@ -754,16 +749,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |v1.5.0|ML-4075|python 3.7 is deprecated. |
 |v1.5.0|ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu` |
 |v1.5.0|ML-3605|Model Monitoring:  Most of the charts and KPIs in Grafana are now based on the data store target instead of the MLRun API. It is recommended to update the model monitoring dashboards since the old dashboards won't be supported. |
-|v1.5.0|ML-4042|API/CLI: see below. |
-|v1.4.0|ML-3547|API/CLI: see below. |
-|v1.3.0|NA|API/CLI: see below. |
 |v1.0.0|NA|MLRun / Nuclio does not support python 3.6. |
 
 
-### APIs that will be removed from v1.6.0 code
+### Deprecated APIs  
 
 |To be removed |Deprecated|API                      |Use instead             |
 |-------|-------|------------------------------------------------|--------------------------------------------- |
+v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
 |v1.6.0|v1.4.0|MLRunProject.clear_context()|This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 |v1.6.0|v1.4.0|MLRunProject object legacy parameters|metadata and spec  |
 |v1.6.0|v1.4.0|BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param|'prepare_image_for_deploy' |
@@ -774,31 +767,13 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |v1.6.0|v1.3.0|ttl param from pipeline|cleanup_ttl |
 |v1.6.0|v1.3.0|objects methods from artifacts list|to_objects |
 
-### REST APIs that will be removed from v1.6.0 code
-|To be removed |Deprecated|REST API                       |Use instead                                   |
-|-------|-------|------------------------------------------------|--------------------------------------------- |
-|v1.6.0|v1.4.0|POST /artifact/{project}/{uid}/{key:path}|/projects/{project}/artifacts/{uid}/{key:path}  |
-|v1.6.0|v1.4.0|GET /projects/{project}/artifact/{key:path}|/projects/{project}/artifacts/{key:path}  |
-|v1.6.0|v1.4.0|DELETE /artifact/{project}/{uid}|/projects/{project}/artifacts/{uid}  |
-|v1.6.0|v1.4.0|GET /artifacts|/projects/{project}/artifacts  |
-|v1.6.0|v1.4.0|DELETE /artifacts |/projects/{project}/artifacts  |
-|v1.6.0|v1.4.0|POST /func/{project}/{name} |/projects/{project}/functions/{name}  |
-|v1.6.0|v1.4.0|GET /func/{project}/{name} |/projects/{project}/functions/{name}  |
-|v1.6.0|v1.4.0|GET /funcs |/projects/{project}/functions  |
 
-
-
-### CLIs that will be removed from v1.6.0 code
+### Deprecated CLIs
 |To be removed |Deprecated|CLI                    |Use instead                                   |
 |-------|-------|------------------------------------------------|--------------------------------------------- |
 |v1.6.0|v1.3.0|dashboard (nuclio/deploy)|No longer supported on client side |
 |v1.6.0|v1.3.0 |overwrite schedule (project)|Not relevant. Running a schedule is now an  operation |
 
-### APIs that will be removed from v1.7.0 code
-
-|To be removed |Deprecated|API                      |Use instead             |
-|-------|-------|------------------------------------------------|--------------------------------------------- |
-|v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
 
 
 ### Removed APIs
@@ -828,19 +803,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |v1.3.0|Dask `with_limits`                  |`with_scheduler_limits` / `with_worker_limits`    |
 |v1.3.0|Dask `with_requests`                |`with_scheduler_requests` / `with_worker_requests`    |
 
-
-
-### Removed REST APIs
-
-|Version|REST API                  |
-|-------|------------------------------------|
-|v1.3.0|`pod_status header` from response to `get_log` REST API|
-|v1.3.0|`client-spec` from response to health API |
-|v1.3.0|`submit_pipeline_legacy` |
-|v1.3.0|`get_pipeline_legacy`  |
-|v1.3.0|Five runtime legacy REST APIs, such as: `list_runtime_resources_legacy`, `delete_runtime_object_legacy` etc. |
-|v1.3.0|httpdb runtime-related APIs using the deprecated runtimes REST APIs, for example: `delete_runtime_object` |
- 
 ### Removed CLIs 
 
 |Version|CLI                      |

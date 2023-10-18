@@ -73,8 +73,8 @@
 |ID  |Description                                                    |
 |---|----------------------------------------------------------------- |
 |ML-4075 |Python 3.7 is not supported.|
-|NA|[APIs removed in v1.5.0](##apis-removed-in-v1-5-0-deprecated-in-v1-3-0) and [CLIs removed in v1.5.0](##cli-removed-in-v1-5-0-deprecated-in-v1-3-0).  |
-|ML-4042|[APIs deprecated in v1.5.0](##apis-deprecated-in-v1-5-0-removed-in-v1-6-0) and [CLIs deprecated in v1.5.0](##cli-deprecated-in-v1-5-0-removed-in-v1-6-0). |
+|NA|See [Deprecations and removed code](#deprecations-and-removed-code).|
+|ML-4042|See [Deprecations and removed code](#deprecations-and-removed-code).|
 
 
 ###  Closed issues
@@ -181,7 +181,7 @@ run2 = func2.run(..., inputs={"artifact": run1.outputs["my_artifact"]})
 run2 = func2.run(..., params={"artifact": run1.outputs["my_artifact"]})
 ```
 ### Deprecations and future deprecations
-See [Deprecations](#deprecations) and [Future deprecations](#future-deprecations).
+See [Deprecations and removed code](#deprecations-and-removed-code).
 
 ### Closed issues
 
@@ -369,7 +369,7 @@ Improvements to [Set up your environment](../install/remote.html).
 
 <a id="api-130"></a>
 ### Deprecated and removed APIs
-Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code. See [Deprecations](#deprecations).
+Starting with v1.3.0, and continuing in subsequent releases, obsolete functions are getting removed from the code. See [Deprecations and removed code](#deprecations-and-removed-code).
 
 ### Closed issues
 
@@ -716,7 +716,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ID  |Description                                           |Workaround                                   |Opened in |
 |----|-------------------------------------------------------|---------------------------------------------|------ |
 |ML-1584|Cannot run `code_to_function` when filename contains special characters|Do not use special characters in filenames|v1.0.0 |
-|ML-2030|Need means of moving artifacts from test to production Spark|To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`|1.0.0 |
+|ML-2030|Need means of moving artifacts from test to production Spark|To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`|v1.0.0 |
 |ML-2199|Spark operator job fails with default requests args.      |NA                                        |v1.0.0 |
 |ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)|Do not use "." in notebook name|v1.0.0  |
 |ML-2380|Spark runtime should sustain naive user actions|NA|1.0.4 |

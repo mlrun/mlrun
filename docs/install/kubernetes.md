@@ -343,9 +343,9 @@ for any project used:
 
 * `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
 * `S3_ENDPOINT_URL` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
-``` console
-S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
-```
+    ``` console
+    S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
+    ```
 
 ### Disabling auto-mount
 

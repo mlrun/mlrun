@@ -349,8 +349,10 @@ S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
 
 ### Disabling auto-mount
 
-Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it. This can be done in one
-of following ways (refer to [**Disabling auto mount**](../runtimes/function-storage.html#disabling-auto-mount)):
+Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
+auto-mount will add S3 configurations that will point at the Minio service (refer to 
+[**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
+of following ways:
 
 1. Set the client-side MLRun configuration to disable auto-mount. This will disable auto-mount for any function run
   after this command:
@@ -359,12 +361,12 @@ of following ways (refer to [**Disabling auto mount**](../runtimes/function-stor
     
     mlconf.storage.auto_mount_type = "none"
     ```
-2. If running MLRun from an IDE, the configuration can be overridden using an environment variable, set the following
+2. If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
   environment variable for your IDE environment:
     ```python
     MLRUN_STORAGE__AUTO_MOUNT_TYPE = "none"
     ```
-3. Disable auto-mount for a specific function. This must be done before calling `run()` on the function:
+3. Disable auto-mount for a specific function. This must be done before running the function for the first time:
     ```python
     function.spec.disable_auto_mount = True
     ```

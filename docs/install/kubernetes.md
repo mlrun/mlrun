@@ -322,8 +322,8 @@ If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you mi
 
 ## Storing artifacts in AWS S3 storage
 
-MLRun CE is using a Minio service as shared storage for artifacts, and accesses it using S3 protocol. This means that
-any path that begins with `s3://` will automatically be directed by MLRun to the Minio service. The default artifact
+MLRun CE uses a Minio service as shared storage for artifacts, and accesses it using S3 protocol. This means that
+any path that begins with `s3://` is automatically directed by MLRun to the Minio service. The default artifact
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
 Minio service.
 
@@ -350,23 +350,23 @@ for any project used:
 ### Disabling auto-mount
 
 Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
-auto-mount will add S3 configurations that will point at the Minio service (refer to 
+auto-mount adds S3 configurations that point at the Minio service (refer to 
 [**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
 of following ways:
 
-1. Set the client-side MLRun configuration to disable auto-mount. This will disable auto-mount for any function run
+* Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
   after this command:
     ```python
     from mlrun.config import config as mlconf
     
     mlconf.storage.auto_mount_type = "none"
     ```
-2. If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
+* If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
   environment variable for your IDE environment:
     ```python
     MLRUN_STORAGE__AUTO_MOUNT_TYPE = "none"
     ```
-3. Disable auto-mount for a specific function. This must be done before running the function for the first time:
+* Disable auto-mount for a specific function. This must be done before running the function for the first time:
     ```python
     function.spec.disable_auto_mount = True
     ```

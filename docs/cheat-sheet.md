@@ -220,7 +220,7 @@ mpijob.run()
 #### Dask
 
 ```python
-dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/mlrun")
+dask = mlrun.new_function(name="my-dask", kind="dask", image="mlrun/ml-base")
 dask.spec.remote = True
 dask.spec.replicas = 5
 dask.spec.service_type = 'NodePort'
@@ -1103,7 +1103,7 @@ Docs: [Running the workers using Dask](./hyper-params.html#running-the-workers-u
 
 ```python
 # Create Dask cluster
-dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/mlrun")
+dask_cluster = mlrun.new_function("dask-cluster", kind="dask", image="mlrun/ml-base")
 dask_cluster.apply(mlrun.mount_v3io())  # add volume mounts
 dask_cluster.spec.service_type = "NodePort"  # open interface to the dask UI dashboard
 dask_cluster.spec.replicas = 2  # define two containers

@@ -53,7 +53,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_function_with_requirements_file(self):
         # ML-3518
         code_path = str(self.assets_path / "kubejob_function_custom_requirements.py")
-        requirements_path = str(self.assets_path / "requirements.txt")
+        requirements_path = str(self.assets_path / "requirements-test.txt")
         function = mlrun.code_to_function(
             name="simple-function",
             kind="job",

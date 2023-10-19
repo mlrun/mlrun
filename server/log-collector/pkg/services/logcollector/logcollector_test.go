@@ -85,7 +85,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		bufferPoolSize,
 		bufferPoolSize,
 		bufferSizeBytes,
-		bufferSizeBytes)
+		bufferSizeBytes,
+		common.LogTimeUpdateBytesInterval)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	suite.logger.InfoWith("Setup complete")

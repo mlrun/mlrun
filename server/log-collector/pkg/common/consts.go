@@ -34,9 +34,9 @@ const (
 	// gRPC has a limit of 4MB, so we set it to 3.75MB in case of overhead
 	DefaultGetLogsBufferSize int = 3.75 * 1024 * 1024 // 3.75MB
 
-	// BytesReadPerLogTimeUpdate is the bytes amount to read between updates of the
+	// LogTimeUpdateBytesInterval is the bytes amount to read between updates of the
 	// last log time in the in memory state
-	BytesReadPerLogTimeUpdate int = 4 * 1024 // 4KB
+	LogTimeUpdateBytesInterval int = 4 * 1024 // 4KB
 )
 
 // Custom errors

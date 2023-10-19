@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Any, NewType
 
 import pandas as pd
@@ -24,7 +25,11 @@ import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
+from mlrun.common.schemas.model_monitoring.constants import (
+    ProjectSecretKeys,
+    ResultStatusApp,
+    WriterEvent,
+)
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -119,6 +124,7 @@ class ModelMonitoringWriter(StepToDict):
     def _get_v3io_client() -> V3IOClient:
         return mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.mlconf.v3io_api,
+            access_key=os.getenv(ProjectSecretKeys.ACCESS_KEY),
         )
 
     @staticmethod
@@ -126,6 +132,7 @@ class ModelMonitoringWriter(StepToDict):
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
+            token=os.getenv(ProjectSecretKeys.ACCESS_KEY, ""),
         )
 
     def _create_tsdb_table(self) -> None:

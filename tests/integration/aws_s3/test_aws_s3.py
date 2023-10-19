@@ -269,7 +269,7 @@ class TestAwsS3:
             dt1.upload(src_path=temp_file1.name)
             dt2.upload(src_path=temp_file2.name)
             dt1.as_df()
-            dt2.as_df()
+            assert_frame_equal(df2, dt2.as_df(), check_like=True)
             dt_dir = mlrun.run.get_dataitem(csv_url)
             tested_df = (
                 dt_dir.as_df(format="csv").sort_values("Column1").reset_index(drop=True)

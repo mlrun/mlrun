@@ -296,7 +296,7 @@ def resolve_function_target_image_registries_to_enforce_prefix():
     registry, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)
     return [
-        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{repository}/",
+        f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}",
         f"{registry}/{repository}/",
     ]
 

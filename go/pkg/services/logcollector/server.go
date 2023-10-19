@@ -62,7 +62,7 @@ type Server struct {
 	logCollectionBufferSizeBytes int
 	getLogsBufferPool            bufferpool.Pool
 	getLogsBufferSizeBytes       int
-	bytesReadPerLogTimeUpdate    int
+	logTimeUpdateBytesInterval   int
 
 	// start logs finding pods timeout
 	startLogsFindingPodsTimeout  time.Duration
@@ -86,7 +86,7 @@ func NewLogCollectorServer(logger logger.Logger,
 	getLogsBufferPoolSize,
 	logCollectionBufferSizeBytes,
 	getLogsBufferSizeBytes int,
-	bytesReadPerLogTimeUpdate int) (*Server, error) {
+	logTimeUpdateBytesInterval int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -156,7 +156,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		getLogsBufferPool:            getLogsBufferPool,
 		logCollectionBufferSizeBytes: logCollectionBufferSizeBytes,
 		getLogsBufferSizeBytes:       getLogsBufferSizeBytes,
-		bytesReadPerLogTimeUpdate:    bytesReadPerLogTimeUpdate,
+		logTimeUpdateBytesInterval:   logTimeUpdateBytesInterval,
 		isChief:                      isChief,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
@@ -801,7 +801,7 @@ func (s *Server) streamPodLogs(ctx context.Context,
 
 		// update last log time regularly to mitigate restarts
 		*bytesSinceLogTimeUpdate += numBytesRead
-		if *bytesSinceLogTimeUpdate >= s.bytesReadPerLogTimeUpdate {
+		if *bytesSinceLogTimeUpdate >= s.logTimeUpdateBytesInterval {
 			*bytesSinceLogTimeUpdate = 0
 			if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, *logTime); err != nil {
 				return true, errors.Wrap(err, "Failed to update last log time")

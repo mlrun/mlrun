@@ -138,6 +138,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             func=str((Path(__file__).parent / "assets/application.py").absolute()),
             application_class="DemoMonitoringApp",
             name=self.app_name,
+            image="mlrun/mlrun",
         )
         self._log_model()
         self.serving_fn = self._deploy_model_serving()

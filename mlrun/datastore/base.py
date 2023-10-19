@@ -256,10 +256,14 @@ class DataStore:
                                 filename = filename.split("/")[-1]
                                 filenames.append(filename)
                         dfs = []
+                        kwargs.pop("filesystem", None)
+                        kwargs.pop("storage_options", None)
                         for filename in filenames:
-                            updated_args = [f"{base_path}/{filename}"]
-                            updated_args.extend(args[1:])
-                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                            fullpath = f"{base_path}/{filename}"
+                            with file_system.open(fullpath) as fhandle:
+                                updated_args = [fhandle]
+                                updated_args.extend(args[1:])
+                                dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return df_module.concat(dfs)
 
         elif (

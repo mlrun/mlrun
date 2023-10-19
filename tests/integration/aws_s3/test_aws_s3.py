@@ -238,3 +238,45 @@ class TestAwsS3:
             tested_df = dt_dir.as_df(format="parquet")
             expected_df = pd.concat([df1, df2], ignore_index=True)
             assert_frame_equal(tested_df, expected_df)
+
+    def test_directory_csv(self, use_datastore_profile):
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        for p in credential_params:
+            os.environ[p] = config["env"][p]
+        csv_dir = f"/csv{uuid.uuid4()}"
+        csv_url = param["bucket_path"] + csv_dir
+        #  generate dfs
+        # Define data for the first DataFrame
+        data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
+
+        # Define data for the second DataFrame
+        data2 = {"Column1": [4, 5, 6], "Column2": ["X", "Y", "Z"]}
+
+        # Create the DataFrames
+        df1 = pd.DataFrame(data1)
+        df2 = pd.DataFrame(data2)
+        with tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=True
+        ) as temp_file1, tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=True
+        ) as temp_file2:
+            # Save DataFrames as csv files
+            df1.to_csv(temp_file1.name, index=False)
+            df2.to_csv(temp_file2.name, index=False)
+            #  upload
+            dt1 = mlrun.run.get_dataitem(csv_url + "/df1.csv")
+            dt2 = mlrun.run.get_dataitem(csv_url + "/df2.csv")
+            dt1.upload(src_path=temp_file1.name)
+            dt2.upload(src_path=temp_file2.name)
+            dt1.as_df()
+            dt2.as_df()
+            dt_dir = mlrun.run.get_dataitem(csv_url)
+            tested_df = (
+                dt_dir.as_df(format="csv").sort_values("Column1").reset_index(drop=True)
+            )
+            expected_df = (
+                pd.concat([df1, df2], ignore_index=True)
+                .sort_values("Column1")
+                .reset_index(drop=True)
+            )
+            assert_frame_equal(tested_df, expected_df)

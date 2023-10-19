@@ -411,7 +411,7 @@ def build_image(
     _validate_extra_args(extra_args)
 
     image_target, secret_name = resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
+        image_target, registry, secret_name, project
     )
 
     commands, requirements_list, requirements_path = _resolve_build_requirements(
@@ -740,7 +740,10 @@ def build_runtime(
 
 
 def resolve_image_target_and_registry_secret(
-    image_target: str, registry: str = None, secret_name: str = None
+    image_target: str,
+    registry: str = None,
+    secret_name: str = None,
+    project: str = None,
 ) -> (str, str):
     if registry:
         return "/".join([registry, image_target]), secret_name
@@ -754,6 +757,9 @@ def resolve_image_target_and_registry_secret(
         image_target = image_target[
             len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
         ]
+
+        if project:
+            image_target = f"{project}-{image_target}"
 
         registry, repository = mlrun.utils.get_parsed_docker_registry()
         secret_name = secret_name or config.httpdb.builder.docker_registry_secret

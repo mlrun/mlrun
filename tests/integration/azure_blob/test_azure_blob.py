@@ -114,70 +114,71 @@ pytestmark = pytest.mark.parametrize(
 )
 
 
-def test_azure_blob(auth_method):
-    storage_options = verify_auth_parameters_and_configure_env(auth_method)
-    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+@pytest.mark.parametrize("use_datastore_profile", [False, True])
+class TestAzureBlob:
+    def test_azure_blob(self, use_datastore_profile, auth_method):
+        storage_options = verify_auth_parameters_and_configure_env(auth_method)
+        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
 
-    print(f"\nBlob URL: {blob_url}")
+        print(f"\nBlob URL: {blob_url}")
 
-    data_item = mlrun.run.get_dataitem(blob_url, secrets=storage_options)
-    data_item.put(test_string)
+        data_item = mlrun.run.get_dataitem(blob_url, secrets=storage_options)
+        data_item.put(test_string)
 
-    # Validate append is properly blocked (currently not supported for Azure blobs)
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        data_item.put("just checking!", append=True)
+        # Validate append is properly blocked (currently not supported for Azure blobs)
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            data_item.put("just checking!", append=True)
 
-    response = data_item.get()
-    assert response.decode() == test_string, "Result differs from original test"
+        response = data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"
 
-    response = data_item.get(offset=20)
-    assert response.decode() == test_string[20:], "Partial result not as expected"
+        response = data_item.get(offset=20)
+        assert response.decode() == test_string[20:], "Partial result not as expected"
 
-    stat = data_item.stat()
-    assert stat.size == len(test_string), "Stat size different than expected"
+        stat = data_item.stat()
+        assert stat.size == len(test_string), "Stat size different than expected"
 
+    def test_list_dir(self, use_datastore_profile, auth_method):
+        storage_options = verify_auth_parameters_and_configure_env(auth_method)
+        blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
+        print(f"\nBlob URL: {blob_url}")
 
-def test_list_dir(auth_method):
-    storage_options = verify_auth_parameters_and_configure_env(auth_method)
-    blob_container_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_container_path + "/" + blob_dir + "/" + blob_file
-    print(f"\nBlob URL: {blob_url}")
+        mlrun.run.get_dataitem(blob_url, storage_options).put(test_string)
 
-    mlrun.run.get_dataitem(blob_url, storage_options).put(test_string)
+        # Check dir list for container
+        dir_list = mlrun.run.get_dataitem(
+            blob_container_path, storage_options
+        ).listdir()
+        assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
 
-    # Check dir list for container
-    dir_list = mlrun.run.get_dataitem(blob_container_path, storage_options).listdir()
-    assert blob_dir + "/" + blob_file in dir_list, "File not in container dir-list"
+        # Check dir list for folder in container
+        dir_list = mlrun.run.get_dataitem(
+            blob_container_path + "/" + blob_dir, storage_options
+        ).listdir()
+        assert blob_file in dir_list, "File not in folder dir-list"
 
-    # Check dir list for folder in container
-    dir_list = mlrun.run.get_dataitem(
-        blob_container_path + "/" + blob_dir, storage_options
-    ).listdir()
-    assert blob_file in dir_list, "File not in folder dir-list"
+    def test_blob_upload(self, use_datastore_profile, auth_method):
+        storage_options = verify_auth_parameters_and_configure_env(auth_method)
+        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_path + "/" + blob_dir + "/" + blob_file
+        print(f"\nBlob URL: {blob_url}")
 
+        upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
+        upload_data_item.upload(test_filename)
 
-def test_blob_upload(auth_method):
-    storage_options = verify_auth_parameters_and_configure_env(auth_method)
-    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_path + "/" + blob_dir + "/" + blob_file
-    print(f"\nBlob URL: {blob_url}")
+        response = upload_data_item.get()
+        assert response.decode() == test_string, "Result differs from original test"
 
-    upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
-    upload_data_item.upload(test_filename)
+    def test_as_df(self, use_datastore_profile, auth_method):
+        source_df = pd.read_csv(test_csv_filename)
+        storage_options = verify_auth_parameters_and_configure_env(auth_method)
+        blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
+        blob_url = blob_path + "/" + blob_dir + "/" + blob_file.replace("txt", "csv")
 
-    response = upload_data_item.get()
-    assert response.decode() == test_string, "Result differs from original test"
+        upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
+        upload_data_item.upload(test_csv_filename)
 
-
-def test_as_df(auth_method):
-    source_df = pd.read_csv(test_csv_filename)
-    storage_options = verify_auth_parameters_and_configure_env(auth_method)
-    blob_path = "az://" + config["env"].get("AZURE_CONTAINER")
-    blob_url = blob_path + "/" + blob_dir + "/" + blob_file.replace("txt", "csv")
-
-    upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
-    upload_data_item.upload(test_csv_filename)
-
-    result_df = upload_data_item.as_df()
-    assert result_df.equals(source_df)
+        result_df = upload_data_item.as_df()
+        assert result_df.equals(source_df)

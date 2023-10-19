@@ -148,6 +148,25 @@ class DatastoreProfileGCS(DatastoreProfile):
     gcp_credentials: typing.Optional[str] = None
 
 
+class DatastoreProfileAzureBlob(DatastoreProfile):
+    type: str = pydantic.Field("az")
+    _private_attributes = (
+        "connection_string",
+        "account_key",
+        "client_secret",
+        "sas_token",
+        "credential",
+    )
+    connection_string: typing.Optional[str] = None
+    account_name: typing.Optional[str] = None
+    account_key: typing.Optional[str] = None
+    tenant_id: typing.Optional[str] = None
+    client_id: typing.Optional[str] = None
+    client_secret: typing.Optional[str] = None
+    sas_token: typing.Optional[str] = None
+    credential: typing.Optional[str] = None
+
+
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
     _private_attributes = ("username", "password")
@@ -241,6 +260,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "kafka_source": DatastoreProfileKafkaSource,
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
+            "az": DatastoreProfileAzureBlob,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

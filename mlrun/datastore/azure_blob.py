@@ -14,25 +14,40 @@
 
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
-import fsspec
+from adlfs.spec import AzureBlobFileSystem
 from azure.storage.blob import BlobServiceClient
 
 import mlrun.errors
 from mlrun.errors import err_to_str
 
 from .base import DataStore, FileStats
+from .datastore_profile import datastore_profile_read
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
+
+
+class AzureBlobFileSystemWithDS(AzureBlobFileSystem):
+    @classmethod
+    def _strip_protocol(cls, url):
+        if url.startswith("ds://"):
+            parsed_url = urlparse(url)
+            url = parsed_url.path[1:]
+        return super()._strip_protocol(url)
 
 
 class AzureBlobStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.bsc = None
-
-        con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
+        if self.kind == "ds":
+            datastore_profile = datastore_profile_read(self.name)
+            con_string = datastore_profile.connection_string
+            self.endpoint = ""
+        else:
+            con_string = self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
         if con_string:
             self.bsc = BlobServiceClient.from_connection_string(con_string)
         else:
@@ -50,26 +65,52 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
                 )
             return None
-        self._filesystem = fsspec.filesystem(self.kind, **self.get_storage_options())
+        self._filesystem = AzureBlobFileSystemWithDS(**self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):
+        if self.kind == "ds":
+            datastore_profile = datastore_profile_read(self.name)
+            account_name = datastore_profile.account_name
+            account_key = datastore_profile.account_key
+            connection_string = datastore_profile.connection_string
+            tenant_id = datastore_profile.tenant_id
+            client_id = datastore_profile.client_id
+            client_secret = datastore_profile.client_secret
+            sas_token = datastore_profile.sas_token
+            credential = datastore_profile.credential
+        else:
+            account_name = self._get_secret_or_env(
+                "AZURE_STORAGE_ACCOUNT_NAME"
+            ) or self._get_secret_or_env("account_name")
+            account_key = self._get_secret_or_env(
+                "AZURE_STORAGE_KEY"
+            ) or self._get_secret_or_env("account_key")
+            connection_string = self._get_secret_or_env(
+                "AZURE_STORAGE_CONNECTION_STRING"
+            ) or self._get_secret_or_env("connection_string")
+            tenant_id = self._get_secret_or_env(
+                "AZURE_STORAGE_TENANT_ID"
+            ) or self._get_secret_or_env("tenant_id")
+            client_id = self._get_secret_or_env(
+                "AZURE_STORAGE_CLIENT_ID"
+            ) or self._get_secret_or_env("client_id")
+            client_secret = self._get_secret_or_env(
+                "AZURE_STORAGE_CLIENT_SECRET"
+            ) or self._get_secret_or_env("client_secret")
+            sas_token = self._get_secret_or_env(
+                "AZURE_STORAGE_SAS_TOKEN"
+            ) or self._get_secret_or_env("sas_token")
+            credential = self._get_secret_or_env("credential")
         return dict(
-            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME")
-            or self._get_secret_or_env("account_name"),
-            account_key=self._get_secret_or_env("AZURE_STORAGE_KEY")
-            or self._get_secret_or_env("account_key"),
-            connection_string=self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
-            or self._get_secret_or_env("connection_string"),
-            tenant_id=self._get_secret_or_env("AZURE_STORAGE_TENANT_ID")
-            or self._get_secret_or_env("tenant_id"),
-            client_id=self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID")
-            or self._get_secret_or_env("client_id"),
-            client_secret=self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET")
-            or self._get_secret_or_env("client_secret"),
-            sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN")
-            or self._get_secret_or_env("sas_token"),
-            credential=self._get_secret_or_env("credential"),
+            account_name=account_name,
+            account_key=account_key,
+            connection_string=connection_string,
+            tenant_id=tenant_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            sas_token=sas_token,
+            credential=credential,
         )
 
     def _convert_key_to_remote_path(self, key):

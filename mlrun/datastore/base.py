@@ -288,7 +288,11 @@ class DataStore:
                 storage_options = self.get_storage_options()
                 if url.startswith("ds://"):
                     parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path[1:] if isinstance(self, DataStoreWithBucket) else parsed_url.path
+                    url = (
+                        parsed_url.path[1:]
+                        if isinstance(self, DataStoreWithBucket)
+                        else parsed_url.path
+                    )
                     # Pass the underlying file system
                     kwargs["filesystem"] = file_system
                 elif storage_options:

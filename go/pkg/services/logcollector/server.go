@@ -681,9 +681,10 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 	// initialize stream and error for the while loop
 	var (
-		stream      io.ReadCloser
-		streamErr   error
-		keepLogging = true
+		stream           io.ReadCloser
+		streamErr        error
+		keepLogging      = true
+		bytesUntilUpdate = common.BytesReadPerLogTimeUpdate
 	)
 
 	// get logs from pod, and keep the stream open (follow)
@@ -724,7 +725,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
-		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream, &lastLogTime)
+		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream, &lastLogTime, projectName, &bytesUntilUpdate)
 		if err != nil {
 			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
 			// by bailing out
@@ -771,7 +772,9 @@ func (s *Server) streamPodLogs(ctx context.Context,
 	podName string,
 	logFile *os.File,
 	stream io.ReadCloser,
-	logTime *int64) (bool, error) {
+	logTime *int64,
+	projectName string,
+	bytesUntilUpdate *int) (bool, error) {
 
 	// get a buffer from the pool - so we can share buffers across goroutines
 	buf := s.logCollectionBufferPool.Get()
@@ -791,6 +794,15 @@ func (s *Server) streamPodLogs(ctx context.Context,
 				"err", err.Error(),
 				"runUID", runUID)
 			return true, errors.Wrap(err, "Failed to write pod log to file")
+		}
+
+		// update last log time regularly to mitigate restarts
+		*bytesUntilUpdate -= numBytesRead
+		if *bytesUntilUpdate <= 0 {
+			*bytesUntilUpdate = common.BytesReadPerLogTimeUpdate
+			if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, *logTime); err != nil {
+				return true, errors.Wrap(err, "Failed to update last log time")
+			}
 		}
 	}
 

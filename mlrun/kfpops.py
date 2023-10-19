@@ -739,6 +739,7 @@ def format_summary_from_kfp_run(
         kfp_run, override_project
     )
     run_id = get_in(kfp_run, "run.id")
+    logger.debug("Formatting summary from KFP run", run_id=run_id, project=project)
 
     # run db parameter allows us to use the same db session for the whole flow and avoid session isolation issues
     if not run_db:
@@ -762,6 +763,7 @@ def format_summary_from_kfp_run(
     }
     short_run["run"]["project"] = project
     short_run["run"]["message"] = message
+    logger.debug("Completed summary formatting", run_id=run_id, project=project)
     return short_run
 
 

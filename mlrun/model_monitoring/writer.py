@@ -103,21 +103,29 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(self, project: str) -> None:
         self.project = project
         self.name = project  # required for the deployment process
-        self._v3io_container = f"users/pipelines/{self.name}/monitoring-apps"
+        self._v3io_container = self.get_v3io_container(self.name)
         self._kv_client = self._get_v3io_client().kv
-        self._tsdb_client = self._get_v3io_frames_client()
+        self._tsdb_client = self._get_v3io_frames_client(self._v3io_container)
         self._custom_notifier = CustomNotificationPusher(
             notification_types=[NotificationKind.slack]
         )
         self._create_tsdb_table()
 
-    def _get_v3io_client(self) -> V3IOClient:
-        return mlrun.utils.v3io_clients.get_v3io_client(endpoint=mlrun.mlconf.v3io_api)
+    @staticmethod
+    def get_v3io_container(project_name: str) -> str:
+        return f"users/pipelines/{project_name}/monitoring-apps"
 
-    def _get_v3io_frames_client(self) -> V3IOFramesClient:
+    @staticmethod
+    def _get_v3io_client() -> V3IOClient:
+        return mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api,
+        )
+
+    @staticmethod
+    def _get_v3io_frames_client(v3io_container: str) -> V3IOFramesClient:
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
-            container=self._v3io_container,
+            container=v3io_container,
         )
 
     def _create_tsdb_table(self) -> None:

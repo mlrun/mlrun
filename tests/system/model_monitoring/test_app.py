@@ -50,7 +50,8 @@ class _AppData:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow"
+    project_name = "test-monitoring-app-flow" + str(24)  # <-- +1
+    # project_name = "test-monitoring-app-flow"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -114,12 +115,18 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
+        image = "mlrun/mlrun:1.6.0-rc1"  # DONTTRACK
         serving_fn.set_tracking(
             tracking_policy=TrackingPolicy(
                 default_batch_intervals=f"*/{cls.app_interval} * * * *",
                 application_batch=True,
+                default_batch_image=image,  # DONTTRACK
+                stream_image=image,  # DONTTRACK
             ),
         )
+        serving_fn.spec.image = image  # DONTTRACK
+        serving_fn.spec.build.image = image  # DONTTRACK
+
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
 

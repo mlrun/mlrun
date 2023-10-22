@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os.path
+import pathlib
 import tempfile
 from random import randint, random
 
@@ -209,9 +209,15 @@ def test_track_run_no_handler(rundb_mock, run_name):
 
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
+        # Get the script path from assets:
+        script_path = str(
+            pathlib.Path(__file__).parent.parent
+            / "assets"
+            / f"{run_name}_no_handler.py"
+        )
         # Create a MLRun function using the tester source file (all the functions must be located in it):
         func = project.set_function(
-            os.path.abspath(f"../assets/{run_name}_no_handler.py"),
+            script_path,
             name=run_name,
             kind="job",
             image="mlrun/mlrun",

@@ -119,6 +119,7 @@ from .model_monitoring import (
     ModelEndpointStatus,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    MonitoringFunctionNames,
     TimeSeriesTarget,
 )
 from .notification import (

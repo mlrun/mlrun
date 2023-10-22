@@ -15,6 +15,7 @@
 import asyncio
 import collections
 import concurrent.futures
+import contextlib
 import datetime
 import traceback
 import typing
@@ -22,7 +23,6 @@ import typing
 import fastapi
 import fastapi.concurrency
 import sqlalchemy.orm
-import uvicorn
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
@@ -32,6 +32,7 @@ import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
+import server.api.apiuvicorn as uvicorn
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
@@ -68,12 +69,24 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 # and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
-_last_notification_push_time: datetime.datetime = None
+_last_notification_push_time: typing.Optional[datetime.datetime] = None
+
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
 # that keep failing start logs requests.
 _run_uid_start_log_request_counters: collections.Counter = collections.Counter()
+
+
+# https://fastapi.tiangolo.com/advanced/events/
+@contextlib.asynccontextmanager
+async def lifespan(app_: fastapi.FastAPI):
+    await setup_api()
+
+    # Let the api run
+    yield
+
+    await teardown_api()
 
 
 app = fastapi.FastAPI(
@@ -86,6 +99,7 @@ app = fastapi.FastAPI(
     docs_url=f"{BASE_VERSIONED_API_PREFIX}/docs",
     redoc_url=f"{BASE_VERSIONED_API_PREFIX}/redoc",
     default_response_class=fastapi.responses.ORJSONResponse,
+    lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
@@ -133,8 +147,7 @@ async def http_status_error_handler(
     )
 
 
-@app.on_event("startup")
-async def startup_event():
+async def setup_api():
     logger.info(
         "On startup event handler called",
         config=config.dump_yaml(),
@@ -162,8 +175,7 @@ async def startup_event():
         await move_api_to_online()
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
+async def teardown_api():
     if get_project_member():
         get_project_member().shutdown()
     cancel_all_periodic_functions()
@@ -175,7 +187,7 @@ async def move_api_to_online():
     logger.info("Moving api to online")
     await initialize_scheduler()
 
-    # In general it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
+    # In general, it makes more sense to initialize the project member before the scheduler but in 1.1.0 in follower
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
     initialize_project_member()
@@ -731,18 +743,7 @@ def main():
         # we set this state to mark the phase between the startup of the instance until we able to pull the chief state
         config.httpdb.state = mlrun.common.schemas.APIStates.waiting_for_chief
 
-    logger.info(
-        "Starting API server",
-        port=config.httpdb.port,
-        debug=config.httpdb.debug,
-    )
-    uvicorn.run(
-        "server.api.main:app",
-        host="0.0.0.0",
-        port=config.httpdb.port,
-        access_log=False,
-        timeout_keep_alive=config.httpdb.http_connection_timeout_keep_alive,
-    )
+    uvicorn.run(logger, httpdb_config=config.httpdb)
 
 
 if __name__ == "__main__":

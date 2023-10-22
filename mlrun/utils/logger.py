@@ -42,7 +42,7 @@ class JSONFormatter(logging.Formatter):
 
 
 class HumanReadableFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record) -> str:
         record_with = self._record_with(record)
         more = f": {record_with}" if record_with else ""
         return f"> {self.formatTime(record, self.datefmt)} [{record.levelname.lower()}] {record.getMessage()}{more}"
@@ -55,7 +55,7 @@ class HumanReadableFormatter(logging.Formatter):
 
 
 class HumanReadableExtendedFormatter(HumanReadableFormatter):
-    def format(self, record):
+    def format(self, record) -> str:
         record_with = self._record_with(record)
         more = f": {record_with}" if record_with else ""
         return (

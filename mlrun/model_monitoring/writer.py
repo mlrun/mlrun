@@ -146,6 +146,7 @@ class ModelMonitoringWriter(StepToDict):
             event[WriterEvent.SCHEDULE_TIME],
             format=EventFieldType.TIME_FORMAT,
         )
+        del event[WriterEvent.RESULT_EXTRA_DATA]
         try:
             self._tsdb_client.write(
                 backend=_TSDB_BE,

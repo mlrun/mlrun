@@ -15,6 +15,7 @@ import enum
 import getpass
 import http
 import re
+import typing
 import warnings
 from base64 import b64encode
 from os import environ
@@ -348,8 +349,6 @@ class BaseRuntime(ModelObj):
                           artifact type is specified, the object's default artifact type will be used.
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
-                                        e.g. builder_env={"GIT_TOKEN": token}
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -502,7 +501,7 @@ class BaseRuntime(ModelObj):
         resp: dict = None,
         task: RunObject = None,
         err=None,
-    ) -> dict:
+    ) -> typing.Optional[dict]:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:

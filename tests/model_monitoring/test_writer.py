@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from functools import partial
 from typing import Type
 from unittest.mock import Mock
 
@@ -20,6 +21,7 @@ from _pytest.fixtures import FixtureRequest
 
 from mlrun.model_monitoring.writer import (
     ModelMonitoringWriter,
+    V3IOFramesClient,
     WriterEvent,
     _AppResultEvent,
     _Notifier,
@@ -30,7 +32,7 @@ from mlrun.model_monitoring.writer import (
 from mlrun.utils.notifications.notification_pusher import CustomNotificationPusher
 
 
-@pytest.fixture
+@pytest.fixture(params=[0])
 def event(request: FixtureRequest) -> _AppResultEvent:
     return _AppResultEvent(
         {
@@ -75,3 +77,31 @@ def test_notifier(
 ) -> None:
     _Notifier(event=event, notification_pusher=notification_pusher).notify()
     assert notification_pusher.push.call_count == expected_notification_call
+
+
+class TestTSDB:
+    @staticmethod
+    @pytest.fixture
+    def tsdb_client() -> V3IOFramesClient:
+        return Mock(spec=V3IOFramesClient)
+
+    @staticmethod
+    @pytest.fixture
+    def writer(tsdb_client: V3IOFramesClient) -> ModelMonitoringWriter:
+        writer = Mock(spec=ModelMonitoringWriter)
+        writer._tsdb_client = tsdb_client
+        writer._update_tsdb = partial(ModelMonitoringWriter._update_tsdb, writer)
+        return writer
+
+    @staticmethod
+    def test_no_extra(
+        event: _AppResultEvent,
+        tsdb_client: V3IOFramesClient,
+        writer: ModelMonitoringWriter,
+    ) -> None:
+        writer._update_tsdb(event)
+        tsdb_client.write.assert_called()
+        assert (
+            WriterEvent.RESULT_EXTRA_DATA
+            not in tsdb_client.write.call_args.kwargs["dfs"].columns
+        ), "The extra data should not be written to the TSDB"

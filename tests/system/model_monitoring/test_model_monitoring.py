@@ -14,11 +14,12 @@
 #
 import json
 import os
+import pickle
 import string
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional
+from typing import Optional, Union
 
 import fsspec
 import numpy as np
@@ -26,6 +27,8 @@ import pandas as pd
 import pytest
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
@@ -306,7 +309,6 @@ class TestBasicModelMonitoring(TestMLRunSystem):
         )
 
     def _assert_model_endpoint_metrics(self):
-
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
@@ -765,7 +767,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 @pytest.mark.enterprise
 class TestBatchDrift(TestMLRunSystem):
     """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
-    the monitoring process of the batch infer job function that can be imported from the functions hub."""
+    the monitoring process of the batch infer job function that can be imported from the functions hub.
+    """
 
     project_name = "pr-batch-drift"
 
@@ -961,3 +964,87 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         assert model_endpoint.status.metrics["generic"]["latency_avg_5m"] > 0
         assert model_endpoint.status.metrics["generic"]["predictions_count_5m"] > 0
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestInferenceWithSpecialChars(TestMLRunSystem):
+    project_name = "pr-infer-special-chars"
+    name_prefix = "infer-monitoring"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.classif = SVC()
+        cls.model_name = "classif_model"
+        cls.columns = ["feat 1", "b (C)", "Last   for df "]
+        cls.y_name = "class (0-4) "
+        cls.num_rows = 20
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 5
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        cls.infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+        cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
+        cls.function_name = f"{cls.name_prefix}-function"
+        cls._train()
+
+    @classmethod
+    def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
+        rng = np.random.default_rng(seed=23)
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
+        return train_test_split(x, y, train_size=0.6, random_state=4)
+
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+        )
+
+    def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            project=self.project_name,
+            endpoint_id=self.endpoint_id,
+        )
+        return mlrun.feature_store.get_feature_set(
+            model_endpoint.status.monitoring_feature_set_uri
+        )
+
+    def _test_feature_names(self) -> None:
+        feature_set = self._get_monitoring_feature_set()
+        features = feature_set.spec.features
+        feature_names = [feat.name for feat in features]
+        assert feature_names == [
+            mlrun.feature_store.api.norm_column_name(feat)
+            for feat in self.columns + [self.y_name]
+        ]
+
+    def test_inference_feature_set(self) -> None:
+        self.project.log_model(
+            self.model_name,
+            body=pickle.dumps(self.classif),
+            model_file="classif.pkl",
+            framework="sklearn",
+            training_set=self.training_set,
+            label_column=self.y_name,
+        )
+
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            model_path=self.project.get_artifact_uri(
+                key=self.model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name=f"{self.name_prefix}-test",
+            function_name=self.function_name,
+            endpoint_id=self.endpoint_id,
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
+            infer_results_df=self.infer_results_df,
+            trigger_monitoring_job=True,
+        )
+
+        self._test_feature_names()

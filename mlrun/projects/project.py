@@ -1271,7 +1271,7 @@ class MlrunProject(ModelObj):
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
         :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp" or "local")
+        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
@@ -1291,8 +1291,9 @@ class MlrunProject(ModelObj):
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
 
-        if image and engine not in ["remote"]:
-            logger.warning("Image is only relevant for remote workflows, ignoring it")
+        # engine could be "remote" or "remote:local"
+        if image and ((engine and "remote" in engine) or schedule):
+            logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:
             if (
@@ -1785,7 +1786,7 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_application(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
         name: str = None,
         image: str = None,
@@ -1823,7 +1824,10 @@ class MlrunProject(ModelObj):
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
             kind = "serving"
+            if func is None:
+                func = ""
             func = mlrun.code_to_function(
+                filename=func,
                 name=name,
                 project=self.metadata.name,
                 tag=tag,
@@ -1995,7 +1999,6 @@ class MlrunProject(ModelObj):
             )
 
         if isinstance(func, str):
-
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
                 raise ValueError("Function name must be specified")
@@ -2528,6 +2531,7 @@ class MlrunProject(ModelObj):
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
+                # inner could be either kfp or local
                 engine, inner_engine = engine.split(":")
         elif workflow_spec.schedule:
             inner_engine = engine
@@ -2609,7 +2613,6 @@ class MlrunProject(ModelObj):
         )
         # clear only if the context path exists and not relative
         if self.spec.context and os.path.isabs(self.spec.context):
-
             # if a subpath is defined, will empty the subdir instead of the entire context
             if self.spec.subpath:
                 path_to_clear = path.join(self.spec.context, self.spec.subpath)

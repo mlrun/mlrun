@@ -86,10 +86,6 @@ def convert_to_cron_string(
     ).replace("None", "*")
 
 
-def clean_feature_name(feature_name):
-    return feature_name.replace(" ", "_").replace("(", "").replace(")", "")
-
-
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
     return (
         json.loads(field) if field and field != "null" and field is not None else None

@@ -15,7 +15,6 @@ graphviz~=0.20.0
 nuclio-sdk>=0.3.0
 isort~=5.7
 avro~=1.11
-mlflow~=2.5
 # needed for mlutils tests
 scikit-learn~=1.0
 # needed for frameworks tests

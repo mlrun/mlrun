@@ -38,6 +38,7 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         endpoint_id: str,
         output_stream_uri: str,
     ) -> ModelMonitoringApplicationResult:
+        assert not sample_df.empty
         return ModelMonitoringApplicationResult(
             self.name,
             endpoint_id,

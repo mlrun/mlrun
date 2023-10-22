@@ -18,9 +18,9 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Extra, Field
 
 import mlrun.common.types
+import mlrun.config
 import mlrun.errors
 from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
-from mlrun.config import config
 
 
 # Defining a different base class (not ObjectMetadata), as there's no project, and it differs enough to
@@ -64,26 +64,28 @@ class HubSource(BaseModel):
         )
 
     def get_catalog_uri(self):
-        return self.get_full_uri(config.hub.catalog_filename)
+        return self.get_full_uri(mlrun.config.config.hub.catalog_filename)
 
     @classmethod
     def generate_default_source(cls):
-        if not config.hub.default_source.create:
+        if not mlrun.config.config.hub.default_source.create:
             return None
 
         now = datetime.now(timezone.utc)
         hub_metadata = HubObjectMetadata(
-            name=config.hub.default_source.name,
-            description=config.hub.default_source.description,
+            name=mlrun.config.config.hub.default_source.name,
+            description=mlrun.config.config.hub.default_source.description,
             created=now,
             updated=now,
         )
         return cls(
             metadata=hub_metadata,
             spec=HubSourceSpec(
-                path=config.hub.default_source.url,
-                channel=config.hub.default_source.channel,
-                object_type=HubSourceType(config.hub.default_source.object_type),
+                path=mlrun.config.config.hub.default_source.url,
+                channel=mlrun.config.config.hub.default_source.channel,
+                object_type=HubSourceType(
+                    mlrun.config.config.hub.default_source.object_type
+                ),
             ),
             status=ObjectStatus(state="created"),
         )

@@ -48,9 +48,9 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.config import config
 from mlrun.errors import err_to_str
 
-from ..config import config
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -406,7 +406,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                "Replacing underscores with dashes.",
+                f"Replacing {name} underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")

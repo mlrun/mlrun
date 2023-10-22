@@ -96,7 +96,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		30,                    /* logCollectionBufferPoolSize */
 		30,                    /* getLogsBufferSizeBytes */
 		suite.bufferSizeBytes, /* logCollectionBufferSizeBytes */
-		suite.bufferSizeBytes) /* getLogsBufferSizeBytes */
+		suite.bufferSizeBytes, /* getLogsBufferSizeBytes */
+		common.LogTimeUpdateBytesInterval)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	// start log collector server in a goroutine, so it won't block the test

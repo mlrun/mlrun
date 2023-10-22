@@ -1364,10 +1364,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         )
         resp_df = resp.to_dataframe()
         target_df = target.as_df()
-        if timestamp_key is not None:
-            target_df.drop(
-                columns=mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS, inplace=True
-            )
         target_df.set_index(key, drop=True, inplace=True)
 
         source_df = source.to_dataframe()
@@ -1380,11 +1376,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         resp_df.reset_index(drop=True, inplace=True)
         assert resp_df[["bad", "department"]].equals(expected_df)
 
-    def test_get_offline_features_with_drop_columns(self):
+    @pytest.mark.parametrize("drop_column", ["department", "timestamp"])
+    def test_get_offline_features_with_drop_columns(self, drop_column):
         key = "patient_id"
+        timestamp_key = "timestamp"
         measurements = fstore.FeatureSet(
             "measurements",
             entities=[fstore.Entity(key)],
+            timestamp_key=timestamp_key,
             engine="spark",
         )
         source = ParquetSource("myparquet", path=self.get_pq_source_path())
@@ -1414,7 +1413,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             fv_name,
             target=target,
             engine="spark",
-            drop_columns=["department"],
+            drop_columns=[drop_column],
             run_config=fstore.RunConfig(local=self.run_local, kind="remote-spark"),
             spark_service=self.spark_service,
         )
@@ -1423,7 +1422,6 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         target_df = target.as_df()
         target_df.set_index(key, drop=True, inplace=True)
         assert resp_df.equals(target_df)
-        assert "department" not in resp_df
 
     # ML-2802, ML-3397
     @pytest.mark.parametrize(

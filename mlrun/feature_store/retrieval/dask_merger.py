@@ -14,10 +14,6 @@
 #
 import re
 
-import dask.dataframe as dd
-from dask.dataframe.multi import merge, merge_asof
-from dask.distributed import Client
-
 import mlrun
 
 from .base import BaseMerger
@@ -29,6 +25,13 @@ class DaskFeatureMerger(BaseMerger):
 
     def __init__(self, vector, **engine_args):
         super().__init__(vector, **engine_args)
+        try:
+            import dask  # noqa: F401
+        except (ModuleNotFoundError, ImportError) as exc:
+            raise ImportError(
+                "Using 'DaskFeatureMerger' requires dask package. Use pip install mlrun[dask] to install it."
+            ) from exc
+
         self.client = engine_args.get("dask_client")
         self._dask_cluster_uri = engine_args.get("dask_cluster_uri")
 
@@ -47,6 +50,8 @@ class DaskFeatureMerger(BaseMerger):
         left_keys: list,
         right_keys: list,
     ):
+        from dask.dataframe.multi import merge_asof
+
         def sort_partition(partition, timestamp):
             return partition.sort_values(timestamp)
 
@@ -82,6 +87,7 @@ class DaskFeatureMerger(BaseMerger):
         left_keys: list,
         right_keys: list,
     ):
+        from dask.dataframe.multi import merge
 
         merged_df = merge(
             entity_df,
@@ -110,6 +116,8 @@ class DaskFeatureMerger(BaseMerger):
         return df
 
     def _create_engine_env(self):
+        from dask.distributed import Client
+
         if "index" not in self._index_columns:
             self._append_drop_column("index")
 
@@ -130,6 +138,8 @@ class DaskFeatureMerger(BaseMerger):
         end_time=None,
         time_column=None,
     ):
+        import dask.dataframe as dd
+
         df = feature_set.to_dataframe(
             columns=column_names,
             df_module=dd,
@@ -158,6 +168,8 @@ class DaskFeatureMerger(BaseMerger):
         self._result_df.sort_values(by=order_by_active)
 
     def _convert_entity_rows_to_engine_df(self, entity_rows):
+        import dask.dataframe as dd
+
         if entity_rows is not None and not hasattr(entity_rows, "dask"):
             return dd.from_pandas(entity_rows, npartitions=len(entity_rows.columns))
 

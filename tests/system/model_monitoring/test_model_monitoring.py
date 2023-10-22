@@ -972,37 +972,38 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
 
-    def __init__(self) -> None:
-        self.classif = SVC()
-        self.model_name = "classif_model"
-        self.columns = ["feat 1", "b (C)", "Last   for df "]
-        self.y_name = "class (0-4) "
-        self.num_rows = 20
-        self.num_cols = len(self.columns)
-        self.num_classes = 5
-        self.x_train, self.x_test, self.y_train, self.y_test = self._generate_data()
-        self.training_set = self.x_train.join(self.y_train)
-        self.test_set = self.x_test.join(self.y_test)
-        self.infer_results_df = self.test_set
-        self.infer_results_df[
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.classif = SVC()
+        cls.model_name = "classif_model"
+        cls.columns = ["feat 1", "b (C)", "Last   for df "]
+        cls.y_name = "class (0-4) "
+        cls.num_rows = 20
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 5
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        cls.infer_results_df[
             mlrun.common.schemas.EventFieldType.TIMESTAMP
         ] = datetime.utcnow()
-        self.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
-        self.function_name = f"{self.name_prefix}-function"
-        self._train()
+        cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
+        cls.function_name = f"{cls.name_prefix}-function"
+        cls._train()
 
-    def _generate_data(self) -> list[Union[pd.DataFrame, pd.Series]]:
+    @classmethod
+    def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
         rng = np.random.default_rng(seed=23)
-        x = pd.DataFrame(
-            rng.random((self.num_rows, self.num_cols)), columns=self.columns
-        )
-        y = pd.Series(np.arange(self.num_rows) % self.num_classes, name=self.y_name)
-        assert self.num_rows > self.num_classes
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
         return train_test_split(x, y, train_size=0.6, random_state=4)
 
-    def _train(self) -> None:
-        self.classif.fit(
-            self.x_train, self.y_train  # pyright: ignore[reportGeneralTypeIssues]
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
         )
 
     def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
@@ -1023,10 +1024,8 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             for feat in self.columns + [self.y_name]
         ]
 
-    def test_batch_drift(self) -> None:
-        project = mlrun.get_run_db().get_project(self.project_name)
-        context = mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context")
-        project.log_model(
+    def test_inference_feature_set(self) -> None:
+        self.project.log_model(
             self.model_name,
             body=pickle.dumps(self.classif),
             model_file="classif.pkl",
@@ -1037,13 +1036,13 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 
         mlrun.model_monitoring.api.record_results(
             project=self.project_name,
-            model_path=project.get_artifact_uri(
+            model_path=self.project.get_artifact_uri(
                 key=self.model_name, category="model", tag="latest"
             ),
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=context,
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
         )

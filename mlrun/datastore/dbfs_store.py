@@ -98,7 +98,7 @@ class DBFSStore(DataStore):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Trying to use secret and profile at dbfs datastore."
                 )
-            
+
         else:
             if not endpoint:
                 endpoint = self._get_secret_or_env("DATABRICKS_HOST")

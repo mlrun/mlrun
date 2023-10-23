@@ -43,7 +43,7 @@ class GoogleCloudStorageStore(DataStoreWithBucket):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Trying to use secret and profile at dbfs datastore."
                 )
-            
+
         # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
         # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
         # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,

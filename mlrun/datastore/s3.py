@@ -39,7 +39,7 @@ class S3Store(DataStoreWithBucket):
             force_non_anonymous = datastore_profile.force_non_anonymous
             profile_name = datastore_profile.profile_name
             assume_role_arn = datastore_profile.assume_role_arn
-            
+
         else:
             access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
             secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")

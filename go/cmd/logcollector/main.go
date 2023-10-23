@@ -42,6 +42,7 @@ func StartServer() error {
 	getLogsBufferPoolSize := flag.Int("get-logs-buffer-pool-size", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_POOL_SIZE", 512), "Number of buffers in the buffer pool for getting logs (default: 512 buffers)")
 	logCollectionBufferSizeBytes := flag.Int("log-collection-buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_COLLECTION_BUFFER_SIZE_BYTES", common.DefaultLogCollectionBufferSize), "Size of buffers in the log collection buffer pool, in bytes (default: 10MB)")
 	getLogsBufferSizeBytes := flag.Int("get-logs-buffer-buffer-size-bytes", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__GET_LOGS_BUFFER_SIZE_BYTES", common.DefaultGetLogsBufferSize), "Size of buffers in the buffer pool for getting logs, in bytes (default: 3.75MB)")
+	logTimeUpdateBytesInterval := flag.Int("log-time-update-bytes-interval", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LOG_TIME_UPDATE_BYTES_INTERVAL", common.LogTimeUpdateBytesInterval), "Amount of logs to read between updates of the last log time in the 'in memory' state, in bytes (default: 4KB)")
 	clusterizationRole := flag.String("clusterization-role", common.GetEnvOrDefaultString("MLRUN_HTTPDB__CLUSTERIZATION__ROLE", "chief"), "The role of the log collector in the cluster (chief, worker)")
 
 	// if namespace is not passed, it will be taken from env
@@ -76,7 +77,8 @@ func StartServer() error {
 		*logCollectionBufferPoolSize,
 		*getLogsBufferPoolSize,
 		*logCollectionBufferSizeBytes,
-		*getLogsBufferSizeBytes)
+		*getLogsBufferSizeBytes,
+		*logTimeUpdateBytesInterval)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}

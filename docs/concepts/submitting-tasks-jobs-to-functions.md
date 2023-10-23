@@ -20,6 +20,9 @@ You can pass `parameters` (arguments) or data `inputs` (such as datasets, featur
 
 * **Parameters** (`params`) are meant for basic python objects that can be parsed from text without special handling. So, passing `int`, 
 `float`, `str` and `dict`, `list` are all possible using `params`. MLRun takes the parameter and assigns it to the relevant handler parameter by name.
+```{admonition} Important 
+Parameters that are passed to a workflow are limited to 10000 chars.
+```
 * **Inputs** are used for passing various local or remote data objects (files, tables, models, etc.) to the function as 
 {py:class}`~mlrun.datastore.DataItem`  objects. You can pass data objects using the inputs dictionary argument, where the dictionary keys 
 match the function's handler argument names and the MLRun data urls are provided as the values. DataItems have many methods like `local`  

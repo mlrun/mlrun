@@ -381,3 +381,6 @@ s3://<bucket name>/projects/{{run.project}}/artifacts
 
 The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.html#artifact-path) 
 for more details.
+=======
+If your values have fixed mlrun service versions (e.g.: mlrun:1.5.0) then you might want to remove it from the values file to allow newer chart defaults to kick in
+```

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import time
-from pathlib import Path
 from urllib.parse import urlparse
 
 from adlfs.spec import AzureBlobFileSystem
@@ -22,7 +21,7 @@ from azure.storage.blob import BlobServiceClient
 import mlrun.errors
 from mlrun.errors import err_to_str
 
-from .base import DataStore, FileStats
+from .base import DataStoreWithBucket, FileStats
 from .datastore_profile import datastore_profile_read
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
@@ -38,7 +37,9 @@ class AzureBlobFileSystemWithDS(AzureBlobFileSystem):
         return super()._strip_protocol(url)
 
 
-class AzureBlobStore(DataStore):
+class AzureBlobStore(DataStoreWithBucket):
+    check_filesystem = False
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.bsc = None
@@ -113,70 +114,65 @@ class AzureBlobStore(DataStore):
             credential=credential,
         )
 
-    def _convert_key_to_remote_path(self, key):
-        key = key.strip("/")
-        path = Path(self.endpoint, key).as_posix()
-        return path
-
     def upload(self, key, src_path):
+        bucket, remote_path, full_path = self.get_bucket_and_key(key)
         if self.bsc:
             # Need to strip leading / from key
             with self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
+                container=bucket, blob=remote_path
             ) as blob_client:
                 with open(src_path, "rb") as data:
                     blob_client.upload_blob(data, overwrite=True)
         else:
-            remote_path = self._convert_key_to_remote_path(key)
-            self._filesystem.put_file(src_path, remote_path, overwrite=True)
+            self._filesystem.put_file(src_path, full_path, overwrite=True)
 
     def get(self, key, size=None, offset=0):
+        bucket, remote_path, full_path = self.get_bucket_and_key(key)
         if self.bsc:
             with self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
+                container=bucket, blob=remote_path
             ) as blob_client:
                 size = size if size else None
                 blob = blob_client.download_blob(offset, size).readall()
                 return blob
         else:
-            remote_path = self._convert_key_to_remote_path(key)
             end = offset + size if size else None
-            blob = self._filesystem.cat_file(remote_path, start=offset, end=end)
+            blob = self._filesystem.cat_file(full_path, start=offset, end=end)
             return blob
 
     def put(self, key, data, append=False):
+        bucket, remote_path, full_path = self.get_bucket_and_key(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Append mode not supported for Azure blob datastore"
             )
         if self.bsc:
             with self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
+                container=bucket, blob=remote_path
             ) as blob_client:
                 # Note that append=True is not supported. If the blob already exists, this call will fail
                 blob_client.upload_blob(data, overwrite=True)
         else:
-            remote_path = self._convert_key_to_remote_path(key)
             if isinstance(data, bytes):
                 mode = "wb"
             elif isinstance(data, str):
                 mode = "w"
             else:
                 raise TypeError("Data type unknown.  Unable to put in Azure!")
-            with self._filesystem.open(remote_path, mode) as f:
+            with self._filesystem.open(full_path, mode) as f:
                 f.write(data)
 
     def stat(self, key):
+        bucket, remote_path, full_path = self.get_bucket_and_key(key)
         if self.bsc:
             with self.bsc.get_blob_client(
-                container=self.endpoint, blob=key[1:]
+                container=bucket, blob=remote_path
             ) as blob_client:
                 props = blob_client.get_blob_properties()
             size = props.size
             modified = props.last_modified
         else:
-            remote_path = self._convert_key_to_remote_path(key)
-            files = self._filesystem.ls(remote_path, detail=True)
+            files = self._filesystem.ls(full_path, detail=True)
             if len(files) == 1 and files[0]["type"] == "file":
                 size = files[0]["size"]
                 modified = files[0]["last_modified"]
@@ -187,21 +183,19 @@ class AzureBlobStore(DataStore):
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
+        bucket, remote_path, full_path = self.get_bucket_and_key(key)
         if self.bsc:
-            if key and not key.endswith("/"):
-                key = key[1:] + "/"
-            key_length = len(key)
-            with self.bsc.get_container_client(self.endpoint) as container_client:
-                blob_list = container_client.list_blobs(name_starts_with=key)
+            if remote_path and not remote_path.endswith("/"):
+                remote_path = remote_path + "/"
+            key_length = len(remote_path)
+            with self.bsc.get_container_client(bucket) as container_client:
+                blob_list = container_client.list_blobs(name_starts_with=remote_path)
             return [blob.name[key_length:] for blob in blob_list]
         else:
-            remote_path = self._convert_key_to_remote_path(key)
-            if self._filesystem.isfile(remote_path):
+            if self._filesystem.isfile(full_path):
                 return key
-            remote_path = f"{remote_path}/**"
-            files = self._filesystem.glob(remote_path)
-            key_length = len(key)
-            files = [
-                f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
-            ]
+            key_length = len(full_path) + 1
+            full_path = f"{full_path}/**"
+            files = self._filesystem.glob(full_path)
+            files = [f[key_length:] for f in files]
             return files

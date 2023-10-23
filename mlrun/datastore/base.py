@@ -342,8 +342,10 @@ class DataStore:
 
 
 class DataStoreWithBucket(DataStore):
+    check_filesystem = True
+
     def get_bucket_and_key(self, key: str):
-        if not self._filesystem:
+        if not self._filesystem and self.check_filesystem:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Performing actions on data-item without a valid filesystem"
             )

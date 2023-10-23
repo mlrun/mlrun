@@ -17,6 +17,7 @@ These instructions install the community edition, which currently includes MLRun
 - [Storage resources](#storage-resources)
 - [Uninstalling the chart](#uninstalling-the-chart)
 - [Upgrading the chart](#upgrading-the-chart)
+- [Storing artifacts in AWS S3 storage](#storing-artifacts-in-aws-s3-storage)
 
 ## Prerequisites
 
@@ -318,3 +319,65 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 ```{admonition} Note
 If your values have fixed mlrun service versions (e.g.: mlrun:1.3.0) then you might want to remove it from the values file to allow newer chart defaults to kick in
 ```
+
+## Storing artifacts in AWS S3 storage
+
+MLRun CE uses a Minio service as shared storage for artifacts, and accesses it using S3 protocol. This means that
+any path that begins with `s3://` is automatically directed by MLRun to the Minio service. The default artifact
+path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
+Minio service.
+
+To store artifacts in AWS S3 buckets instead of the local Minio service, these configurations need to be overridden to 
+make `s3://` paths lead to AWS buckets instead.
+
+```{admonition} Note
+These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in Minio. For other
+storage options (such as GCS, Azure blobs etc.) only the artifact path needs to be modified, and credentials need to
+be provided.
+```
+
+### Setting up S3 credentials and endpoint
+
+Set up the following project-secrets (refer to [**Data stores**](../store/datastore.html) and [**Project secrets**](../secrets.html#mlrun-managed-secrets)) 
+for any project used:
+
+* `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` &mdash; S3 credentials
+* `S3_ENDPOINT_URL` &mdash; the AWS S3 endpoint to use, depending on the region. For example: 
+    ``` console
+    S3_ENDPOINT_URL = https://s3.us-east-2.amazonaws.com/
+    ```
+
+### Disabling auto-mount
+
+Before running any MLRun job that writes to S3 bucket, make sure auto-mount is disabled for it, since by default
+auto-mount adds S3 configurations that point at the Minio service (refer to 
+[**Function storage**](../runtimes/function-storage.html) for more details on auto-mount). This can be done in one
+of following ways:
+
+* Set the client-side MLRun configuration to disable auto-mount. This disables auto-mount for any function run
+  after this command:
+    ```python
+    from mlrun.config import config as mlconf
+    
+    mlconf.storage.auto_mount_type = "none"
+    ```
+* If running MLRun from an IDE, the configuration can be overridden using an environment variable. Set the following
+  environment variable for your IDE environment:
+    ```python
+    MLRUN_STORAGE__AUTO_MOUNT_TYPE = "none"
+    ```
+* Disable auto-mount for a specific function. This must be done before running the function for the first time:
+    ```python
+    function.spec.disable_auto_mount = True
+    ```
+
+### Changing the artifact path
+
+The artifact path needs to be modified since the bucket name is set to `mlrun` by default. It is recommended to keep 
+the same path structure as the default, while modifying the bucket name. For example:
+```python
+s3://<bucket name>/projects/{{run.project}}/artifacts
+```
+
+The artifact path can be set in several ways, refer to [**Artifact path**](../store/artifacts.html#artifact-path) 
+for more details.

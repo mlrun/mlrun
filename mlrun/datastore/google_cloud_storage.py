@@ -76,7 +76,7 @@ class GoogleCloudStorageStore(DataStoreWithBucket):
                     "Google gcsfs not installed, run pip install gcsfs"
                 ) from exc
             return None
-        self._filesystem = GCSFileSystemWithDS(**self.get_storage_options())  # todo
+        self._filesystem = GCSFileSystemWithDS(**self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

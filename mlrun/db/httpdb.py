@@ -630,7 +630,10 @@ class HTTPRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """
+        Retrieve a list of runs, filtered by various options.
+        If no filter is provided, will return runs from the last week.
+
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
@@ -1540,7 +1543,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         namespace: str = None,
-        timeout: int = 10,
+        timeout: int = 30,
         format_: Union[
             str, mlrun.common.schemas.PipelinesFormat
         ] = mlrun.common.schemas.PipelinesFormat.summary,

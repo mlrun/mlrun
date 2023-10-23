@@ -26,6 +26,7 @@ from .constants import (
     ModelEndpointTarget,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    MonitoringFunctionNames,
     ProjectSecretKeys,
     PrometheusMetric,
     TimeSeriesTarget,

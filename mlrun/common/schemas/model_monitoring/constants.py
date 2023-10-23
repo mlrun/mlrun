@@ -19,7 +19,6 @@ from enum import Enum
 from typing import Optional
 
 import mlrun.common.helpers
-import mlrun.utils
 
 
 class EventFieldType:
@@ -263,7 +262,7 @@ class ResultKindApp(enum.Enum):
     system_performance = 3
 
 
-class ResultStatusApp(enum.Enum):
+class ResultStatusApp(enum.IntEnum):
     """
     Enum for the result status values, detected means that the app detected some problem.
     """

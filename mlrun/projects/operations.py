@@ -245,6 +245,7 @@ def build_function(
     project_object=None,
     overwrite_build_params: bool = False,
     extra_args: str = None,
+    force_build: bool = False,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -267,6 +268,7 @@ def build_function(
         * True: The existing params are replaced by the new ones
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
+    :param force_build: Force building the image, even when no changes were made
     """
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
@@ -304,6 +306,7 @@ def build_function(
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            force_build=force_build,
         )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)

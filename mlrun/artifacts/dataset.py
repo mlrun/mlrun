@@ -94,7 +94,11 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self.spec.get_body()
         csv_buffer = StringIO()
-        self.spec.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        self.spec.get_body().to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **mlrun.utils.line_terminator_kwargs(),
+        )
         return csv_buffer.getvalue()
 
 
@@ -371,7 +375,11 @@ class LegacyTableArtifact(LegacyArtifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        self._body.to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **mlrun.utils.line_terminator_kwargs(),
+        )
         return csv_buffer.getvalue()
 
 

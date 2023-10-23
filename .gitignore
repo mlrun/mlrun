@@ -1,8 +1,10 @@
 *.pyc
+__pycache__/
 .aws-secrets
 .idea/
 .ipynb_checkpoints
 .pytest_cache/
+.hypothesis/
 .vscode/
 .bin
 build
@@ -31,9 +33,10 @@ tests/system/env.yml
 .python-version
 *.bak
 docs/contributing.md
-mlrun/api/proto/*pb2*.py
+server/api/proto/*pb2*.py
 docs/tutorial/colab/01-mlrun-basics-colab.ipynb
 automation/patch_igz/patch_env.yml
+mlrun/api/
 
 # used for local development.
 # e.g., when developing for mlrun api, you may use this env to preset envvars.

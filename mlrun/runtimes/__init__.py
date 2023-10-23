@@ -23,6 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
+    "Spark3Runtime",
     "DatabricksRuntime",
 ]
 
@@ -132,6 +133,8 @@ class RuntimeKinds(object):
             RuntimeKinds.mpijob,
             RuntimeKinds.databricks,
             RuntimeKinds.local,
+            RuntimeKinds.handler,
+            "",
         ]
 
     @staticmethod

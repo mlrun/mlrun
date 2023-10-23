@@ -18,13 +18,11 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.initial_data
-import mlrun.api.utils.singletons.db
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-from mlrun.api.db.base import DBInterface
-from mlrun.api.db.sqldb.models import Project
+from server.api.db.base import DBInterface
+from server.api.db.sqldb.models import Project
 
 
 def test_get_project(

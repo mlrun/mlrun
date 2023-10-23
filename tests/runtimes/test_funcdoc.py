@@ -98,8 +98,8 @@ find_handlers_expected = [
     {
         "name": "inc",
         "doc": "",
-        "return": funcdoc.param_dict(),
-        "params": [funcdoc.param_dict("n")],
+        "return": funcdoc.param_dict(type=None, default=None),
+        "params": [funcdoc.param_dict("n", default=None)],
         "lineno": 6,
         "has_varargs": False,
         "has_kwargs": False,
@@ -198,6 +198,10 @@ def test_ast_func_info_with_kwargs_and_args(
     assert func_info["has_varargs"] == expected_has_varargs
     assert func_info["has_kwargs"] == expected_has_kwargs
 
+    func = funcdoc.find_handlers(dedent(func_code))[0]
+    assert func["has_varargs"] == expected_has_varargs
+    assert func["has_kwargs"] == expected_has_kwargs
+
 
 def test_ast_compound():
     param_types = []
@@ -256,3 +260,46 @@ def test_annotate_mod():
     handlers = funcdoc.find_handlers(dedent(code))
     param = handlers[0]["params"][0]
     assert param["type"] == "DataItem"
+
+
+@pytest.mark.parametrize(
+    "func_code,expected_return_type",
+    [
+        pytest.param(
+            """
+    def fn1():
+        pass
+    """,
+            None,
+            id="no-hint",
+        ),
+        pytest.param(
+            """
+    def fn2() -> str:
+        pass
+    """,
+            "str",
+            id="str",
+        ),
+        pytest.param(
+            """
+    def fn3() -> Union[str, pd.DataFrame]:
+        pass
+    """,
+            "Union[str, pd.DataFrame]",
+            id="union",
+        ),
+        pytest.param(
+            """
+    def fn4() -> None:
+        pass
+    """,
+            "None",
+            id="None",
+        ),
+    ],
+)
+def test_return_types(func_code, expected_return_type):
+    fn: ast.FunctionDef = ast.parse(dedent(func_code)).body[0]
+    func_info = funcdoc.ast_func_info(fn)
+    assert func_info["return"]["type"] == expected_return_type

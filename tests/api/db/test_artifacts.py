@@ -13,23 +13,23 @@
 # limitations under the License.
 #
 import copy
-import os
 import tempfile
 
 import deepdiff
 import pytest
 from sqlalchemy.orm import Session
 
-import mlrun.api.db.sqldb.models
-import mlrun.api.initial_data
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
 import mlrun.utils
-from mlrun.api.db.base import DBInterface
+import server.api.db.sqldb.models
+import server.api.initial_data
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
+from server.api.db.base import DBInterface
 
 
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
@@ -727,22 +727,19 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         project=project,
     )
 
-    try:
-        # change working directory to temp directory so the state file will be created there
-        current_dir = os.getcwd()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            os.chdir(temp_dir)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # change the state file path to the temp directory for the test only
+        mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            temp_dir + "/_artifact_migration_state.json"
+        )
 
-            # perform the migration
-            mlrun.api.initial_data._migrate_artifacts_table_v2(db, db_session)
-    finally:
-        # change working directory back to original directory
-        os.chdir(current_dir)
+        # perform the migration
+        server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
 
     # validate the migration succeeded
     query_all = db._query(
         db_session,
-        mlrun.api.db.sqldb.models.ArtifactV2,
+        server.api.db.sqldb.models.ArtifactV2,
     )
     new_artifacts = query_all.all()
     assert len(new_artifacts) == 2
@@ -764,7 +761,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
         query = db._query(
             db_session,
-            mlrun.api.db.sqldb.models.ArtifactV2,
+            server.api.db.sqldb.models.ArtifactV2,
             key=expected["key"],
         )
         artifact = query.one_or_none()

@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -32,6 +33,7 @@ import yaml
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
@@ -811,7 +813,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         )
 
 
-@main.command()
+@main.command(deprecated=True)
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
 @click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
@@ -839,6 +841,10 @@ def db(
     update_env,
 ):
     """Run HTTP api/database server"""
+    warnings.warn(
+        "The `mlrun db` command is deprecated in 1.5.0 and will be removed in 1.7.0, it is for internal use only.",
+        FutureWarning,
+    )
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
     env["MLRUN_IGNORE_ENV_FILE"] = "true"
@@ -875,7 +881,7 @@ def db(
         p = pathlib.Path(parsed.path[1:]).parent
         p.mkdir(parents=True, exist_ok=True)
 
-    cmd = [executable, "-m", "mlrun.api.main"]
+    cmd = [executable, "-m", "server.api.main"]
     pid = None
     if background:
         print("Starting MLRun API service in the background...")
@@ -1446,13 +1452,13 @@ def add_notification_to_project(
 
 
 def send_workflow_error_notification(
-    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+    run_id: str, mlproject: mlrun.projects.MlrunProject, error: Exception
 ):
     message = (
-        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
+        f":x: Failed to run scheduled workflow {run_id} in Project {mlproject.name} !\n"
         f"error: ```{err_to_str(error)}```"
     )
-    project.notifiers.push(
+    mlproject.notifiers.push(
         message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
     )
 

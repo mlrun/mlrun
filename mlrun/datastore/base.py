@@ -17,7 +17,6 @@ from base64 import b64encode
 from os import path, remove
 from typing import Optional, Union
 
-import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
@@ -257,10 +256,22 @@ class DataStore:
                                 filename = filename.split("/")[-1]
                                 filenames.append(filename)
                         dfs = []
-                        for filename in filenames:
-                            updated_args = [f"{base_path}/{filename}"]
-                            updated_args.extend(args[1:])
-                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        if df_module is pd:
+                            kwargs.pop("filesystem", None)
+                            kwargs.pop("storage_options", None)
+                            for filename in filenames:
+                                fullpath = f"{base_path}/{filename}"
+                                with file_system.open(fullpath) as fhandle:
+                                    updated_args = [fhandle]
+                                    updated_args.extend(args[1:])
+                                    dfs.append(
+                                        df_module.read_csv(*updated_args, **kwargs)
+                                    )
+                        else:
+                            for filename in filenames:
+                                updated_args = [f"{base_path}/{filename}"]
+                                updated_args.extend(args[1:])
+                                dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return df_module.concat(dfs)
 
         elif (
@@ -280,12 +291,21 @@ class DataStore:
             reader = df_module.read_json
 
         else:
-            raise Exception(f"file type unhandled {url}")
+            raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
+            if (
+                self.supports_isdir()
+                and file_system.isdir(file_url)
+                or self._is_dd(df_module)
+            ):
                 storage_options = self.get_storage_options()
-                if storage_options:
+                if url.startswith("ds://"):
+                    parsed_url = urllib.parse.urlparse(url)
+                    url = parsed_url.path[1:]
+                    # Pass the underlying file system
+                    kwargs["filesystem"] = file_system
+                elif storage_options:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:
@@ -329,6 +349,15 @@ class DataStore:
 
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+    @staticmethod
+    def _is_dd(df_module):
+        try:
+            import dask.dataframe as dd
+
+            return df_module == dd
+        except ImportError:
+            return False
 
 
 class DataItem:

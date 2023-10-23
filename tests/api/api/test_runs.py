@@ -22,14 +22,14 @@ from http import HTTPStatus
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
-import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.constants
-from mlrun.api.db.sqldb.models import Run
-from mlrun.api.utils.singletons.db import get_db
+import server.api.crud
+import server.api.utils.auth.verifier
 from mlrun.config import config
+from server.api.db.sqldb.models import Run
+from server.api.utils.singletons.db import get_db
 
 API_V1 = "/api/v1"
 RUNS_API_V1 = f"{API_V1}/projects/{{project}}/runs"
@@ -47,7 +47,7 @@ def test_run_with_nan_in_body(db: Session, client: TestClient) -> None:
     }
     uid = "some-uid"
     project = "some-project"
-    mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
+    server.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
     resp = client.get(f"run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -92,9 +92,9 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         (run_aborted, run_aborted_uid),
         (run_dask, run_dask_uid),
     ]:
-        mlrun.api.crud.Runs().store_run(db, run, run_uid, project=project)
+        server.api.crud.Runs().store_run(db, run, run_uid, project=project)
 
-    runtime_resources = mlrun.api.crud.RuntimeResources()
+    runtime_resources = server.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     abort_body = {"status.state": mlrun.runtimes.constants.RunStates.aborted}
     # completed is terminal state - should fail
@@ -245,7 +245,7 @@ def test_list_runs_partition_by(db: Session, client: TestClient) -> None:
                             "iter": iteration,
                         },
                     }
-                    mlrun.api.crud.Runs().store_run(db, run, uid, iteration, project)
+                    server.api.crud.Runs().store_run(db, run, uid, iteration, project)
 
     # basic list, all projects, all iterations so 3 projects * 3 names * 3 uids * 3 iterations = 81
     _list_and_assert_objects(
@@ -379,7 +379,7 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
                 "project": project,
             },
         }
-        mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+        server.api.crud.Runs().store_run(db, run, uid, project=project)
 
     runs = _list_and_assert_objects(
         client,
@@ -409,57 +409,57 @@ def test_list_runs_single_and_multiple_uids(db: Session, client: TestClient):
 
 
 def test_delete_runs_with_permissions(db: Session, client: TestClient):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.AsyncMock()
     )
 
     # delete runs from specific project
     project = "some-project"
     _store_run(db, uid="some-uid", project=project)
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
     response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
 
     # delete runs from all projects
     second_project = "some-project2"
     _store_run(db, uid=None, project=project)
     _store_run(db, uid=None, project=second_project)
-    all_runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    all_runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(all_runs) == 2
     response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.OK.value
-    runs = mlrun.api.crud.Runs().list_runs(db, project="*")
+    runs = server.api.crud.Runs().list_runs(db, project="*")
     assert len(runs) == 0
 
 
 def test_delete_runs_without_permissions(db: Session, client: TestClient):
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions = (
         unittest.mock.Mock(side_effect=mlrun.errors.MLRunUnauthorizedError())
     )
 
     # try delete runs with no permission to project (project doesn't contain any runs)
     project = "some-project"
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 0
     response = client.delete(RUNS_API_V1.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
 
     # try delete runs with no permission to project (project contains runs)
     _store_run(db, uid="some-uid", project=project)
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
     response = client.delete(RUNS_API_V1.format(project=project))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
     # try delete runs from all projects with no permissions
     response = client.delete(RUNS_API_V1.format(project="*"))
     assert response.status_code == HTTPStatus.UNAUTHORIZED.value
-    runs = mlrun.api.crud.Runs().list_runs(db, project=project)
+    runs = server.api.crud.Runs().list_runs(db, project=project)
     assert len(runs) == 1
 
 
@@ -512,7 +512,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
         },
     }
 
-    mlrun.api.crud.Runs().store_run(db, run, uid, project=project)
+    server.api.crud.Runs().store_run(db, run, uid, project=project)
     resp = client.get(f"run/{project}/{uid}")
     assert resp.status_code == HTTPStatus.OK.value
 
@@ -529,7 +529,9 @@ def _store_run(db, uid, project="some-project"):
     }
     if not uid:
         uid = str(uuid.uuid4())
-    return mlrun.api.crud.Runs().store_run(db, run_with_nan_float, uid, project=project)
+    return server.api.crud.Runs().store_run(
+        db, run_with_nan_float, uid, project=project
+    )
 
 
 def _list_and_assert_objects(

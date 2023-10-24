@@ -123,13 +123,6 @@ class RunDBInterface(ABC):
     def del_artifacts(self, name="", project="", tag="", labels=None):
         pass
 
-    # TODO: Make these abstract once filedb implements them
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        warnings.warn("store_metric not implemented yet")
-
-    def read_metric(self, keys, project="", query=""):
-        warnings.warn("store_metric not implemented yet")
-
     @abstractmethod
     def store_function(self, function, name, project="", tag="", versioned=False):
         pass

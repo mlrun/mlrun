@@ -49,7 +49,7 @@ class ModelObj:
     @staticmethod
     def _verify_list(param, name):
         if not isinstance(param, list):
-            raise ValueError(f"parameter {name} must be a list")
+            raise ValueError(f"Parameter {name} must be a list")
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
@@ -58,7 +58,7 @@ class ModelObj:
             and not isinstance(param, dict)
             and not hasattr(param, "to_dict")
         ):
-            raise ValueError(f"parameter {name} must be a dict or object")
+            raise ValueError(f"Parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
         return param
@@ -727,6 +727,7 @@ class RunSpec(ModelObj):
         inputs_type_hints=None,
         returns=None,
         notifications=None,
+        state_thresholds=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -762,6 +763,7 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
+        self._state_thresholds = state_thresholds or {}
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -929,6 +931,27 @@ class RunSpec(ModelObj):
             self._notifications = notifications
         else:
             raise ValueError("Notifications must be a list")
+
+    @property
+    def state_thresholds(self):
+        return self._state_thresholds
+
+    @state_thresholds.setter
+    def state_thresholds(self, state_thresholds: Dict):
+        """
+        Set the dictionary of k8s states (pod phase) to time thresholds in seconds.
+        If the pod phase is active for longer than the threshold, the run will be marked as failed
+        and the pod will be deleted.
+        See mlconf.run.state_thresholds.default for default values.
+
+        example:
+            {"imagePullBackoff": 3600, "running": 60 * 60 * 24}
+
+        :param state_thresholds: The state-thresholds dictionary.
+        """
+        self._state_thresholds = self._verify_dict(
+            state_thresholds, "state_thresholds", dict
+        )
 
     def extract_type_hints_from_inputs(self):
         """

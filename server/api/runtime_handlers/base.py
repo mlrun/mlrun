@@ -213,6 +213,14 @@ class BaseRuntimeHandler(ABC):
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+        self._terminate_resource_less_runs(
+            db, db_session, project_run_uid_map, run_runtime_resources_map
+        )
+
+    def _terminate_resource_less_runs(
+        self, db, db_session, project_run_uid_map, run_runtime_resources_map
+    ):
         for project, runs in project_run_uid_map.items():
             if runs:
                 for run_uid, run in runs.items():
@@ -641,7 +649,7 @@ class BaseRuntimeHandler(ABC):
         pass
 
     def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, crd_object: dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         Override this if the runtime has CRD resources.
@@ -667,7 +675,7 @@ class BaseRuntimeHandler(ABC):
         pass
 
     def _resolve_pod_status_info(
-        self, db: DBInterface, db_session: Session, pod: Dict
+        self, pod: Dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         :return: Tuple with:
@@ -892,7 +900,7 @@ class BaseRuntimeHandler(ABC):
                     in_terminal_state,
                     last_update,
                     run_state,
-                ) = self._resolve_pod_status_info(db, db_session, pod_dict)
+                ) = self._resolve_pod_status_info(pod_dict)
                 if not force:
                     if not in_terminal_state:
                         continue
@@ -1144,18 +1152,9 @@ class BaseRuntimeHandler(ABC):
             # )
             return
         run = project_run_uid_map.get(project, {}).get(uid)
-        if runtime_resource_is_crd:
-            (
-                _,
-                _,
-                run_state,
-            ) = self._resolve_crd_object_status_info(db, db_session, runtime_resource)
-        else:
-            (
-                _,
-                _,
-                run_state,
-            ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
+        run_state = self._resolve_resource_status_and_apply_threshold(
+            run, runtime_resource, runtime_resource_is_crd, namespace
+        )
 
         _, updated_run_state, run = self._ensure_run_state(
             db,
@@ -1174,6 +1173,77 @@ class BaseRuntimeHandler(ABC):
 
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
+
+    def _resolve_resource_status_and_apply_threshold(
+        self,
+        run: Dict,
+        runtime_resource: Dict,
+        runtime_resource_is_crd: bool,
+        namespace: str,
+    ) -> str:
+        if runtime_resource_is_crd:
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_crd_object_status_info(runtime_resource)
+            # TODO: add threshold for crd resources
+
+        else:
+            pod_phase = runtime_resource["status"]["phase"]
+            run_state = PodPhases.pod_phase_to_run_state(pod_phase)
+
+            start_time = runtime_resource["status"].get("startTime")
+            if not start_time:
+                logger.warning(
+                    "Could not resolve start time from runtime resource. Continuing",
+                    runtime_resource_name=runtime_resource["metadata"]["name"],
+                    run_state=run_state,
+                )
+                return run_state
+
+            start_time = start_time.removesuffix("Z")
+            start_datetime = datetime.fromisoformat(start_time)
+            now = datetime.utcnow()
+            delta = now - start_datetime
+
+            # Resolve the state threshold from the run
+            if (
+                threshold := self._resolve_run_threshold(run, run_state)
+            ) and threshold < delta.total_seconds():
+                # Kill the pod
+                run_state = RunStates.error
+                runtime_resource_name = runtime_resource["metadata"]["name"]
+                logger.warning(
+                    "Runtime resource exceeded state threshold. Killing pod",
+                    runtime_resource_name=runtime_resource_name,
+                    run_state=run_state,
+                    threshold=threshold,
+                    start_time=str(start_time),
+                    namespace=namespace,
+                )
+                try:
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        runtime_resource_name, namespace, self.pod_grace_period_seconds
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to kill pod",
+                        runtime_resource_name=runtime_resource_name,
+                        exc=err_to_str(exc),
+                    )
+
+        return run_state
+
+    @staticmethod
+    def _resolve_run_threshold(run: Dict, state: str) -> Optional[int]:
+        # TODO: check scheduled or not and camel case to snake case etc.
+        threshold = (
+            run.get("spec", {}).get("thresholds", {}).get("state", {}).get(state, None)
+        )
+        if threshold is not None:
+            return threshold
+        return None
 
     def _build_list_resources_response(
         self,

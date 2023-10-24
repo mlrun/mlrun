@@ -73,6 +73,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -95,6 +96,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             artifact_path=artifact_path,
             workdir=workdir,
             notifications=notifications,
+            state_thresholds=state_thresholds,
         )
         self._validate_runtime(runtime, run)
 

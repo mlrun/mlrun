@@ -300,6 +300,7 @@ class BaseRuntime(ModelObj):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -349,6 +350,11 @@ class BaseRuntime(ModelObj):
                           artifact type is specified, the object's default artifact type will be used.
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+        :param state_thresholds:    Dictionary of states to time thresholds in seconds. The state will be matched
+                                    against the pod's phase.
+                                    If the phase is active for longer than the threshold, the run will be marked as
+                                    failed and the pod will be deleted.
+                                    See mlconf.run.spec.state_thresholds for the state options and default values.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -376,6 +382,7 @@ class BaseRuntime(ModelObj):
             param_file_secrets=param_file_secrets,
             notifications=notifications,
             returns=returns,
+            state_thresholds=state_thresholds,
         )
 
     def _get_db_run(self, task: RunObject = None):

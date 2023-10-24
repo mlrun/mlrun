@@ -237,7 +237,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             )
 
     def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, crd_object: dict
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
         https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L29

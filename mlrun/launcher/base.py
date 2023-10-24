@@ -70,6 +70,7 @@ class BaseLauncher(abc.ABC):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -233,6 +234,7 @@ class BaseLauncher(abc.ABC):
         artifact_path=None,
         workdir=None,
         notifications: List[mlrun.model.Notification] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -341,6 +343,11 @@ class BaseLauncher(abc.ABC):
 
         run.spec.notifications = notifications
 
+        state_thresholds = (
+            state_thresholds
+            | mlrun.config.config.run.spec.state_thresholds.default.to_dict()
+        )
+        run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
         return run
 
     @staticmethod

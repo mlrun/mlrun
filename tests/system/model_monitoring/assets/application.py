@@ -23,6 +23,8 @@ from mlrun.model_monitoring.application import (
     ModelMonitoringApplicationResult,
 )
 
+EXPECTED_EVENTS_COUNT = 5
+
 
 class DemoMonitoringApp(ModelMonitoringApplication):
     name = "monitoring-test"
@@ -38,7 +40,7 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         endpoint_id: str,
         output_stream_uri: str,
     ) -> ModelMonitoringApplicationResult:
-        assert not sample_df.empty
+        assert len(sample_df) == EXPECTED_EVENTS_COUNT
         return ModelMonitoringApplicationResult(
             self.name,
             endpoint_id,

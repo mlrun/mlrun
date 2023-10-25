@@ -1290,3 +1290,95 @@ def test_get_or_create_project_no_db():
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file, commands",
+    [
+        (["pandas", "scikit-learn"], False, ["echo 123"]),
+        (["pandas", "scikit-learn"], True, ["echo 123"]),
+        ([], True, ["echo 123"]),
+        (None, True, ["echo 123"]),
+        ([], False, ["echo 123"]),
+    ],
+)
+def test_project_build_config(requirements, with_requirements_file, commands):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    project.build_config(
+        image=image,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+        commands=commands,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+    assert project.spec.build.image == image
+    assert project.spec.build.requirements == expected_requirements
+    assert project.spec.build.commands == commands
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file",
+    [
+        (["pandas", "scikit-learn"], False),
+        (["pandas", "scikit-learn"], True),
+        ([], True),
+        (None, True),
+        ([], False),
+    ],
+)
+def test_project_set_function_with_requirements(requirements, with_requirements_file):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    func = project.set_function(
+        name="my-func",
+        image=image,
+        func=str(assets_path() / "handler.py"),
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements
+
+    # set from object
+    if requirements or with_requirements_file:
+        # change requirements to make sure they are overriden
+        func.spec.build.requirements = ["some-req"]
+    project.set_function(
+        name="my-func",
+        image=image,
+        func=func,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements

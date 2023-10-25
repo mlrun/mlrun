@@ -471,7 +471,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[Union[str, List[str]]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):

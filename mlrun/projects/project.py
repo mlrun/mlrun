@@ -2002,6 +2002,7 @@ class MlrunProject(ModelObj):
                 "with_repo": with_repo,
                 "tag": tag,
                 "requirements": requirements,
+                "requirements_file": requirements_file,
             }
             func = {k: v for k, v in function_dict.items() if v}
             resolved_function_name, function_object = _init_function_from_dict(
@@ -2022,9 +2023,9 @@ class MlrunProject(ModelObj):
             if with_repo:
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
-            if requirements:
+            if requirements or requirements_file:
                 function_object.with_requirements(
-                    requirements, requirements_file=requirements_file
+                    requirements, requirements_file=requirements_file, overwrite=True
                 )
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
@@ -3321,6 +3322,7 @@ def _init_function_from_dict(
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
+    requirements_file = f.get("requirements_file", None)
     tag = f.get("tag", None)
 
     has_module = _has_module(handler, kind)
@@ -3383,8 +3385,12 @@ def _init_function_from_dict(
     if with_repo:
         # mark source to be enriched before run with project source (enrich_function_object)
         func.spec.build.source = "./"
-    if requirements:
-        func.with_requirements(requirements)
+    if requirements or requirements_file:
+        func.with_requirements(
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=True,
+        )
 
     return _init_function_from_obj(func, project)
 

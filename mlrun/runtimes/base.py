@@ -792,7 +792,7 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[Union[str, List[str]]] = None,
         overwrite: bool = False,
         verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,

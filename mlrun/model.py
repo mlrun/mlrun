@@ -483,6 +483,7 @@ class ImageBuilder(ModelObj):
                                     when False (default) will append to existing requirements
         :return: function object
         """
+        requirements = requirements or []
         if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
             # TODO: remove in 1.6.0
             warnings.warn(

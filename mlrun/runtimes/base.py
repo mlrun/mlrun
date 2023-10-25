@@ -414,7 +414,7 @@ class BaseRuntime(ModelObj):
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
 
-        if runobj.spec.remote_debugging:
+        if runobj and runobj.spec.remote_debugging:
             runtime_env["MLRUN_REMOTE_DEBUGGING"] = runobj.spec.remote_debugging["mode"]
 
             if runobj.spec.remote_debugging["mode"] == "pycharm":

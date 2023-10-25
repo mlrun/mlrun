@@ -15,6 +15,7 @@
 import json
 import time
 import typing
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,10 +25,26 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.model_monitoring import TrackingPolicy
+from mlrun.model_monitoring.application import ModelMonitoringApplication
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from tests.system.base import TestMLRunSystem
 
 from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
+from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+
+
+@dataclass
+class _AppData:
+    class_: typing.Type[ModelMonitoringApplication]
+    rel_path: str
+    requirements: list[str] = field(default_factory=list)
+    kwargs: dict[str, typing.Any] = field(default_factory=dict)
+    abs_path: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        path = Path(__file__).parent / self.rel_path
+        assert path.exists()
+        self.abs_path = str(path.absolute())
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -47,7 +64,15 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
         cls.app_interval: int = 1  # every 1 minute
 
-        cls.app_name = DemoMonitoringApp.name
+        cls.apps_data: list[_AppData] = [
+            _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
+            _AppData(
+                class_=CustomEvidentlyMonitoringApp,
+                rel_path="assets/custom_evidently_app.py",
+                requirements=["evidently~=0.4.7"],
+                kwargs={},
+            ),
+        ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
         cls.infer_input = cls._generate_infer_input()
 
@@ -56,6 +81,16 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
             cls._v3io_container
         )
+
+    def _set_monitoring_apps(self) -> None:
+        for app_data in self.apps_data[:1]:
+            self.project.set_model_monitoring_application(
+                func=app_data.abs_path,
+                application_class=app_data.class_.__name__,
+                name=app_data.class_.name,
+                image="mlrun/mlrun",
+                **app_data.kwargs,
+            )
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -100,10 +135,12 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
-        resp = ModelMonitoringWriter._get_v3io_client().kv.get(
-            container=cls._v3io_container, table_path=ep_id, key=cls.app_name
-        )
-        assert resp.output.item, "V3IO KV app data is empty"
+        for app_data in cls.apps_data:
+            app_name = app_data.class_.name
+            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+                container=cls._v3io_container, table_path=ep_id, key=app_name
+            )
+            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
@@ -116,6 +153,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         assert (
             df.iloc[0].endpoint_id == ep_id
         ), "The endpoint ID is different than expected"
+        # ADD MORE ASSERTIONS
 
     @classmethod
     def _test_v3io_records(cls, ep_id: str) -> None:
@@ -124,12 +162,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self.project.set_model_monitoring_application(
-            func=str((Path(__file__).parent / "assets/application.py").absolute()),
-            application_class="DemoMonitoringApp",
-            name=self.app_name,
-            image="mlrun/mlrun",
-        )
+        self._set_monitoring_apps()
         self._log_model()
         self.serving_fn = self._deploy_model_serving()
 

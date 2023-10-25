@@ -52,5 +52,4 @@ class DemoMonitoringApp(ModelMonitoringApplication):
             result_value=2.15,
             result_kind=ResultKindApp.data_drift,
             result_status=ResultStatusApp.detected,
-            result_extra_data={},
         )

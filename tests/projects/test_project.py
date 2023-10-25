@@ -1290,3 +1290,36 @@ def test_get_or_create_project_no_db():
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name)
     assert project.name == project_name
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file, commands",
+    [
+        (["pandas", "scikit-learn"], False, ["echo 123"]),
+        (["pandas", "scikit-learn"], True, ["echo 123"]),
+        ([], True, ["echo 123"]),
+        ([], False, ["echo 123"]),
+    ],
+)
+def test_project_build_config(requirements, with_requirements_file, commands):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    project.build_config(
+        image=image,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+        commands=commands,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + requirements
+    assert project.spec.build.image == image
+    assert project.spec.build.requirements == expected_requirements
+    assert project.spec.build.commands == commands

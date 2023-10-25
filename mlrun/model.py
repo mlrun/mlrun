@@ -423,7 +423,7 @@ class ImageBuilder(ModelObj):
             self.base_image = base_image
         if commands:
             self.with_commands(commands, overwrite=overwrite)
-        if requirements:
+        if requirements or requirements_file:
             self.with_requirements(requirements, requirements_file, overwrite=overwrite)
         if extra:
             self.extra = extra

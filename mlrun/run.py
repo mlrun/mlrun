@@ -698,7 +698,7 @@ def code_to_function(
         fn.spec.build.commands = get_in(spec, "spec.build.commands")
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
 
-        if requirements:
+        if requirements or requirements_file:
             fn.with_requirements(requirements, requirements_file=requirements_file)
 
         if embed_code:

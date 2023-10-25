@@ -507,6 +507,7 @@ class ImageBuilder(ModelObj):
     def _resolve_requirements(
         requirements: typing.Union[str, list], requirements_file: str = ""
     ) -> list:
+        requirements = requirements or []
         requirements_to_resolve = []
 
         # handle the requirements_file argument

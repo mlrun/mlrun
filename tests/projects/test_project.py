@@ -1298,6 +1298,7 @@ def test_get_or_create_project_no_db():
         (["pandas", "scikit-learn"], False, ["echo 123"]),
         (["pandas", "scikit-learn"], True, ["echo 123"]),
         ([], True, ["echo 123"]),
+        (None, True, ["echo 123"]),
         ([], False, ["echo 123"]),
     ],
 )
@@ -1319,7 +1320,7 @@ def test_project_build_config(requirements, with_requirements_file, commands):
             "faker",
             "python-dotenv",
             "chardet>=3.0.2, <4.0",
-        ] + requirements
+        ] + (requirements or [])
     assert project.spec.build.image == image
     assert project.spec.build.requirements == expected_requirements
     assert project.spec.build.commands == commands

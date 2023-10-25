@@ -50,7 +50,7 @@ class _AppData:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow" + str(24)  # <-- +1
+    project_name = "test-monitoring-app-flow" + str(35)  # <-- +1
     # project_name = "test-monitoring-app-flow"
 
     @classmethod
@@ -84,12 +84,13 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
 
     def _set_monitoring_apps(self) -> None:
-        for app_data in self.apps_data[:1]:
+        for app_data in self.apps_data:
             self.project.set_model_monitoring_application(
                 func=app_data.abs_path,
                 application_class=app_data.class_.__name__,
                 name=app_data.class_.name,
-                image="mlrun/mlrun",
+                image="jonathandaniel503/mlrun:app-sys-tst",  # DONTTRACK
+                requirements=app_data.requirements,
                 **app_data.kwargs,
             )
 
@@ -115,7 +116,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        image = "mlrun/mlrun:1.6.0-rc1"  # DONTTRACK
+        image = "jonathandaniel503/mlrun:app-sys-tst"  # DONTTRACK
         serving_fn.set_tracking(
             tracking_policy=TrackingPolicy(
                 default_batch_intervals=f"*/{cls.app_interval} * * * *",
@@ -142,7 +143,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data:
+        for app_data in cls.apps_data[:1]:
             app_name = app_data.class_.name
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name

@@ -117,14 +117,10 @@ class ModelMonitoringWriter(StepToDict):
         self._create_tsdb_table()
 
     @staticmethod
-    def get_v3io_container(project_name: str) -> str:
-        return f"users/pipelines/{project_name}/monitoring-apps"
-
-    @staticmethod
     def _get_v3io_client() -> V3IOClient:
         return mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.mlconf.v3io_api,
-            access_key=os.getenv(ProjectSecretKeys.ACCESS_KEY),
+            access_key=os.getenv(ProjectSecretKeys.PIPELINES_ACCESS_KEY),
         )
 
     @staticmethod
@@ -132,7 +128,7 @@ class ModelMonitoringWriter(StepToDict):
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
-            token=os.getenv(ProjectSecretKeys.ACCESS_KEY, ""),
+            token=os.getenv(ProjectSecretKeys.PIPELINES_ACCESS_KEY, ""),
         )
 
     def _create_tsdb_table(self) -> None:

@@ -544,7 +544,7 @@ def new_function(
         else:
             runner.spec.default_handler = handler
 
-    if requirements:
+    if requirements or requirements_file:
         runner.with_requirements(
             requirements,
             requirements_file=requirements_file,

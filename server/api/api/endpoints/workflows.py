@@ -193,6 +193,7 @@ async def submit_workflow(
                 workflow_request=updated_request,
                 db_session=db_session,
                 auth_info=auth_info,
+                remote_debugging=workflow_request.spec.remote_debugging,
             )
             status = "scheduled"
 
@@ -202,6 +203,7 @@ async def submit_workflow(
                 runner=workflow_runner,
                 project=project,
                 workflow_request=updated_request,
+                remote_debugging=workflow_request.spec.remote_debugging,
             )
             status = mlrun.run.RunStatuses.running
             run_uid = run.uid()

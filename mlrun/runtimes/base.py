@@ -413,6 +413,17 @@ class BaseRuntime(ModelObj):
             runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
             runtime_env["MLRUN_NAMESPACE"] = self.metadata.namespace or config.namespace
+
+        if runobj.spec.remote_debugging:
+            runtime_env["MLRUN_REMOTE_DEBUGGING"] = runobj.spec.remote_debugging["mode"]
+
+            if runobj.spec.remote_debugging["mode"] == "pycharm":
+                runtime_env[
+                    "MLRUN_REMOTE_DEBUGGING_HOST"
+                ] = runobj.spec.remote_debugging["host"]
+                runtime_env["MLRUN_REMOTE_DEBUGGING_PORT"] = str(
+                    runobj.spec.remote_debugging["port"]
+                )
         return runtime_env
 
     @staticmethod

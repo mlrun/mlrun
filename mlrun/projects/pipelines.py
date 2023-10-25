@@ -79,6 +79,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         cleanup_ttl: int = None,
         image: str = None,
+        remote_debugging: dict = None,
     ):
         self.engine = engine
         self.code = code
@@ -92,6 +93,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self._tmp_path = None
         self.schedule = schedule
         self.image = image
+        self.remote_debugging = None
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:

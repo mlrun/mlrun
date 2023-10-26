@@ -175,7 +175,7 @@ def test_track_run_with_experiment_name(rundb_mock, handler):
     # Enable general tracking
     mlrun.mlconf.external_platform_tracking.enabled = True
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler + "_test_track")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{handler}_test_track")
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -216,7 +216,7 @@ def test_track_run_with_control_run(rundb_mock, handler):
     mlrun.mlconf.external_platform_tracking.enabled = True
     # Set the mlflow experiment name
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
-        handler + "run_with_control_run"
+        f"{handler}_with_control_run"
     )
     # Tell mlrun to create a mlflow run in advance, and by so knowing it's run id
     mlrun.mlconf.external_platform_tracking.mlflow.control_run = True
@@ -299,7 +299,7 @@ def test_track_run_no_handler(rundb_mock, run_name):
     """
     mlrun.mlconf.external_platform_tracking.enabled = True
     # Set the mlflow experiment name
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(run_name + "_no_handler")
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(f"{run_name}_no_handler")
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -399,7 +399,7 @@ def test_import_run(rundb_mock, handler):
     """
     # Set the mlflow experiment name
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
-        handler.__name__ + "_import_run"
+        f"{handler.__name__}_import_run"
     )
     with tempfile.TemporaryDirectory() as test_directory:
         # Tell mlflow where to save logged data
@@ -409,7 +409,7 @@ def test_import_run(rundb_mock, handler):
         handler()
 
         # Set mlconf path to artifacts
-        mlrun.mlconf.artifact_path = test_directory + "/artifact"
+        mlrun.mlconf.artifact_path = f"{test_directory}/artifact"
 
         # Create a project for this tester:
         project = mlrun.get_or_create_project(name="default", context=test_directory)
@@ -444,11 +444,11 @@ def test_import_model(rundb_mock, handler):
     """
     # Set the mlflow experiment name
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
-        handler.__name__ + "_import_model"
+        f"{handler.__name__}_import_model"
     )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
-        # mlflow.set_experiment(handler.__name__ + "_import_run")
+
         # Run mlflow code
         handler()
 
@@ -457,7 +457,7 @@ def test_import_model(rundb_mock, handler):
 
         # Access model's uri through mlflow's last run
         mlflow_run = mlflow.last_active_run()
-        model_uri = mlflow_run.info.artifact_uri + "/model"
+        model_uri = f"{mlflow_run.info.artifact_uri}/model"
 
         key = "test_model"
         MLFlowTracker().import_model(
@@ -482,7 +482,7 @@ def test_import_artifact(rundb_mock, handler):
     """
     # Set the mlflow experiment name
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
-        handler.__name__ + "_import_artifact"
+        f"{handler.__name__}_import_artifact"
     )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
@@ -502,7 +502,7 @@ def test_import_artifact(rundb_mock, handler):
         for artifact in artifacts:
             # We don't want to log models here
             if not artifact.is_dir:
-                artifact_uri = mlflow_run.info.artifact_uri + "/" + artifact.path
+                artifact_uri = f"{mlflow_run.info.artifact_uri}/{artifact.path}"
 
                 key = f"test_artifact_{artifact.path}"
                 MLFlowTracker().import_artifact(

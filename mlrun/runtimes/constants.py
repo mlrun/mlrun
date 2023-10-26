@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import typing
+
+
 class PodPhases:
     """
     https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
@@ -51,6 +54,35 @@ class PodPhases:
             PodPhases.running: RunStates.running,
             PodPhases.unknown: RunStates.unknown,
         }[pod_phase]
+
+
+class ThresholdStates:
+    pending_scheduled = "pending_scheduled"
+    pending_not_scheduled = "pending_not_scheduled"
+    running = "running"
+    image_pull_back_off = "image_pull_back_off"
+
+    @staticmethod
+    def all():
+        return [
+            ThresholdStates.pending_scheduled,
+            ThresholdStates.pending_not_scheduled,
+            ThresholdStates.running,
+            ThresholdStates.image_pull_back_off,
+        ]
+
+    @staticmethod
+    def from_pod_phase(pod_phase: str, is_scheduled: bool) -> typing.Optional[str]:
+        if pod_phase == PodPhases.pending and is_scheduled:
+            return ThresholdStates.pending_scheduled
+        elif pod_phase == PodPhases.pending and not is_scheduled:
+            return ThresholdStates.pending_not_scheduled
+        elif pod_phase == PodPhases.running:
+            return ThresholdStates.running
+        elif pod_phase == PodPhases.failed:
+            return ThresholdStates.image_pull_back_off
+        else:
+            return None
 
 
 class MPIJobCRDVersions(object):

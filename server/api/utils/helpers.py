@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import typing
 
 import mlrun
 import mlrun.common.schemas
@@ -71,3 +72,10 @@ def minimize_project_schema(
     project.spec.workflows = None
     project.spec.artifacts = None
     return project
+
+
+def is_pod_scheduled(pod: typing.Dict):
+    for condition in pod["status"].get("conditions", []):
+        if condition["type"] == "PodScheduled" and condition["status"] == "True":
+            return True
+    return False

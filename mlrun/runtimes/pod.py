@@ -27,6 +27,7 @@ from mlrun.common.schemas import (
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
+from mlrun.runtimes.constants import ThresholdStates
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -101,6 +102,7 @@ class KubeResourceSpec(FunctionSpec):
         "tolerations",
         "preemption_mode",
         "security_context",
+        "state_thresholds",
     ]
 
     def __init__(
@@ -132,6 +134,7 @@ class KubeResourceSpec(FunctionSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
         super().__init__(
             command=command,
@@ -177,6 +180,9 @@ class KubeResourceSpec(FunctionSpec):
         self.preemption_mode = preemption_mode
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
+        )
+        self.state_thresholds = (
+            state_thresholds or mlrun.mlconf.function.spec.state_thresholds
         )
 
     @property
@@ -1027,6 +1033,28 @@ class KubeResource(BaseRuntime):
             self.spec.image_pull_policy = image_pull_policy
         if image_pull_secret_name is not None:
             self.spec.image_pull_secret = image_pull_secret_name
+
+    def set_state_thresholds(self, state_thresholds: typing.Dict[str, int]):
+        """
+        Set the threshold for a specific state of the runtime.
+        The threshold is the amount of time (in seconds) that the runtime will wait before failing the run
+        if the job is in the matching state.
+        If the threshold is not set for a state, the default threshold will be used.
+
+        :param state_thresholds: A dictionary of state (str) to threshold in seconds (int). The supported states are:
+            * pending_scheduled - The pod is scheduled on a node but not yet running
+            * pending_not_scheduled - The pod is not yet scheduled on a node
+            * running - The is running
+            * image_pull_backoff - The is in image pull backoff
+            See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+        """
+        for state, threshold in state_thresholds.items():
+            if state not in ThresholdStates.all():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid state {state} for state threshold, must be one of {ThresholdStates.all()}"
+                )
+
+            self.spec.state_thresholds[state] = threshold
 
     def with_limits(
         self,

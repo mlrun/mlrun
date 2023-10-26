@@ -345,7 +345,13 @@ class BaseLauncher(abc.ABC):
 
         state_thresholds = (
             state_thresholds
-            | mlrun.config.config.run.spec.state_thresholds.default.to_dict()
+            or run.spec.state_thresholds
+            or runtime.spec.state_thresholds
+            or {}
+        )
+        state_thresholds = (
+            state_thresholds
+            | mlrun.config.config.function.spec.state_thresholds.default.to_dict()
         )
         run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
         return run

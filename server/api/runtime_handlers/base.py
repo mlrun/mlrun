@@ -34,11 +34,12 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.crud as crud
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
-from mlrun.runtimes.constants import PodPhases, RunStates
+from mlrun.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.runtimes.utils import mlrun_key
 from mlrun.utils import logger, now_date
 from server.api.constants import LogSources
@@ -1152,7 +1153,7 @@ class BaseRuntimeHandler(ABC):
             # )
             return
         run = project_run_uid_map.get(project, {}).get(uid)
-        run_state = self._resolve_resource_status_and_apply_threshold(
+        run_state = self._resolve_resource_state_and_apply_threshold(
             run, runtime_resource, runtime_resource_is_crd, namespace
         )
 
@@ -1174,7 +1175,7 @@ class BaseRuntimeHandler(ABC):
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
-    def _resolve_resource_status_and_apply_threshold(
+    def _resolve_resource_state_and_apply_threshold(
         self,
         run: Dict,
         runtime_resource: Dict,
@@ -1192,6 +1193,7 @@ class BaseRuntimeHandler(ABC):
         else:
             pod_phase = runtime_resource["status"]["phase"]
             run_state = PodPhases.pod_phase_to_run_state(pod_phase)
+            is_scheduled = server.api.utils.helpers.is_pod_scheduled(runtime_resource)
 
             start_time = runtime_resource["status"].get("startTime")
             if not start_time:
@@ -1209,7 +1211,9 @@ class BaseRuntimeHandler(ABC):
 
             # Resolve the state threshold from the run
             if (
-                threshold := self._resolve_run_threshold(run, run_state)
+                threshold := self._resolve_run_threshold(
+                    run, pod_phase, is_scheduled=is_scheduled
+                )
             ) and threshold < delta.total_seconds():
                 # Kill the pod
                 run_state = RunStates.error
@@ -1236,14 +1240,19 @@ class BaseRuntimeHandler(ABC):
         return run_state
 
     @staticmethod
-    def _resolve_run_threshold(run: Dict, state: str) -> Optional[int]:
-        # TODO: check scheduled or not and camel case to snake case etc.
-        threshold = (
-            run.get("spec", {}).get("thresholds", {}).get("state", {}).get(state, None)
+    def _resolve_run_threshold(
+        run: Dict, pod_phase: str, is_scheduled: bool
+    ) -> Optional[int]:
+        threshold_state = ThresholdStates.from_pod_phase(pod_phase, is_scheduled)
+        if not threshold_state:
+            return None
+
+        return (
+            run.get("spec", {})
+            .get("thresholds", {})
+            .get("state", {})
+            .get(threshold_state, None)
         )
-        if threshold is not None:
-            return threshold
-        return None
 
     def _build_list_resources_response(
         self,

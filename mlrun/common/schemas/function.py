@@ -109,6 +109,7 @@ class FunctionSpec(pydantic.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
     service_account: typing.Optional[ServiceAccount]
+    state_thresholds: typing.Optional[typing.Dict[str, int]]
 
 
 class Function(pydantic.BaseModel):

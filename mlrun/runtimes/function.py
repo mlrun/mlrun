@@ -162,6 +162,7 @@ class NuclioSpec(KubeResourceSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
 
         super().__init__(
@@ -672,6 +673,9 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.service_type = service_type
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+
+    def set_state_thresholds(self, state_thresholds: typing.Dict[str, int]):
+        raise NotImplementedError("set_state_thresholds is not implemented for nuclio")
 
     def _get_state(
         self,

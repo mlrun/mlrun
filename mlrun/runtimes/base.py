@@ -354,7 +354,7 @@ class BaseRuntime(ModelObj):
                                     against the pod's phase.
                                     If the phase is active for longer than the threshold, the run will be marked as
                                     failed and the pod will be deleted.
-                                    See mlconf.run.spec.state_thresholds for the state options and default values.
+                                    See mlconf.function.spec.state_thresholds for the state options and default values.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(

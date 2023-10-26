@@ -185,16 +185,12 @@ default_config = {
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
         "preemption_mode": "prevent",
-    },
-    "run": {
-        "spec": {
-            "state_threshold": {
-                "default": {
-                    "pending_scheduled": 60 * 60,
-                    "pending_not_scheduled": -1,  # infinite
-                    "image_pull_backoff": 60 * 60,
-                    "running": 24 * 60 * 60,
-                }
+        "state_threshold": {
+            "default": {
+                "pending_scheduled": 60 * 60,
+                "pending_not_scheduled": -1,  # infinite
+                "image_pull_backoff": 60 * 60,
+                "running": 24 * 60 * 60,
             }
         },
     },

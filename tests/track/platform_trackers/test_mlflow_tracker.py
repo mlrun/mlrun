@@ -30,6 +30,10 @@ import mlrun
 import mlrun.launcher.local
 from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 
+#  Important:
+#  unlike mlconf which resets back to default after each test run, the mlflow configurations
+#  and env vars don't, so at the end of each test we need to redo anything we set in that test.
+
 
 # simple general mlflow example of hand logging
 def simple_run():
@@ -161,15 +165,17 @@ def test_is_enabled(rundb_mock, enable_tracking):
 
 
 @pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
-def test_track_run(rundb_mock, handler):
+def test_track_run_with_experiment_name(rundb_mock, handler):
     """
-    This test is for tracking a run logged by mlflow into mlrun while it's running.
+    This test is for tracking a run logged by mlflow into mlrun while it's running using the experiment name.
     first activate the tracking option in mlconf, then we name the mlflow experiment,
     then we run some code that is being logged by mlflow using mlrun,
     and finally compare the mlrun we tracked with the original mlflow run using the validate func
     """
+    # Enable general tracking
     mlrun.mlconf.external_platform_tracking.enabled = True
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler + "_test_track")
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -191,7 +197,96 @@ def test_track_run(rundb_mock, handler):
             artifact_path=test_directory,
         )
 
-        _validate_run(run=trainer_run)
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
+
+
+@pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
+def test_track_run_with_control_run(rundb_mock, handler):
+    """
+    This test is for tracking a run logged by mlflow into mlrun while it's running using the run id.
+    first activate the tracking option in mlconf, then we name the mlflow experiment,
+    then we run some code that is being logged by mlflow using mlrun,
+    and finally compare the mlrun we tracked with the original mlflow run using the validate func
+    """
+    # Enable general tracking
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        handler + "run_with_control_run"
+    )
+    # Tell mlrun to create a mlflow run in advance, and by so knowing it's run id
+    mlrun.mlconf.external_platform_tracking.mlflow.control_run = True
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+        # mlflow creates a dir to log the run, this makes it in the tmpdir we create
+        trainer_run = func.run(
+            local=True,
+            handler=handler,
+            artifact_path=test_directory,
+        )
+
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
+
+
+@pytest.mark.parametrize("handler", ["xgb_run", "lgb_run", "simple_run"])
+def test_track_run_with_match_experiment_to_runtime(rundb_mock, handler):
+    """
+    This test is for tracking a run logged by mlflow into mlrun while it's running by setting
+    'mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime` to True.
+    first activate the tracking option in mlconf, then we name the mlflow experiment,
+    then we run some code that is being logged by mlflow using mlrun,
+    and finally compare the mlrun we tracked with the original mlflow run using the validate func
+    """
+    # Enable general tracking
+    mlrun.mlconf.external_platform_tracking.enabled = True
+    # Tell mlrun to set experiment name to context.name
+    mlrun.mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime = True
+    with tempfile.TemporaryDirectory() as test_directory:
+        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+
+        # Create a project for this tester:
+        project = mlrun.get_or_create_project(name="default", context=test_directory)
+
+        # Create a MLRun function using the tester source file (all the functions must be located in it):
+        func = project.set_function(
+            func=__file__,
+            name=f"{handler}-test",
+            kind="job",
+            image="mlrun/mlrun",
+            requirements=["mlflow"],
+        )
+        # mlflow creates a dir to log the run, this makes it in the tmpdir we create
+        trainer_run = func.run(
+            local=True,
+            handler=handler,
+            artifact_path=test_directory,
+        )
+
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
+        # unset mlflow experiment name to default
+        mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 @pytest.mark.parametrize("run_name", ["simple_run"])
@@ -203,7 +298,8 @@ def test_track_run_no_handler(rundb_mock, run_name):
     and finally compare the mlrun we tracked with the original mlflow run using the validate func
     """
     mlrun.mlconf.external_platform_tracking.enabled = True
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(run_name)
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(run_name + "_no_handler")
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -235,6 +331,8 @@ def test_track_run_no_handler(rundb_mock, run_name):
         # Need run id in order to find correct run when loggen in different process
         run_id = trainer_run.status.results.pop("run_id")
         _validate_run(run=trainer_run, run_id=run_id)
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 def _mock_wrap_run_result(monkeypatch):
@@ -256,9 +354,13 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
      then we name the mlflow experiment, then we run some code that is being logged by mlflow using mlrun,
     and finally compare the mlrun we tracked with the original mlflow run using the validate func
     """
+    # Need to wrap the code in order to get back the run from mlrun, so we can compare
+    # it to what we wanted to log from mlflow
     _mock_wrap_run_result(monkeypatch)
     mlrun.mlconf.external_platform_tracking.enabled = True
+    # Set the mlflow experiment name
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler)
+
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -274,13 +376,18 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
             requirements=["mlflow"],
         )
         # mlflow creates a dir to log the run, this makes it in the tmpdir we create
-        trainer_run = func.run(
-            local=True,
-            handler=handler,
-            artifact_path=test_directory,
-        )
-
+        try:
+            trainer_run = func.run(
+                local=True,
+                handler=handler,
+                artifact_path=test_directory,
+                watch=False,
+            )
+        except Exception:
+            pass
         _validate_run(run=trainer_run)
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 @pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
@@ -290,9 +397,13 @@ def test_import_run(rundb_mock, handler):
     first we run some code that's logged by mlflow, then we import it
     to mlrun, and then we use the validate function to compare between original run and imported
     """
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        handler.__name__ + "_import_run"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
-        mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
+        # Tell mlflow where to save logged data
+        mlflow.set_tracking_uri(test_directory)
 
         # Run mlflow wrapped code
         handler()
@@ -316,10 +427,12 @@ def test_import_run(rundb_mock, handler):
         imported_run = MLFlowTracker().import_run(
             project=project,
             reference_id=mlflow_run.info.run_id,
-            function_name="import_run_test",
+            function_name=f"{handler.__name__}-test",
         )
 
         _validate_run(run=imported_run)
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 @pytest.mark.parametrize("handler", [xgb_run, lgb_run])
@@ -329,10 +442,13 @@ def test_import_model(rundb_mock, handler):
     first we run some code that's logged by mlflow, then we import the logged model
     to mlrun, and then we validate
     """
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        handler.__name__ + "_import_model"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
-
+        # mlflow.set_experiment(handler.__name__ + "_import_run")
         # Run mlflow code
         handler()
 
@@ -353,6 +469,8 @@ def test_import_model(rundb_mock, handler):
 
         # Validate model was logged into project
         assert project.get_artifact(key)
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 @pytest.mark.parametrize("handler", [xgb_run, lgb_run, simple_run])
@@ -362,7 +480,10 @@ def test_import_artifact(rundb_mock, handler):
     first we run some code that's logged by mlflow, then we import logged artifacts
     to mlrun, and then we use validate by comparing to original artifacts
     """
-    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(handler.__name__)
+    # Set the mlflow experiment name
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+        handler.__name__ + "_import_artifact"
+    )
     with tempfile.TemporaryDirectory() as test_directory:
         mlflow.set_tracking_uri(test_directory)  # Tell mlflow where to save logged data
 
@@ -381,7 +502,6 @@ def test_import_artifact(rundb_mock, handler):
         for artifact in artifacts:
             # We don't want to log models here
             if not artifact.is_dir:
-
                 artifact_uri = mlflow_run.info.artifact_uri + "/" + artifact.path
 
                 key = f"test_artifact_{artifact.path}"
@@ -393,27 +513,27 @@ def test_import_artifact(rundb_mock, handler):
 
                 # Validate artifact in project
                 assert project.get_artifact(key)
+    # unset mlflow experiment name to default
+    mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
 def _validate_run(run: mlrun.run, run_id: str = None):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
-    if not run_id:
-        # find the right run
-        run_to_comp = mlflow.last_active_run()
-    else:
+    if run_id:
         run_to_comp = mlflow.get_run(run_id)
-
+    else:
+        run_to_comp = mlflow.last_active_run()
     if not run_to_comp:
         assert False, "Run not found, test failed"
 
     # check that values correspond
+    print(f"run params: {run.spec.parameters}")
+    print(f"run to comp params: {run_to_comp.data.params}")
     for param in run_to_comp.data.params:
         assert run_to_comp.data.params[param] == run.spec.parameters[param]
     for metric in run_to_comp.data.metrics:
         assert run_to_comp.data.metrics[metric] == run.status.results[metric]
-    print(f"run params: {run.spec.parameters}")
-    print(f"run to comp params: {run_to_comp.data.params}")
     assert len(run_to_comp.data.params) == len(run.spec.parameters)
     # check the number of artifacts corresponds
     num_artifacts = len(client.list_artifacts(run_to_comp.info.run_id))

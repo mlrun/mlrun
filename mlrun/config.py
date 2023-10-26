@@ -152,8 +152,14 @@ default_config = {
         "mlflow": {
             # Enabler of MLFlow tracking:
             "enabled": True,
-            # Whether to match the experiment name to the runtime name:
+            # Whether to match the experiment name to the runtime name (sets mlflow experiment name to mlrun
+            # context name):
             "match_experiment_to_runtime": False,
+            # Whether to determine the mlflow run id before tracking starts, by doing so we can be positive that we
+            # are tracking the correct run, this is useful especially for when we run number of runs simultaneously
+            # in the same experiment. the default is set to false because in the process a mlflow run is created in
+            # advance, and we want to avoid creating unnecessary runs.
+            "control_run": False,
         },
     },
     "background_tasks": {

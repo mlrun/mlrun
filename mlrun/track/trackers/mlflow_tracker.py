@@ -39,6 +39,12 @@ class MLFlowTracker(Tracker):
     A class for detecting and logging MLFlow runs into MLRun. Notice, only the last active MLFlow run is logged.
     """
 
+    def __init__(self):
+        super().__init__()
+        self._pre_runs = None
+        self._experiment_name = None
+        self._run_id = None
+
     @staticmethod
     def is_enabled() -> bool:
         """
@@ -55,34 +61,84 @@ class MLFlowTracker(Tracker):
         :param context: Current mlrun context
         """
         # Check for a user set experiment name via the environment variable:
-        experiment_name = mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
-
-        # In case we run a job with number of threads/processes we need to compare all runs before we ran and
-        # after we ran in order to find relevant run
-        all_experiments = [exp.experiment_id for exp in mlflow.search_experiments()]
-        self._pre_runs = set(
-            [
-                run.info.run_id
-                for run in mlflow.search_runs(
-                    experiment_ids=all_experiments,
-                    output_format="list",
-                )
-            ]
+        self._experiment_name = (
+            mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.get()
         )
 
         # Check if the user configured for matching the experiment name with the context name:
         if getattr(
             mlconf.external_platform_tracking, mlflow.__name__
         ).match_experiment_to_runtime:
-            if experiment_name is not None:
+            if self._experiment_name is not None:
                 context.logger.warn(
                     f"`mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime` is set to True but the "
                     f"MLFlow experiment name environment variable ('MLFLOW_EXPERIMENT_NAME') is set for using the "
-                    f"name: '{experiment_name}'. This name will be overriden "
+                    f"name: '{self._experiment_name}'. This name will be overriden "
                     f"with MLRun's runtime name as set in the MLRun configuration: '{context.name}'."
                 )
-            experiment_name = context.name
-            mlflow.set_experiment(experiment_name=experiment_name)
+            self._experiment_name = context.name
+            mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.set(
+                self._experiment_name
+            )
+
+        # We have 3 options to track our run, either we set the run id, or we have the experiment, and then we check
+        # for added runs in it, or we do none, and then we look for added runs across all experiments.
+        # In case we want to determine the run id we have to create a new mlflow run, save the run id and use it
+        # to override the run later (due to mlflow limitations)
+        if mlrun.mlconf.external_platform_tracking.mlflow.control_run:
+            with mlflow.start_run() as run:
+                self._run_id = run.info.run_id
+            mlflow.environment_variables.MLFLOW_RUN_ID.set(self._run_id)
+
+        elif self._experiment_name:
+            # We try to load an existing experiment first
+            experiment = mlflow.get_experiment_by_name(name=self._experiment_name)
+            # If no experiment with corresponding name exists, we create a new one
+            if not experiment:
+                experiment_id = mlflow.create_experiment(name=self._experiment_name)
+                experiment = mlflow.get_experiment(experiment_id=experiment_id)
+
+            # Save all runs logged in experiment prior of our run for later comparison
+            self._pre_runs = set(
+                [
+                    run.info.run_id
+                    for run in mlflow.search_runs(
+                        experiment_ids=experiment.experiment_id,
+                        output_format="list",
+                    )
+                ]
+            )
+
+        else:
+            # We warn user that when no experiment name or run id is given we look at all runs and might track the wrong
+            # run in case where number of runs are running simultaneously
+            context.logger.warn(
+                "MLFlow Experiment Name and MLFlow Run ID Not Found. "
+                "In this case, MLRun encountered an issue as it was unable to locate the MLFlow"
+                " experiment name and run ID. When this occurs, MLRun will attempt to search through "
+                "all experiments and runs to identify the newly added run. However, in scenarios where"
+                " a substantial number of runs are active simultaneously, MLRun may not accurately log"
+                " the correct run. To resolve this issue, please consider the following steps: "
+                "1. Set MLFlow Environment Variables: Ensure that you have set the necessary"
+                " MLFlow environment variables, specifically 'MLFLOW_EXPERIMENT_NAME' and"
+                " 'MLFLOW_RUN_ID', to provide explicit identification for the experiment and run. "
+                "2. Adjust mlconf Configuration (mlconf): "
+                "Alternatively, you can configure MLRun by setting "
+                "'mlconf.external_platform_tracking.mlflow.match_experiment_to_runtime` to True within"
+                " the mlrun configuration (mlconf). This setting enables MLRun to match the "
+                "experiment with the runtime more effectively. "
+            )
+            # Find all experiments to save all their runs for later comparison
+            all_experiments = [exp.experiment_id for exp in mlflow.search_experiments()]
+            self._pre_runs = set(
+                [
+                    run.info.run_id
+                    for run in mlflow.search_runs(
+                        experiment_ids=all_experiments,
+                        output_format="list",
+                    )
+                ]
+            )
 
     def post_run(self, context: MLClientCtx):
         """
@@ -90,11 +146,28 @@ class MLFlowTracker(Tracker):
 
         :param context: Current mlrun context
         """
-        # Get the last run (None means no run was created or found,
-        # in cases where there is no mlflow code or that the mlflow code has bugs):
-        run = mlflow.last_active_run()
-        # In case we don't find the last active run, we need to compare all runs from before our run to the current ones
-        if run is None:
+        # We try to find the correct run to log via available data
+        if self._run_id:
+            run = [self._run_id]
+
+        elif self._experiment_name:
+            # If we now the experiment's name we can look at all runs and find the new one
+            experiment = mlflow.get_experiment_by_name(self._experiment_name)
+            run = (
+                set(
+                    [
+                        run.info.run_id
+                        for run in mlflow.search_runs(
+                            experiment_ids=experiment.experiment_id,
+                            output_format="list",
+                        )
+                    ]
+                )
+                ^ self._pre_runs  # xor to find the run added to the list
+            )
+
+        else:
+            # In case we don't have the experiment name or run id we need to look at all new runs to found the one added
             all_experiments = [exp.experiment_id for exp in mlflow.search_experiments()]
             run = (
                 set(
@@ -106,9 +179,10 @@ class MLFlowTracker(Tracker):
                         )
                     ]
                 )
-                ^ self._pre_runs
+                ^ self._pre_runs  # xor to find the run added to the list
             )
-            run = mlflow.get_run(run_id=run.pop())
+        # should be only one run id in run
+        run = mlflow.get_run(run_id=run.pop())
 
         # Log the run:
         MLFlowTracker._log_run(context=context, run=run)
@@ -132,18 +206,12 @@ class MLFlowTracker(Tracker):
         :return: The newly imported RunObject.
         """
 
-        # Get the MLFlow run object:
-        run = mlflow.search_runs(
-            search_all_experiments=True,
-            filter_string=f"attributes.run_id = '{reference_id}'",
-            output_format="list",
-        )
+        run = mlflow.get_run(reference_id)
         if not run:
             raise ValueError(
                 "The provided run id was not found in the set MLFlow registry. Try to set the registry using "
                 "MLFlow's environment variables."
             )
-        run = run[0]  # We are using a run id, so only one will be returned in the list.
 
         # Create the run object to hold the mlflow run:
         run_object = self._create_run_object(
@@ -268,7 +336,7 @@ class MLFlowTracker(Tracker):
         Log the given MLFlow run to MLRun.
 
         :param context:     Current MLRun context or project.
-        :param run:         MLFlow Run to log. Can be given as a `Run` object or as a run id.
+        :param run:         MLFlow Run to log. Can be given as a `Run` object
         :param is_offline:  True if logging an offline run (importing), False if online run (tracking)
         """
         client = mlflow.MlflowClient()

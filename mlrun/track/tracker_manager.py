@@ -101,7 +101,7 @@ class TrackerManager(metaclass=Singleton):
                 tracker.post_run(context)
             except Exception as e:
                 logger.warn(
-                    f"Tracker {tracker.__class__.__name__} failed in post run with the following exception: ",
+                    f"Tracker {tracker.__class__.__name__} failed in post run with the following exception",
                     exception=str(e),
                 )
 

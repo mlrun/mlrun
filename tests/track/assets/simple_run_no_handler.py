@@ -16,6 +16,7 @@ import tempfile
 from random import randint, random
 
 import mlflow
+import mlflow.environment_variables
 
 import mlrun
 

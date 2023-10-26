@@ -26,6 +26,7 @@ import sqlalchemy.orm
 from fastapi.exception_handlers import http_exception_handler
 
 import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_constants
 import mlrun.errors
 import mlrun.lists
 import mlrun.utils
@@ -71,7 +72,7 @@ V2_API_PREFIX = f"{API_PREFIX}/v2"
 # and their notifications haven't been sent yet.
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
-_last_notification_push_time: typing.Optional[datetime.datetime] = None
+_last_update_time: typing.Optional[datetime.datetime] = None
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -686,7 +687,13 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
             )
 
     try:
-        _push_terminal_run_notifications(db, db_session)
+        global _last_update_time
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        _generate_event_on_failed_runs(db, db_session, _last_update_time)
+        _push_terminal_run_notifications(db, db_session, _last_update_time)
+
+        _last_update_time = now
     except Exception as exc:
         logger.warning(
             "Failed pushing terminal run notifications. Ignoring",
@@ -713,7 +720,9 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_session):
+def _push_terminal_run_notifications(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -723,15 +732,12 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     # since the last time we pushed notifications.
     # On the first time we push notifications, we'll push notifications for all runs that are in a terminal state
     # and their notifications haven't been sent yet.
-    global _last_notification_push_time
-
-    now = datetime.datetime.now(datetime.timezone.utc)
 
     runs = db.list_runs(
         db_session,
         project="*",
         states=mlrun.runtimes.constants.RunStates.terminal_states(),
-        last_update_time_from=_last_notification_push_time,
+        last_update_time_from=last_update_time,
         with_notifications=True,
     )
 
@@ -752,7 +758,41 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
-    _last_notification_push_time = now
+
+def _generate_event_on_failed_runs(
+    db: server.api.db.base.DBInterface, db_session, last_update_time
+):
+    """
+    Send an event on the runs that ended with error state since the last call to the function
+    """
+
+    runs = db.list_runs(
+        db_session,
+        project="*",
+        states=[mlrun.runtimes.constants.RunStates.error],
+        last_update_time_from=last_update_time,
+    )
+
+    for run in runs:
+        project = run["metadata"]["project"]
+        uid = run["metadata"]["uid"]
+        entity = {
+            "kind": alert_constants.EventEntityKind.JOB,
+            "project": project,
+            "id": uid,
+        }
+        event_data = mlrun.common.schemas.Event(
+            kind=alert_constants.EventKind.FAILED, entity=entity
+        )
+        mlrun.get_run_db().generate_event(alert_constants.EventKind.FAILED, event_data)
+
+        server.api.crud.Events().process_event(
+            session=db_session,
+            event_data=event_data,
+            event_name=alert_constants.EventKind.FAILED,
+            project=project,
+            validate_event=True,
+        )
 
 
 async def _abort_stale_runs(stale_runs: list[dict]):

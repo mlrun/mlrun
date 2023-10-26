@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from typing import Any, NewType
 
 import pandas as pd
@@ -25,11 +24,7 @@ import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.common.schemas.model_monitoring.constants import (
-    ProjectSecretKeys,
-    ResultStatusApp,
-    WriterEvent,
-)
+from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -156,8 +151,6 @@ class ModelMonitoringWriter(StepToDict):
             self._generate_kv_schema(endpoint_id)
         logger.info("Updated V3IO KV successfully", key=app_name)
 
-
-
     def _generate_kv_schema(self, endpoint_id: str):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
@@ -167,7 +160,11 @@ class ModelMonitoringWriter(StepToDict):
             {"name": WriterEvent.RESULT_KIND, "type": "double", "nullable": False},
             {"name": WriterEvent.RESULT_VALUE, "type": "double", "nullable": False},
             {"name": WriterEvent.RESULT_STATUS, "type": "double", "nullable": False},
-            {"name": WriterEvent.RESULT_EXTRA_DATA, "type": "string", "nullable": False},
+            {
+                "name": WriterEvent.RESULT_EXTRA_DATA,
+                "type": "string",
+                "nullable": False,
+            },
         ]
         res = self._kv_client.create_schema(
             container=self._v3io_container,
@@ -180,9 +177,10 @@ class ModelMonitoringWriter(StepToDict):
                 f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
             )
         else:
-            logger.info("Generated V3IO KV schema successfully", endpoint_id=endpoint_id)
+            logger.info(
+                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
+            )
             self._kv_schemas.append(endpoint_id)
-
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())

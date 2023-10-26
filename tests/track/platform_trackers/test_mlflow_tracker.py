@@ -376,16 +376,14 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
             requirements=["mlflow"],
         )
         # mlflow creates a dir to log the run, this makes it in the tmpdir we create
-        try:
-            trainer_run = func.run(
-                local=True,
-                handler=handler,
-                artifact_path=test_directory,
-                watch=False,
-            )
-        except Exception:
-            pass
-        _validate_run(run=trainer_run)
+        trainer_run = func.run(
+            local=True,
+            handler=handler,
+            artifact_path=test_directory,
+            watch=False,
+        )
+
+        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
@@ -430,7 +428,7 @@ def test_import_run(rundb_mock, handler):
             function_name=f"{handler.__name__}-test",
         )
 
-        _validate_run(run=imported_run)
+        _validate_run(run=imported_run, run_id=mlflow_run.info.run_id)
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 

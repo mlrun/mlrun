@@ -325,9 +325,7 @@ class MLClientCtx(object):
         status = attrs.get("status")
         if include_status and status:
             self._results = status.get("results", self._results)
-            for artifact in status.get(
-                "artifacts", self._artifacts_manager.artifact_list()
-            ):
+            for artifact in status.get("artifacts", []):
                 artifact_obj = dict_to_artifact(artifact)
                 key = artifact_obj.key
                 self._artifacts_manager.artifacts[key] = artifact_obj

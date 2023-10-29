@@ -254,7 +254,7 @@ If you created a new configuration in the previous step, your `launch.json` woul
 Use this procedure for the MLRun package, and any other packages you want to install on a dark site.
 
 To install a package in a dark (air-gapped) site:
-1. Download the package. 
+1. Download the packages: conda 23.1.0, pip 
 2. Pack the conda package file and upload it to your dark system.
 2. Install the tar.gz by running:
 

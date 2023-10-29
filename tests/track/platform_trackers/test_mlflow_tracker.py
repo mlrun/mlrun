@@ -163,9 +163,8 @@ def test_is_enabled(rundb_mock, enable_tracking):
     # see if mlflow is in scope
     mlflow_tracker = MLFlowTracker()
     # check all the stuff we check in is_enabled
-    enabled = (
-        getattr(mlrun.mlconf.external_platform_tracking, "mlflow", {}).enabled is True
-    )
+    enabled = mlrun.mlconf.external_platform_tracking.mlflow.enabled is True
+
     assert mlflow_tracker.is_enabled() == enabled
 
 

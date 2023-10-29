@@ -18,10 +18,9 @@ from typing import List, Union
 
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
+from mlrun.track.tracker import Tracker
 from mlrun.utils import logger
 from mlrun.utils.singleton import Singleton
-
-from .tracker import Tracker
 
 # Add a tracker to this list for it to be added into the global tracker manager (only if available in the interpreter):
 _TRACKERS = ["mlflow"]
@@ -114,19 +113,11 @@ class TrackerManager(metaclass=Singleton):
         # Return the context (cast to dict if received as a dict):
         return context.to_dict() if is_context_dict else context
 
-    def is_stale(self) -> bool:
-        """
-        Returns manager's staleness. Useful for callee to check if a new one should be initialized instead.
-
-        :return: The staleness property.
-        """
-        return self._stale
-
     def _collect_available_trackers(self):
         """
         Set up the `_AVAILABLE_TRACKERS` list with trackers that were able to be imported.
         The tracked modules are not in MLRun's requirements and so it trys to import the module file of each and
-         only if it succeeds (not raising `ModuleNotFoundError`) it collects it as an available tracker.
+        only if it succeeds (not raising `ModuleNotFoundError`) it collects it as an available tracker.
         """
         global _AVAILABLE_TRACKERS
 

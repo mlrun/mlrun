@@ -30,7 +30,7 @@ from mlrun.errors import MLRunRuntimeError
 
 credentials_path = "/mlrun/databricks_credentials.yaml"
 artifacts_code_template = """\n
-mlrun_artifacts_path = {}
+mlrun_artifacts_path = '{}'
 def mlrun_log_artifact(name, path):
     import json
     import os

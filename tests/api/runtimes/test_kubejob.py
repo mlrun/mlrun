@@ -1018,10 +1018,10 @@ def my_func(context):
 
     def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
-            "pending_not_scheduled": 10,
-            "pending_scheduled": 20,
-            "running": 30,
-            "image_pull_backoff": 40,
+            "pending_not_scheduled": "10s",
+            "pending_scheduled": "20m",
+            "running": "30h",
+            "image_pull_backoff": "-1",
         }
 
         runtime = self._generate_runtime()
@@ -1034,7 +1034,7 @@ def my_func(context):
 
     def test_set_state_thresholds_failure(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
-            "unknown_state": 10,
+            "unknown_state": "10s",
         }
 
         runtime = self._generate_runtime()
@@ -1044,6 +1044,20 @@ def my_func(context):
             )
         assert (
             f"Invalid state unknown_state for state threshold, must be one of {mlrun.runtimes.constants.ThresholdStates.all()}"
+            in str(exc.value)
+        )
+
+        state_thresholds = {
+            "running": "10",
+        }
+
+        runtime = self._generate_runtime()
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.set_state_thresholds(
+                state_thresholds=state_thresholds,
+            )
+        assert (
+            "Invalid threshold 10 for state running, must match the regex (\\d+)([smhdw])"
             in str(exc.value)
         )
 

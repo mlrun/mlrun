@@ -15,6 +15,7 @@ import abc
 import ast
 import copy
 import os
+import re
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -145,6 +146,7 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
+        self._validate_state_thresholds(run.spec.state_thresholds)
 
     @staticmethod
     def _validate_output_path(
@@ -155,22 +157,22 @@ class BaseLauncher(abc.ABC):
             message = ""
             if not os.path.isabs(run.spec.output_path):
                 message = (
-                    "artifact/output path is not defined or is local and relative,"
+                    "Artifact/output path is not defined or is local and relative,"
                     " artifacts will not be visible in the UI"
                 )
                 if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
                     runtime.kind
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
-                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                        "Artifact path (`artifact_path`) must be absolute for remote tasks"
                     )
             elif (
                 hasattr(runtime.spec, "volume_mounts")
                 and not runtime.spec.volume_mounts
             ):
                 message = (
-                    "artifact output path is local while no volume mount is specified. "
-                    "artifacts would not be visible via UI."
+                    "Artifact output path is local while no volume mount is specified. "
+                    "Artifacts would not be visible via UI."
                 )
             if message:
                 logger.warning(message, output_path=run.spec.output_path)
@@ -186,7 +188,29 @@ class BaseLauncher(abc.ABC):
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param_name} value {param_value} exceeds int64"
+                    f"Parameter {param_name} value {param_value} exceeds int64"
+                )
+
+    @staticmethod
+    def _validate_state_thresholds(
+        state_thresholds: Optional[Dict[str, str]] = None,
+    ):
+        if state_thresholds is None:
+            return
+
+        for state, threshold in state_thresholds.items():
+            if not isinstance(threshold, str):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold for state {state} must be a string"
+                )
+
+            if (
+                not re.match(mlrun.utils.regex.time_pattern, threshold)
+                and not threshold == "-1"
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold for state {state} must match the pattern {mlrun.utils.regex.time_pattern}"
+                    ' or be "-1"'
                 )
 
     @staticmethod

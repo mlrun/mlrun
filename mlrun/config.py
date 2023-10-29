@@ -172,10 +172,10 @@ default_config = {
             "service_account": {"default": None},
             "state_thresholds": {
                 "default": {
-                    "pending_scheduled": 60 * 60,
-                    "pending_not_scheduled": -1,  # infinite
-                    "image_pull_backoff": 60 * 60,
-                    "running": 24 * 60 * 60,
+                    "pending_scheduled": "1h",
+                    "pending_not_scheduled": "-1",  # infinite
+                    "image_pull_backoff": "1h",
+                    "running": "24h",
                 }
             },
         },

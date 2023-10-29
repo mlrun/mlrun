@@ -13,6 +13,7 @@
 # limitations under the License.
 import inspect
 import os
+import re
 import typing
 from enum import Enum
 
@@ -1035,14 +1036,15 @@ class KubeResource(BaseRuntime):
         if image_pull_secret_name is not None:
             self.spec.image_pull_secret = image_pull_secret_name
 
-    def set_state_thresholds(self, state_thresholds: typing.Dict[str, int]):
+    def set_state_thresholds(self, state_thresholds: typing.Dict[str, str]):
         """
         Set the threshold for a specific state of the runtime.
-        The threshold is the amount of time (in seconds) that the runtime will wait before failing the run
-        if the job is in the matching state.
+        The threshold is the amount of time (amount and time units e.g. 1000s, 60m, 1h etc. or -1 for infinite)
+        that the runtime will wait before failing the run if the job is in the matching state.
+        Threshold must be at least 1 second.
         If the threshold is not set for a state, the default threshold will be used.
 
-        :param state_thresholds: A dictionary of state (str) to threshold in seconds (int). The supported states are:
+        :param state_thresholds: A dictionary of state to threshold. The supported states are:
             * pending_scheduled - The pod is scheduled on a node but not yet running
             * pending_not_scheduled - The pod is not yet scheduled on a node
             * running - The is running
@@ -1053,6 +1055,15 @@ class KubeResource(BaseRuntime):
             if state not in ThresholdStates.all():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Invalid state {state} for state threshold, must be one of {ThresholdStates.all()}"
+                )
+
+            if (
+                not re.match(mlrun.utils.regex.time_pattern, threshold)
+                and threshold != "-1"
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid threshold {threshold} for state {state}, "
+                    f"must match the regex {mlrun.utils.regex.time_pattern}"
                 )
 
             self.spec.state_thresholds[state] = threshold

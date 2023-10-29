@@ -1251,9 +1251,10 @@ class BaseRuntimeHandler(ABC):
         if not threshold_state or not run:
             return None
 
-        return (
+        threshold = (
             run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
+        return mlrun.utils.helpers.time_string_to_seconds(threshold)
 
     def _build_list_resources_response(
         self,

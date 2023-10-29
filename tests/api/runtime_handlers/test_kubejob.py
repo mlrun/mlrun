@@ -578,7 +578,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             k8s_client.V1PodCondition(type="PodScheduled", status="True")
         ]
         pending_scheduled_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
-            seconds=mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+            )
         )
 
         pending_scheduled_pod_new = self._generate_pod(
@@ -592,7 +594,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "running_overtime", self.job_labels, PodPhases.running
         )
         running_overtime_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
-            seconds=mlrun.mlconf.function.spec.state_thresholds.default.running
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.running
+            )
         )
 
         list_namespaced_pods_calls = [

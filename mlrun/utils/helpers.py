@@ -1504,3 +1504,20 @@ def line_terminator_kwargs():
         else "line_terminator"
     )
     return {line_terminator_parameter: "\n"}
+
+
+def time_string_to_seconds(time_str: str):
+    match = re.match(mlrun.utils.regex.time_pattern, time_str)
+
+    if match:
+        value, unit = match.groups()
+        value = int(value)
+        units_in_seconds = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+        if unit in units_in_seconds:
+            return value * units_in_seconds[unit]
+
+    elif time_str == "-1":
+        return -1
+
+    return None

@@ -564,12 +564,13 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     async def test_state_thresholds_defaults(self, db: Session, client: TestClient):
         """
         Test that the default state thresholds are applied correctly
-        This test creates 5 pods:
+        This test creates 6 pods:
         - pending pod that is not scheduled - should not be deleted
         - running pod with new start time - should not be deleted
         - pending scheduled pod with new start time - should not be deleted
         - pending scheduled pod with old start time - should be deleted
         - running pod with old start time - should be deleted
+        - pod in image pull backoff with old start time - should be deleted
         """
         pending_scheduled_pod = self._generate_pod(
             "pending_scheduled", self.job_labels, PodPhases.pending
@@ -599,6 +600,29 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             )
         )
 
+        image_pull_backoff_pod = self._generate_pod(
+            "image_pull_backoff", self.job_labels, PodPhases.pending
+        )
+        image_pull_backoff_pod.status.container_statuses = [
+            k8s_client.V1ContainerStatus(
+                image="some-image",
+                image_id="some-image-id",
+                name="some-container",
+                ready=False,
+                restart_count=10,
+                state=k8s_client.V1ContainerState(
+                    waiting=k8s_client.V1ContainerStateWaiting(
+                        reason="ImagePullBackOff"
+                    )
+                ),
+            )
+        ]
+        image_pull_backoff_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
+            )
+        )
+
         list_namespaced_pods_calls = [
             [
                 self.pending_job_pod,
@@ -606,13 +630,18 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 pending_scheduled_pod_new,
                 pending_scheduled_pod,
                 running_overtime_pod,
+                image_pull_backoff_pod,
             ],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self.runtime_handler.monitor_runs(get_db(), db)
 
         self._assert_delete_namespaced_pods(
-            [pending_scheduled_pod.metadata.name, running_overtime_pod.metadata.name],
+            [
+                pending_scheduled_pod.metadata.name,
+                running_overtime_pod.metadata.name,
+                image_pull_backoff_pod.metadata.name,
+            ],
             self.running_job_pod.metadata.namespace,
         )
 

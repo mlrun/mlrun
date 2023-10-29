@@ -14,6 +14,8 @@
 #
 import typing
 
+import mlrun.utils.helpers
+
 
 class PodPhases:
     """
@@ -72,19 +74,38 @@ class ThresholdStates:
         ]
 
     @staticmethod
-    def from_pod_phase(pod_phase: str, is_scheduled: bool) -> typing.Optional[str]:
-        if pod_phase == PodPhases.pending and is_scheduled:
-            return ThresholdStates.pending_scheduled
-        elif pod_phase == PodPhases.pending and not is_scheduled:
-            return ThresholdStates.pending_not_scheduled
+    def from_pod_phase(pod_phase: str, pod: typing.Dict) -> typing.Optional[str]:
+        is_scheduled = ThresholdStates.is_pod_scheduled(pod)
+
+        if pod_phase == PodPhases.pending:
+            if ThresholdStates.is_pod_in_image_pull_backoff(pod):
+                return ThresholdStates.image_pull_backoff
+            elif is_scheduled:
+                return ThresholdStates.pending_scheduled
+            else:
+                return ThresholdStates.pending_not_scheduled
+
         elif pod_phase == PodPhases.running:
             return ThresholdStates.running
 
-        # TODO:
-        # elif pod_phase == PodPhases.:
-        #     return ThresholdStates.image_pull_backoff
-        else:
-            return None
+        return None
+
+    @staticmethod
+    def is_pod_scheduled(pod: typing.Dict):
+        conditions = pod["status"].get("conditions", []) or []
+        for condition in conditions:
+            if condition["type"] == "PodScheduled" and condition["status"] == "True":
+                return True
+        return False
+
+    @staticmethod
+    def is_pod_in_image_pull_backoff(pod: typing.Dict):
+        container_statuses = pod.get("status").get("container_statuses", []) or []
+        for container_status in container_statuses:
+            state_waiting = container_status.get("state", {}).get("waiting", {}) or {}
+            if state_waiting.get("reason", "") == "ImagePullBackOff":
+                return True
+        return False
 
 
 class MPIJobCRDVersions(object):

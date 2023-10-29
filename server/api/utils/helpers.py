@@ -72,11 +72,3 @@ def minimize_project_schema(
     project.spec.workflows = None
     project.spec.artifacts = None
     return project
-
-
-def is_pod_scheduled(pod: typing.Dict):
-    conditions = pod["status"].get("conditions", []) or []
-    for condition in conditions:
-        if condition["type"] == "PodScheduled" and condition["status"] == "True":
-            return True
-    return False

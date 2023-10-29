@@ -33,6 +33,9 @@ from mlrun.track.trackers.mlflow_tracker import MLFlowTracker
 #  Important:
 #  unlike mlconf which resets back to default after each test run, the mlflow configurations
 #  and env vars don't, so at the end of each test we need to redo anything we set in that test.
+#  what we cover in these tests: logging "regular" runs with, experiment name, run id and context
+#  name (last two using mlconf), failing run mid-way, and a run with no handler.
+#  we also test here importing of runs, artifacts and models from a previous run.
 
 
 # simple general mlflow example of hand logging
@@ -93,6 +96,7 @@ def lgb_run():
             "subsample": 1.0,
             "seed": 42,
         }
+        # model and training data are being logged automatically
         model = lgb.train(
             params,
             train_set,
@@ -138,6 +142,7 @@ def xgb_run():
             "subsample": 1.0,
             "seed": 42,
         }
+        # model and training data are being logged automatically
         model = xgb.train(params, dtrain, evals=[(dtrain, "train")])
         # evaluate model
         y_proba = model.predict(dtest)

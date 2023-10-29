@@ -38,6 +38,7 @@ def simple_run():
 
 
 if __name__ == "__main__":
+    # need to set context in order to receive and send params to test
     context = mlrun.get_or_create_ctx("mlflow_test")
     mlflow.set_tracking_uri(context.parameters["tracking_uri"])
     run_id = simple_run()

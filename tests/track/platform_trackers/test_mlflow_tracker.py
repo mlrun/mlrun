@@ -388,7 +388,9 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
             watch=False,
         )
 
-        _validate_run(run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id"))
+        _validate_run(
+            run=trainer_run, run_id=trainer_run.metadata.labels.get("mlflow-run-id")
+        )
     # unset mlflow experiment name to default
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 

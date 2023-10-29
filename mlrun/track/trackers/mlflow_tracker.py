@@ -226,7 +226,6 @@ class MLFlowTracker(Tracker):
             spec=run_object,
         )
         # Store the run in the MLRun DB, then import the MLFlow data to it:
-        # ctx.store_run()
         self._log_run(context=ctx, run=run, is_offline=True)
 
         # Create a rundb in order to update the run's state as completed (can't be done using context)

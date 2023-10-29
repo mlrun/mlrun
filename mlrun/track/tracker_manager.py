@@ -36,14 +36,11 @@ class TrackerManager(metaclass=Singleton):
     retrieved using the `mlrun.track.get_trackers_manager` function.
     """
 
-    def __init__(self, _stale: bool = False):
+    def __init__(self):
         """
         Initialize a new empty tracker manager.
-
-        :param _stale: An inner attribute to init a trackers manager in a specific staleness state.
         """
         self._trackers: List[Tracker] = []
-        self._stale = _stale
 
         # Check general config for tracking usage, if false we return an empty manager
         if mlconf.external_platform_tracking.enabled:
@@ -106,9 +103,6 @@ class TrackerManager(metaclass=Singleton):
 
         # Commit changes:
         context.commit()
-
-        # Mark the manager as stale, so it can be re-initialized next run:
-        self._stale = True
 
         # Return the context (cast to dict if received as a dict):
         return context.to_dict() if is_context_dict else context

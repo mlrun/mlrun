@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import typing
 
 import mlrun
 import mlrun.common.schemas

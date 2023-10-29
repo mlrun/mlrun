@@ -1043,8 +1043,8 @@ def my_func(context):
                 state_thresholds=state_thresholds,
             )
         assert (
-            f"Invalid state unknown_state for state threshold, must be one of {mlrun.runtimes.constants.ThresholdStates.all()}"
-            in str(exc.value)
+            f"Invalid state unknown_state for state threshold, must be one of "
+            f"{mlrun.runtimes.constants.ThresholdStates.all()}" in str(exc.value)
         )
 
         state_thresholds = {

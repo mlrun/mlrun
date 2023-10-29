@@ -14,8 +14,6 @@
 #
 import typing
 
-import mlrun.utils.helpers
-
 
 class PodPhases:
     """

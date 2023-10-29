@@ -937,15 +937,17 @@ class RunSpec(ModelObj):
         return self._state_thresholds
 
     @state_thresholds.setter
-    def state_thresholds(self, state_thresholds: Dict):
+    def state_thresholds(self, state_thresholds: Dict[str, str]):
         """
-        Set the dictionary of k8s states (pod phase) to time thresholds in seconds.
-        If the pod phase is active for longer than the threshold, the run will be marked as failed
-        and the pod will be deleted.
-        See mlconf.run.state_thresholds.default for default values.
+        Set the dictionary of k8s states (pod phase) to thresholds time strings.
+        The state will be matched against the pod's status. The threshold should be a time string that commences
+        with a whole number and concludes with the first letter denoting the time unit. The supported time units range
+        from seconds (s) as the smallest to weeks (w) as the largest e.g. "10h". If the phase is active for longer than
+        the threshold, the run will be marked as failed and the pod will be deleted.
+        See mlconf.function.spec.state_thresholds for the state options and default values.
 
         example:
-            {"imagePullBackoff": 3600, "running": 60 * 60 * 24}
+            {"image_pull_backoff": "1h", "running": "1d"}
 
         :param state_thresholds: The state-thresholds dictionary.
         """

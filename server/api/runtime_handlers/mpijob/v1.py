@@ -16,7 +16,6 @@ import typing
 from datetime import datetime
 
 from kubernetes import client
-from sqlalchemy.orm import Session
 
 import mlrun.k8s_utils
 import mlrun.utils.helpers
@@ -24,7 +23,6 @@ from mlrun import mlconf
 from mlrun.runtimes.constants import RunStates
 from mlrun.runtimes.mpijob import MpiRuntimeV1
 from mlrun.utils import update_in
-from server.api.db.base import DBInterface
 from server.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
 
 

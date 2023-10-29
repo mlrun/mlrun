@@ -15,7 +15,7 @@ import os
 import pathlib
 import tempfile
 import zipfile
-from typing import List, Union
+from typing import List
 
 import mlflow
 import mlflow.entities

@@ -31,11 +31,13 @@ from mlrun.errors import MLRunRuntimeError
 credentials_path = "/mlrun/databricks_credentials.yaml"
 artifacts_code_template = """\n
 mlrun_artifacts_path = '{}'
+first_mlrun_artifact = True  # In order to override artifact's file if exists.
+
 def mlrun_log_artifact(name, path):
     import json
     import os
     new_data = {{name:path}}
-    if os.path.exists(mlrun_artifacts_path):
+    if os.path.exists(mlrun_artifacts_path) and first_mlrun_artifact:
         with open(mlrun_artifacts_path, 'r+') as json_file:
             existing_data = json.load(json_file)
             existing_data.update(new_data)
@@ -47,6 +49,7 @@ def mlrun_log_artifact(name, path):
             os.makedirs(parent_dir, exist_ok=True)
         with open(mlrun_artifacts_path, 'w') as json_file:
             json.dump(new_data, json_file)
+        first_mlrun_artifact = False
 \n
 """
 

@@ -42,6 +42,9 @@ def mlrun_log_artifact(name, path):
             json_file.seek(0)
             json.dump(existing_data, json_file)
     else:
+        parent_dir = os.path.dirname(my_path)
+        if parent_dir != '/dbfs':
+            os.makedirs(parent_dir, exist_ok=True)
         with open(mlrun_artifacts_path, 'w') as json_file:
             json.dump(new_data, json_file)
 \n

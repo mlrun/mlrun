@@ -113,7 +113,7 @@ def run_mlrun_databricks_job(
         f"{databricks_run_name}_artifacts.json"
     )
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
-    artifacts_code = artifacts_code_template.format(artifact_json_path)
+    artifacts_code = artifacts_code_template.format(f"/dbfs{artifact_json_path}")
     spark_app_code = artifacts_code + spark_app_code
     with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
         f.write(spark_app_code.encode("utf-8"))

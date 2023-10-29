@@ -60,7 +60,7 @@ class ThresholdStates:
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
     running = "running"
-    image_pull_back_off = "image_pull_back_off"
+    image_pull_backoff = "image_pull_backoff"
 
     @staticmethod
     def all():
@@ -68,7 +68,7 @@ class ThresholdStates:
             ThresholdStates.pending_scheduled,
             ThresholdStates.pending_not_scheduled,
             ThresholdStates.running,
-            ThresholdStates.image_pull_back_off,
+            ThresholdStates.image_pull_backoff,
         ]
 
     @staticmethod
@@ -79,8 +79,10 @@ class ThresholdStates:
             return ThresholdStates.pending_not_scheduled
         elif pod_phase == PodPhases.running:
             return ThresholdStates.running
-        elif pod_phase == PodPhases.failed:
-            return ThresholdStates.image_pull_back_off
+
+        # TODO:
+        # elif pod_phase == PodPhases.:
+        #     return ThresholdStates.image_pull_backoff
         else:
             return None
 

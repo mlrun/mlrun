@@ -31,6 +31,7 @@ from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -1005,6 +1006,46 @@ def my_func(context):
         container_spec = pod.spec.containers[0]
         assert container_spec.command == expected_command
         assert container_spec.args == expected_args
+
+    def test_state_thresholds_defaults(self, db: Session, k8s_secrets_mock):
+        runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert (
+            run["spec"]["state_thresholds"]
+            == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        )
+
+    def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
+        state_thresholds = {
+            "pending_not_scheduled": 10,
+            "pending_scheduled": 20,
+            "running": 30,
+            "image_pull_backoff": 40,
+        }
+
+        runtime = self._generate_runtime()
+        runtime.set_state_thresholds(
+            state_thresholds=state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert run["spec"]["state_thresholds"] == state_thresholds
+
+    def test_set_state_thresholds_failure(self, db: Session, k8s_secrets_mock):
+        state_thresholds = {
+            "unknown_state": 10,
+        }
+
+        runtime = self._generate_runtime()
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            runtime.set_state_thresholds(
+                state_thresholds=state_thresholds,
+            )
+        assert (
+            f"Invalid state unknown_state for state threshold, must be one of {mlrun.runtimes.constants.ThresholdStates.all()}"
+            in str(exc.value)
+        )
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

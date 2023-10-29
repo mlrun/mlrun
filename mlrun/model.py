@@ -949,9 +949,7 @@ class RunSpec(ModelObj):
 
         :param state_thresholds: The state-thresholds dictionary.
         """
-        self._state_thresholds = self._verify_dict(
-            state_thresholds, "state_thresholds", dict
-        )
+        self._state_thresholds = state_thresholds
 
     def extract_type_hints_from_inputs(self):
         """

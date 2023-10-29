@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import datetime
 import typing
 from datetime import timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -37,7 +39,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler = get_runtime_handler(self._get_class_name())
         self.runtime_handler.wait_for_deletion_interval = 0
 
-        job_labels = {
+        self.job_labels = {
             "mlrun/class": self._get_class_name(),
             "mlrun/function": "my-trainer",
             "mlrun/name": "my-training",
@@ -50,16 +52,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # initializing them here to save space in tests
         self.pending_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.pending
+            job_pod_name, self.job_labels, PodPhases.pending
         )
         self.running_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.running
+            job_pod_name, self.job_labels, PodPhases.running
         )
         self.completed_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.succeeded
+            job_pod_name, self.job_labels, PodPhases.succeeded
         )
         self.failed_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.failed
+            job_pod_name, self.job_labels, PodPhases.failed
         )
 
         builder_legacy_labels = {
@@ -556,6 +558,58 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid,
             log,
             self.completed_job_pod.metadata.name,
+        )
+
+    @pytest.mark.asyncio
+    async def test_state_thresholds_defaults(self, db: Session, client: TestClient):
+        """
+        Test that the default state thresholds are applied correctly
+        This test creates 5 pods:
+        - pending pod that is not scheduled - should not be deleted
+        - running pod with new start time - should not be deleted
+        - pending scheduled pod with new start time - should not be deleted
+        - pending scheduled pod with old start time - should be deleted
+        - running pod with old start time - should be deleted
+        """
+        pending_scheduled_pod = self._generate_pod(
+            "pending_scheduled", self.job_labels, PodPhases.pending
+        )
+        pending_scheduled_pod.status.conditions = [
+            k8s_client.V1PodCondition(type="PodScheduled", status="True")
+        ]
+        pending_scheduled_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+            seconds=mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+        )
+
+        pending_scheduled_pod_new = self._generate_pod(
+            "pending_scheduled", self.job_labels, PodPhases.pending
+        )
+        pending_scheduled_pod_new.status.conditions = [
+            k8s_client.V1PodCondition(type="PodScheduled", status="True")
+        ]
+
+        running_overtime_pod = self._generate_pod(
+            "running_overtime", self.job_labels, PodPhases.running
+        )
+        running_overtime_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+            seconds=mlrun.mlconf.function.spec.state_thresholds.default.running
+        )
+
+        list_namespaced_pods_calls = [
+            [
+                self.pending_job_pod,
+                self.running_job_pod,
+                pending_scheduled_pod_new,
+                pending_scheduled_pod,
+                running_overtime_pod,
+            ],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_delete_namespaced_pods(
+            [pending_scheduled_pod.metadata.name, running_overtime_pod.metadata.name],
+            self.running_job_pod.metadata.namespace,
         )
 
     def _mock_list_resources_pods(self, pod=None):

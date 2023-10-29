@@ -70,6 +70,9 @@ class TestRuntimeHandlerBase:
                     "kind": self.kind,
                 },
             },
+            "spec": {
+                "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+            },
         }
         server.api.crud.Runs().store_run(
             db, self.run, self.run_uid, project=self.project
@@ -122,7 +125,11 @@ class TestRuntimeHandlerBase:
             ready=True,
             restart_count=0,
         )
-        status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
+        status = client.V1PodStatus(
+            phase=phase,
+            container_statuses=[container_status],
+            start_time=datetime.utcnow(),
+        )
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
         )

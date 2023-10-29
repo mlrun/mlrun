@@ -182,7 +182,8 @@ class KubeResourceSpec(FunctionSpec):
             security_context or mlrun.mlconf.get_default_function_security_context()
         )
         self.state_thresholds = (
-            state_thresholds or mlrun.mlconf.function.spec.state_thresholds
+            state_thresholds
+            or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
 
     @property

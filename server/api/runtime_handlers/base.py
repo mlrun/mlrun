@@ -1195,7 +1195,7 @@ class BaseRuntimeHandler(ABC):
             run_state = PodPhases.pod_phase_to_run_state(pod_phase)
             is_scheduled = server.api.utils.helpers.is_pod_scheduled(runtime_resource)
 
-            start_time = runtime_resource["status"].get("startTime")
+            start_time = runtime_resource["status"].get("start_time")
             if not start_time:
                 logger.warning(
                     "Could not resolve start time from runtime resource. Continuing",
@@ -1204,17 +1204,21 @@ class BaseRuntimeHandler(ABC):
                 )
                 return run_state
 
-            start_time = start_time.removesuffix("Z")
-            start_datetime = datetime.fromisoformat(start_time)
+            # start_time = start_time.removesuffix("Z")
+            # start_datetime = datetime.fromisoformat(start_time)
             now = datetime.utcnow()
-            delta = now - start_datetime
+            delta = now - start_time
 
             # Resolve the state threshold from the run
             if (
-                threshold := self._resolve_run_threshold(
-                    run, pod_phase, is_scheduled=is_scheduled
+                (
+                    threshold := self._resolve_run_threshold(
+                        run, pod_phase, is_scheduled=is_scheduled
+                    )
                 )
-            ) and threshold < delta.total_seconds():
+                and threshold >= 0
+                and threshold < delta.total_seconds()
+            ):
                 # Kill the pod
                 run_state = RunStates.error
                 runtime_resource_name = runtime_resource["metadata"]["name"]
@@ -1244,14 +1248,11 @@ class BaseRuntimeHandler(ABC):
         run: Dict, pod_phase: str, is_scheduled: bool
     ) -> Optional[int]:
         threshold_state = ThresholdStates.from_pod_phase(pod_phase, is_scheduled)
-        if not threshold_state:
+        if not threshold_state or not run:
             return None
 
         return (
-            run.get("spec", {})
-            .get("thresholds", {})
-            .get("state", {})
-            .get(threshold_state, None)
+            run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
 
     def _build_list_resources_response(

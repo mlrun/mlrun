@@ -29,6 +29,23 @@ import mlrun
 from mlrun.errors import MLRunRuntimeError
 
 credentials_path = "/mlrun/databricks_credentials.yaml"
+artifacts_code_template = """\n
+mlrun_artifacts_path = {}
+def mlrun_log_artifact(name, path):
+    import json
+    import os
+    new_data = {{name:path}}
+    if os.path.exists(mlrun_artifacts_path):
+        with open(mlrun_artifacts_path, 'r+') as json_file:
+            existing_data = json.load(json_file)
+            existing_data.update(new_data)
+            json_file.seek(0)
+            json.dump(existing_data, json_file)
+    else:
+        with open(mlrun_artifacts_path, 'w') as json_file:
+            json.dump(new_data, json_file)
+\n
+"""
 
 
 def get_task(databricks_run: Run) -> RunTask:
@@ -88,11 +105,16 @@ def run_mlrun_databricks_job(
     workspace = WorkspaceClient(token=databricks_token)
 
     script_path_on_dbfs = (
-        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/"
+        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/scripts/"
         f"{databricks_run_name}.py"
     )
-
+    artifact_json_path = (
+        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/artifacts_dictionaries/"
+        f"{databricks_run_name}_artifacts.json"
+    )
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
+    artifacts_code = artifacts_code_template.format(artifact_json_path)
+    spark_app_code = artifacts_code + spark_app_code
     with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
         f.write(spark_app_code.encode("utf-8"))
 
@@ -168,6 +190,7 @@ def run_mlrun_databricks_job(
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
+        #  TODO delete artifacts path.
 
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")

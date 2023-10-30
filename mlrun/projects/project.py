@@ -2954,7 +2954,7 @@ class MlrunProject(ModelObj):
 
         if skip_deployed:
             warnings.warn(
-                "The 'skip_deployed' parameter is deprecated and will be remove in 1.7.0. "
+                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
                 "This parameter is ignored.",
                 # TODO: remove in 1.7.0
                 FutureWarning,

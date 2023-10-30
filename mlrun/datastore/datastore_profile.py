@@ -272,6 +272,10 @@ def datastore_profile_read(url):
 
 
 def register_temporary_client_datastore_profile(profile: DatastoreProfile):
+    """Register the datastore profile.
+    This profile is temporary and remains valid only for the duration of the caller's session.
+    It's beneficial for testing purposes.
+    """
     TemporaryClientDatastoreProfiles().add(profile)
 
 

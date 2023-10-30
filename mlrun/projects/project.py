@@ -3301,6 +3301,10 @@ class MlrunProject(ModelObj):
         )
 
     def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        """
+        Returns a list of datastore profiles associated with the project.
+        The information excludes private details, showcasing only public data.
+        """
         return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
             self.name
         )

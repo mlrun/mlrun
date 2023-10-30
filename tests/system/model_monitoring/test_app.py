@@ -15,6 +15,7 @@
 import json
 import time
 import typing
+import uuid
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -50,7 +51,7 @@ class _AppData:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow" + str(35)  # <-- +1
+    project_name = "test-monitoring-app-flow" + str(49)  # <-- +1
     # project_name = "test-monitoring-app-flow"
 
     @classmethod
@@ -65,13 +66,21 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
         cls.app_interval: int = 1  # every 1 minute
 
+        cls.evidently_workspace_path = (
+            f"/v3io/projects/{cls.project_name}/artifacts/evidently-workspace"
+        )
+        cls.evidently_project_id = str(uuid.uuid4())
+
         cls.apps_data: list[_AppData] = [
             _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
                 requirements=["evidently~=0.4.7"],
-                kwargs={},
+                kwargs={
+                    "evidently_workspace_path": cls.evidently_workspace_path,
+                    "evidently_project_id": cls.evidently_project_id,
+                },
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
@@ -143,8 +152,9 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data[:1]:
+        for app_data in cls.apps_data:
             app_name = app_data.class_.name
+            cls._logger.debug("Checking the KV record of app", app_name=app_name)
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
             )
@@ -159,9 +169,11 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
         assert not df.empty, "No TSDB data"
         assert (
-            df.iloc[0].endpoint_id == ep_id
-        ), "The endpoint ID is different than expected"
-        # ADD MORE ASSERTIONS
+            df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+        assert set(df.application_name) == {
+            app_data.class_.name for app_data in cls.apps_data
+        }, "The application names are different than expected"
 
     @classmethod
     def _test_v3io_records(cls, ep_id: str) -> None:

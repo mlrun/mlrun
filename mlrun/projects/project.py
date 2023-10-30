@@ -2975,7 +2975,7 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have the image specified built
+        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
@@ -2992,6 +2992,14 @@ class MlrunProject(ModelObj):
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
         :param force_build:
         """
+
+        if skip_deployed:
+            warnings.warn(
+                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
+                "This parameter is ignored.",
+                # TODO: remove in 1.7.0
+                FutureWarning,
+            )
 
         self.build_config(
             image=image,
@@ -3016,7 +3024,6 @@ class MlrunProject(ModelObj):
             commands=build.commands,
             secret_name=build.secret,
             requirements=build.requirements,
-            skip_deployed=skip_deployed,
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,

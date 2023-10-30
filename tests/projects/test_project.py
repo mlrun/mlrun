@@ -1096,6 +1096,12 @@ def test_set_workflow_with_invalid_path(
         proj.set_workflow("main", workflow_path)
 
 
+def test_set_workflow_local_engine():
+    proj = mlrun.new_project("proj", save=False)
+    with pytest.raises(ValueError):
+        proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")

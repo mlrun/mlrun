@@ -1278,6 +1278,7 @@ class MlrunProject(ModelObj):
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                              Note that "local" engine does not support this argument
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
@@ -1290,6 +1291,9 @@ class MlrunProject(ModelObj):
             raise ValueError(
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
+
+        if engine and "local" in engine and schedule:
+            raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
         # engine could be "remote" or "remote:local"
         if image and ((engine and "remote" in engine) or schedule):

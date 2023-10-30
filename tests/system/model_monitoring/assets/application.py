@@ -43,7 +43,9 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         endpoint_id: str,
         output_stream_uri: str,
     ) -> ModelMonitoringApplicationResult:
+        self.context.logger.info("Running demo app")
         assert len(sample_df) == EXPECTED_EVENTS_COUNT
+        self.context.logger.info("Asserted sample_df length")
         return ModelMonitoringApplicationResult(
             self.name,
             endpoint_id,

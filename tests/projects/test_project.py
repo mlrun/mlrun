@@ -1337,3 +1337,99 @@ def test_project_set_function_with_requirements(requirements, with_requirements_
         assert func.spec.image == image
 
     assert func.spec.build.requirements == expected_requirements
+
+
+def test_init_function_from_dict_backwards_compatability():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    func_dict = {
+        "name": "sparkjob-from-github",
+        "spec": {
+            "kind": "spark",
+            "metadata": {
+                "name": "sparkjob-from-github",
+                "tag": "latest",
+                "project": project_name,
+                "categories": [],
+            },
+            "spec": {
+                "command": "simple_job.py",
+                "args": [],
+                "image": ".mlrun/func-spark-example-func-from-github-admin-sparkjob-from-github:latest",
+                "build": {
+                    "source": "./",
+                    "base_image": "datanode-registry.iguazio-platform.app.vmdev81.lab.iguazeng.com:80/iguazio/spark-app:3.5.5-b697.20231004142246",
+                    "commands": [],
+                    "load_source_on_run": False,
+                    "requirements": ["pyspark==3.2.3"],
+                },
+                "description": "",
+                "disable_auto_mount": False,
+                "clone_target_dir": "/home/mlrun_code/",
+                "env": [
+                    {"name": "V3IO_API", "value": ""},
+                    {"name": "V3IO_USERNAME", "value": ""},
+                    {"name": "V3IO_ACCESS_KEY", "value": ""},
+                    {"name": "V3IO_FRAMESD", "value": ""},
+                    {
+                        "name": "CURRENT_NODE_IP",
+                        "valueFrom": {
+                            "fieldRef": {
+                                "apiVersion": "v1",
+                                "fieldPath": "status.hostIP",
+                            }
+                        },
+                    },
+                    {
+                        "name": "IGZ_DATA_CONFIG_FILE",
+                        "value": "/igz/java/conf/v3io.conf",
+                    },
+                ],
+                "replicas": 1,
+                "image_pull_policy": "Always",
+                "priority_class_name": "igz-workload-medium",
+                "preemption_mode": "prevent",
+                "driver_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1300m"},
+                },
+                "executor_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1400m"},
+                },
+                "deps": {
+                    "jars": [
+                        "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
+                        "local:///igz/java/libs/scala-library-2.12.14.jar",
+                        "local:///spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                    ],
+                    "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
+                },
+                "use_default_image": False,
+                "monitoring": {
+                    "enabled": True,
+                    "exporter_jar": "/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                },
+                "driver_preemption_mode": "prevent",
+                "executor_preemption_mode": "prevent",
+                "affinity": None,
+                "tolerations": None,
+                "security_context": {},
+                "executor_affinity": None,
+                "executor_tolerations": None,
+                "driver_affinity": None,
+                "driver_tolerations": None,
+                "volume_mounts": [],
+                "volumes": [],
+                "driver_volume_mounts": [],
+                "executor_volume_mounts": [],
+            },
+            "verbose": False,
+        },
+    }
+    func = mlrun.projects.project._init_function_from_dict(func_dict, project)
+    assert (
+        deepdiff.DeepDiff(func[1].to_dict(), func_dict["spec"], ignore_order=True) == {}
+    )

@@ -370,7 +370,7 @@ class BaseLauncher(abc.ABC):
         state_thresholds = (
             state_thresholds
             or run.spec.state_thresholds
-            or runtime.spec.state_thresholds
+            or getattr(runtime.spec, "state_thresholds", {})
             or {}
         )
         state_thresholds = (

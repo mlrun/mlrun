@@ -121,7 +121,6 @@ class FunctionSpec(ModelObj):
         self._build = None
         self.build = build
         self.default_handler = default_handler
-        # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None

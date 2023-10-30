@@ -1358,7 +1358,7 @@ def test_init_function_from_dict_backwards_compatability():
                 "image": ".sparkjob-from-github:latest",
                 "build": {
                     "source": "./",
-                    "base_image": "iguazio/spark-app:3.5.5-b697.20231004142246",
+                    "base_image": "iguazio/spark-app:3.5.5-b697",
                     "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
@@ -1366,12 +1366,7 @@ def test_init_function_from_dict_backwards_compatability():
                 "description": "",
                 "disable_auto_mount": False,
                 "clone_target_dir": "/home/mlrun_code/",
-                "env": [
-                    {"name": "V3IO_API", "value": ""},
-                    {"name": "V3IO_USERNAME", "value": ""},
-                    {"name": "V3IO_ACCESS_KEY", "value": ""},
-                    {"name": "V3IO_FRAMESD", "value": ""},
-                ],
+                "env": [],
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",

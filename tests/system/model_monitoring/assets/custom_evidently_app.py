@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import datetime
+from typing import Optional
+from uuid import UUID
 
 import pandas as pd
 from sklearn.datasets import load_iris
@@ -37,10 +39,125 @@ if _HAS_EVIDENTLY:
     from evidently.report import Report
     from evidently.test_preset import DataDriftTestPreset
     from evidently.test_suite import TestSuite
+    from evidently.ui.dashboards import (
+        CounterAgg,
+        DashboardConfig,
+        DashboardPanelCounter,
+        DashboardPanelPlot,
+        PanelValue,
+        PlotType,
+        ReportFilter,
+    )
+    from evidently.ui.workspace import Project, Workspace
+
+    _PROJECT_NAME = "Iris Monitoring"
+    _PROJECT_DESCRIPTION = "Test project using iris dataset"
+
+    def _create_evidently_project(
+        workspace: Workspace, id: Optional[UUID] = None
+    ) -> Project:
+        if id:
+            project = Project(
+                name=_PROJECT_NAME,
+                description=_PROJECT_DESCRIPTION,
+                dashboard=DashboardConfig(name=_PROJECT_NAME, panels=[]),
+                id=id,
+            )  # pyright: ignore[reportGeneralTypeIssues]
+            project = workspace.add_project(project)
+        else:
+            project = workspace.create_project(_PROJECT_NAME)
+        project.description = _PROJECT_DESCRIPTION
+        project.dashboard.add_panel(
+            DashboardPanelCounter(
+                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                agg=CounterAgg.NONE,
+                title="Income Dataset (iris)",
+            )  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        project.dashboard.add_panel(
+            DashboardPanelCounter(
+                title="Model Calls",
+                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                value=PanelValue(
+                    metric_id="DatasetMissingValuesMetric",
+                    field_path=DatasetMissingValuesMetric.fields.current.number_of_rows,
+                    legend="count",
+                ),
+                text="count",
+                agg=CounterAgg.SUM,
+                size=1,
+            )  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        project.dashboard.add_panel(
+            DashboardPanelCounter(
+                title="Share of Drifted Features",
+                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                value=PanelValue(
+                    metric_id="DatasetDriftMetric",
+                    field_path="share_of_drifted_columns",
+                    legend="share",
+                ),
+                text="share",
+                agg=CounterAgg.LAST,
+                size=1,
+            )  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        project.dashboard.add_panel(
+            DashboardPanelPlot(
+                title="Dataset Quality",
+                filter=ReportFilter(metadata_values={}, tag_values=[]),
+                values=[
+                    PanelValue(
+                        metric_id="DatasetDriftMetric",
+                        field_path="share_of_drifted_columns",
+                        legend="Drift Share",
+                    ),
+                    PanelValue(
+                        metric_id="DatasetMissingValuesMetric",
+                        field_path=DatasetMissingValuesMetric.fields.current.share_of_missing_values,
+                        legend="Missing Values Share",
+                    ),
+                ],
+                plot_type=PlotType.LINE,
+            )  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        project.save()
+        return project
+
+    def create_demo_project(workspace_path: str) -> tuple[Workspace, Project]:
+        workspace = Workspace.create(workspace_path)
+        project = _create_evidently_project(workspace)
+        return workspace, project
 
 
 class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
     name = "evidently-app-test"
+
+    def _lazy_init(self, *args, **kwargs) -> None:
+        super()._lazy_init(*args, **kwargs)
+        self._init_evidently_project()
+        self._init_iris_data()
+
+    def _init_iris_data(self) -> None:
+        iris = load_iris()
+        self.columns = [
+            "sepal_length_cm",
+            "sepal_width_cm",
+            "petal_length_cm",
+            "petal_width_cm",
+        ]
+        self.train_set = pd.DataFrame(iris.data, columns=self.columns)
+
+    def _init_evidently_project(self) -> None:
+        if self.evidently_project is None:
+            if isinstance(self.evidently_project_id, str):
+                self.evidently_project_id = UUID(self.evidently_project_id)
+            self.context.logger.info(
+                "Creating evidently project", id=self.evidently_project_id
+            )
+            self.evidently_project = _create_evidently_project(
+                self.evidently_workspace, self.evidently_project_id
+            )
 
     def run_application(
         self,
@@ -53,20 +170,9 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
         endpoint_id: str,
         output_stream_uri: str,
     ) -> ModelMonitoringApplicationResult:
-        iris = load_iris()
-        self.train_set = pd.DataFrame(
-            iris.data,
-            columns=[
-                "sepal_length_cm",
-                "sepal_width_cm",
-                "petal_length_cm",
-                "petal_width_cm",
-            ],
-        )
+        self.context.logger.info("Running evidently app")
 
-        sample_df = sample_df[
-            ["sepal_length_cm", "sepal_width_cm", "petal_length_cm", "petal_width_cm"]
-        ]
+        sample_df = sample_df[self.columns]
 
         data_drift_report = self.create_report(sample_df, schedule_time)
         self.evidently_workspace.add_report(
@@ -81,6 +187,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
         self.log_evidently_object(data_drift_test_suite, f"suite_{str(schedule_time)}")
         self.log_project_dashboard(None, schedule_time + datetime.timedelta(minutes=1))
 
+        self.context.logger.info("Logged evidently objects")
         return ModelMonitoringApplicationResult(
             self.name,
             endpoint_id,
@@ -88,7 +195,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
             result_name="data_drift_test",
             result_value=0.5,
             result_kind=ResultKindApp.data_drift,
-            result_status=ResultStatusApp.detected,
+            result_status=ResultStatusApp.potential_detection,
         )
 
     def create_report(
@@ -98,12 +205,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
             DatasetDriftMetric(),
             DatasetMissingValuesMetric(),
         ]
-        for col_name in [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]:
+        for col_name in self.columns:
             metrics.extend(
                 [
                     ColumnDriftMetric(column_name=col_name, stattest="wasserstein"),

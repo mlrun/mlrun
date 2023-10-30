@@ -423,7 +423,7 @@ class ImageBuilder(ModelObj):
             self.base_image = base_image
         if commands:
             self.with_commands(commands, overwrite=overwrite)
-        if requirements:
+        if requirements or requirements_file:
             self.with_requirements(requirements, requirements_file, overwrite=overwrite)
         if extra:
             self.extra = extra
@@ -471,7 +471,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[Union[str, List[str]]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -483,6 +483,7 @@ class ImageBuilder(ModelObj):
                                     when False (default) will append to existing requirements
         :return: function object
         """
+        requirements = requirements or []
         if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
             # TODO: remove in 1.6.0
             warnings.warn(
@@ -507,6 +508,7 @@ class ImageBuilder(ModelObj):
     def _resolve_requirements(
         requirements: typing.Union[str, list], requirements_file: str = ""
     ) -> list:
+        requirements = requirements or []
         requirements_to_resolve = []
 
         # handle the requirements_file argument

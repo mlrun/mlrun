@@ -1355,10 +1355,10 @@ def test_init_function_from_dict_backwards_compatability():
             "spec": {
                 "command": "simple_job.py",
                 "args": [],
-                "image": ".mlrun/func-spark-example-func-from-github-admin-sparkjob-from-github:latest",
+                "image": ".sparkjob-from-github:latest",
                 "build": {
                     "source": "./",
-                    "base_image": "datanode-registry.iguazio-platform.app.vmdev81.lab.iguazeng.com:80/iguazio/spark-app:3.5.5-b697.20231004142246",
+                    "base_image": "iguazio/spark-app:3.5.5-b697.20231004142246",
                     "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
@@ -1371,23 +1371,10 @@ def test_init_function_from_dict_backwards_compatability():
                     {"name": "V3IO_USERNAME", "value": ""},
                     {"name": "V3IO_ACCESS_KEY", "value": ""},
                     {"name": "V3IO_FRAMESD", "value": ""},
-                    {
-                        "name": "CURRENT_NODE_IP",
-                        "valueFrom": {
-                            "fieldRef": {
-                                "apiVersion": "v1",
-                                "fieldPath": "status.hostIP",
-                            }
-                        },
-                    },
-                    {
-                        "name": "IGZ_DATA_CONFIG_FILE",
-                        "value": "/igz/java/conf/v3io.conf",
-                    },
                 ],
                 "replicas": 1,
                 "image_pull_policy": "Always",
-                "priority_class_name": "igz-workload-medium",
+                "priority_class_name": "dummy-class",
                 "preemption_mode": "prevent",
                 "driver_resources": {
                     "requests": {"memory": "512m", "cpu": 1},

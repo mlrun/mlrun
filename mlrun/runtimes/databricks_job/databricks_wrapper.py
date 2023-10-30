@@ -173,6 +173,17 @@ def run_mlrun_databricks_job(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
                 callback=print_status,
             )
+            with workspace.dbfs.open(script_path_on_dbfs, read=True) as artifact_file:
+                artifact_json = json.load(artifact_file)
+            for artifact_name, artifact_path in artifact_json.items():
+                fixed_artifact_path = (
+                    artifact_path.replace("/dbfs", "dbfs://", 1)
+                    if artifact_path.startswith("/dbfs")
+                    else artifact_path
+                )
+                context.log_artifact(
+                    artifact_name, local_path=fixed_artifact_path, upload=False
+                )
         except OperationFailed:
             databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
             task_run_id = get_task(databricks_run=databricks_run).run_id
@@ -196,7 +207,7 @@ def run_mlrun_databricks_job(
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
-        #  TODO delete artifacts path.
+        workspace.dbfs.delete(artifact_json_path)
 
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")

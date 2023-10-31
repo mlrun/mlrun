@@ -1339,7 +1339,7 @@ def test_project_set_function_with_requirements(requirements, with_requirements_
     assert func.spec.build.requirements == expected_requirements
 
 
-def test_init_function_from_dict_backwards_compatability():
+def test_init_function_from_dict_function_in_spec():
     project_name = "project-name"
     project = mlrun.new_project(project_name, save=False)
     func_dict = {
@@ -1415,3 +1415,37 @@ def test_init_function_from_dict_backwards_compatability():
     assert (
         deepdiff.DeepDiff(func[1].to_dict(), func_dict["spec"], ignore_order=True) == {}
     )
+
+
+def test_load_project_from_yaml_with_function(context):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    function = mlrun.code_to_function(
+        name="my-func",
+        image="my-image",
+        kind="job",
+        filename=str(assets_path() / "handler.py"),
+    )
+    function.save()
+    project.set_function(function)
+    project.set_function(
+        name="my-other-func",
+        image="my-image",
+        func=str(assets_path() / "handler.py"),
+        tag="latest",
+    )
+    project.save()
+    loaded_project = mlrun.load_project(context=str(context))
+    for function_name in ["my-func", "my-other-func"]:
+        assert (
+            deepdiff.DeepDiff(
+                project.get_function(function_name).to_dict(),
+                loaded_project.get_function(function_name).to_dict(),
+                ignore_order=True,
+                exclude_paths=[
+                    "root['spec']['build']['code_origin']",
+                    "root['metadata']['categories']",
+                ],
+            )
+            == {}
+        )

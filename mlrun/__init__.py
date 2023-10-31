@@ -24,7 +24,6 @@ __all__ = [
     "get_secret_or_env",
 ]
 
-import warnings
 from os import environ, path
 
 import dotenv
@@ -58,7 +57,6 @@ from .run import (
     get_pipeline,
     import_function,
     new_function,
-    run_local,
     wait_for_pipeline_completion,
 )
 from .runtimes import new_model_server

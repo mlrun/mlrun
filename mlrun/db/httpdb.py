@@ -630,7 +630,10 @@ class HTTPRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """
+        Retrieve a list of runs, filtered by various options.
+        If no filter is provided, will return runs from the last week.
+
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
@@ -1186,6 +1189,7 @@ class HTTPRunDB(RunDBInterface):
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1198,6 +1202,7 @@ class HTTPRunDB(RunDBInterface):
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+        :param force_build:   Force building the image, even when no changes were made
         """
 
         try:
@@ -1205,6 +1210,7 @@ class HTTPRunDB(RunDBInterface):
                 "function": func.to_dict(),
                 "with_mlrun": bool2str(with_mlrun),
                 "skip_deployed": skip_deployed,
+                "force_build": force_build,
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
@@ -1537,7 +1543,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         namespace: str = None,
-        timeout: int = 10,
+        timeout: int = 30,
         format_: Union[
             str, mlrun.common.schemas.PipelinesFormat
         ] = mlrun.common.schemas.PipelinesFormat.summary,
@@ -2248,14 +2254,16 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all child objects when deleting the project.
         """
 
-        path = f"projects/{name}"
+        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            return self._wait_for_project_to_be_deleted(name)
+            logger.info("Project is being deleted", project_name=name)
+            self._wait_for_project_to_be_deleted(name)
+        logger.info("Project deleted", project_name=name)
 
     def store_project(
         self,

@@ -301,9 +301,6 @@ class RemoteRuntime(KubeResource):
 
         return self
 
-    def add_volume(self, local, remote, name="fs", access_key="", user=""):
-        raise Exception("deprecated, use .apply(mount_v3io())")
-
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
 
@@ -529,6 +526,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         auth_info: AuthInfo = None,
         builder_env: dict = None,
+        force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -538,6 +536,7 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build: set True for force building the image
         """
         # todo: verify that the function name is normalized
 
@@ -561,7 +560,9 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(self, False, builder_env=builder_env)
+        data = db.remote_builder(
+            self, False, builder_env=builder_env, force_build=force_build
+        )
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -1147,12 +1148,6 @@ async def submit(session, url, run, semaphore, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
-
-
-def _fullname(project, name):
-    if project:
-        return f"{project}-{name}"
-    return name
 
 
 def get_fullname(name, project, tag):

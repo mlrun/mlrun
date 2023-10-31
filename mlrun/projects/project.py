@@ -1271,13 +1271,14 @@ class MlrunProject(ModelObj):
         :param name:          name of the workflow
         :param workflow_path: url/path for the workflow file
         :param embed:         add the workflow code into the project.yaml
-        :param engine:        workflow processing engine ("kfp" or "local")
+        :param engine:        workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   list of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       workflow function handler
         :param schedule:      ScheduleCronTrigger class instance or a standard crontab expression string
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                              Note that "local" engine does not support this argument
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
@@ -1291,8 +1292,12 @@ class MlrunProject(ModelObj):
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
 
-        if image and engine not in ["remote"]:
-            logger.warning("Image is only relevant for remote workflows, ignoring it")
+        if engine and "local" in engine and schedule:
+            raise ValueError("'schedule' argument is not supported for 'local' engine.")
+
+        # engine could be "remote" or "remote:local"
+        if image and ((engine and "remote" in engine) or schedule):
+            logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:
             if (
@@ -1785,7 +1790,7 @@ class MlrunProject(ModelObj):
 
     def set_model_monitoring_function(
         self,
-        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
         name: str = None,
         image: str = None,
@@ -1921,7 +1926,10 @@ class MlrunProject(ModelObj):
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
             kind = "serving"
+            if func is None:
+                func = ""
             func = mlrun.code_to_function(
+                filename=func,
                 name=name,
                 project=self.metadata.name,
                 tag=tag,
@@ -2166,7 +2174,6 @@ class MlrunProject(ModelObj):
             )
 
         if isinstance(func, str):
-
             # in hub or db functions name defaults to the function name
             if not name and not (func.startswith("db://") or func.startswith("hub://")):
                 raise ValueError("Function name must be specified")
@@ -2179,6 +2186,7 @@ class MlrunProject(ModelObj):
                 "with_repo": with_repo,
                 "tag": tag,
                 "requirements": requirements,
+                "requirements_file": requirements_file,
             }
             func = {k: v for k, v in function_dict.items() if v}
             resolved_function_name, function_object = _init_function_from_dict(
@@ -2199,9 +2207,9 @@ class MlrunProject(ModelObj):
             if with_repo:
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
-            if requirements:
+            if requirements or requirements_file:
                 function_object.with_requirements(
-                    requirements, requirements_file=requirements_file
+                    requirements, requirements_file=requirements_file, overwrite=True
                 )
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
@@ -2674,10 +2682,7 @@ class MlrunProject(ModelObj):
             )
 
         if not name and not workflow_path and not workflow_handler:
-            if self.spec.workflows:
-                name = list(self.spec._workflows.keys())[0]
-            else:
-                raise ValueError("Workflow name or path must be specified")
+            raise ValueError("Workflow name, path, or handler must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
@@ -2699,6 +2704,7 @@ class MlrunProject(ModelObj):
         inner_engine = None
         if engine and engine.startswith("remote"):
             if ":" in engine:
+                # inner could be either kfp or local
                 engine, inner_engine = engine.split(":")
         elif workflow_spec.schedule:
             inner_engine = engine
@@ -2780,7 +2786,6 @@ class MlrunProject(ModelObj):
         )
         # clear only if the context path exists and not relative
         if self.spec.context and os.path.isabs(self.spec.context):
-
             # if a subpath is defined, will empty the subdir instead of the entire context
             if self.spec.subpath:
                 path_to_clear = path.join(self.spec.context, self.spec.subpath)
@@ -3017,6 +3022,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """deploy ML function, build container with its dependencies
 
@@ -3038,6 +3044,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
+        :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
             function,
@@ -3054,6 +3061,7 @@ class MlrunProject(ModelObj):
             project_object=self,
             overwrite_build_params=overwrite_build_params,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
     def build_config(
@@ -3126,6 +3134,7 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
+        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -3134,7 +3143,7 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have the image specified built
+        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
@@ -3149,7 +3158,16 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
+        :param force_build:
         """
+
+        if skip_deployed:
+            warnings.warn(
+                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
+                "This parameter is ignored.",
+                # TODO: remove in 1.7.0
+                FutureWarning,
+            )
 
         self.build_config(
             image=image,
@@ -3174,11 +3192,11 @@ class MlrunProject(ModelObj):
             commands=build.commands,
             secret_name=build.secret,
             requirements=build.requirements,
-            skip_deployed=skip_deployed,
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             extra_args=extra_args,
+            force_build=force_build,
         )
 
         try:
@@ -3470,6 +3488,10 @@ class MlrunProject(ModelObj):
         )
 
     def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        """
+        Returns a list of datastore profiles associated with the project.
+        The information excludes private details, showcasing only public data.
+        """
         return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
             self.name
         )
@@ -3562,6 +3584,7 @@ def _init_function_from_dict(
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
+    requirements_file = f.get("requirements_file", None)
     tag = f.get("tag", None)
 
     has_module = _has_module(handler, kind)
@@ -3573,7 +3596,11 @@ def _init_function_from_dict(
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f, tag=tag)
+        if "spec" in f["spec"]:
+            # Functions are stored in the project yaml as a dict with a spec key where the spec is the function
+            func = new_function(name, runtime=f["spec"])
+        else:
+            func = new_function(name, runtime=f, tag=tag)
 
     elif not url and has_module:
         func = new_function(
@@ -3624,8 +3651,12 @@ def _init_function_from_dict(
     if with_repo:
         # mark source to be enriched before run with project source (enrich_function_object)
         func.spec.build.source = "./"
-    if requirements:
-        func.with_requirements(requirements)
+    if requirements or requirements_file:
+        func.with_requirements(
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=True,
+        )
 
     return _init_function_from_obj(func, project)
 

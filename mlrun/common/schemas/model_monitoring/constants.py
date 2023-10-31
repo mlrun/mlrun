@@ -19,7 +19,6 @@ from enum import Enum
 from typing import Optional
 
 import mlrun.common.helpers
-import mlrun.utils
 
 
 class EventFieldType:

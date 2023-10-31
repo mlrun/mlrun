@@ -33,7 +33,9 @@ from mlrun.utils import logger
 from server.api.api import deps
 from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 
-_MODEL_MONITORING_COMMON_PATH = pathlib.Path(__file__).parents[3] / "model_monitoring"
+_MODEL_MONITORING_COMMON_PATH = (
+    pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
+)
 _STREAM_PROCESSING_FUNCTION_PATH = (
     _MODEL_MONITORING_COMMON_PATH / "stream_processing.py"
 )

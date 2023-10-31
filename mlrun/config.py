@@ -37,8 +37,8 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -538,7 +538,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -655,7 +655,7 @@ class Config:
                         if not skip_errors:
                             raise exc
                         print(
-                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                            f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}"
                         )
 
     def dump_yaml(self, stream=None):
@@ -802,9 +802,10 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
-        #  importing mlrun.api
-        if config.function.spec.security_context.enrichment_mode == "disabled":
+        if (
+            config.function.spec.security_context.enrichment_mode
+            == mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled
+        ):
             return
 
         igz_version = self.get_parsed_igz_version()

@@ -2,3 +2,62 @@
 profile = "black"
 multi_line_output = 3
 extend_skip_glob = ["*venv*", "server/api/proto"]
+
+[tool.pytest.ini_options]
+addopts = "-v -rf --disable-warnings"
+python_files = [
+    "tests/*/test_*.py",
+    "tests/test_*.py",
+]
+
+[tool.importlinter]
+root_packages = [
+    "mlrun",
+    "server",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Common modules shouldn't import other mlrun utilities"
+type = "forbidden"
+source_modules = [
+    "mlrun.common",
+]
+forbidden_modules = [
+    "mlrun.artifacts",
+    "mlrun.data_types",
+    "mlrun.datastore",
+    "mlrun.db",
+    "mlrun.feature_store",
+    "mlrun.frameworks",
+    "mlrun.launcher",
+    "mlrun.mlutils",
+    "mlrun.model_monitoring",
+    "mlrun.package",
+    "mlrun.platforms",
+    "mlrun.projects",
+    "mlrun.runtimes",
+    "mlrun.serving",
+    "mlrun.execution",
+    "mlrun.features",
+    "mlrun.k8s_utils",
+    "mlrun.kfpops",
+    "mlrun.lists",
+    "mlrun.model",
+    "mlrun.render",
+    "mlrun.run",
+    "mlrun.secrets",
+]
+ignore_imports = [
+    "mlrun.config -> mlrun.db",
+    "mlrun.utils.clones -> mlrun",
+    "mlrun.utils.helpers -> mlrun",
+]
+
+[[tool.importlinter.contracts]]
+name = "MLRun modules shouldn't import MLRun API"
+type = "layers"
+layers = [
+    "server",
+    "mlrun",
+]

@@ -9,15 +9,15 @@ aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.23.0
 deepdiff~=6.5
+hypothesis[numpy]~=6.87
 # needed for system tests
 matplotlib~=3.5
 graphviz~=0.20.0
 nuclio-sdk>=0.3.0
 isort~=5.7
 avro~=1.11
-# needed for mlutils tests
-scikit-learn~=1.0
 # needed for frameworks tests
+scikit-learn~=1.0
 lightgbm~=3.0; platform_machine != 'arm64'
 xgboost~=1.1
 sqlalchemy_utils~=0.39.0

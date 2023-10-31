@@ -14,7 +14,6 @@
 import os.path
 import pathlib
 import re
-import tempfile
 import textwrap
 import typing
 from base64 import b64decode, b64encode
@@ -399,6 +398,7 @@ def build_image(
     client_version=None,
     runtime=None,
     extra_args=None,
+    force_build=None,
 ):
     runtime_spec = runtime.spec if runtime else None
     runtime_builder_env = runtime_spec.build.builder_env or {}
@@ -418,7 +418,9 @@ def build_image(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
 
-    if not inline_code and not source and not commands and not requirements:
+    if force_build:
+        mlrun.utils.logger.info("forcefully building image")
+    elif not inline_code and not source and not commands and not requirements:
         mlrun.utils.logger.info("skipping build, nothing to add")
         return "skipped"
 
@@ -492,12 +494,10 @@ def build_image(
         not runtime.spec.clone_target_dir
         or not os.path.isabs(runtime.spec.clone_target_dir)
     ):
-        # use a temp dir for permissions and set it as the workdir
-        tmpdir = tempfile.mkdtemp()
         relative_workdir = runtime.spec.clone_target_dir or ""
         relative_workdir = relative_workdir.removeprefix("./")
 
-        runtime.spec.clone_target_dir = path.join(tmpdir, "mlrun", relative_workdir)
+        runtime.spec.clone_target_dir = path.join("/home/mlrun_code", relative_workdir)
 
     dock = make_dockerfile(
         base_image,
@@ -618,6 +618,7 @@ def build_runtime(
     builder_env=None,
     client_version=None,
     client_python_version=None,
+    force_build=False,
 ):
     build = runtime.spec.build
     namespace = runtime.metadata.namespace
@@ -636,7 +637,10 @@ def build_runtime(
         # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
             with_mlrun = False
-    if (
+
+    if force_build:
+        mlrun.utils.logger.info("forcefully building image")
+    elif (
         not build.source
         and not build.commands
         and not build.requirements
@@ -655,6 +659,7 @@ def build_runtime(
                 "The deployment was not successful because no image was specified or there are missing build parameters"
                 " (commands/source)"
             )
+
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
@@ -704,6 +709,7 @@ def build_runtime(
         builder_env=builder_env,
         client_version=client_version,
         runtime=runtime,
+        force_build=force_build,
     )
     runtime.status.build_pod = None
     if status == "skipped":

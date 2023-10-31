@@ -37,3 +37,5 @@ graphviz~=0.20.0
 databricks-sdk~=0.3.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=1.4
+dask~=2023.9.0
+distributed~=2023.9.0

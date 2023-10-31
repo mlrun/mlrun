@@ -139,6 +139,16 @@ class TestLocalPipeline(tests.projects.base_pipeline.TestPipeline):
             # expect y = (param1 * 2) + 1 = 15
             assert run_result.output("y") == 15, "unexpected run result"
 
+    def test_run_pipeline_no_workflow(self):
+        mlrun.projects.pipeline_context.clear(with_project=True)
+        self._create_project("localpipe2")
+        self._set_functions()
+
+        with pytest.raises(ValueError):
+            self.project.run(
+                local=True,
+            )
+
     def test_pipeline_args(self):
         mlrun.projects.pipeline_context.clear(with_project=True)
         self._create_project("localpipe3")

@@ -466,7 +466,8 @@ def test_set_function_requirements(rundb_mock):
 
 def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")

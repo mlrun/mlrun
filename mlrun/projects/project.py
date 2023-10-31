@@ -1009,12 +1009,12 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        metadata=None,
-        spec=None,
+        metadata: Optional[Union[ProjectMetadata, Dict]] = None,
+        spec: Optional[Union[ProjectSpec, Dict]] = None,
     ):
-        self.metadata = metadata
-        self.spec = spec
-        self.status = None
+        self.metadata: ProjectMetadata = metadata
+        self.spec: ProjectSpec = spec
+        self.status: ProjectStatus = ProjectStatus()
 
         self._initialized = False
         self._secrets = SecretsStore()

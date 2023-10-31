@@ -1802,11 +1802,11 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        update or add a monitoring function to the project.
+         Update or add a monitoring function to the project.
 
         examples::
             project.set_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun-api:1.5.0", name="myApp")
+                                                 image="mlrun/mlrun", name="myApp")
 
         :param func:                    Function object or spec/code url, None refers to current Notebook
         :param name:                    Name of the function (under the project), can be specified with a tag to support
@@ -1831,7 +1831,7 @@ class MlrunProject(ModelObj):
             resolved_function_name,
             function_object,
             func,
-        ) = self._create_model_monitoring_function_helper(
+        ) = self._instantiate_model_monitoring_function(
             func,
             application_class,
             name,
@@ -1864,7 +1864,7 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
         name: str = None,
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
@@ -1872,11 +1872,11 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        create a monitoring function object without setting it to the project
+        Create a monitoring function object without setting it to the project
 
         examples::
             project.create_model_monitoring_function(application_class_name="MyApp",
-                                                 image="mlrun/mlrun-api:1.5.0", name="myApp")
+                                                 image="mlrun/mlrun", name="myApp")
 
         :param func:                    Code url, None refers to current Notebook
         :param name:                    Name of the function, can be specified with a tag to support
@@ -1895,7 +1895,7 @@ class MlrunProject(ModelObj):
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
-        _, function_object, _ = self._create_model_monitoring_function_helper(
+        _, function_object, _ = self._instantiate_model_monitoring_function(
             func,
             application_class,
             name,
@@ -1909,19 +1909,19 @@ class MlrunProject(ModelObj):
         )
         return function_object
 
-    def _create_model_monitoring_function_helper(
+    def _instantiate_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
         name: str = None,
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
         **application_kwargs,
-    ):
+    ) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime, dict]:
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
@@ -1960,7 +1960,7 @@ class MlrunProject(ModelObj):
             tag,
             function_object,
             func,
-        ) = self._create_function_helper(
+        ) = self._instantiate_function(
             func,
             name,
             kind,
@@ -1989,7 +1989,7 @@ class MlrunProject(ModelObj):
         name: str = "",
         kind: str = "",
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
@@ -2044,7 +2044,7 @@ class MlrunProject(ModelObj):
             tag,
             function_object,
             func,
-        ) = self._create_function_helper(
+        ) = self._instantiate_function(
             func,
             name,
             kind,
@@ -2056,7 +2056,7 @@ class MlrunProject(ModelObj):
             requirements_file,
         )
 
-        self._set_function_helper(resolved_function_name, tag, function_object, func)
+        self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
     def create_function(
@@ -2065,14 +2065,14 @@ class MlrunProject(ModelObj):
         name: str = "",
         kind: str = "",
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
     ):
         """
-        create a function object without setting it to the project
+        Create a function object without setting it to the project
 
         support url prefixes::
 
@@ -2092,7 +2092,7 @@ class MlrunProject(ModelObj):
             # set function requirements
 
             # by providing a list of packages
-            proj.set_function('my.py', requirements=["requests", "pandas"])
+            proj.create_function('my.py', requirements=["requests", "pandas"])
 
             # by providing a path to a pip requirements file
             proj.create_function('my.py', requirements="requirements.txt")
@@ -2116,7 +2116,7 @@ class MlrunProject(ModelObj):
         :returns: function object
         """
 
-        _, _, function_object, _ = self._create_function_helper(
+        _, _, function_object, _ = self._instantiate_function(
             func,
             name,
             kind,
@@ -2129,18 +2129,18 @@ class MlrunProject(ModelObj):
         )
         return function_object
 
-    def _create_function_helper(
+    def _instantiate_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
-    ):
+    ) -> typing.Tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
@@ -2227,7 +2227,7 @@ class MlrunProject(ModelObj):
             func,
         )
 
-    def _set_function_helper(
+    def _set_function(
         self,
         name: str,
         tag: str,
@@ -2243,7 +2243,7 @@ class MlrunProject(ModelObj):
         self.spec.set_function(name, function_object, func)
 
     def remove_function(self, name):
-        """remove a function from a project and from the db.
+        """remove a function from a project.
 
         :param name:    name of the function (under the project)
         """

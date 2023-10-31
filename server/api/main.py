@@ -690,7 +690,8 @@ def _monitor_runs_and_push_terminal_notifications(db_session):
         global _last_update_time
         now = datetime.datetime.now(datetime.timezone.utc)
 
-        _generate_event_on_failed_runs(db, db_session, _last_update_time)
+        if config.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled:
+            _generate_event_on_failed_runs(db, db_session, _last_update_time)
         _push_terminal_run_notifications(db, db_session, _last_update_time)
 
         _last_update_time = now

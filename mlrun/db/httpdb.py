@@ -529,6 +529,7 @@ class HTTPRunDB(RunDBInterface):
                 server_cfg.get("feature_store_default_targets")
                 or config.feature_store.default_targets
             )
+            config.alerts.mode = server_cfg.get("alerts_mode") or config.alerts.mode
 
         except Exception as exc:
             logger.warning(

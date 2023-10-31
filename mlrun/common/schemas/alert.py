@@ -115,3 +115,8 @@ class AlertConfig(pydantic.BaseModel):
     notifications: pydantic.conlist(Notification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: Optional[int] = 0
+
+
+class AlertsModes(StrEnum):
+    enabled = "enabled"
+    disabled = "disabled"

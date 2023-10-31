@@ -173,6 +173,7 @@ def run_mlrun_databricks_job(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
                 callback=print_status,
             )
+            context.log_artifact("pod_test", local_path='dbfs:///test_path/file.csv', upload=False)
             with workspace.dbfs.open(script_path_on_dbfs, read=True) as artifact_file:
                 artifact_json = json.load(artifact_file)
             for artifact_name, artifact_path in artifact_json.items():
@@ -207,7 +208,7 @@ def run_mlrun_databricks_job(
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
-        workspace.dbfs.delete(artifact_json_path)
+        #  workspace.dbfs.delete(artifact_json_path) todo uncomment
 
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")

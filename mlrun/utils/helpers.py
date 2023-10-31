@@ -1518,7 +1518,8 @@ def validate_state_thresholds(state_thresholds: typing.Dict[str, str]):
     for state, threshold in state_thresholds.items():
         if state not in mlrun.runtimes.constants.ThresholdStates.all():
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid state {state} for state threshold, must be one of {mlrun.runtimes.constants.ThresholdStates.all()}"
+                f"Invalid state {state} for state threshold, must be one of "
+                f"{mlrun.runtimes.constants.ThresholdStates.all()}"
             )
 
         if threshold is None:
@@ -1528,7 +1529,8 @@ def validate_state_thresholds(state_thresholds: typing.Dict[str, str]):
             time_string_to_seconds(threshold)
         except Exception as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. Error: {err_to_str(exc)}"
+                f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "
+                f"Error: {err_to_str(exc)}"
             ) from exc
 
 

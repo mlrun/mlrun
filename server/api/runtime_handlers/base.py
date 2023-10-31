@@ -215,11 +215,11 @@ class BaseRuntimeHandler(ABC):
                     traceback=traceback.format_exc(),
                 )
 
-        self._terminate_resource_less_runs(
+        self._terminate_resourceless_runs(
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
 
-    def _terminate_resource_less_runs(
+    def _terminate_resourceless_runs(
         self, db, db_session, project_run_uid_map, run_runtime_resources_map
     ):
         for project, runs in project_run_uid_map.items():
@@ -1210,11 +1210,13 @@ class BaseRuntimeHandler(ABC):
             delta = now - start_time
 
             # Resolve the state threshold from the run
-            if (
-                threshold := self._resolve_run_threshold(
-                    run, pod_phase, runtime_resource=runtime_resource
-                )
-            ) and 0 <= threshold < delta.total_seconds():
+            threshold = self._resolve_run_threshold(
+                run, pod_phase, runtime_resource=runtime_resource
+            )
+            threshold_exceeded = (
+                threshold is not None and 0 <= threshold < delta.total_seconds()
+            )
+            if threshold_exceeded:
                 # Kill the pod
                 run_state = RunStates.error
                 runtime_resource_name = runtime_resource["metadata"]["name"]

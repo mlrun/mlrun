@@ -57,6 +57,8 @@ class PodPhases:
 
 
 class ThresholdStates:
+    # A pod can be in pending and scheduled state when the pod's container images are not already available on the node
+    # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
     running = "running"

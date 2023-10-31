@@ -19,6 +19,8 @@ import re
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import timelength
+
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
@@ -198,20 +200,7 @@ class BaseLauncher(abc.ABC):
         if state_thresholds is None:
             return
 
-        for state, threshold in state_thresholds.items():
-            if not isinstance(threshold, str):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Threshold for state {state} must be a string"
-                )
-
-            if (
-                not re.match(mlrun.utils.regex.time_pattern, threshold)
-                and not threshold == "-1"
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Threshold for state {state} must match the pattern {mlrun.utils.regex.time_pattern}"
-                    ' or be "-1"'
-                )
+        mlrun.utils.helpers.validate_state_thresholds(state_thresholds)
 
     @staticmethod
     def _create_run_object(task):

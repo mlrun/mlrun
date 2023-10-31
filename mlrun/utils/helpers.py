@@ -40,6 +40,7 @@ import yaml
 from dateutil import parser
 from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from timelength import TimeLength
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -1506,18 +1507,38 @@ def line_terminator_kwargs():
     return {line_terminator_parameter: "\n"}
 
 
+def validate_state_thresholds(state_thresholds: typing.Dict[str, str]):
+    """
+    Validate the state thresholds
+    If threshold is:
+        - None - will use default
+        - -1 - infinity
+        - otherwise - validate it's a valid time string
+    """
+    for state, threshold in state_thresholds.items():
+        if state not in mlrun.runtimes.constants.ThresholdStates.all():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid state {state} for state threshold, must be one of {mlrun.runtimes.constants.ThresholdStates.all()}"
+            )
+
+        if threshold is None:
+            continue
+
+        try:
+            time_string_to_seconds(threshold)
+        except Exception as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. Error: {err_to_str(exc)}"
+            ) from exc
+
+
 def time_string_to_seconds(time_str: str):
-    match = re.match(mlrun.utils.regex.time_pattern, time_str)
-
-    if match:
-        value, unit = match.groups()
-        value = int(value)
-        units_in_seconds = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
-
-        if unit in units_in_seconds:
-            return value * units_in_seconds[unit]
-
-    elif time_str == "-1":
+    if time_str == "-1":
         return -1
 
-    return None
+    parsed_length = TimeLength(time_str, strict=True)
+    total_seconds = parsed_length.to_seconds()
+    if total_seconds < 1:
+        raise ValueError(f"Invalid time string {time_str}, must be at least 1 second")
+
+    return total_seconds

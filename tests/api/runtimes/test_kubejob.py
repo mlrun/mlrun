@@ -1019,8 +1019,8 @@ def my_func(context):
     def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
             "pending_not_scheduled": "10s",
-            "pending_scheduled": "20m",
-            "running": "30h",
+            "pending_scheduled": "1day 20m",
+            "running": "30h 19 min",
             "image_pull_backoff": "-1",
         }
 
@@ -1057,7 +1057,8 @@ def my_func(context):
                 state_thresholds=state_thresholds,
             )
         assert (
-            "Invalid threshold 10 for state running, must match the regex (\\d+)([smhdw])"
+            "Threshold '10' for state 'running' is not a valid timelength string. "
+            'Error: Input TimeLength "10" contains no valid Value and Scale pairs.'
             in str(exc.value)
         )
 

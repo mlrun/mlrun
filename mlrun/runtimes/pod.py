@@ -13,7 +13,6 @@
 # limitations under the License.
 import inspect
 import os
-import re
 import typing
 from enum import Enum
 
@@ -22,13 +21,13 @@ import kfp.dsl
 import kubernetes.client as k8s_client
 
 import mlrun.errors
+import mlrun.utils.helpers
 import mlrun.utils.regex
 from mlrun.common.schemas import (
     NodeSelectorOperator,
     PreemptionModes,
     SecurityContextEnrichmentModes,
 )
-from mlrun.runtimes.constants import ThresholdStates
 
 from ..config import config as mlconf
 from ..k8s_utils import (
@@ -1036,10 +1035,13 @@ class KubeResource(BaseRuntime):
         if image_pull_secret_name is not None:
             self.spec.image_pull_secret = image_pull_secret_name
 
-    def set_state_thresholds(self, state_thresholds: typing.Dict[str, str]):
+    def set_state_thresholds(
+        self, state_thresholds: typing.Dict[str, str], merge=False
+    ):
         """
         Set the threshold for a specific state of the runtime.
-        The threshold is the amount of time (amount and time units e.g. 1000s, 60m, 1h etc. or -1 for infinite)
+        The threshold is the amount of time (e.g. 1000s, 60m, 1h etc. or -1 for infinite,
+        see timelength python package for more options)
         that the runtime will wait before failing the run if the job is in the matching state.
         Threshold must be at least 1 second.
         If the threshold is not set for a state, the default threshold will be used.
@@ -1050,23 +1052,10 @@ class KubeResource(BaseRuntime):
             * running - The is running
             * image_pull_backoff - The is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+        :param merge: Whether to merge the given thresholds with the existing thresholds or override them
         """
-        for state, threshold in state_thresholds.items():
-            if state not in ThresholdStates.all():
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid state {state} for state threshold, must be one of {ThresholdStates.all()}"
-                )
-
-            if (
-                not re.match(mlrun.utils.regex.time_pattern, threshold)
-                and threshold != "-1"
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Invalid threshold {threshold} for state {state}, "
-                    f"must match the regex {mlrun.utils.regex.time_pattern}"
-                )
-
-            self.spec.state_thresholds[state] = threshold
+        mlrun.utils.helpers.validate_state_thresholds(state_thresholds)
+        self.spec.state_thresholds = state_thresholds
 
     def with_limits(
         self,

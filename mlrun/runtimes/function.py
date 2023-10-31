@@ -675,7 +675,9 @@ class RemoteRuntime(KubeResource):
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
 
     def set_state_thresholds(self, state_thresholds: typing.Dict[str, int]):
-        raise NotImplementedError("set_state_thresholds is not implemented for nuclio")
+        raise NotImplementedError(
+            "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
+        )
 
     def _get_state(
         self,

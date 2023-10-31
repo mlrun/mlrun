@@ -3411,7 +3411,7 @@ def _init_function_from_dict(
 
     if "spec" in f:
         if "spec" in f["spec"]:
-            # Maintained for backwards compatibility
+            # Functions are stored in the project yaml as a dict with a spec key where the spec is the function
             func = new_function(name, runtime=f["spec"])
         else:
             func = new_function(name, runtime=f, tag=tag)

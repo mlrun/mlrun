@@ -1014,7 +1014,7 @@ class MlrunProject(ModelObj):
     ):
         self.metadata: ProjectMetadata = metadata
         self.spec: ProjectSpec = spec
-        self.status: ProjectStatus = ProjectStatus()
+        self.status = None
 
         self._initialized = False
         self._secrets = SecretsStore()

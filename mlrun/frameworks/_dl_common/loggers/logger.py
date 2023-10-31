@@ -205,7 +205,7 @@ class Logger:
         """
         Log the given metric result in the training results dictionary at the current epoch.
 
-        :param metric_name: The metric name as it was logged in 'log_metric'.
+        :param metric_name: The metric name.
         :param result:      The metric result to log.
         """
         if metric_name not in self._training_results:
@@ -216,7 +216,7 @@ class Logger:
         """
         Log the given metric result in the validation results dictionary at the current epoch.
 
-        :param metric_name: The metric name as it was logged in 'log_metric'.
+        :param metric_name: The metric name.
         :param result:      The metric result to log.
         """
         if metric_name not in self._validation_results:
@@ -227,7 +227,7 @@ class Logger:
         """
         Log the given metric result in the training summaries results dictionary.
 
-        :param metric_name: The metric name as it was logged in 'log_metric'.
+        :param metric_name: The metric name.
         :param result:      The metric result to log.
         """
         if metric_name not in self._training_summaries:
@@ -238,7 +238,7 @@ class Logger:
         """
         Log the given metric result in the validation summaries results dictionary.
 
-        :param metric_name: The metric name as it was logged in 'log_metric'.
+        :param metric_name: The metric name.
         :param result:      The metric result to log.
         """
         if metric_name not in self._validation_summaries:

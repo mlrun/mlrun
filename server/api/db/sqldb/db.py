@@ -1373,7 +1373,9 @@ class SQLDB(DBInterface):
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> List[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
-        query = self._query(session, Schedule, project=project, kind=kind)
+        query = self._query(session, Schedule, kind=kind)
+        if project != "*":
+            query = query.filter(Schedule.project == project)
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)

@@ -37,48 +37,73 @@ async def do_nothing():
 def test_list_schedules(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    resp = client.get("projects/default/schedules")
-    assert resp.status_code == http.HTTPStatus.OK.value, "status"
-    assert "schedules" in resp.json(), "no schedules"
+    project_names = [
+        mlrun.mlconf.default_project,
+        "another-project",
+        "yet-another-project",
+    ]
 
-    labels_1 = {
-        "label1": "value1",
-    }
-    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
+    for project in project_names:
+        resp = client.get(f"projects/{project}/schedules")
+        assert resp.status_code == http.HTTPStatus.OK.value, "status"
+        assert "schedules" in resp.json(), "no schedules"
+
     schedule_name = "schedule-name"
-    project = mlrun.mlconf.default_project
-    get_db().create_schedule(
-        db,
-        project,
-        schedule_name,
-        mlrun.common.schemas.ScheduleKinds.local_function,
-        do_nothing,
-        cron_trigger,
-        mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,
-        labels_1,
-    )
-
-    labels_2 = {
-        "label2": "value2",
-    }
     schedule_name_2 = "schedule-name-2"
-    get_db().create_schedule(
-        db,
-        project,
-        schedule_name_2,
-        mlrun.common.schemas.ScheduleKinds.local_function,
-        do_nothing,
-        cron_trigger,
-        mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,
-        labels_2,
-    )
 
-    _get_and_assert_single_schedule(client, {"labels": "label1"}, schedule_name)
-    _get_and_assert_single_schedule(client, {"labels": "label2"}, schedule_name_2)
-    _get_and_assert_single_schedule(client, {"labels": "label1=value1"}, schedule_name)
-    _get_and_assert_single_schedule(
-        client, {"labels": "label2=value2"}, schedule_name_2
-    )
+    for project in project_names:
+        labels_1 = {
+            "label1": "value1",
+        }
+        cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year="1999")
+        get_db().create_schedule(
+            db,
+            project,
+            schedule_name,
+            mlrun.common.schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+            mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,
+            labels_1,
+        )
+
+        labels_2 = {
+            "label2": "value2",
+        }
+        get_db().create_schedule(
+            db,
+            project,
+            schedule_name_2,
+            mlrun.common.schemas.ScheduleKinds.local_function,
+            do_nothing,
+            cron_trigger,
+            mlrun.mlconf.httpdb.scheduling.default_concurrency_limit,
+            labels_2,
+        )
+
+        _get_and_assert_single_schedule(
+            client, {"labels": "label1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label2"}, schedule_name_2, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label1=value1"}, schedule_name, project
+        )
+        _get_and_assert_single_schedule(
+            client, {"labels": "label2=value2"}, schedule_name_2, project
+        )
+
+    # Validate multi-project query
+    resp = client.get(f"projects/*/schedules", params={"labels": "label1"})
+    assert resp.status_code == http.HTTPStatus.OK.value, "status"
+    result = resp.json()["schedules"]
+    assert len(result) == len(project_names)
+    for result_schedule in result:
+        assert result_schedule["name"] == schedule_name
+        # Each project name should appear exactly once
+        assert result_schedule["project"] in project_names
+        project_names.remove(result_schedule["project"])
 
 
 @pytest.mark.parametrize(
@@ -298,9 +323,12 @@ def _prepare_test_redirection_from_worker_to_chief(project, endpoint_suffix=""):
 
 
 def _get_and_assert_single_schedule(
-    client: fastapi.testclient.TestClient, get_params: dict, schedule_name: str
+    client: fastapi.testclient.TestClient,
+    get_params: dict,
+    schedule_name: str,
+    project: str,
 ):
-    resp = client.get("projects/default/schedules", params=get_params)
+    resp = client.get(f"projects/{project}/schedules", params=get_params)
     assert resp.status_code == http.HTTPStatus.OK.value, "status"
     result = resp.json()["schedules"]
     assert len(result) == 1

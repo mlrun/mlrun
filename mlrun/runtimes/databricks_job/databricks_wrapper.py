@@ -31,13 +31,12 @@ from mlrun.errors import MLRunRuntimeError
 credentials_path = "/mlrun/databricks_credentials.yaml"
 artifacts_code_template = """\n
 mlrun_artifacts_path = '{}'
-first_mlrun_artifact = True  # In order to override artifact's file if exists.
 
 def mlrun_log_artifact(name, path):
     import json
     import os
     new_data = {{name:path}}
-    if os.path.exists(mlrun_artifacts_path) and first_mlrun_artifact:
+    if os.path.exists(mlrun_artifacts_path):
         with open(mlrun_artifacts_path, 'r+') as json_file:
             existing_data = json.load(json_file)
             existing_data.update(new_data)
@@ -65,6 +64,22 @@ def get_task(databricks_run: Run) -> RunTask:
             " Did you manually run any tasks from this job?"
         )
     return databricks_run.tasks[0]
+
+
+def log_artifacts_by_dbfs_json(
+    context: mlrun.MLClientCtx, workspace: WorkspaceClient, artifact_json_path: str
+):
+    with workspace.dbfs.open(artifact_json_path, read=True) as artifact_file:
+        artifact_json = json.load(artifact_file)
+    for artifact_name, artifact_path in artifact_json.items():
+        fixed_artifact_path = (
+            artifact_path.replace("/dbfs", "dbfs://", 1)
+            if artifact_path.startswith("/dbfs")
+            else artifact_path
+        )
+        context.log_artifact(
+            artifact_name, local_path=fixed_artifact_path, upload=False
+        )
 
 
 def save_credentials(
@@ -120,6 +135,8 @@ def run_mlrun_databricks_job(
     )
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
     artifacts_code = artifacts_code_template.format(f"/dbfs{artifact_json_path}")
+    if workspace.dbfs.exists(artifact_json_path):
+        workspace.dbfs.delete(artifact_json_path)
     spark_app_code = artifacts_code + spark_app_code
     with workspace.dbfs.open(script_path_on_dbfs, write=True, overwrite=True) as f:
         f.write(spark_app_code.encode("utf-8"))
@@ -173,18 +190,11 @@ def run_mlrun_databricks_job(
                 timeout=datetime.timedelta(minutes=timeout_minutes),
                 callback=print_status,
             )
-            context.log_artifact("pod_test", local_path='dbfs:///test_path/file.csv', upload=False)
-            with workspace.dbfs.open(script_path_on_dbfs, read=True) as artifact_file:
-                artifact_json = json.load(artifact_file)
-            for artifact_name, artifact_path in artifact_json.items():
-                fixed_artifact_path = (
-                    artifact_path.replace("/dbfs", "dbfs://", 1)
-                    if artifact_path.startswith("/dbfs")
-                    else artifact_path
-                )
-                context.log_artifact(
-                    artifact_name, local_path=fixed_artifact_path, upload=False
-                )
+            log_artifacts_by_dbfs_json(
+                context=context,
+                workspace=workspace,
+                artifact_json_path=artifact_json_path,
+            )
         except OperationFailed:
             databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
             task_run_id = get_task(databricks_run=databricks_run).run_id
@@ -208,7 +218,7 @@ def run_mlrun_databricks_job(
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
-        #  workspace.dbfs.delete(artifact_json_path) todo uncomment
+        workspace.dbfs.delete(artifact_json_path)
 
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")

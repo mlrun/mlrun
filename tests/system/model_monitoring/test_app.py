@@ -27,7 +27,7 @@ from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from tests.system.base import TestMLRunSystem
 
-from .assets.application import DemoMonitoringApp
+from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -38,6 +38,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
     @classmethod
     def custom_setup_class(cls) -> None:
         cls.max_events = 5
+        assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4

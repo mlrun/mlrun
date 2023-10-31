@@ -278,8 +278,8 @@ def build_function(
     if engine == "kfp":
         if overwrite_build_params:
             function.spec.build.commands = None
-        if requirements:
-            function.with_requirements(requirements, requirements_file)
+        if requirements or requirements_file:
+            function.with_requirements(requirements, requirements_file, overwrite=True)
         if commands:
             function.with_commands(commands)
         return function.deploy_step(

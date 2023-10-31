@@ -67,8 +67,14 @@ def get_task(databricks_run: Run) -> RunTask:
 
 
 def log_artifacts_by_dbfs_json(
-    context: mlrun.MLClientCtx, workspace: WorkspaceClient, artifact_json_path: str
+    context: mlrun.MLClientCtx,
+    workspace: WorkspaceClient,
+    artifact_json_path: str,
+    databricks_run_name: str,
 ):
+    if not workspace.dbfs.exists(artifact_json_path):
+        return
+    context.logger.info(f"Artifacts found. Run name: {databricks_run_name}")
     with workspace.dbfs.open(artifact_json_path, read=True) as artifact_file:
         artifact_json = json.load(artifact_file)
     for artifact_name, artifact_path in artifact_json.items():
@@ -121,7 +127,13 @@ def run_mlrun_databricks_job(
     databricks_run_name = task_parameters.get(
         "databricks_run_name", f"mlrun_task_{mlrun_databricks_job_id}"
     )
-
+    current_time = datetime.datetime.now()
+    run_time = current_time.strftime("%H_%M_%S_%f")
+    databricks_run_name = (
+        databricks_run_name
+        if str(mlrun_databricks_job_id) in databricks_run_name
+        else f"{databricks_run_name}_{run_time}"
+    )
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)
 
@@ -194,6 +206,7 @@ def run_mlrun_databricks_job(
                 context=context,
                 workspace=workspace,
                 artifact_json_path=artifact_json_path,
+                databricks_run_name=databricks_run_name,
             )
         except OperationFailed:
             databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)

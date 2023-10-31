@@ -16,7 +16,7 @@
 |ID  |Description                                                    |
 |---|----------------------------------------------------------------- |
 |ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
-|ML-4865||
+
 
 ## v1.5.0 (23 October 2023)
 
@@ -763,7 +763,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 |To be removed |Deprecated|API                      |Use instead             |
 |-------|-------|------------------------------------------------|--------------------------------------------- |
-v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
+|v1.7.0|v1.5.1 |`skip_deployed` parameter of `MLrunProject.build_image`|NA. The parameter is ignored.|
+|v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
 |v1.6.0|v1.4.0|MLRunProject.clear_context()|This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 |v1.6.0|v1.4.0|MLRunProject object legacy parameters|metadata and spec  |
 |v1.6.0|v1.4.0|BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param|'prepare_image_for_deploy' |

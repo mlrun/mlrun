@@ -127,7 +127,7 @@ def run_mlrun_databricks_job(
     databricks_run_name = task_parameters.get(
         "databricks_run_name", f"mlrun_task_{mlrun_databricks_job_id}"
     )
-    current_time = datetime.datetime.now()
+    current_time = datetime.datetime.utcnow()
     run_time = current_time.strftime("%H_%M_%S_%f")
     databricks_run_name = (
         databricks_run_name

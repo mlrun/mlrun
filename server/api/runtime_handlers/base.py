@@ -914,6 +914,7 @@ class BaseRuntimeHandler(ABC):
                     ):
                         continue
 
+                # TODO: extract to external method and reuse before deleting the pod after threshold
                 # if resources are tightly coupled to the run object - we want to perform some actions on the run object
                 # before deleting them
                 if self._are_resources_coupled_to_run_object():
@@ -1194,19 +1195,22 @@ class BaseRuntimeHandler(ABC):
             pod_phase = runtime_resource["status"]["phase"]
             run_state = PodPhases.pod_phase_to_run_state(pod_phase)
 
-            start_time = runtime_resource["status"].get("start_time")
+            run_start_time = run.get("status", {}).get("start_time")
+            if not run_start_time:
+                start_time = runtime_resource["status"].get("start_time")
+            else:
+                start_time = datetime.fromisoformat(run_start_time)
+
             if not start_time:
                 logger.warning(
-                    "Could not resolve start time from runtime resource. Continuing",
+                    "Could not resolve start time from run and runtime resource. Continuing",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
+                    run_uid=run.get("metadata", {}).get("uid"),
                     run_state=run_state,
                 )
                 return run_state
 
-            # TODO: find if commented out code is needed
-            # start_time = start_time.removesuffix("Z")
-            # start_datetime = datetime.fromisoformat(start_time)
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             delta = now - start_time
 
             # Resolve the state threshold from the run
@@ -1224,6 +1228,7 @@ class BaseRuntimeHandler(ABC):
                     "Runtime resource exceeded state threshold. Killing pod",
                     runtime_resource_name=runtime_resource_name,
                     run_state=run_state,
+                    pod_phase=pod_phase,
                     threshold=threshold,
                     start_time=str(start_time),
                     namespace=namespace,

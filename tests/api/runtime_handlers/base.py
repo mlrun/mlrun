@@ -128,7 +128,7 @@ class TestRuntimeHandlerBase:
         status = client.V1PodStatus(
             phase=phase,
             container_statuses=[container_status],
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(),
         )
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()

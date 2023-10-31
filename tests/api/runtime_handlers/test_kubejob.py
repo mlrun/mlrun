@@ -578,7 +578,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.conditions = [
             k8s_client.V1PodCondition(type="PodScheduled", status="True")
         ]
-        pending_scheduled_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+        pending_scheduled_pod.status.start_time = datetime.datetime.now() - timedelta(
             seconds=mlrun.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
@@ -594,7 +594,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         running_overtime_pod = self._generate_pod(
             "running_overtime", self.job_labels, PodPhases.running
         )
-        running_overtime_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+        running_overtime_pod.status.start_time = datetime.datetime.now() - timedelta(
             seconds=mlrun.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.running
             )
@@ -617,7 +617,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 ),
             )
         ]
-        image_pull_backoff_pod.status.start_time = datetime.datetime.utcnow() - timedelta(
+        image_pull_backoff_pod.status.start_time = datetime.datetime.now() - timedelta(
             seconds=mlrun.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )

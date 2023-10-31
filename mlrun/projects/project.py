@@ -2511,10 +2511,7 @@ class MlrunProject(ModelObj):
             )
 
         if not name and not workflow_path and not workflow_handler:
-            if self.spec.workflows:
-                name = list(self.spec._workflows.keys())[0]
-            else:
-                raise ValueError("Workflow name or path must be specified")
+            raise ValueError("Workflow name, path, or handler must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)

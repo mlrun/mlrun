@@ -1337,3 +1337,115 @@ def test_project_set_function_with_requirements(requirements, with_requirements_
         assert func.spec.image == image
 
     assert func.spec.build.requirements == expected_requirements
+
+
+def test_init_function_from_dict_function_in_spec():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    func_dict = {
+        "name": "sparkjob-from-github",
+        "spec": {
+            "kind": "spark",
+            "metadata": {
+                "name": "sparkjob-from-github",
+                "tag": "latest",
+                "project": project_name,
+                "categories": [],
+            },
+            "spec": {
+                "command": "simple_job.py",
+                "args": [],
+                "image": ".sparkjob-from-github:latest",
+                "build": {
+                    "source": "./",
+                    "base_image": "iguazio/spark-app:3.5.5-b697",
+                    "commands": [],
+                    "load_source_on_run": False,
+                    "requirements": ["pyspark==3.2.3"],
+                },
+                "description": "",
+                "disable_auto_mount": False,
+                "clone_target_dir": "/home/mlrun_code/",
+                "env": [],
+                "replicas": 1,
+                "image_pull_policy": "Always",
+                "priority_class_name": "dummy-class",
+                "preemption_mode": "prevent",
+                "driver_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1300m"},
+                },
+                "executor_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1400m"},
+                },
+                "deps": {
+                    "jars": [
+                        "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
+                        "local:///igz/java/libs/scala-library-2.12.14.jar",
+                        "local:///spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                    ],
+                    "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
+                },
+                "use_default_image": False,
+                "monitoring": {
+                    "enabled": True,
+                    "exporter_jar": "/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                },
+                "driver_preemption_mode": "prevent",
+                "executor_preemption_mode": "prevent",
+                "affinity": None,
+                "tolerations": None,
+                "security_context": {},
+                "executor_affinity": None,
+                "executor_tolerations": None,
+                "driver_affinity": None,
+                "driver_tolerations": None,
+                "volume_mounts": [],
+                "volumes": [],
+                "driver_volume_mounts": [],
+                "executor_volume_mounts": [],
+            },
+            "verbose": False,
+        },
+    }
+    func = mlrun.projects.project._init_function_from_dict(func_dict, project)
+    assert (
+        deepdiff.DeepDiff(func[1].to_dict(), func_dict["spec"], ignore_order=True) == {}
+    )
+
+
+def test_load_project_from_yaml_with_function(context):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    function = mlrun.code_to_function(
+        name="my-func",
+        image="my-image",
+        kind="job",
+        filename=str(assets_path() / "handler.py"),
+    )
+    function.save()
+    project.set_function(function)
+    project.set_function(
+        name="my-other-func",
+        image="my-image",
+        func=str(assets_path() / "handler.py"),
+        tag="latest",
+    )
+    project.save()
+    loaded_project = mlrun.load_project(context=str(context))
+    for function_name in ["my-func", "my-other-func"]:
+        assert (
+            deepdiff.DeepDiff(
+                project.get_function(function_name).to_dict(),
+                loaded_project.get_function(function_name).to_dict(),
+                ignore_order=True,
+                exclude_paths=[
+                    "root['spec']['build']['code_origin']",
+                    "root['metadata']['categories']",
+                ],
+            )
+            == {}
+        )

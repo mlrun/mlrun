@@ -3334,7 +3334,11 @@ def _init_function_from_dict(
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f, tag=tag)
+        if "spec" in f["spec"]:
+            # Functions are stored in the project yaml as a dict with a spec key where the spec is the function
+            func = new_function(name, runtime=f["spec"])
+        else:
+            func = new_function(name, runtime=f, tag=tag)
 
     elif not url and has_module:
         func = new_function(

@@ -10,13 +10,14 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
-## v1.5.1 ( November 2023)
+## v1.5.1 (11 November 2023)
 
 ###  Closed issues
 |ID  |Description                                                    |
 |---|----------------------------------------------------------------- |
 |ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
-|ML-4872|Project functions that use the old format can now be synchronized.|
+|ML-4860|Fixed creating and running functions with no parameters from the UI.|
+|ML-4872|Fixed synchronizing functions from project yaml.|
 
 ## v1.5.0 (23 October 2023)
 

@@ -353,7 +353,7 @@ class BaseRuntime(ModelObj):
                 pod's status. The threshold should be a time string that commences with a whole number and concludes
                 with the first letter denoting the time unit. The supported time units range from seconds (s) as the
                 smallest to weeks (w) as the largest e.g. "10h". If the phase is active for longer than the threshold,
-                the run will be marked as failed and the pod will be deleted.
+                the run will be marked as aborted and the pod will be deleted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
         :return: Run context object (RunObject) with run metadata, results and status
         """

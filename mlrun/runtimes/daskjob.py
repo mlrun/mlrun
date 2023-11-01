@@ -15,7 +15,6 @@ import datetime
 import inspect
 import socket
 import time
-import typing
 from os import environ
 
 import mlrun.common.schemas
@@ -456,9 +455,6 @@ class DaskCluster(KubejobRuntime):
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec._verify_and_set_requests("worker_resources", mem, cpu, patch=patch)
-
-    def set_state_thresholds(self, state_thresholds: typing.Dict[str, int]):
-        raise NotImplementedError("Dask runtime does not support state thresholds")
 
     def _run(self, runobj: RunObject, execution):
 

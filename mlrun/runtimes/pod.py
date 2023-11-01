@@ -1036,7 +1036,9 @@ class KubeResource(BaseRuntime):
             self.spec.image_pull_secret = image_pull_secret_name
 
     def set_state_thresholds(
-        self, state_thresholds: typing.Dict[str, str], merge=False
+        self,
+        state_thresholds: typing.Dict[str, str],
+        patch: bool = True,
     ):
         """
         Set the threshold for a specific state of the runtime.
@@ -1052,10 +1054,14 @@ class KubeResource(BaseRuntime):
             * running - The is running
             * image_pull_backoff - The is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
-        :param merge: Whether to merge the given thresholds with the existing thresholds or override them
+        :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
+                      or override them (False)
         """
         mlrun.utils.helpers.validate_state_thresholds(state_thresholds)
-        self.spec.state_thresholds = state_thresholds
+        if patch:
+            self.spec.state_thresholds.update(state_thresholds)
+        else:
+            self.spec.state_thresholds = state_thresholds
 
     def with_limits(
         self,

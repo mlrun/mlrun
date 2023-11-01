@@ -1032,6 +1032,41 @@ def my_func(context):
         run = get_db().list_runs(db, project=self.project)[0]
         assert run["spec"]["state_thresholds"] == state_thresholds
 
+        override_state_thresholds = {
+            "pending_not_scheduled": "20s",
+            "running": "40h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=override_state_thresholds,
+            patch=False,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = override_state_thresholds
+        expected_state_thresholds[
+            "image_pull_backoff"
+        ] = mlconf.function.spec.state_thresholds.default.image_pull_backoff
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
+        patch_state_thresholds = {
+            "pending_not_scheduled": "30s",
+            "image_pull_backoff": "50h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=patch_state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = patch_state_thresholds
+        expected_state_thresholds["running"] = override_state_thresholds["running"]
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
     def test_set_state_thresholds_failure(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
             "unknown_state": "10s",

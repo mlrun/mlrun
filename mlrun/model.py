@@ -944,7 +944,7 @@ class RunSpec(ModelObj):
         Set the dictionary of k8s states (pod phase) to thresholds time strings.
         The state will be matched against the pod's status. The threshold should be a time string that commences
         to timelength python package and is at least 1 second (-1 for infinite). If the phase is active for longer than
-        the threshold, the run will be marked as failed and the pod will be deleted.
+        the threshold, the run will be marked as aborted and the pod will be deleted.
         See mlconf.function.spec.state_thresholds for the state options and default values.
 
         example:

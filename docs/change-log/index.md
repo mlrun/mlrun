@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.5.0](#v1-5-0-23-october-2023)
+- [v1.5.0](#v1-5-0-23-october-2023) | [v1.5.1](#v1-5-1-11-november-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
 - [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
@@ -13,20 +13,19 @@
 ## v1.5.1 (11 November 2023)
 
 ###  Closed issues
-|ID  |Description                                                    |
-|---|----------------------------------------------------------------- |
-|ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
-|ML-4860|Fixed creating and running functions with no parameters from the UI.|
-|ML-4872|Fixed synchronizing functions from project yaml.|
+| ID           | Description                                                               |
+|--------------|---------------------------------------------------------------------------|
+| ML-4839/4844 | Running `project.build_image` now always reads the requirements.txt file. |
+| ML-4860      | Fixed creating and running functions with no parameters from the UI.      |
+| ML-4872      | Fixed synchronizing functions from project yaml.                          |
 
 ## v1.5.0 (23 October 2023)
 
-
 ### Data store
-|ID   |Description                                                    |
-|---|----------------------------------------------------------------- |
-|ML-2296|Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
-|ML-3500|Support for dbfs data store (Databricks file system). See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).|
+| ID      | Description                                                                                                                                                                                                             |
+|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ML-2296 | Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.html#using-data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+| ML-3500 | Support for dbfs data store (Databricks file system). See [Databricks file system](../store/datastore.html#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                            |
 
 ### Feature store
 |ID   |Description                                                    |
@@ -65,7 +64,7 @@
 |---|----------------------------------------------------------------- |
 |ML-3763|Add description of configuring number of workers per GPU. See updated [Number of workers/GPUs](../runtimes/configuring-job-resources.html#number-of-workers-gpus). |
 |ML-4420|Add configuration of memory in Spark Operator. See [Spark Operator runtime](../runtimes/spark-operator.html).|
-|ML-2380|Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).
+|ML-2380|Add details of V3IO and Spark runtime. See [Spark Operator runtime](../runtimes/spark-operator.html) and [Spark3Runtime](../api/mlrun.runtimes.html#mlrun.runtimes.Spark3Runtime).|
 
 ### Breaking changes
 |ID  |Description                                                    |
@@ -138,7 +137,7 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |---|----------------------------------------------------------------- |
 |ML-1248|The engine type now displays in the **Feature Set Overview** tab.  |
 |ML-2083|The **Run on spot** value now displays in the **Jobs Overview** tab. |
-|ML-3176|The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously supported by SDK. 
+|ML-3176|The new **Passthrough** button in the Create Feature Set enables [creating a feature set without ingesting its data](../feature-store/feature-sets.htm#create-a-feature-set-without-ingesting-its-data), previously supported by SDK. |
 |ML-3549|The new **Resource monitoring** button in the **Jobs Details** view opens the **Grafana** dashboard. |
 |ML-3551|Nested workflows (`ParallelFor`) now fully display in UI. |
 |ML-2922|The **Artifacts**, **Datasets** and **Models** pages have an improved filter. Enhanced look and feel in tables.  |
@@ -206,8 +205,8 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-3782|The (incorrect) naming of features causes error when getting the feature vector from the online feature service. The fix is an additional restriction in feature names. See [Aggregations](./feature-store/transformations.html#aggregations) [View in Git](https://github.com/mlrun/storey/pull/440). |
 |ML-3806|Mismatch errors now printed when ingesting from Kafka into offline target. In case of errors (due to type mismatch) no errors are printed.[View in Git](https://github.com/mlrun/storey/pull/446). |
 |ML-3847|`add_code_metadata` now prints error messages when working with git [View in Git](https://github.com/mlrun/mlrun/pull/3810). |
-|ML-3900|Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687). 
-|ML-4129|Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).
+|ML-3900|Improved error message when ingesting into a feature set (online target) and no features found on retrieval. [View in Git](https://github.com/mlrun/mlrun/pull/3687). |
+|ML-4129|Errors from BigQuerySource are now forwarded to MLRun. [View in Git](https://github.com/mlrun/mlrun/pull/3887).|
 
 ## v1.3.4 (23 August 2023)
 
@@ -391,7 +390,7 @@ Starting with v1.3.0, and continuing in subsequent releases, obsolete functions 
 |ML-3378|Aggregation over a fixed-window that starts at or near the epoch now functions as expected. [View in Git](https://github.com/mlrun/storey/pull/418). |
 |ML-3380|Documentation: added details on [aggregation in windows](../feature-store/transformations.html#aggregations). |
 |ML-3389|Hyperparams run does not present artifacts iteration when selector is not defined. [View in Git](https://github.com/mlrun/ui/pull/1635). |
-|ML-3424|Documentation: new matrix of which engines support which [sources](../serving/available-steps.html#sources)/[targets](../serving/available-steps.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).
+|ML-3424|Documentation: new matrix of which engines support which [sources](../serving/available-steps.html#sources)/[targets](../serving/available-steps.html#targets). [View in Git](https://github.com/mlrun/mlrun/pull/3279).|
 |ML-3505|Removed the upperbound on the `google-cloud-bigquery` requirement. |
 |ML-3575|`project.run_function()` now uses the argument `artifact_path` (previously used the project's configured `artifact_path` instead). [View in Git](https://github.com/mlrun/mlrun/pull/3246). |
 |ML-3403|Error on Spark ingestion with offline target without defined path (error: `NoneType` object has no attribute `startswith`). Fix: default path defined. [View in Git](https://github.com/mlrun/mlrun/pull/3118). |
@@ -745,7 +744,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3520|MLRun does not decompress large Kubeflow pipelines|NA|v1.3.0 |
 |ML-3824|MLRun supports TensorFlow up to 2.11.|NA|v1.3.1 |
 |ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.|To see the error, use `mlrun.db.get_pipelines()` instead. |
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.|When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.|When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)| 
 |ML-4767|Use PyTorch versions up to and including than 2.0.1, but not higher.  |
 
 ## Deprecations and removed code
@@ -762,19 +761,19 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Deprecated APIs  
 
-|To be removed |Deprecated|API                      |Use instead             |
-|-------|-------|------------------------------------------------|--------------------------------------------- |
-|v1.7.0|v1.5.1 |`skip_deployed` parameter of `MLrunProject.build_image`|NA. The parameter is ignored.|
-|v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
-|v1.6.0|v1.4.0|MLRunProject.clear_context()|This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
-|v1.6.0|v1.4.0|MLRunProject object legacy parameters|metadata and spec  |
-|v1.6.0|v1.4.0|BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param|'prepare_image_for_deploy' |
-|v1.6.0|v1.4.0|run_local|function.run(local=True) |
-|v1.6.0|v1.4.0|CSVSource's time_field parameter|Use parse_dates to parse timestamps |
-|v1.6.0|v1.4.0|Feature-set set_targets() default_final_state|default_final_step |
-|v1.6.0|v1.3.0|new_pipe_meta|new_pipe_metadata |
-|v1.6.0|v1.3.0|ttl param from pipeline|cleanup_ttl |
-|v1.6.0|v1.3.0|objects methods from artifacts list|to_objects |
+| To be removed | Deprecated | API                                                                                 | Use instead                                                                                                                                                 |
+|---------------|------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.7.0        | v1.5.1     | `skip_deployed` parameter of `MLrunProject.build_image`                             | NA. The parameter is ignored.                                                                                                                               |
+| v1.7.0        | v1.5.0     | `/files` and `/filestat`                                                            | `/projects/{project}/filestat`                                                                                                                              |
+| v1.6.0        | v1.4.0     | MLRunProject.clear_context()                                                        | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
+| v1.6.0        | v1.4.0     | MLRunProject object legacy parameters                                               | metadata and spec                                                                                                                                           |
+| v1.6.0        | v1.4.0     | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy'                                                                                                                                  |
+| v1.6.0        | v1.4.0     | run_local                                                                           | function.run(local=True)                                                                                                                                    |
+| v1.6.0        | v1.4.0     | CSVSource's time_field parameter                                                    | Use parse_dates to parse timestamps                                                                                                                         |
+| v1.6.0        | v1.4.0     | Feature-set set_targets() default_final_state                                       | default_final_step                                                                                                                                          |
+| v1.6.0        | v1.3.0     | new_pipe_meta                                                                       | new_pipe_metadata                                                                                                                                           |
+| v1.6.0        | v1.3.0     | ttl param from pipeline                                                             | cleanup_ttl                                                                                                                                                 |
+| v1.6.0        | v1.3.0     | objects methods from artifacts list                                                 | to_objects                                                                                                                                                  |
 
 
 ### Deprecated CLIs

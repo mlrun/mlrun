@@ -16,7 +16,7 @@
 |ID  |Description                                                    |
 |---|----------------------------------------------------------------- |
 |ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
-
+|ML-4872|Project functions that use the old format can now be synchronized.|
 
 ## v1.5.0 (23 October 2023)
 

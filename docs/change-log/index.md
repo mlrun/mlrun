@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.5.0](#v1-5-0-23-october-2023)
+- [v1.5.0](#v1-5-0-23-october-2023) | [v1.5.1](#v1-5-1-11-november-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
 - [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
@@ -13,11 +13,11 @@
 ## v1.5.1 (11 November 2023)
 
 ###  Closed issues
-|ID  |Description                                                    |
-|---|----------------------------------------------------------------- |
-|ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
-|ML-4860|Fixed creating and running functions with no parameters from the UI.|
-|ML-4872|Fixed synchronizing functions from project yaml.|
+| ID           | Description                                                               |
+|--------------|---------------------------------------------------------------------------|
+| ML-4839/4844 | Running `project.build_image` now always reads the requirements.txt file. |
+| ML-4860      | Fixed creating and running functions with no parameters from the UI.      |
+| ML-4872      | Fixed synchronizing functions from project yaml.                          |
 
 ## v1.5.0 (23 October 2023)
 
@@ -40,7 +40,7 @@
 |ML-3644|Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 |ML-4132|The `invoke` function can now receive any parameter supported in the `requests.request` method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 
-.
+
 ### Runtimes
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |

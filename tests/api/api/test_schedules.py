@@ -95,7 +95,7 @@ def test_list_schedules(
         )
 
     # Validate multi-project query
-    resp = client.get(f"projects/*/schedules", params={"labels": "label1"})
+    resp = client.get("projects/*/schedules", params={"labels": "label1"})
     assert resp.status_code == http.HTTPStatus.OK.value, "status"
     result = resp.json()["schedules"]
     assert len(result) == len(project_names)

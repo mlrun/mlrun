@@ -1217,6 +1217,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl=None,
         image: str = None,
+        remote_debugging: dict = None,
         **args,
     ):
         """add or update a workflow, specify a name and the code path
@@ -1234,6 +1235,7 @@ class MlrunProject(ModelObj):
                               Note that "local" engine does not support this argument
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param image:         image for workflow runner job, only for scheduled and remote workflows
+        :param remote_debugging: remote debugging configuration, allows to debug the workflow remotely
         :param args:          argument values (key=value, ..)
         """
 
@@ -1282,6 +1284,8 @@ class MlrunProject(ModelObj):
             workflow["ttl"] = ttl
         if image:
             workflow["image"] = image
+        if remote_debugging:
+            workflow["remote_debugging"] = remote_debugging
         self.spec.set_workflow(name, workflow)
 
     def set_artifact(

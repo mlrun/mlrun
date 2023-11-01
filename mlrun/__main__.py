@@ -237,6 +237,18 @@ def run(
     if env_file:
         mlrun.set_env_from_file(env_file)
 
+    if (
+        pycharm_dev := environ.get("MLRUN_REMOTE_DEBUGGING")
+    ) and pycharm_dev.lower() == "pycharm":
+        import pydevd_pycharm
+
+        pydevd_pycharm.settrace(
+            environ.get("MLRUN_REMOTE_DEBUGGING_HOST"),
+            port=int(environ.get("MLRUN_REMOTE_DEBUGGING_PORT")),
+            stdoutToServer=True,
+            stderrToServer=True,
+        )
+
     out_path = out_path or environ.get("MLRUN_ARTIFACT_PATH")
     config = environ.get("MLRUN_EXEC_CONFIG")
     if from_env and config:

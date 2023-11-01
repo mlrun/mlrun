@@ -263,3 +263,86 @@ pyenv virtualenv mlrun
 pyenv shell 3.7
 pyenv virtualenv mlrun37
 ```
+
+## Remote Debugging
+
+Remote debugging allows you to debug a workflow running on a remote cluster. Supported via PyCharm.
+To enable remote debugging, you need to set the `remote_debugging` flag with your PyCharm IP address and port.
+
+To ensure your PyCharm is configured correctly, follow the [PyCharm documentation](https://www.jetbrains.com/help/pycharm/remote-debugging-with-product.html#remote-debug-config).
+
+The suggested "Remote Debug" configuration is as follows:
+
+```
+hostname: localhost
+port: 40000
+redirect output to console: true
+```
+
+> When using mlrun dev (e.g.: mlrun/mlrun:unstable-dev) image, you will need to add the 
+> following path mapping to ensure remote files and local files are mapped correctly:
+Path mapping: mlrun -> /opt/conda/lib/python3.9/site-packages/mlrun
+
+Once configured, Run it and you should see the following output:
+
+```
+Use the following code to connect to the debugger:
+Waiting for process connection…
+import pydevd_pycharm
+pydevd_pycharm.settrace('localhost', port=40000, stdoutToServer=True, stderrToServer=True, suspend=False)
+```
+
+On your shell console, use `ngrok` to expose your PyCharm port for the remote cluster
+
+```shell
+ngrok tcp 40000
+```
+
+You should see the following output:
+
+```
+Session Status                online
+Account                       <your-user> (Plan: Free)
+Version                       3.3.5
+Region                        <somewhere> (<>)
+Latency                       -
+Web Interface                 http://127.0.0.1:4040
+Forwarding                    tcp://<host>:<port> -> localhost:40000
+
+Connections                   ttl     opn     rt1     rt5     p50     p90
+                              0       0       0.00    0.00    0.00    0.00
+```
+
+Copy the `tcp://<host>:<port>` address and use it to set the `remote_debugging.host` and `remote_debugging.port`.
+
+Once the pod starts running, it will connect to the given host and port and you will be able to debug it.
+
+#### Debugging a workflow
+
+While setting the workflow, provide it with the `remote_debugging` flag 
+and set the image to be `mlrun/mlrun:unstable-dev`, e.g.:
+
+```python
+import mlrun
+
+
+project = mlrun.load_project(
+    name="load-project-0",
+    context="./load-project-0",
+    url="git://github.com/someone/somewhere.git",
+    clone=True,
+)
+project.set_workflow(
+      "kfpmain",
+      "workflow.py",
+      schedule="*/5 * * * *",
+      engine="kfp",
+      image="mlrun/mlrun:unstable-dev",
+      remote_debugging={
+          "mode": "pycharm",
+          "port": 17714,
+          "host": "7.tcp.eu.ngrok.io",
+      },
+)
+project.run("kfpmain", watch=False, schedule=True)
+```

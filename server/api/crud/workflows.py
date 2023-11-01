@@ -75,6 +75,7 @@ class WorkflowRunners(
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         db_session: Session = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
+        remote_debugging: dict = None,
     ):
         """
         Schedule workflow runner.
@@ -84,6 +85,7 @@ class WorkflowRunners(
         :param workflow_request:    contains the workflow spec, that will be scheduled
         :param db_session:          session that manages the current dialog with the database
         :param auth_info:           auth info of the request
+        :param remote_debugging:    remote debugging configuration
         """
         labels = {
             "job-type": "workflow-runner",
@@ -94,6 +96,7 @@ class WorkflowRunners(
             project=project,
             workflow_request=workflow_request,
             labels=labels,
+            remote_debugging=remote_debugging,
         )
         # this includes filling the spec.function which is required for submit run
         runner._store_function(
@@ -122,6 +125,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest,
         labels: Dict[str, str],
+        remote_debugging: dict = None,
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for scheduling workflow from server-side.
@@ -129,6 +133,7 @@ class WorkflowRunners(
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec and extra data for the run object
         :param labels:              dict of the task labels
+        :param remote_debugging:    remote debugging configuration
 
         :returns: RunObject ready for schedule.
         """
@@ -138,6 +143,7 @@ class WorkflowRunners(
         workflow_spec = workflow_request.spec
         run_object = RunObject(
             spec=RunSpec(
+                remote_debugging=remote_debugging,
                 parameters=dict(
                     url=project.spec.source,
                     project_name=project.metadata.name,
@@ -178,6 +184,7 @@ class WorkflowRunners(
         project: mlrun.common.schemas.Project,
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         load_only: bool = False,
+        remote_debugging: dict = None,
     ) -> RunObject:
         """
         Run workflow runner.
@@ -186,6 +193,7 @@ class WorkflowRunners(
         :param project:             MLRun project
         :param workflow_request:    contains the workflow spec, that will be executed
         :param load_only:           If True, will only load the project remotely (without running workflow)
+        :param remote_debugging:    remote debugging configuration
 
         :returns: run context object (RunObject) with run metadata, results and status
         """
@@ -202,6 +210,7 @@ class WorkflowRunners(
             workflow_request=workflow_request,
             run_name=runner.metadata.name,
             load_only=load_only,
+            remote_debugging=remote_debugging,
         )
 
         artifact_path = workflow_request.artifact_path if workflow_request else ""
@@ -256,6 +265,7 @@ class WorkflowRunners(
         workflow_request: mlrun.common.schemas.WorkflowRequest = None,
         run_name: str = None,
         load_only: bool = False,
+        remote_debugging: dict = None,
     ) -> mlrun.run.RunObject:
         """
         Preparing all the necessary metadata and specifications for running workflow from server-side.
@@ -265,6 +275,7 @@ class WorkflowRunners(
         :param workflow_request:    contains the workflow spec and extra data for the run object
         :param run_name:            workflow-runner function name
         :param load_only:           if True, will only load the project remotely (without running workflow)
+        :param remote_debugging:    remote debugging configuration
 
         :returns: RunObject ready for execution.
         """
@@ -281,6 +292,7 @@ class WorkflowRunners(
                     dirty=save,
                 ),
                 handler="mlrun.projects.load_and_run",
+                remote_debugging=remote_debugging,
             ),
             metadata=RunMetadata(name=run_name),
         )

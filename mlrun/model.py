@@ -729,6 +729,7 @@ class RunSpec(ModelObj):
         inputs_type_hints=None,
         returns=None,
         notifications=None,
+        remote_debugging=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -764,6 +765,7 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
+        self.remote_debugging = remote_debugging
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])

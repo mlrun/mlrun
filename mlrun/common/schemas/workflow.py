@@ -31,6 +31,7 @@ class WorkflowSpec(pydantic.BaseModel):
     schedule: typing.Union[str, ScheduleCronTrigger] = None
     run_local: typing.Optional[bool] = None
     image: typing.Optional[str] = None
+    remote_debugging: typing.Optional[dict] = None
 
 
 class WorkflowRequest(pydantic.BaseModel):

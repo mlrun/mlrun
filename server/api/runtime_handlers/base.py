@@ -1154,7 +1154,11 @@ class BaseRuntimeHandler(ABC):
             # )
             return
         run = project_run_uid_map.get(project, {}).get(uid)
-        run_state = self._resolve_resource_state_and_apply_threshold(
+        (
+            run_state,
+            threshold_exceeded,
+            status_text,
+        ) = self._resolve_resource_state_and_apply_threshold(
             run, runtime_resource, runtime_resource_is_crd, namespace
         )
 
@@ -1167,12 +1171,16 @@ class BaseRuntimeHandler(ABC):
             run_state,
             run,
             search_run=False,
+            # TODO: uncomment once abort run is a background task
+            # force=threshold_exceeded,
+            # status_text=status_text,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
+        # TODO: do not collect logs if threshold_exceeded, they will be collected when aborting the run
         if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
@@ -1182,7 +1190,9 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-    ) -> str:
+    ) -> Tuple[str, bool, Optional[str]]:
+        threshold_exceeded = False
+        status_text = None
         if runtime_resource_is_crd:
             (
                 _,
@@ -1196,10 +1206,10 @@ class BaseRuntimeHandler(ABC):
             run_state = PodPhases.pod_phase_to_run_state(pod_phase)
 
             run_start_time = run.get("status", {}).get("start_time")
-            if not run_start_time:
-                start_time = runtime_resource["status"].get("start_time")
-            else:
+            if run_start_time:
                 start_time = datetime.fromisoformat(run_start_time)
+            else:
+                start_time = runtime_resource["status"].get("start_time")
 
             if not start_time:
                 logger.warning(
@@ -1208,7 +1218,7 @@ class BaseRuntimeHandler(ABC):
                     run_uid=run.get("metadata", {}).get("uid"),
                     run_state=run_state,
                 )
-                return run_state
+                return run_state, False, None
 
             now = datetime.now(timezone.utc)
             delta = now - start_time
@@ -1221,11 +1231,11 @@ class BaseRuntimeHandler(ABC):
                 threshold is not None and 0 <= threshold < delta.total_seconds()
             )
             if threshold_exceeded:
-                # Kill the pod
-                run_state = RunStates.error
+                # TODO: make run abortion a background task and enable it here
+                # run_state = RunStates.aborted
                 runtime_resource_name = runtime_resource["metadata"]["name"]
                 logger.warning(
-                    "Runtime resource exceeded state threshold. Killing pod",
+                    "Runtime resource exceeded state threshold. Aborting run",
                     runtime_resource_name=runtime_resource_name,
                     run_state=run_state,
                     pod_phase=pod_phase,
@@ -1233,18 +1243,8 @@ class BaseRuntimeHandler(ABC):
                     start_time=str(start_time),
                     namespace=namespace,
                 )
-                try:
-                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                        runtime_resource_name, namespace, self.pod_grace_period_seconds
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to kill pod",
-                        runtime_resource_name=runtime_resource_name,
-                        exc=err_to_str(exc),
-                    )
 
-        return run_state
+        return run_state, threshold_exceeded, status_text
 
     @staticmethod
     def _resolve_run_threshold(
@@ -1425,6 +1425,8 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
+        force: bool = False,
+        status_text: str = None,
     ) -> Tuple[bool, str, dict]:
         if run is None:
             run = {}
@@ -1449,7 +1451,7 @@ class BaseRuntimeHandler(ABC):
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states():
+            if db_run_state in RunStates.terminal_states() and not force:
 
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
@@ -1485,7 +1487,9 @@ class BaseRuntimeHandler(ABC):
 
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
-        run.setdefault("status", {})["last_update"] = now_date().isoformat()
+        run["status"]["last_update"] = now_date().isoformat()
+        if status_text:
+            run["status"]["status_text"] = status_text
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run

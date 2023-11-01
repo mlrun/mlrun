@@ -745,7 +745,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3520|MLRun does not decompress large Kubeflow pipelines|NA|v1.3.0 |
 |ML-3824|MLRun supports TensorFlow up to 2.11.|NA|v1.3.1 |
 |ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.|To see the error, use `mlrun.db.get_pipelines()` instead. |
-|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.|When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry) 
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.|When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)| 
 |ML-4767|Use PyTorch versions up to and including than 2.0.1, but not higher.  |
 
 ## Deprecations and removed code
@@ -762,19 +762,19 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ### Deprecated APIs  
 
-|To be removed |Deprecated|API                      |Use instead             |
-|-------|-------|------------------------------------------------|--------------------------------------------- |
-|v1.7.0|v1.5.1 |`skip_deployed` parameter of `MLrunProject.build_image`|NA. The parameter is ignored.|
-|v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
-|v1.6.0|v1.4.0|MLRunProject.clear_context()|This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
-|v1.6.0|v1.4.0|MLRunProject object legacy parameters|metadata and spec  |
-|v1.6.0|v1.4.0|BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param|'prepare_image_for_deploy' |
-|v1.6.0|v1.4.0|run_local|function.run(local=True) |
-|v1.6.0|v1.4.0|CSVSource's time_field parameter|Use parse_dates to parse timestamps |
-|v1.6.0|v1.4.0|Feature-set set_targets() default_final_state|default_final_step |
-|v1.6.0|v1.3.0|new_pipe_meta|new_pipe_metadata |
-|v1.6.0|v1.3.0|ttl param from pipeline|cleanup_ttl |
-|v1.6.0|v1.3.0|objects methods from artifacts list|to_objects |
+| To be removed | Deprecated | API                                                                                 | Use instead                                                                                                                                                 |
+|---------------|------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.7.0        | v1.5.1     | `skip_deployed` parameter of `MLrunProject.build_image`                             | NA. The parameter is ignored.                                                                                                                               |
+| v1.7.0        | v1.5.0     | `/files` and `/filestat`                                                            | `/projects/{project}/filestat`                                                                                                                              |
+| v1.6.0        | v1.4.0     | MLRunProject.clear_context()                                                        | This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
+| v1.6.0        | v1.4.0     | MLRunProject object legacy parameters                                               | metadata and spec                                                                                                                                           |
+| v1.6.0        | v1.4.0     | BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param | 'prepare_image_for_deploy'                                                                                                                                  |
+| v1.6.0        | v1.4.0     | run_local                                                                           | function.run(local=True)                                                                                                                                    |
+| v1.6.0        | v1.4.0     | CSVSource's time_field parameter                                                    | Use parse_dates to parse timestamps                                                                                                                         |
+| v1.6.0        | v1.4.0     | Feature-set set_targets() default_final_state                                       | default_final_step                                                                                                                                          |
+| v1.6.0        | v1.3.0     | new_pipe_meta                                                                       | new_pipe_metadata                                                                                                                                           |
+| v1.6.0        | v1.3.0     | ttl param from pipeline                                                             | cleanup_ttl                                                                                                                                                 |
+| v1.6.0        | v1.3.0     | objects methods from artifacts list                                                 | to_objects                                                                                                                                                  |
 
 
 ### Deprecated CLIs

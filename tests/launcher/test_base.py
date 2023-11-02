@@ -48,6 +48,6 @@ def test_validate_state_thresholds_failure():
                 "pending_scheduled": -1,
             }
         )
-    assert f"Threshold '-1' for state 'pending_scheduled' must be a string" in str(
+    assert "Threshold '-1' for state 'pending_scheduled' must be a string" in str(
         exc.value
     )

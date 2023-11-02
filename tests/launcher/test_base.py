@@ -37,7 +37,8 @@ def test_validate_state_thresholds_failure():
             }
         )
     assert (
-        'Threshold for state image_pull_backoff must match the pattern ^(\\d+)([smhdw])$ or be "-1"'
+        "Threshold '3mm' for state 'image_pull_backoff' is not a valid timelength string. "
+        "Error: Input TimeLength \"3mm\" contains an invalid value: ['mm']"
         in str(exc.value)
     )
 
@@ -47,4 +48,6 @@ def test_validate_state_thresholds_failure():
                 "pending_scheduled": -1,
             }
         )
-    assert "Threshold for state pending_scheduled must be a string" in str(exc.value)
+    assert f"Threshold '-1' for state 'pending_scheduled' must be a string" in str(
+        exc.value
+    )

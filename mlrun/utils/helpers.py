@@ -1525,6 +1525,11 @@ def validate_state_thresholds(state_thresholds: typing.Dict[str, str]):
         if threshold is None:
             continue
 
+        if not isinstance(threshold, str):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Threshold '{threshold}' for state '{state}' must be a string"
+            )
+
         try:
             time_string_to_seconds(threshold)
         except Exception as exc:

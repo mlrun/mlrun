@@ -974,7 +974,7 @@ class BaseRuntimeHandler(ABC):
                         in_terminal_state,
                         last_update,
                         desired_run_state,
-                    ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
+                    ) = self._resolve_crd_object_status_info(crd_object)
                     if not force:
                         if not in_terminal_state:
                             continue

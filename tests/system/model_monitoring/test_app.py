@@ -37,7 +37,9 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = 5
+        cls.max_events = typing.cast(
+            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        )
         assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"

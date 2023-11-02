@@ -33,7 +33,7 @@ from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "app-tst-" + str(4)
+    project_name = "test-monitoring-app-flow"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -79,17 +79,12 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls.model_name,
             model_path=f"store://models/{cls.project_name}/{cls.model_name}:latest",
         )
-        image = "jonathandaniel503/mlrun:app-sys-tst"
         serving_fn.set_tracking(
             tracking_policy=TrackingPolicy(
                 default_batch_intervals=f"*/{cls.app_interval} * * * *",
                 application_batch=True,
-                default_batch_image=image,
-                stream_image=image,
             ),
         )
-        serving_fn.spec.image = image  # DONTTRACK
-        serving_fn.spec.build.image = image  # DONTTRACK
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
 
@@ -133,7 +128,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             func=str((Path(__file__).parent / "assets/application.py").absolute()),
             application_class="DemoMonitoringApp",
             name=self.app_name,
-            image="jonathandaniel503/mlrun:app-sys-tst",
+            image="mlrun/mlrun",
         )
         self._log_model()
         self.serving_fn = self._deploy_model_serving()

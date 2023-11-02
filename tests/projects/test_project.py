@@ -1460,6 +1460,7 @@ def test_init_function_from_dict_function_in_spec():
                 "volumes": [],
                 "driver_volume_mounts": [],
                 "executor_volume_mounts": [],
+                "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
             "verbose": False,
         },

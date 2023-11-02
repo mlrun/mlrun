@@ -75,12 +75,10 @@ class ThresholdStates:
 
     @staticmethod
     def from_pod_phase(pod_phase: str, pod: typing.Dict) -> typing.Optional[str]:
-        is_scheduled = ThresholdStates.is_pod_scheduled(pod)
-
         if pod_phase == PodPhases.pending:
             if ThresholdStates.is_pod_in_image_pull_backoff(pod):
                 return ThresholdStates.image_pull_backoff
-            elif is_scheduled:
+            elif ThresholdStates.is_pod_scheduled(pod):
                 return ThresholdStates.pending_scheduled
             else:
                 return ThresholdStates.pending_not_scheduled

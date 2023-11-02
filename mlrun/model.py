@@ -765,7 +765,7 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
-        self._state_thresholds = state_thresholds or {}
+        self.state_thresholds = state_thresholds or {}
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -942,9 +942,9 @@ class RunSpec(ModelObj):
     def state_thresholds(self, state_thresholds: Dict[str, str]):
         """
         Set the dictionary of k8s states (pod phase) to thresholds time strings.
-        The state will be matched against the pod's status. The threshold should be a time string that commences
-        to timelength python package and is at least 1 second (-1 for infinite). If the phase is active for longer than
-        the threshold, the run will be marked as aborted and the pod will be deleted.
+        The state will be matched against the pod's status. The threshold should be a time string that conforms
+        to timelength python package standards and is at least 1 second (-1 for infinite). If the phase is active
+        for longer than the threshold, the run will be marked as aborted and the pod will be deleted.
         See mlconf.function.spec.state_thresholds for the state options and default values.
 
         example:
@@ -952,6 +952,7 @@ class RunSpec(ModelObj):
 
         :param state_thresholds: The state-thresholds dictionary.
         """
+        self._verify_dict(state_thresholds, "state_thresholds")
         self._state_thresholds = state_thresholds
 
     def extract_type_hints_from_inputs(self):

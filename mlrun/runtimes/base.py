@@ -350,10 +350,9 @@ class BaseRuntime(ModelObj):
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
         :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the
-                pod's status. The threshold should be a time string that commences with a whole number and concludes
-                with the first letter denoting the time unit. The supported time units range from seconds (s) as the
-                smallest to weeks (w) as the largest e.g. "10h". If the phase is active for longer than the threshold,
-                the run will be marked as aborted and the pod will be deleted.
+                pod's status. The threshold should be a time string that The threshold should be a time string that
+                conforms to timelength python package standards and is at least 1 second (-1 for infinite).
+                If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
         :return: Run context object (RunObject) with run metadata, results and status
         """

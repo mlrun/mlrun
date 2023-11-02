@@ -88,7 +88,3 @@ artifact_key = [r"[^\/\\]+$"]
 # must be alphanumeric or _
 # max 256 length
 v3io_stream_consumer_group = [r"^(?!_)[a-zA-Z0-9_]{1,256}$"]
-
-# A time regex which is used to parse a time string and get the time and the unit
-# e.g. 10s -> 10, s
-time_pattern = r"^(\d+)([smhdw])$"

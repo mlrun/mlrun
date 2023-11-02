@@ -16,13 +16,11 @@ import getpass
 import http
 import re
 import typing
-import warnings
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
 import requests.exceptions
-from deprecated import deprecated
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
@@ -739,7 +737,6 @@ class BaseRuntime(ModelObj):
         self,
         requirements: Optional[Union[str, List[str]]] = None,
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",
     ):
@@ -748,21 +745,12 @@ class BaseRuntime(ModelObj):
         :param requirements:                a list of python packages
         :param requirements_file:           a local python requirements file path
         :param overwrite:                   overwrite existing requirements
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
         self.spec.build.with_requirements(requirements, requirements_file, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
 
         return self
@@ -771,30 +759,19 @@ class BaseRuntime(ModelObj):
         self,
         commands: List[str],
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
     ):
         """add commands to build spec.
 
         :param commands:                    list of commands to run during build
         :param overwrite:                   overwrite existing commands
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
 
         :return: function object
         """
         self.spec.build.with_commands(commands, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
-
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
         return self
 
@@ -806,15 +783,6 @@ class BaseRuntime(ModelObj):
 
         self.spec.build = {}
         return self
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
-        category=FutureWarning,
-    )
-    def verify_base_image(self):
-        self.prepare_image_for_deploy()
 
     def prepare_image_for_deploy(self):
         """

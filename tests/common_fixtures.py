@@ -336,7 +336,7 @@ class RunDBMock:
             return self._project
 
         elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(name)
+            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
             self.store_project(name, project)
             return project
 

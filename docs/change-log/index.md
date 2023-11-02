@@ -10,6 +10,14 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
+## v1.5.1 (11 November 2023)
+
+###  Closed issues
+|ID  |Description                                                    |
+|---|----------------------------------------------------------------- |
+|ML-4839/4844|Running `project.build_image` now reads the requirements.txt file.|
+|ML-4860|Fixed creating and running functions with no parameters from the UI.|
+|ML-4872|Fixed synchronizing functions from project yaml.|
 
 ## v1.5.0 (23 October 2023)
 
@@ -32,7 +40,7 @@
 |ML-3644|Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013). |
 |ML-4132|The `invoke` function can now receive any parameter supported in the `requests.request` method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872). |
 
-
+.
 ### Runtimes
 |ID   |Description                                                    |
 |---|----------------------------------------------------------------- |
@@ -756,7 +764,8 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 |To be removed |Deprecated|API                      |Use instead             |
 |-------|-------|------------------------------------------------|--------------------------------------------- |
-v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
+|v1.7.0|v1.5.1 |`skip_deployed` parameter of `MLrunProject.build_image`|NA. The parameter is ignored.|
+|v1.7.0|v1.5.0 |`/files` and `/filestat`|`/projects/{project}/filestat` |
 |v1.6.0|v1.4.0|MLRunProject.clear_context()|This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended.  |
 |v1.6.0|v1.4.0|MLRunProject object legacy parameters|metadata and spec  |
 |v1.6.0|v1.4.0|BaseRuntime.with_commands and KubejobRuntime.build_config 'verify_base_image' param|'prepare_image_for_deploy' |

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import collections
 import copy
 import traceback
 import typing
@@ -1156,7 +1155,7 @@ class BaseRuntimeHandler(ABC):
 
         run = project_run_uid_map.get(project, {}).get(uid)
         run = self._ensure_run(
-            db, db_session, name, project, run, search_run=True, uid=uid
+            db, db_session, name, project, run, search_run=False, uid=uid
         )
         (
             run_state,
@@ -1174,17 +1173,17 @@ class BaseRuntimeHandler(ABC):
             name,
             run_state,
             run,
-            # TODO: uncomment once abort run is a background task
-            # force=threshold_exceeded,
-            # status_text=status_text,
+            search_run=False,
+            force=threshold_exceeded,
+            status_text=status_text,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        # TODO: do not collect logs if threshold_exceeded, they will be collected when aborting the run
-        if updated_run_state in RunStates.terminal_states():
+        # If threshold exceeded, the logs will be collected the abort run job
+        if not threshold_exceeded and updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1196,7 +1195,6 @@ class BaseRuntimeHandler(ABC):
     ) -> Tuple[str, bool, Optional[str]]:
         threshold_exceeded = False
         status_text = None
-        run = run or collections.defaultdict(dict)
 
         if runtime_resource_is_crd:
             (
@@ -1229,15 +1227,16 @@ class BaseRuntimeHandler(ABC):
             delta = now - start_time
 
             # Resolve the state threshold from the run
-            threshold = self._resolve_run_threshold(
+            threshold, threshold_state = self._resolve_run_threshold(
                 run, pod_phase, runtime_resource=runtime_resource
             )
             threshold_exceeded = (
                 threshold is not None and 0 <= threshold < delta.total_seconds()
             )
             if threshold_exceeded:
-                # TODO: make run abortion a background task and enable it here
+                # TODO: make run abortion a background task and enable it here instead of pod deletion
                 # run_state = RunStates.aborted
+                run_state = RunStates.error
                 runtime_resource_name = runtime_resource["metadata"]["name"]
                 logger.warning(
                     "Runtime resource exceeded state threshold. Aborting run",
@@ -1248,21 +1247,32 @@ class BaseRuntimeHandler(ABC):
                     start_time=str(start_time),
                     namespace=namespace,
                 )
+                try:
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        runtime_resource_name, namespace, self.pod_grace_period_seconds
+                    )
+                    status_text = f"Run aborted due to exceeded state threshold: {threshold_state}"
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to kill pod",
+                        runtime_resource_name=runtime_resource_name,
+                        exc=err_to_str(exc),
+                    )
 
         return run_state, threshold_exceeded, status_text
 
     @staticmethod
     def _resolve_run_threshold(
         run: Dict, pod_phase: str, runtime_resource: Dict
-    ) -> Optional[int]:
+    ) -> Tuple[Optional[int], Optional[str]]:
         threshold_state = ThresholdStates.from_pod_phase(pod_phase, runtime_resource)
         if not threshold_state or not run:
-            return None
+            return None, None
 
         threshold = (
             run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
-        return mlrun.utils.helpers.time_string_to_seconds(threshold)
+        return mlrun.utils.helpers.time_string_to_seconds(threshold), threshold_state
 
     def _build_list_resources_response(
         self,
@@ -1429,11 +1439,12 @@ class BaseRuntimeHandler(ABC):
         name: str,
         run_state: str,
         run: Dict = None,
+        search_run=True,
         force: bool = False,
         status_text: str = None,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
-            db, db_session, name, project, run, search_run=False, uid=uid
+            db, db_session, name, project, run, search_run=search_run, uid=uid
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:

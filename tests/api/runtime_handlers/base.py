@@ -57,6 +57,15 @@ class TestRuntimeHandlerBase:
 
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
+        self._store_run(db)
+
+    def _store_run(
+        self,
+        db: Session,
+        name: str = None,
+        uid: str = None,
+        start_time: datetime = None,
+    ):
         self.run = {
             "status": {
                 "state": RunStates.created,
@@ -64,8 +73,8 @@ class TestRuntimeHandlerBase:
             },
             "metadata": {
                 "project": self.project,
-                "name": "some-run-name",
-                "uid": self.run_uid,
+                "name": name or "some-run-name",
+                "uid": uid or self.run_uid,
                 "labels": {
                     "kind": self.kind,
                 },
@@ -74,8 +83,10 @@ class TestRuntimeHandlerBase:
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
         }
+        if start_time:
+            self.run["status"]["start_time"] = start_time.isoformat()
         server.api.crud.Runs().store_run(
-            db, self.run, self.run_uid, project=self.project
+            db, self.run, self.run["metadata"]["uid"], project=self.project
         )
 
     @pytest.fixture(autouse=True)

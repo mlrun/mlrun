@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import collections
 import copy
 import traceback
 import typing
@@ -914,7 +915,6 @@ class BaseRuntimeHandler(ABC):
                     ):
                         continue
 
-                # TODO: extract to external method and reuse before deleting the pod after threshold
                 # if resources are tightly coupled to the run object - we want to perform some actions on the run object
                 # before deleting them
                 if self._are_resources_coupled_to_run_object():
@@ -1153,7 +1153,11 @@ class BaseRuntimeHandler(ABC):
             #     namespace=namespace,
             # )
             return
+
         run = project_run_uid_map.get(project, {}).get(uid)
+        run = self._ensure_run(
+            db, db_session, name, project, run, search_run=True, uid=uid
+        )
         (
             run_state,
             threshold_exceeded,
@@ -1170,7 +1174,6 @@ class BaseRuntimeHandler(ABC):
             name,
             run_state,
             run,
-            search_run=False,
             # TODO: uncomment once abort run is a background task
             # force=threshold_exceeded,
             # status_text=status_text,
@@ -1193,6 +1196,8 @@ class BaseRuntimeHandler(ABC):
     ) -> Tuple[str, bool, Optional[str]]:
         threshold_exceeded = False
         status_text = None
+        run = run or collections.defaultdict(dict)
+
         if runtime_resource_is_crd:
             (
                 _,
@@ -1415,8 +1420,8 @@ class BaseRuntimeHandler(ABC):
                     logs_from_k8s, project, uid, append=False
                 )
 
-    @staticmethod
     def _ensure_run_state(
+        self,
         db: DBInterface,
         db_session: Session,
         project: str,
@@ -1424,26 +1429,12 @@ class BaseRuntimeHandler(ABC):
         name: str,
         run_state: str,
         run: Dict = None,
-        search_run: bool = True,
         force: bool = False,
         status_text: str = None,
     ) -> Tuple[bool, str, dict]:
-        if run is None:
-            run = {}
-        if search_run:
-            try:
-                run = db.read_run(db_session, uid, project)
-            except mlrun.errors.MLRunNotFoundError:
-                run = {}
-        if not run:
-            logger.warning(
-                "Run not found. A new run will be created",
-                project=project,
-                uid=uid,
-                desired_run_state=run_state,
-                search_run=search_run,
-            )
-            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+        run = self._ensure_run(
+            db, db_session, name, project, run, search_run=False, uid=uid
+        )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
 
@@ -1493,6 +1484,25 @@ class BaseRuntimeHandler(ABC):
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run
+
+    @staticmethod
+    def _ensure_run(db, db_session, name, project, run, search_run, uid):
+        if run is None:
+            run = {}
+        if search_run:
+            try:
+                run = db.read_run(db_session, uid, project)
+            except mlrun.errors.MLRunNotFoundError:
+                run = {}
+        if not run:
+            logger.warning(
+                "Run not found. A new run will be created",
+                project=project,
+                uid=uid,
+                search_run=search_run,
+            )
+            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+        return run
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:

@@ -483,6 +483,7 @@ class ImageBuilder(ModelObj):
         :return: function object
         """
         requirements = requirements or []
+        self._verify_list(requirements, "requirements")
         resolved_requirements = self._resolve_requirements(
             requirements, requirements_file
         )

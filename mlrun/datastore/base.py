@@ -16,6 +16,7 @@ import urllib.parse
 from base64 import b64encode
 from os import path, remove
 from typing import Optional, Union
+from urllib.parse import urlparse
 
 import fsspec
 import orjson
@@ -699,3 +700,26 @@ class HttpStore(DataStore):
                 f"A AUTH TOKEN should not be provided while using {self._schema} "
                 f"schema as it is not secure and is not recommended."
             )
+
+
+class DsSanitizer:
+    def __init__(self, cls, *args, **kwargs):
+        if not issubclass(cls, fsspec.AbstractFileSystem):
+            raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
+
+        class DsSanitizerTemp(cls):
+            @classmethod
+            def _strip_protocol(cls, url):
+                if url.startswith("ds://"):
+                    parsed_url = urlparse(url)
+                    url = parsed_url.path[1:]
+                return super()._strip_protocol(url)
+
+        self._obj = DsSanitizerTemp(
+            *args, **kwargs
+        )  # Create an instance of the provided class with given args and kwargs
+        self._cls = cls
+
+    def __getattr__(self, name):
+        # Delegate attribute access to the encapsulated object
+        return getattr(self._obj, name)

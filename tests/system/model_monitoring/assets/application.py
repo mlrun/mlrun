@@ -14,6 +14,7 @@
 
 import pandas as pd
 
+import mlrun
 from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
@@ -23,7 +24,9 @@ from mlrun.model_monitoring.application import (
     ModelMonitoringApplicationResult,
 )
 
-EXPECTED_EVENTS_COUNT = 5
+EXPECTED_EVENTS_COUNT = (
+    mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+)
 
 
 class DemoMonitoringApp(ModelMonitoringApplication):

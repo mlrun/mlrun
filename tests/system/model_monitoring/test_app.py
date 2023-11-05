@@ -37,18 +37,13 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = 5
+        cls.max_events = typing.cast(
+            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        )
         assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4
-
-        cls._orig_parquet_batching_max_events = (
-            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
-        )
-        mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events = (
-            cls.max_events
-        )
 
         cls.app_interval: int = 1  # every 1 minute
 
@@ -60,12 +55,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
         cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
             cls._v3io_container
-        )
-
-    @classmethod
-    def custom_teardown_class(cls) -> None:
-        mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events = (
-            cls._orig_parquet_batching_max_events
         )
 
     def _log_model(self) -> None:

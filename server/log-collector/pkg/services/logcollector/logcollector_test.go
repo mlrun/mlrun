@@ -413,7 +413,7 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 			suite.Require().NoError(err, "Failed to get logs")
 
 			// verify logs
-			suite.Require().Equal(testCase.expectedReadSize, int(len(nopStream.Logs)))
+			suite.Require().Equal(testCase.expectedReadSize, len(nopStream.Logs))
 		})
 	}
 

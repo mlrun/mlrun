@@ -143,6 +143,25 @@ default_config = {
     # when set (True or non empty str) it will force the mock=True in deploy_function(),
     # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
+    # Configurations for `mlrun.track` - tracking runs and experiments from 3rd party vendors like MLFlow
+    # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
+    "external_platform_tracking": {
+        # General enabler for the entire tracking mechanism (all tracking services):
+        "enabled": False,
+        # Specific enablement and other configurations for the supported trackers:
+        "mlflow": {
+            # Enabler of MLFlow tracking:
+            "enabled": True,
+            # Whether to match the experiment name to the runtime name (sets mlflow experiment name to mlrun
+            # context name):
+            "match_experiment_to_runtime": False,
+            # Whether to determine the mlflow run id before tracking starts, by doing so we can be positive that we
+            # are tracking the correct run, this is useful especially for when we run number of runs simultaneously
+            # in the same experiment. the default is set to false because in the process a mlflow run is created in
+            # advance, and we want to avoid creating unnecessary runs.
+            "control_run": False,
+        },
+    },
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",

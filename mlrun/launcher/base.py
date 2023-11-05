@@ -376,7 +376,7 @@ class BaseLauncher(abc.ABC):
         if result and runtime.kfp and err is None:
             mlrun.kfpops.write_kfpmeta(result)
 
-        self._log_track_results(runtime, result, run)
+        self._log_track_results(runtime.is_child, result, run)
 
         if result:
             run = mlrun.run.RunObject.from_dict(result)

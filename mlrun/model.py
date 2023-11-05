@@ -18,7 +18,6 @@ import pathlib
 import re
 import time
 import typing
-import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -471,7 +470,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[Union[str, List[str]]] = None,
+        requirements: Optional[List[str]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -484,14 +483,7 @@ class ImageBuilder(ModelObj):
         :return: function object
         """
         requirements = requirements or []
-        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
-            # TODO: remove in 1.6.0
-            warnings.warn(
-                "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
-                "and will be removed in 1.6.0, use 'requirements_file' instead",
-                FutureWarning,
-            )
-
+        self._verify_list(requirements, "requirements")
         resolved_requirements = self._resolve_requirements(
             requirements, requirements_file
         )
@@ -505,9 +497,7 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(
-        requirements: typing.Union[str, list], requirements_file: str = ""
-    ) -> list:
+    def _resolve_requirements(requirements: list, requirements_file: str = "") -> list:
         requirements = requirements or []
         requirements_to_resolve = []
 
@@ -517,18 +507,7 @@ class ImageBuilder(ModelObj):
                 requirements_to_resolve.extend(fp.read().splitlines())
 
         # handle the requirements argument
-        # TODO: remove in 1.6.0, when requirements can only be a list
-        if isinstance(requirements, str):
-            # if it's a file path, read the file and add its content to the list
-            if mlrun.utils.is_file_path(requirements):
-                with open(requirements, "r") as fp:
-                    requirements_to_resolve.extend(fp.read().splitlines())
-            else:
-                # it's a string but not a file path, split it by lines and add it to the list
-                requirements_to_resolve.append(requirements)
-        else:
-            # it's a list, add it to the list
-            requirements_to_resolve.extend(requirements)
+        requirements_to_resolve.extend(requirements)
 
         requirements = []
         for requirement in requirements_to_resolve:

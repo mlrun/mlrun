@@ -25,11 +25,11 @@ from sqlalchemy import (
     TIMESTAMP,
     Column,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
     UniqueConstraint,
-    Index,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -37,6 +37,7 @@ from sqlalchemy.orm import relationship
 import mlrun.common.schemas
 import mlrun.utils.db
 from server.api.utils.db.sql_collation import SQLCollationUtil
+
 from .common import post_table_definitions
 
 Base = declarative_base()

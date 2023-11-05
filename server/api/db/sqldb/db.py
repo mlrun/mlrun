@@ -76,11 +76,7 @@ from server.api.db.sqldb.models import (
     Schedule,
     User,
 )
-from server.api.db.sqldb.models.common import (
-    _labeled,
-    _tagged,
-    _with_notifications,
-)
+from server.api.db.sqldb.models.common import _labeled, _tagged, _with_notifications
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"

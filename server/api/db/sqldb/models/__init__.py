@@ -20,10 +20,11 @@ if mysql_dsn_data:
     from .models_mysql import *  # noqa
 
     # importing private variables as well
-    from .models_mysql import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
+    from .common import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
 else:
     from .models_sqlite import *  # noqa
 
     # importing private variables as well
-    from .models_sqlite import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
+    from .common import _classes, _labeled, _table2cls, _tagged, _with_notifications  # noqa # isort:skip
+
 # fmt: on

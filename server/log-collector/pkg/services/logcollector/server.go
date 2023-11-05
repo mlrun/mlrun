@@ -354,15 +354,10 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return errors.Wrapf(err, "Failed to get log file size for run id %s", request.RunUID)
 	}
 
-	// if size < 0 - we read only the logs we have for this moment in time starting from offset, so GetLogs will be finite.
-	// otherwise, we read only the request size from the offset
-	endSize := currentLogFileSize - request.Offset
-	if request.Size > 0 && endSize > request.Size {
-		endSize = request.Size
-	}
-
 	// if the offset is bigger than the current log file size, return empty response
-	if endSize <= 0 {
+	// this happens when client is ready for next iteration while server did not collect the logs just yet
+	// we send empty response to ensure client will not get stuck and keep retrying
+	if currentLogFileSize-request.Offset <= 0 {
 		if err := responseStream.Send(&protologcollector.GetLogsResponse{
 			Success: true,
 			Logs:    []byte{},
@@ -372,6 +367,19 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
+	var endSize = currentLogFileSize
+
+	// if request size is positive, read only the requested size, add the offset to ensure we read
+	// all requested logs
+	if request.Size > 0 {
+		endSize = request.Size + request.Offset
+	}
+
+	// if the end size is bigger than the current log file size, read until the end of the file
+	if endSize > currentLogFileSize {
+		endSize = currentLogFileSize
+	}
+
 	s.Logger.DebugWithCtx(ctx, "Reading logs from file", "runUID", request.RunUID)
 
 	offset := request.Offset
@@ -379,7 +387,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 	// start reading the log file until we reach the end size
 	for {
-		chunkSize := s.getChunkSize(request.Size, endSize, offset)
+		chunkSize := s.getChunkSize(request.Offset, totalLogsSize, endSize)
 
 		// read logs from file in chunks
 		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, chunkSize)
@@ -398,7 +406,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 		// if we reached the end size, or the chunk is smaller than the chunk size
 		// (we reached the end of the file), stop reading
-		if totalLogsSize >= endSize || len(logs) < int(chunkSize) {
+		if totalLogsSize+request.Offset >= endSize || len(logs) < int(chunkSize) {
 			break
 		}
 
@@ -909,6 +917,9 @@ func (s *Server) readLogsFromFile(ctx context.Context,
 	filePath string,
 	offset,
 	size int64) ([]byte, error) {
+	if size == 0 {
+		return nil, nil
+	}
 
 	fileSize, err := common.GetFileSize(filePath)
 	if err != nil {
@@ -1055,22 +1066,29 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project str
 	}
 }
 
-// getChunkSuze returns the minimum between the request size, buffer size and the remaining size to read
-func (s *Server) getChunkSize(requestSize, endSize, currentOffset int64) int64 {
+// getChunkSuze returns the size of the chunk to read from the log file
+func (s *Server) getChunkSize(
+	initialOffset,
+	totalLogsSize,
+	endSize int64) int64 {
 
-	chunkSize := int64(s.getLogsBufferSizeBytes)
-
-	// if the request size is smaller than the buffer size, use the request size
-	if requestSize > 0 && requestSize < chunkSize {
-		chunkSize = requestSize
+	// we read it all, chunk size is 0
+	if totalLogsSize+initialOffset >= endSize {
+		return 0
 	}
 
-	// if the remaining size is smaller than the buffer size, use the remaining size
-	if endSize-currentOffset < chunkSize {
-		chunkSize = endSize - currentOffset
+	// if we didn't read anything yet, assume read the initial offset
+	if totalLogsSize == 0 {
+		totalLogsSize += initialOffset
 	}
 
-	return chunkSize
+	// if the size we need to read is bigger that buffer, use the buffer size
+	leftToRead := endSize - totalLogsSize
+
+	if leftToRead >= int64(s.getLogsBufferSizeBytes) {
+		return int64(s.getLogsBufferSizeBytes)
+	}
+	return leftToRead
 }
 
 // isPodPendingError checks if the error is due to a pod pending state

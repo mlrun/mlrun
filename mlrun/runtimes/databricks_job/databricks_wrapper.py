@@ -228,7 +228,7 @@ def run_mlrun_databricks_job(
         context.log_result("databricks_runtime_task", run_output.as_dict())
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
-        workspace.dbfs.delete(artifact_json_path)
+        #workspace.dbfs.delete(artifact_json_path)
 
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")

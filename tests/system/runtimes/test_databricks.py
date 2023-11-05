@@ -29,7 +29,11 @@ import tests.system.base
 from mlrun.errors import MLRunRuntimeError
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import RunError
-from tests.datastore.databricks_utils import is_databricks_configured
+from tests.datastore.databricks_utils import (
+    MLRUN_ROOT_DIR,
+    is_databricks_configured,
+    teardown_dbfs_dirs,
+)
 
 here = Path(__file__).absolute().parent
 config_file_path = here / "assets" / "test_databricks.yml"
@@ -101,6 +105,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         for key, value in config["env"].items():
             if value is not None:
                 os.environ[key] = value
+        self.test_folder_name = "/databricks_system_test"
+        self.dbfs_folder_path = f"{MLRUN_ROOT_DIR}{self.test_folder_name}"
+        self.workspace = WorkspaceClient()
+
+    def teardown_class(self):
+        teardown_dbfs_dirs(
+            workspace=self.workspace, specific_test_class_dir=self.test_folder_name
+        )
 
     @staticmethod
     def assert_print_kwargs(print_kwargs_run):
@@ -316,3 +328,47 @@ def handler(**kwargs):
             RunLifeCycleState.TERMINATED,
         )
         assert run.state.result_state == RunResultState.CANCELED
+
+    def test_log_artifact(self):
+        artifact_key_parquet = f"my_artifact_test_{uuid.uuid4()}.parquet"
+        artifact_key_csv = f"my_artifact_test_{uuid.uuid4()}.csv"
+        parquet_artifact_dbfs_path = (
+            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_parquet}"
+        )
+        csv_artifact_dbfs_path = (
+            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_csv}"
+        )
+        with open(str(self.assets_path / "test_data.parquet"), "rb") as parquet_file:
+            self.workspace.dbfs.upload(
+                src=parquet_file, path=parquet_artifact_dbfs_path
+            )
+        with open(str(self.assets_path / "test_data.csv"), "rb") as csv_file:
+            self.workspace.dbfs.upload(src=csv_file, path=csv_artifact_dbfs_path)
+
+        code = f"""\n
+def main():
+    mlrun_log_artifact('my_test_artifact_parquet','{parquet_artifact_dbfs_path}')
+    return {{'my_test_artifact_csv': '{csv_artifact_dbfs_path}'}}
+"""
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=code,
+            image="tomermamia855/mlrun-api:mlrun_databricks_artifacts",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        function.run(
+            handler="main",
+            project=self.project_name,
+        )
+        artifacts = self.project.list_artifacts()
+        assert len(artifacts) == 2
+        artifacts_paths = [
+            artifact.get("spec").get("src_path") for artifact in artifacts
+        ]
+        #  TODO change to get_artifact by key in the future if it will be user-defined.
+        assert parquet_artifact_dbfs_path in artifacts_paths
+        assert csv_artifact_dbfs_path in artifacts_paths

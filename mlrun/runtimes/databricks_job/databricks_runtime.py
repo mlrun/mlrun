@@ -58,7 +58,7 @@ class DatabricksRuntime(KubejobRuntime):
         )
         code = artifacts_code + _databricks_script_code + decoded_code
         if original_handler:
-            code += f"\n{original_handler}(**handler_arguments)\n"
+            code += f"\nresult = {original_handler}(**handler_arguments)\n"
             code += """\n
 for key, path in result.items():
     mlrun_log_artifact(name=key, path=path)

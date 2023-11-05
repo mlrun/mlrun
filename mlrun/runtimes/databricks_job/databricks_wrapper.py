@@ -124,6 +124,7 @@ def run_mlrun_databricks_job(
     timeout_minutes = task_parameters.get("timeout_minutes", 20)
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
+    artifact_json_path = task_parameters.get("artifact_json_path")
     databricks_run_name = task_parameters.get(
         "databricks_run_name", f"mlrun_task_{mlrun_databricks_job_id}"
     )
@@ -140,10 +141,6 @@ def run_mlrun_databricks_job(
     script_path_on_dbfs = (
         f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/scripts/"
         f"{databricks_run_name}.py"
-    )
-    artifact_json_path = (
-        f"/home/{workspace.current_user.me().user_name}/mlrun_databricks_runtime/artifacts_dictionaries/"
-        f"{databricks_run_name}_artifacts.json"
     )
     spark_app_code = b64decode(spark_app_code).decode("utf-8")
     artifacts_code = artifacts_code_template.format(f"/dbfs{artifact_json_path}")

@@ -26,6 +26,18 @@ class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
 
+    def _get_log_artifacts_code(self, runobj: RunObject, task_parameters: dict):
+        artifact_json_dir = task_parameters.get(
+            "artifact_json_dir", "/mlrun_databricks_runtime/artifacts_dictionaries"
+        )
+        artifact_json_path = (
+            f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"
+        )
+        return (
+            artifacts_code_template.format(f"/dbfs{artifact_json_path}"),
+            artifact_json_path,
+        )
+
     def get_internal_parameters(self, runobj: RunObject):
         """
         Return the internal function code.
@@ -41,21 +53,29 @@ class DatabricksRuntime(KubejobRuntime):
         if not encoded_code:
             return "", original_handler
         decoded_code = b64decode(encoded_code).decode("utf-8")
-        code = _databricks_script_code + decoded_code
+        artifacts_code, artifact_json_path = self._get_log_artifacts_code(
+            runobj=runobj, task_parameters=task_parameters
+        )
+        code = artifacts_code + _databricks_script_code + decoded_code
         if original_handler:
             code += f"\n{original_handler}(**handler_arguments)\n"
+            code += """"""
+            # TODO add support to return values
         code = b64encode(code.encode("utf-8")).decode("utf-8")
-        return code, original_handler
+        required_task_parameters = {
+            "original_handler": original_handler,
+            "artifact_json_path": artifact_json_path,
+        }
+        return code, required_task_parameters
 
     def _pre_run(self, runspec: RunObject, execution):
-        internal_code, original_handler = self.get_internal_parameters(runspec)
+        internal_code, required_task_parameters = self.get_internal_parameters(runspec)
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
             task_parameters["spark_app_code"] = internal_code
-            if original_handler:
-                task_parameters[
-                    "original_handler"
-                ] = original_handler  # in order to handle reruns.
+            for key, value in required_task_parameters.items():
+                if value:
+                    task_parameters[key] = value  # in order to handle reruns.
             runspec.spec.parameters["task_parameters"] = task_parameters
             current_file = os.path.abspath(__file__)
             current_dir = os.path.dirname(current_file)
@@ -136,4 +156,26 @@ parser.add_argument('handler_arguments')
 handler_arguments = parser.parse_args().handler_arguments
 handler_arguments = json.loads(handler_arguments)
 
+"""
+
+artifacts_code_template = """\n
+def mlrun_log_artifact(name, path):
+    mlrun_artifacts_path = '{}'
+    import json
+    import os
+    new_data = {{name:path}}
+    if os.path.exists(mlrun_artifacts_path):
+        with open(mlrun_artifacts_path, 'r+') as json_file:
+            existing_data = json.load(json_file)
+            existing_data.update(new_data)
+            json_file.seek(0)
+            json.dump(existing_data, json_file)
+    else:
+        parent_dir = os.path.dirname(mlrun_artifacts_path)
+        if parent_dir != '/dbfs':
+            os.makedirs(parent_dir, exist_ok=True)
+        with open(mlrun_artifacts_path, 'w') as json_file:
+            json.dump(new_data, json_file)
+        first_mlrun_artifact = False
+\n
 """

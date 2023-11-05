@@ -735,7 +735,7 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[Union[str, List[str]]] = None,
+        requirements: Optional[List[str]] = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",

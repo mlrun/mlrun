@@ -1155,6 +1155,14 @@ class MlrunProject(ModelObj):
         self.spec.mountdir = mountdir
 
     @property
+    def params(self) -> dict:
+        return self.spec.params
+
+    @params.setter
+    def params(self, params):
+        self.spec.params = params
+
+    @property
     def description(self) -> str:
         return self.spec.description
 

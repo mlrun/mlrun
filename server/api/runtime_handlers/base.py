@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import copy
 import traceback
-import typing
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
@@ -34,12 +32,12 @@ import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.crud as crud
+import server.api.runtime_handlers.utils
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.runtimes.constants import PodPhases, RunStates
-from mlrun.runtimes.utils import mlrun_key
 from mlrun.utils import logger, now_date
 from server.api.constants import LogSources
 from server.api.db.base import DBInterface
@@ -288,7 +286,7 @@ class BaseRuntimeHandler(ABC):
     def add_secrets_to_spec_before_running(
         self,
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
     ):
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
@@ -310,7 +308,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def add_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
     ):
         if project_name is None:
             logger.warning("No project provided. Cannot add vault parameters")
@@ -360,7 +358,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def add_azure_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
-        k8s_secret_name: typing.Optional[str] = None,
+        k8s_secret_name: Optional[str] = None,
     ):
         secret_name = (
             k8s_secret_name
@@ -390,7 +388,7 @@ class BaseRuntimeHandler(ABC):
     def add_k8s_secrets_to_spec(
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
         encode_key_names: bool = True,
     ):
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
@@ -1457,7 +1455,9 @@ class BaseRuntimeHandler(ABC):
     ) -> k8s_client.V1ObjectMeta:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
 
-        labels = get_resource_labels(runtime, run, run.spec.scrape_metrics)
+        labels = server.api.runtime_handlers.utils.get_resource_labels(
+            runtime, run, run.spec.scrape_metrics
+        )
         new_meta = k8s_client.V1ObjectMeta(
             namespace=namespace,
             annotations=runtime.metadata.annotations or run.metadata.annotations,
@@ -1473,32 +1473,3 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-
-def get_resource_labels(function, run=None, scrape_metrics=None):
-    scrape_metrics = (
-        scrape_metrics if scrape_metrics is not None else mlrun.mlconf.scrape_metrics
-    )
-    run_uid, run_name, run_project, run_owner = None, None, None, None
-    if run:
-        run_uid = run.metadata.uid
-        run_name = run.metadata.name
-        run_project = run.metadata.project
-        run_owner = run.metadata.labels.get("owner")
-    labels = copy.deepcopy(function.metadata.labels)
-    labels[mlrun_key + "class"] = function.kind
-    labels[mlrun_key + "project"] = run_project or function.metadata.project
-    labels[mlrun_key + "function"] = str(function.metadata.name)
-    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
-    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
-
-    if run_uid:
-        labels[mlrun_key + "uid"] = run_uid
-
-    if run_name:
-        labels[mlrun_key + "name"] = run_name
-
-    if run_owner:
-        labels[mlrun_key + "owner"] = run_owner
-
-    return labels

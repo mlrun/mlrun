@@ -1030,7 +1030,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 
@@ -1065,7 +1065,7 @@ def retry_until_successful(
         )
 
     raise Exception(
-        f"failed to execute command by the given deadline."
+        f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"

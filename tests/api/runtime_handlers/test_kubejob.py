@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import typing
 from datetime import timedelta
 
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
+import server.api.runtime_handlers.utils
 import tests.conftest
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -557,6 +559,24 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             log,
             self.completed_job_pod.metadata.name,
         )
+
+    @pytest.mark.asyncio
+    async def test_abort_run(self, db: Session, client: TestClient):
+        server.api.runtime_handlers.utils.abort_run(
+            self.run, self.run_uid, self.project, status_text="some error"
+        )
+
+        for _ in range(20):
+            run = server.api.crud.Runs().get_run(
+                db, self.run_uid, iter=0, project=self.project
+            )
+            if run["status"]["state"] == RunStates.aborted:
+                break
+            await asyncio.sleep(0.2)
+        else:
+            assert False, "Run did not reach aborted state"
+
+        assert run["status"]["status_text"] == "some error"
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

@@ -59,8 +59,10 @@ class DatabricksRuntime(KubejobRuntime):
         code = artifacts_code + _databricks_script_code + decoded_code
         if original_handler:
             code += f"\n{original_handler}(**handler_arguments)\n"
-            code += """"""
-            # TODO add support to return values
+            code += """\n
+for key, path in result.items():
+    mlrun_log_artifact(name=key, path=path)
+"""
         code = b64encode(code.encode("utf-8")).decode("utf-8")
         required_task_parameters = {
             "original_handler": original_handler,

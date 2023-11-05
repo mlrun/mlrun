@@ -1067,36 +1067,6 @@ def my_func(context):
         ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
-    def test_set_state_thresholds_failure(self, db: Session, k8s_secrets_mock):
-        state_thresholds = {
-            "unknown_state": "10s",
-        }
-
-        runtime = self._generate_runtime()
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            runtime.set_state_thresholds(
-                state_thresholds=state_thresholds,
-            )
-        assert (
-            f"Invalid state unknown_state for state threshold, must be one of "
-            f"{mlrun.runtimes.constants.ThresholdStates.all()}" in str(exc.value)
-        )
-
-        state_thresholds = {
-            "running": "10",
-        }
-
-        runtime = self._generate_runtime()
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
-            runtime.set_state_thresholds(
-                state_thresholds=state_thresholds,
-            )
-        assert (
-            "Threshold '10' for state 'running' is not a valid timelength string. "
-            'Error: Input TimeLength "10" contains no valid Value and Scale pairs.'
-            in str(exc.value)
-        )
-
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):
         assert (

@@ -145,7 +145,6 @@ class BaseLauncher(abc.ABC):
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
-        self._validate_state_thresholds(run.spec.state_thresholds)
 
     @staticmethod
     def _validate_output_path(
@@ -189,15 +188,6 @@ class BaseLauncher(abc.ABC):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Parameter {param_name} value {param_value} exceeds int64"
                 )
-
-    @staticmethod
-    def _validate_state_thresholds(
-        state_thresholds: Optional[Dict[str, str]] = None,
-    ):
-        if state_thresholds is None:
-            return
-
-        mlrun.utils.helpers.validate_state_thresholds(state_thresholds)
 
     @staticmethod
     def _create_run_object(task):

@@ -21,7 +21,6 @@ import kfp.dsl
 import kubernetes.client as k8s_client
 
 import mlrun.errors
-import mlrun.utils.helpers
 import mlrun.utils.regex
 from mlrun.common.schemas import (
     NodeSelectorOperator,
@@ -1057,7 +1056,6 @@ class KubeResource(BaseRuntime):
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
-        mlrun.utils.helpers.validate_state_thresholds(state_thresholds)
         if patch:
             self.spec.state_thresholds.update(state_thresholds)
         else:

@@ -1507,38 +1507,6 @@ def line_terminator_kwargs():
     return {line_terminator_parameter: "\n"}
 
 
-def validate_state_thresholds(state_thresholds: typing.Dict[str, str]):
-    """
-    Validate the state thresholds
-    If threshold is:
-        - None - will use default
-        - -1 - infinity
-        - otherwise - validate it's a valid time string
-    """
-    for state, threshold in state_thresholds.items():
-        if state not in mlrun.runtimes.constants.ThresholdStates.all():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid state {state} for state threshold, must be one of "
-                f"{mlrun.runtimes.constants.ThresholdStates.all()}"
-            )
-
-        if threshold is None:
-            continue
-
-        if not isinstance(threshold, str):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Threshold '{threshold}' for state '{state}' must be a string"
-            )
-
-        try:
-            time_string_to_seconds(threshold)
-        except Exception as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "
-                f"Error: {err_to_str(exc)}"
-            ) from exc
-
-
 def time_string_to_seconds(time_str: str):
     if time_str == "-1":
         return -1

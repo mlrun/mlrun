@@ -266,7 +266,45 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 "Local runtimes can not be run through API (not locally)"
             )
 
+        self._validate_state_thresholds(run.spec.state_thresholds)
         super()._validate_runtime(runtime, run)
+
+    @staticmethod
+    def _validate_state_thresholds(
+        state_thresholds: Optional[Dict[str, str]] = None,
+    ):
+        """
+        Validate the state thresholds
+        If threshold is:
+            - None - will use default
+            - -1 - infinity
+            - otherwise - validate it's a valid time string
+        """
+        if state_thresholds is None:
+            return
+
+        for state, threshold in state_thresholds.items():
+            if state not in mlrun.runtimes.constants.ThresholdStates.all():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid state {state} for state threshold, must be one of "
+                    f"{mlrun.runtimes.constants.ThresholdStates.all()}"
+                )
+
+            if threshold is None:
+                continue
+
+            if not isinstance(threshold, str):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold '{threshold}' for state '{state}' must be a string"
+                )
+
+            try:
+                mlrun.utils.helpers.time_string_to_seconds(threshold)
+            except Exception as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Threshold '{threshold}' for state '{state}' is not a valid timelength string. "
+                    f"Error: {mlrun.errors.err_to_str(exc)}"
+                ) from exc
 
 
 # Once this file is imported it will set the container server side launcher

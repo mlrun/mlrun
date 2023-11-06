@@ -344,7 +344,7 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 	runUID := uuid.New().String()
 
-	// creat log file for runUID and pod
+	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file
@@ -423,7 +423,7 @@ func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
 
-	// creat log file for runUID and pod
+	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file

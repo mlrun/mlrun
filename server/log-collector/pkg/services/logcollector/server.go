@@ -747,7 +747,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 			return
 		}
 
-		// breath
+		// breathe
 		// stream pod logs might return fast when there is nothing to read and no error occurred
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -1082,7 +1082,7 @@ func (s *Server) getChunkSize(
 		totalLogsSize += initialOffset
 	}
 
-	// if the size we need to read is bigger that buffer, use the buffer size
+	// if the size we need to read is bigger than the buffer, use the buffer size
 	leftToRead := endSize - totalLogsSize
 
 	if leftToRead >= int64(s.getLogsBufferSizeBytes) {

@@ -19,6 +19,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import yaml
 from databricks.sdk import WorkspaceClient
@@ -101,15 +102,28 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         db = mlrun.get_run_db()
         db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
 
-    def _check_artifacts_by_path(self, expected_paths):
-        artifacts = self.project.list_artifacts()
-        assert len(artifacts) == len(expected_paths)
-        artifacts_paths = [
-            artifact.get("spec").get("src_path") for artifact in artifacts
-        ]
+    def _check_artifacts_by_path(self, paths_dict):
+        artifacts = self.project.list_artifacts().to_objects()
+        assert len(artifacts) == len(paths_dict)
         #  TODO change to get_artifact by key in the future if it will be user-defined.
-        for expected_path in expected_paths:
-            assert expected_path in artifacts_paths
+        for local_path, expected_dbfs_path in paths_dict.items():
+            artifacts_by_path = [
+                artifact
+                for artifact in artifacts
+                if artifact.spec.src_path == f"dbfs://{expected_dbfs_path}"
+            ]
+            assert len(artifacts_by_path) == 1
+            artifact = artifacts_by_path[0]
+            artifact_df = artifact.to_dataitem().as_df()
+            if local_path.endswith(".parquet"):
+                expected_df = pd.read_parquet(local_path)
+            elif local_path.endswith(".csv"):
+                expected_df = pd.read_csv(local_path)
+            else:
+                raise ValueError(
+                    "The test does not support files that are not in the Parquet or CSV format."
+                )
+            pd.testing.assert_frame_equal(expected_df, artifact_df)
 
     def setup_class(self):
         for key, value in config["env"].items():
@@ -348,6 +362,12 @@ def handler(**kwargs):
         csv_artifact_dbfs_path = (
             f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_csv}"
         )
+        src_parquet_path = str(self.assets_path / "test_data.parquet")
+        src_csv_path = str(self.assets_path / "test_data.csv")
+        paths_dict = {
+            src_parquet_path: parquet_artifact_dbfs_path,
+            src_csv_path: csv_artifact_dbfs_path,
+        }
         with open(str(self.assets_path / "test_data.parquet"), "rb") as parquet_file:
             self.workspace.dbfs.upload(
                 src=parquet_file, path=parquet_artifact_dbfs_path
@@ -357,8 +377,8 @@ def handler(**kwargs):
 
         code = f"""\n
 def main():
-    mlrun_log_artifact('my_test_artifact_parquet','{parquet_artifact_dbfs_path}')
-    return {{'my_test_artifact_csv': '{csv_artifact_dbfs_path}'}}
+    mlrun_log_artifact('my_test_artifact_parquet','/dbfs{parquet_artifact_dbfs_path}')
+    return {{'my_test_artifact_csv': '/dbfs{csv_artifact_dbfs_path}'}}
 """
         function_ref = FunctionReference(
             kind="databricks",
@@ -374,9 +394,7 @@ def main():
             handler="main",
             project=self.project_name,
         )
-        self._check_artifacts_by_path(
-            expected_paths=[parquet_artifact_dbfs_path, csv_artifact_dbfs_path]
-        )
+        self._check_artifacts_by_path(paths_dict=paths_dict)
         artifacts_db_keys = [
             artifact.get("spec").get("db_key")
             for artifact in self.project.list_artifacts()
@@ -388,6 +406,4 @@ def main():
             len(self.project.list_artifacts()) == 0
         )  # make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
-        self._check_artifacts_by_path(
-            expected_paths=[parquet_artifact_dbfs_path, csv_artifact_dbfs_path]
-        )
+        self._check_artifacts_by_path(paths_dict=paths_dict)

@@ -1083,7 +1083,7 @@ func (s *Server) getChunkSize(
 	}
 
 	// if the size we need to read is bigger than the buffer, use the buffer size
-	leftToRead := endIndex - totalLogsSize
+	leftToRead := endIndex - totalLogsSize - initialOffset
 
 	if leftToRead >= int64(s.getLogsBufferSizeBytes) {
 		return int64(s.getLogsBufferSizeBytes)

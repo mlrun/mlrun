@@ -390,6 +390,15 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 			expectedReadSize: 100,
 		},
 		{
+
+			// further explanation - This edge case is when the offset + readSize + buffer size is larger than the file size
+			// so we must reduce the buffer size to fit the needed size
+			name:             "Overflowing read size + bufferSize",
+			offset:           fileContentsLength - int(1.5*float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			readSize:         int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			expectedReadSize: int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+		},
+		{
 			name:             "Overflowing read size return what is left",
 			offset:           fileContentsLength - 1,
 			readSize:         100,

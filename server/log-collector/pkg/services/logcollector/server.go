@@ -367,17 +367,17 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
-	var endSize = currentLogFileSize
+	var endIndex = currentLogFileSize
 
 	// if request size is positive, read only the requested size, add the offset to ensure we read
 	// all requested logs
 	if request.Size > 0 {
-		endSize = request.Size + request.Offset
+		endIndex = request.Size + request.Offset
 	}
 
 	// if the end size is bigger than the current log file size, read until the end of the file
-	if endSize > currentLogFileSize {
-		endSize = currentLogFileSize
+	if endIndex > currentLogFileSize {
+		endIndex = currentLogFileSize
 	}
 
 	s.Logger.DebugWithCtx(ctx, "Reading logs from file", "runUID", request.RunUID)
@@ -387,7 +387,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 	// start reading the log file until we reach the end size
 	for {
-		chunkSize := s.getChunkSize(request.Offset, totalLogsSize, endSize)
+		chunkSize := s.getChunkSize(request.Offset, totalLogsSize, endIndex)
 
 		// read logs from file in chunks
 		logs, err := s.readLogsFromFile(ctx, request.RunUID, filePath, offset, chunkSize)
@@ -406,7 +406,7 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 
 		// if we reached the end size, or the chunk is smaller than the chunk size
 		// (we reached the end of the file), stop reading
-		if totalLogsSize+request.Offset >= endSize || len(logs) < int(chunkSize) {
+		if totalLogsSize+request.Offset >= endIndex || len(logs) < int(chunkSize) {
 			break
 		}
 
@@ -1070,10 +1070,10 @@ func (s *Server) isLogCollectionRunning(ctx context.Context, runUID, project str
 func (s *Server) getChunkSize(
 	initialOffset,
 	totalLogsSize,
-	endSize int64) int64 {
+	endIndex int64) int64 {
 
 	// we read it all, chunk size is 0
-	if totalLogsSize+initialOffset >= endSize {
+	if totalLogsSize+initialOffset >= endIndex {
 		return 0
 	}
 
@@ -1083,7 +1083,7 @@ func (s *Server) getChunkSize(
 	}
 
 	// if the size we need to read is bigger than the buffer, use the buffer size
-	leftToRead := endSize - totalLogsSize
+	leftToRead := endIndex - totalLogsSize
 
 	if leftToRead >= int64(s.getLogsBufferSizeBytes) {
 		return int64(s.getLogsBufferSizeBytes)

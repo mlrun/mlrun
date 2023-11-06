@@ -431,7 +431,7 @@ with ctx:
             return float(cpu)
 
     def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, crd_object: dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         in_terminal_state = state in SparkApplicationStates.terminal_states()

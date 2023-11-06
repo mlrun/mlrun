@@ -33,11 +33,12 @@ import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
 import server.api.crud as crud
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
-from mlrun.runtimes.constants import PodPhases, RunStates
+from mlrun.runtimes.constants import PodPhases, RunStates, ThresholdStates
 from mlrun.utils import logger, now_date
 from server.api.constants import LogSources
 from server.api.db.base import DBInterface
@@ -211,6 +212,14 @@ class BaseRuntimeHandler(ABC):
                     exc=err_to_str(exc),
                     traceback=traceback.format_exc(),
                 )
+
+        self._terminate_resourceless_runs(
+            db, db_session, project_run_uid_map, run_runtime_resources_map
+        )
+
+    def _terminate_resourceless_runs(
+        self, db, db_session, project_run_uid_map, run_runtime_resources_map
+    ):
         for project, runs in project_run_uid_map.items():
             if runs:
                 for run_uid, run in runs.items():
@@ -639,7 +648,7 @@ class BaseRuntimeHandler(ABC):
         pass
 
     def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, crd_object: dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         Override this if the runtime has CRD resources.
@@ -665,7 +674,7 @@ class BaseRuntimeHandler(ABC):
         pass
 
     def _resolve_pod_status_info(
-        self, db: DBInterface, db_session: Session, pod: Dict
+        self, pod: Dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         """
         :return: Tuple with:
@@ -890,7 +899,7 @@ class BaseRuntimeHandler(ABC):
                     in_terminal_state,
                     last_update,
                     run_state,
-                ) = self._resolve_pod_status_info(db, db_session, pod_dict)
+                ) = self._resolve_pod_status_info(pod_dict)
                 if not force:
                     if not in_terminal_state:
                         continue
@@ -963,7 +972,7 @@ class BaseRuntimeHandler(ABC):
                         in_terminal_state,
                         last_update,
                         desired_run_state,
-                    ) = self._resolve_crd_object_status_info(db, db_session, crd_object)
+                    ) = self._resolve_crd_object_status_info(crd_object)
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1141,19 +1150,18 @@ class BaseRuntimeHandler(ABC):
             #     namespace=namespace,
             # )
             return
+
         run = project_run_uid_map.get(project, {}).get(uid)
-        if runtime_resource_is_crd:
-            (
-                _,
-                _,
-                run_state,
-            ) = self._resolve_crd_object_status_info(db, db_session, runtime_resource)
-        else:
-            (
-                _,
-                _,
-                run_state,
-            ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
+        run = self._ensure_run(
+            db, db_session, name, project, run, search_run=False, uid=uid
+        )
+        (
+            run_state,
+            threshold_exceeded,
+            status_text,
+        ) = self._resolve_resource_state_and_apply_threshold(
+            run, runtime_resource, runtime_resource_is_crd, namespace
+        )
 
         _, updated_run_state, run = self._ensure_run_state(
             db,
@@ -1164,14 +1172,105 @@ class BaseRuntimeHandler(ABC):
             run_state,
             run,
             search_run=False,
+            force=threshold_exceeded,
+            status_text=status_text,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        if updated_run_state in RunStates.terminal_states():
+        # If threshold exceeded, the logs will be collected the abort run job
+        if not threshold_exceeded and updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
+
+    def _resolve_resource_state_and_apply_threshold(
+        self,
+        run: Dict,
+        runtime_resource: Dict,
+        runtime_resource_is_crd: bool,
+        namespace: str,
+    ) -> Tuple[str, bool, Optional[str]]:
+        threshold_exceeded = False
+        status_text = None
+
+        if runtime_resource_is_crd:
+            (
+                _,
+                _,
+                run_state,
+            ) = self._resolve_crd_object_status_info(runtime_resource)
+            # TODO: add threshold for crd resources
+
+        else:
+            pod_phase = runtime_resource["status"]["phase"]
+            run_state = PodPhases.pod_phase_to_run_state(pod_phase)
+
+            run_start_time = run.get("status", {}).get("start_time")
+            if run_start_time:
+                start_time = datetime.fromisoformat(run_start_time)
+            else:
+                start_time = runtime_resource["status"].get("start_time")
+
+            if not start_time:
+                logger.warning(
+                    "Could not resolve start time from run and runtime resource. Continuing",
+                    runtime_resource_name=runtime_resource["metadata"]["name"],
+                    run_uid=run.get("metadata", {}).get("uid"),
+                    run_state=run_state,
+                )
+                return run_state, False, None
+
+            now = datetime.now(timezone.utc)
+            delta = now - start_time
+
+            # Resolve the state threshold from the run
+            threshold, threshold_state = self._resolve_run_threshold(
+                run, pod_phase, runtime_resource=runtime_resource
+            )
+            threshold_exceeded = (
+                threshold is not None and 0 <= threshold < delta.total_seconds()
+            )
+            if threshold_exceeded:
+                # TODO: make run abortion a background task and enable it here instead of pod deletion
+                # run_state = RunStates.aborted
+                run_state = RunStates.error
+                runtime_resource_name = runtime_resource["metadata"]["name"]
+                logger.warning(
+                    "Runtime resource exceeded state threshold. Aborting run",
+                    runtime_resource_name=runtime_resource_name,
+                    run_state=run_state,
+                    pod_phase=pod_phase,
+                    threshold=threshold,
+                    start_time=str(start_time),
+                    namespace=namespace,
+                )
+                try:
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        runtime_resource_name, namespace, self.pod_grace_period_seconds
+                    )
+                    status_text = f"Run aborted due to exceeded state threshold: {threshold_state}"
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to kill pod",
+                        runtime_resource_name=runtime_resource_name,
+                        exc=err_to_str(exc),
+                    )
+
+        return run_state, threshold_exceeded, status_text
+
+    @staticmethod
+    def _resolve_run_threshold(
+        run: Dict, pod_phase: str, runtime_resource: Dict
+    ) -> Tuple[Optional[int], Optional[str]]:
+        threshold_state = ThresholdStates.from_pod_phase(pod_phase, runtime_resource)
+        if not threshold_state or not run:
+            return None, None
+
+        threshold = (
+            run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
+        )
+        return mlrun.utils.helpers.time_string_to_seconds(threshold), threshold_state
 
     def _build_list_resources_response(
         self,
@@ -1329,8 +1428,8 @@ class BaseRuntimeHandler(ABC):
                     logs_from_k8s, project, uid, append=False
                 )
 
-    @staticmethod
     def _ensure_run_state(
+        self,
         db: DBInterface,
         db_session: Session,
         project: str,
@@ -1338,24 +1437,13 @@ class BaseRuntimeHandler(ABC):
         name: str,
         run_state: str,
         run: Dict = None,
-        search_run: bool = True,
+        search_run=True,
+        force: bool = False,
+        status_text: str = None,
     ) -> Tuple[bool, str, dict]:
-        if run is None:
-            run = {}
-        if search_run:
-            try:
-                run = db.read_run(db_session, uid, project)
-            except mlrun.errors.MLRunNotFoundError:
-                run = {}
-        if not run:
-            logger.warning(
-                "Run not found. A new run will be created",
-                project=project,
-                uid=uid,
-                desired_run_state=run_state,
-                search_run=search_run,
-            )
-            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+        run = self._ensure_run(
+            db, db_session, name, project, run, search_run=search_run, uid=uid
+        )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
 
@@ -1363,7 +1451,7 @@ class BaseRuntimeHandler(ABC):
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states():
+            if db_run_state in RunStates.terminal_states() and not force:
 
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
@@ -1399,10 +1487,31 @@ class BaseRuntimeHandler(ABC):
 
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
-        run.setdefault("status", {})["last_update"] = now_date().isoformat()
+        run["status"]["last_update"] = now_date().isoformat()
+        if status_text:
+            run["status"]["status_text"] = status_text
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run
+
+    @staticmethod
+    def _ensure_run(db, db_session, name, project, run, search_run, uid):
+        if run is None:
+            run = {}
+        if search_run:
+            try:
+                run = db.read_run(db_session, uid, project)
+            except mlrun.errors.MLRunNotFoundError:
+                run = {}
+        if not run:
+            logger.warning(
+                "Run not found. A new run will be created",
+                project=project,
+                uid=uid,
+                search_run=search_run,
+            )
+            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+        return run
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:

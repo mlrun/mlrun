@@ -55,7 +55,7 @@ pull-log-collector:
 	docker pull $(MLRUN_DOCKER_IMAGE_PREFIX)/log-collector:$(MLRUN_DOCKER_TAG)
 
 .PHONY: schemas-compiler
-schemas-compiler: schemas-compiler
+schemas-compiler:
 	@echo Building schemas-compiler image
 	docker build \
 		--file cmd/schemas_compiler/docker/Dockerfile \

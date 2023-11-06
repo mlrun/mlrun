@@ -146,6 +146,7 @@ class ServingSpec(NuclioSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
         super().__init__(
             command=command,

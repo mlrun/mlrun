@@ -189,6 +189,14 @@ default_config = {
                 },
             },
             "service_account": {"default": None},
+            "state_thresholds": {
+                "default": {
+                    "pending_scheduled": "1h",
+                    "pending_not_scheduled": "-1",  # infinite
+                    "image_pull_backoff": "1h",
+                    "running": "24h",
+                }
+            },
         },
     },
     # TODO: function defaults should be moved to the function spec config above

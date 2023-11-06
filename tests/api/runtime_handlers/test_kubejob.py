@@ -14,10 +14,12 @@
 #
 import asyncio
 import typing
-from datetime import timedelta
+import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -39,7 +41,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self.runtime_handler = get_runtime_handler(self._get_class_name())
         self.runtime_handler.wait_for_deletion_interval = 0
 
-        job_labels = {
+        self.job_labels = {
             "mlrun/class": self._get_class_name(),
             "mlrun/function": "my-trainer",
             "mlrun/name": "my-training",
@@ -52,16 +54,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         # initializing them here to save space in tests
         self.pending_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.pending
+            job_pod_name, self.job_labels, PodPhases.pending
         )
         self.running_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.running
+            job_pod_name, self.job_labels, PodPhases.running
         )
         self.completed_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.succeeded
+            job_pod_name, self.job_labels, PodPhases.succeeded
         )
         self.failed_job_pod = self._generate_pod(
-            job_pod_name, job_labels, PodPhases.failed
+            job_pod_name, self.job_labels, PodPhases.failed
         )
 
         builder_legacy_labels = {
@@ -75,6 +77,12 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     def _get_class_name(self):
         return "job"
+
+    def _generate_job_labels(self, run_name):
+        labels = self.job_labels.copy()
+        labels["mlrun/uid"] = str(uuid.uuid4())
+        labels["mlrun/name"] = run_name
+        return labels
 
     def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
@@ -558,6 +566,133 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid,
             log,
             self.completed_job_pod.metadata.name,
+        )
+
+    @pytest.mark.asyncio
+    async def test_state_thresholds_defaults(self, db: Session, client: TestClient):
+        """
+        Test that the default state thresholds are applied correctly
+        This test creates 6 pods:
+        - pending pod that is not scheduled - should not be deleted
+        - running pod with new start time - should not be deleted
+        - pending scheduled pod with new start time - should not be deleted
+        - pending scheduled pod with old start time - should be deleted
+        - running pod with old start time - should be deleted
+        - pod in image pull backoff with old start time - should be deleted
+        """
+        pending_scheduled_labels = self._generate_job_labels("pending_scheduled")
+        pending_scheduled_pod = self._generate_pod(
+            pending_scheduled_labels["mlrun/name"],
+            pending_scheduled_labels,
+            PodPhases.pending,
+        )
+        pending_scheduled_pod.status.conditions = [
+            k8s_client.V1PodCondition(type="PodScheduled", status="True")
+        ]
+        pending_scheduled_pod.status.start_time = datetime.now(
+            timezone.utc
+        ) - timedelta(
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+            )
+        )
+        self._store_run(
+            db,
+            pending_scheduled_labels["mlrun/name"],
+            pending_scheduled_labels["mlrun/uid"],
+            start_time=pending_scheduled_pod.status.start_time,
+        )
+
+        pending_scheduled_new_labels = self._generate_job_labels(
+            "pending_scheduled_new"
+        )
+        pending_scheduled_pod_new = self._generate_pod(
+            pending_scheduled_new_labels["mlrun/name"],
+            pending_scheduled_new_labels,
+            PodPhases.pending,
+        )
+        pending_scheduled_pod_new.status.conditions = [
+            k8s_client.V1PodCondition(type="PodScheduled", status="True")
+        ]
+        self._store_run(
+            db,
+            pending_scheduled_new_labels["mlrun/name"],
+            pending_scheduled_new_labels["mlrun/uid"],
+            start_time=pending_scheduled_pod_new.status.start_time,
+        )
+
+        running_overtime_labels = self._generate_job_labels("running_overtime")
+        running_overtime_pod = self._generate_pod(
+            running_overtime_labels["mlrun/name"],
+            running_overtime_labels,
+            PodPhases.running,
+        )
+        running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.running
+            )
+        )
+        self._store_run(
+            db,
+            running_overtime_labels["mlrun/name"],
+            running_overtime_labels["mlrun/uid"],
+            start_time=running_overtime_pod.status.start_time,
+        )
+
+        image_pull_backoff_labels = self._generate_job_labels("image_pull_backoff")
+        image_pull_backoff_pod = self._generate_pod(
+            image_pull_backoff_labels["mlrun/name"],
+            image_pull_backoff_labels,
+            PodPhases.pending,
+        )
+        image_pull_backoff_pod.status.container_statuses = [
+            k8s_client.V1ContainerStatus(
+                image="some-image",
+                image_id="some-image-id",
+                name="some-container",
+                ready=False,
+                restart_count=10,
+                state=k8s_client.V1ContainerState(
+                    waiting=k8s_client.V1ContainerStateWaiting(
+                        reason="ImagePullBackOff"
+                    )
+                ),
+            )
+        ]
+        image_pull_backoff_pod.status.start_time = datetime.now(
+            timezone.utc
+        ) - timedelta(
+            seconds=mlrun.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
+            )
+        )
+        self._store_run(
+            db,
+            image_pull_backoff_labels["mlrun/name"],
+            image_pull_backoff_labels["mlrun/uid"],
+            start_time=image_pull_backoff_pod.status.start_time,
+        )
+
+        list_namespaced_pods_calls = [
+            [
+                self.pending_job_pod,
+                self.running_job_pod,
+                pending_scheduled_pod_new,
+                pending_scheduled_pod,
+                running_overtime_pod,
+                image_pull_backoff_pod,
+            ],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_delete_namespaced_pods(
+            [
+                pending_scheduled_pod.metadata.name,
+                running_overtime_pod.metadata.name,
+                image_pull_backoff_pod.metadata.name,
+            ],
+            self.running_job_pod.metadata.namespace,
         )
 
     @pytest.mark.asyncio

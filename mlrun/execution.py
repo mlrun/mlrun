@@ -15,7 +15,6 @@
 import os
 import uuid
 from copy import deepcopy
-from datetime import datetime
 from typing import List, Union
 
 import numpy as np
@@ -81,6 +80,7 @@ class MLClientCtx(object):
         self._matrics_db = None
         self._autocommit = autocommit
         self._notifications = []
+        self._state_thresholds = {}
 
         self._labels = {}
         self._annotations = {}
@@ -302,6 +302,9 @@ class MLClientCtx(object):
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
+            self._state_thresholds = spec.get(
+                "state_thresholds", self._state_thresholds
+            )
 
         self._init_dbs(rundb)
 
@@ -606,22 +609,6 @@ class MLClientCtx(object):
             self._iteration_results = summary
         if commit:
             self._update_run(commit=True)
-
-    def log_metric(self, key: str, value, timestamp=None, labels=None):
-        """TBD, log a real-time time-series metric"""
-        labels = {} if labels is None else labels
-        if not timestamp:
-            timestamp = datetime.now()
-        if self._rundb:
-            self._rundb.store_metric({key: value}, timestamp, labels)
-
-    def log_metrics(self, keyvals: dict, timestamp=None, labels=None):
-        """TBD, log a set of real-time time-series metrics"""
-        labels = {} if labels is None else labels
-        if not timestamp:
-            timestamp = datetime.now()
-        if self._rundb:
-            self._rundb.store_metric(keyvals, timestamp, labels)
 
     def log_artifact(
         self,
@@ -975,6 +962,7 @@ class MLClientCtx(object):
                 run_keys.output_path: self.artifact_path,
                 run_keys.inputs: self._inputs,
                 "notifications": self._notifications,
+                "state_thresholds": self._state_thresholds,
             },
             "status": {
                 "results": self._results,

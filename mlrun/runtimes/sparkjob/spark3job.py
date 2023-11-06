@@ -126,6 +126,7 @@ class Spark3JobSpec(KubeResourceSpec):
         executor_cores=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
 
         super().__init__(
@@ -156,6 +157,7 @@ class Spark3JobSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(

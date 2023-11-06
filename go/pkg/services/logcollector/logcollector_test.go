@@ -343,11 +343,98 @@ func (suite *LogCollectorTestSuite) TestStartLogOnPodStates() {
 	}
 }
 
+func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
+	runUID := uuid.New().String()
+
+	// create log file for runUID and pod
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
+
+	// write log file
+	// write 1k log lines
+	for i := 0; i < 1000; i++ {
+		logText := fmt.Sprintf("Some fake pod logs %d\n", i)
+		err := common.WriteToFile(logFilePath, []byte(logText), true)
+		suite.Require().NoError(err, "Failed to write to file")
+	}
+	fileContents, err := os.ReadFile(logFilePath)
+	suite.Require().NoError(err)
+
+	fileContentsLength := len(fileContents)
+
+	for _, testCase := range []struct {
+		name             string
+		offset           int
+		readSize         int
+		expectedReadSize int
+	}{
+		{
+			name:             "Read it all",
+			offset:           0,
+			readSize:         -1,
+			expectedReadSize: fileContentsLength,
+		},
+		{
+			name:             "Read nothing",
+			offset:           0,
+			readSize:         0,
+			expectedReadSize: 0,
+		},
+		{
+			name:             "Read 100 bytes",
+			offset:           0,
+			readSize:         100,
+			expectedReadSize: 100,
+		},
+		{
+			name:             "Read 100 bytes with offset",
+			offset:           10,
+			readSize:         100,
+			expectedReadSize: 100,
+		},
+		{
+
+			// further explanation - This edge case is when the offset + readSize + buffer size is larger than the file size
+			// so we must reduce the buffer size to fit the needed size
+			name:             "Overflowing read size + bufferSize",
+			offset:           fileContentsLength - int(1.5*float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			readSize:         int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			expectedReadSize: int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+		},
+		{
+			name:             "Overflowing read size return what is left",
+			offset:           fileContentsLength - 1,
+			readSize:         100,
+			expectedReadSize: 1,
+		},
+		{
+			name:             "Overflowing offset",
+			offset:           fileContentsLength,
+			readSize:         -1,
+			expectedReadSize: 0,
+		},
+	} {
+		suite.Run(testCase.name, func() {
+			nopStream := &nop.GetLogsResponseStreamNop{}
+			err := suite.logCollectorServer.GetLogs(&log_collector.GetLogsRequest{
+				RunUID:      runUID,
+				Offset:      int64(testCase.offset),
+				Size:        int64(testCase.readSize),
+				ProjectName: suite.projectName,
+			}, nopStream)
+			suite.Require().NoError(err, "Failed to get logs")
+
+			// verify logs
+			suite.Require().Equal(testCase.expectedReadSize, len(nopStream.Logs))
+		})
+	}
+
+}
+
 func (suite *LogCollectorTestSuite) TestGetLogsSuccessful() {
 
 	runUID := uuid.New().String()
 
-	// creat log file for runUID and pod
+	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file

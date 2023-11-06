@@ -18,7 +18,7 @@ import boto3
 
 import mlrun.errors
 
-from .base import DataStore, DsSanitizer, FileStats, get_range
+from .base import DataStore, DatastoreSchemaSanitizer, FileStats, get_range
 
 
 class S3Store(DataStore):
@@ -107,7 +107,9 @@ class S3Store(DataStore):
                 ) from exc
             return None
 
-        self._filesystem = DsSanitizer(s3fs.S3FileSystem, **self.get_storage_options())
+        self._filesystem = DatastoreSchemaSanitizer(
+            s3fs.S3FileSystem, **self.get_storage_options()
+        )
         return self._filesystem
 
     def get_storage_options(self):

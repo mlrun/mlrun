@@ -702,12 +702,17 @@ class HttpStore(DataStore):
             )
 
 
-class DsSanitizer:
+# This wrapper class is designed to extract the 'ds' schema and profile name from URL-formatted paths.
+# Within fsspec, the AbstractFileSystem::_strip_protocol() internal method is used to handle complete URL paths.
+# As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
+# Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
+# method specifically to strip away the 'ds' schema as required.
+class DatastoreSchemaSanitizer:
     def __init__(self, cls, *args, **kwargs):
         if not issubclass(cls, fsspec.AbstractFileSystem):
             raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 
-        class DsSanitizerTemp(cls):
+        class DatastoreSchemaSanitizerTemp(cls):
             @classmethod
             def _strip_protocol(cls, url):
                 if url.startswith("ds://"):
@@ -715,7 +720,7 @@ class DsSanitizer:
                     url = parsed_url.path[1:]
                 return super()._strip_protocol(url)
 
-        self._obj = DsSanitizerTemp(
+        self._obj = DatastoreSchemaSanitizerTemp(
             *args, **kwargs
         )  # Create an instance of the provided class with given args and kwargs
         self._cls = cls

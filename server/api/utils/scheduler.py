@@ -906,8 +906,21 @@ class Scheduler:
             run_project, run_uid, iteration, _ = RunObject.parse_uri(
                 schedule_output.last_run_uri
             )
-            run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
-            schedule_output.last_run = run_data
+            try:
+                run_data = get_db().read_run(
+                    db_session, run_uid, run_project, iteration
+                )
+                schedule_output.last_run = run_data
+            except mlrun.errors.MLRunNotFoundError:
+                # Possibly the last-run was already deleted (ML-4902). Continue, and clear the last_run_uri in
+                # the response.
+                logger.debug(
+                    "Failed to find the last run for schedule. Continuing",
+                    project=schedule_output.project,
+                    schedule_name=schedule_output.name,
+                    run_uid=run_uid,
+                )
+                schedule_output.last_run_uri = None
 
     def _enrich_schedule_with_credentials(
         self, schedule_output: mlrun.common.schemas.ScheduleOutput

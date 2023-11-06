@@ -27,6 +27,7 @@ import requests
 import v3io
 import v3io.dataplane
 import v3io_frames
+from v3io_frames.frames_pb2 import IGNORE
 
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
@@ -599,6 +600,13 @@ class BatchProcessor:
             address=mlrun.mlconf.v3io_framesd,
             container=self.tsdb_container,
             token=self.v3io_access_key,
+        )
+        logger.info("Creating table in TSDB", table=self.tsdb_path)
+        self.frames.create(
+            backend="tsdb",
+            table=self.tsdb_path,
+            if_exists=IGNORE,
+            rate="1/s",
         )
 
     def post_init(self):

@@ -15,7 +15,6 @@
 import os
 import uuid
 from copy import deepcopy
-from datetime import datetime
 from typing import List, Union
 
 import numpy as np
@@ -610,22 +609,6 @@ class MLClientCtx(object):
             self._iteration_results = summary
         if commit:
             self._update_run(commit=True)
-
-    def log_metric(self, key: str, value, timestamp=None, labels=None):
-        """TBD, log a real-time time-series metric"""
-        labels = {} if labels is None else labels
-        if not timestamp:
-            timestamp = datetime.now()
-        if self._rundb:
-            self._rundb.store_metric({key: value}, timestamp, labels)
-
-    def log_metrics(self, keyvals: dict, timestamp=None, labels=None):
-        """TBD, log a set of real-time time-series metrics"""
-        labels = {} if labels is None else labels
-        if not timestamp:
-            timestamp = datetime.now()
-        if self._rundb:
-            self._rundb.store_metric(keyvals, timestamp, labels)
 
     def log_artifact(
         self,

@@ -22,7 +22,9 @@ from mlrun.lists import ArtifactList
 def test_add_notification_to_cli_from_file():
     input_file_path = str(pathlib.Path(__file__).parent / "assets/notification.json")
     notifications = (f"file={input_file_path}",)
-    project = mlrun.projects.MlrunProject(name="test")
+    project = mlrun.projects.MlrunProject(
+        metadata=mlrun.projects.ProjectMetadata(name="test")
+    )
     load_notification(notifications, project)
 
     assert (
@@ -37,7 +39,9 @@ def test_add_notification_to_cli_from_file():
 
 def test_add_notification_to_cli_from_dict():
     notifications = ('{"slack":{"webhook":"123456"}}', '{"ipython":{"webhook":"1234"}}')
-    project = mlrun.projects.MlrunProject(name="test")
+    project = mlrun.projects.MlrunProject(
+        metadata=mlrun.projects.ProjectMetadata(name="test")
+    )
     load_notification(notifications, project)
 
     assert (

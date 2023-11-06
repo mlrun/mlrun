@@ -551,7 +551,7 @@ def my_func(context):
 
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
-        runtime.with_requirements(self.requirements_file)
+        runtime.with_requirements(requirements_file=self.requirements_file)
         expected_requirements = ["faker", "python-dotenv", "chardet>=3.0.2, <4.0"]
         assert (
             deepdiff.DeepDiff(

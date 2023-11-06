@@ -165,7 +165,7 @@ class CommonUtils(ABC):
         """
         # Initialize the mlrun to numpy data type conversion map:
         conversion_map = {
-            ValueType.BOOL: np.bool,
+            ValueType.BOOL: bool,
             ValueType.INT8: np.int8,
             ValueType.INT16: np.int16,
             ValueType.INT32: np.int32,
@@ -201,14 +201,13 @@ class CommonUtils(ABC):
         """
         # Initialize the numpy to mlrun data type conversion map:
         conversion_map = {
-            np.bool.__name__: ValueType.BOOL,
+            bool.__name__: ValueType.BOOL,
             np.byte.__name__: ValueType.INT8,
             np.int8.__name__: ValueType.INT8,
             np.short.__name__: ValueType.INT16,
             np.int16.__name__: ValueType.INT16,
             np.int32.__name__: ValueType.INT32,
-            np.int.__name__: ValueType.INT64,
-            np.long.__name__: ValueType.INT64,
+            int.__name__: ValueType.INT64,
             np.int64.__name__: ValueType.INT64,
             np.ubyte.__name__: ValueType.UINT8,
             np.uint8.__name__: ValueType.UINT8,
@@ -222,7 +221,7 @@ class CommonUtils(ABC):
             np.single.__name__: ValueType.FLOAT,
             np.float32.__name__: ValueType.FLOAT,
             np.double.__name__: ValueType.DOUBLE,
-            np.float.__name__: ValueType.DOUBLE,
+            float.__name__: ValueType.DOUBLE,
             np.float64.__name__: ValueType.DOUBLE,
         }
 

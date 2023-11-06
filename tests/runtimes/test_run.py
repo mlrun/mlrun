@@ -53,6 +53,7 @@ def _get_runtime():
             "tolerations": None,
             "security_context": None,
             "clone_target_dir": "",
+            "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
         },
         "verbose": False,
     }

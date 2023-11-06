@@ -81,6 +81,7 @@ class MLClientCtx(object):
         self._matrics_db = None
         self._autocommit = autocommit
         self._notifications = []
+        self._state_thresholds = {}
 
         self._labels = {}
         self._annotations = {}
@@ -302,6 +303,9 @@ class MLClientCtx(object):
             self._in_path = spec.get(run_keys.input_path, self._in_path)
             inputs = spec.get(run_keys.inputs)
             self._notifications = spec.get("notifications", self._notifications)
+            self._state_thresholds = spec.get(
+                "state_thresholds", self._state_thresholds
+            )
 
         self._init_dbs(rundb)
 
@@ -975,6 +979,7 @@ class MLClientCtx(object):
                 run_keys.output_path: self.artifact_path,
                 run_keys.inputs: self._inputs,
                 "notifications": self._notifications,
+                "state_thresholds": self._state_thresholds,
             },
             "status": {
                 "results": self._results,

@@ -85,7 +85,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 await function(*args, **kwargs)
             else:
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
-        except Exception:
+        except Exception as exc:
             logger.warning(
                 f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
             )
@@ -94,6 +94,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 name,
                 project=project,
                 state=mlrun.common.schemas.BackgroundTaskState.failed,
+                error=mlrun.errors.err_to_str(exc),
             )
         else:
             server.api.utils.singletons.db.get_db().store_background_task(

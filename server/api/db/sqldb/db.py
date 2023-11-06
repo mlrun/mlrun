@@ -3661,6 +3661,7 @@ class SQLDB(DBInterface):
         project: str,
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
+        error: str = None,
     ):
         background_task_record = self._query(
             session,
@@ -3683,6 +3684,7 @@ class SQLDB(DBInterface):
             if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
                 background_task_record.timeout = int(timeout)
             background_task_record.state = state
+            background_task_record.error = error
             background_task_record.updated = now
         else:
             if mlrun.mlconf.background_tasks.timeout_mode == "disabled":
@@ -3695,6 +3697,7 @@ class SQLDB(DBInterface):
                 created=now,
                 updated=now,
                 timeout=int(timeout) if timeout else None,
+                error=error,
             )
         self._upsert(session, [background_task_record])
 
@@ -3734,6 +3737,7 @@ class SQLDB(DBInterface):
             spec=mlrun.common.schemas.BackgroundTaskSpec(),
             status=mlrun.common.schemas.BackgroundTaskStatus(
                 state=background_task_record.state,
+                error=background_task_record.error,
             ),
         )
 

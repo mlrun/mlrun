@@ -265,6 +265,7 @@ with warnings.catch_warnings():
             default=datetime.now(timezone.utc),
         )
         state = Column(String(255, collation=SQLCollationUtil.collation()))
+        error = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
 
         def get_identifier_string(self) -> str:

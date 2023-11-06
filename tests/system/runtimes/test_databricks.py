@@ -101,6 +101,16 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         db = mlrun.get_run_db()
         db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
 
+    def _check_artifacts_by_path(self, expected_paths):
+        artifacts = self.project.list_artifacts()
+        assert len(artifacts) == len(expected_paths)
+        artifacts_paths = [
+            artifact.get("spec").get("src_path") for artifact in artifacts
+        ]
+        #  TODO change to get_artifact by key in the future if it will be user-defined.
+        for expected_path in expected_paths:
+            assert expected_path in artifacts_paths
+
     def setup_class(self):
         for key, value in config["env"].items():
             if value is not None:
@@ -360,15 +370,24 @@ def main():
         function = function_ref.to_function()
 
         self._add_databricks_env(function=function, is_cluster_id_required=True)
-        function.run(
+        run = function.run(
             handler="main",
             project=self.project_name,
         )
-        artifacts = self.project.list_artifacts()
-        assert len(artifacts) == 2
-        artifacts_paths = [
-            artifact.get("spec").get("src_path") for artifact in artifacts
+        self._check_artifacts_by_path(
+            expected_paths=[parquet_artifact_dbfs_path, csv_artifact_dbfs_path]
+        )
+        artifacts_db_keys = [
+            artifact.get("spec").get("db_key")
+            for artifact in self.project.list_artifacts()
         ]
-        #  TODO change to get_artifact by key in the future if it will be user-defined.
-        assert parquet_artifact_dbfs_path in artifacts_paths
-        assert csv_artifact_dbfs_path in artifacts_paths
+        run_db = mlrun.get_run_db()
+        for artifacts_db_key in artifacts_db_keys:
+            run_db.del_artifact(key=artifacts_db_key, project=self.project_name)
+        assert (
+            len(self.project.list_artifacts()) == 0
+        )  # make sure all artifacts have been deleted.
+        function.run(runspec=run, project=self.project_name)  # test rerun.
+        self._check_artifacts_by_path(
+            expected_paths=[parquet_artifact_dbfs_path, csv_artifact_dbfs_path]
+        )

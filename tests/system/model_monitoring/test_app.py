@@ -15,6 +15,8 @@
 import json
 import time
 import typing
+import uuid
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
@@ -24,10 +26,26 @@ from sklearn.datasets import load_iris
 
 import mlrun
 from mlrun.model_monitoring import TrackingPolicy
+from mlrun.model_monitoring.application import ModelMonitoringApplication
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from tests.system.base import TestMLRunSystem
 
 from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
+from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
+
+
+@dataclass
+class _AppData:
+    class_: typing.Type[ModelMonitoringApplication]
+    rel_path: str
+    requirements: list[str] = field(default_factory=list)
+    kwargs: dict[str, typing.Any] = field(default_factory=dict)
+    abs_path: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        path = Path(__file__).parent / self.rel_path
+        assert path.exists()
+        self.abs_path = str(path.absolute())
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -37,22 +55,33 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def custom_setup_class(cls) -> None:
-        cls.max_events = 5
+        cls.max_events = typing.cast(
+            int, mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
+        )
         assert cls.max_events == EXPECTED_EVENTS_COUNT
 
         cls.model_name = "classification"
         cls.num_features = 4
 
-        cls._orig_parquet_batching_max_events = (
-            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events
-        )
-        mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events = (
-            cls.max_events
-        )
-
         cls.app_interval: int = 1  # every 1 minute
 
-        cls.app_name = DemoMonitoringApp.name
+        cls.evidently_workspace_path = (
+            f"/v3io/projects/{cls.project_name}/artifacts/evidently-workspace"
+        )
+        cls.evidently_project_id = str(uuid.uuid4())
+
+        cls.apps_data: list[_AppData] = [
+            _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
+            _AppData(
+                class_=CustomEvidentlyMonitoringApp,
+                rel_path="assets/custom_evidently_app.py",
+                requirements=["evidently~=0.4.7"],
+                kwargs={
+                    "evidently_workspace_path": cls.evidently_workspace_path,
+                    "evidently_project_id": cls.evidently_project_id,
+                },
+            ),
+        ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
         cls.infer_input = cls._generate_infer_input()
 
@@ -62,11 +91,16 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls._v3io_container
         )
 
-    @classmethod
-    def custom_teardown_class(cls) -> None:
-        mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events = (
-            cls._orig_parquet_batching_max_events
-        )
+    def _set_monitoring_apps(self) -> None:
+        for app_data in self.apps_data:
+            self.project.set_model_monitoring_application(
+                func=app_data.abs_path,
+                application_class=app_data.class_.__name__,
+                name=app_data.class_.name,
+                image="mlrun/mlrun",
+                requirements=app_data.requirements,
+                **app_data.kwargs,
+            )
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -96,6 +130,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                 application_batch=True,
             ),
         )
+
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
 
@@ -111,10 +146,13 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
-        resp = ModelMonitoringWriter._get_v3io_client().kv.get(
-            container=cls._v3io_container, table_path=ep_id, key=cls.app_name
-        )
-        assert resp.output.item, "V3IO KV app data is empty"
+        for app_data in cls.apps_data:
+            app_name = app_data.class_.name
+            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+                container=cls._v3io_container, table_path=ep_id, key=app_name
+            )
+            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
@@ -125,8 +163,11 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
         assert not df.empty, "No TSDB data"
         assert (
-            df.iloc[0].endpoint_id == ep_id
-        ), "The endpoint ID is different than expected"
+            df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+        assert set(df.application_name) == {
+            app_data.class_.name for app_data in cls.apps_data
+        }, "The application names are different than expected"
 
     @classmethod
     def _test_v3io_records(cls, ep_id: str) -> None:
@@ -135,12 +176,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self.project.set_model_monitoring_application(
-            func=str((Path(__file__).parent / "assets/application.py").absolute()),
-            application_class="DemoMonitoringApp",
-            name=self.app_name,
-            image="mlrun/mlrun",
-        )
+        self._set_monitoring_apps()
         self._log_model()
         self.serving_fn = self._deploy_model_serving()
 

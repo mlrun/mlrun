@@ -11,31 +11,45 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import uuid
 from typing import Union
 
 import pandas as pd
-from evidently.renderers.notebook_utils import determine_template
-from evidently.report.report import Report
-from evidently.suite.base_suite import Suite
-from evidently.ui.workspace import Workspace
-from evidently.utils.dashboard import TemplateParams
 
 from mlrun.model_monitoring.application import ModelMonitoringApplication
+
+_HAS_EVIDENTLY = False
+try:
+    import evidently  # noqa: F401
+
+    _HAS_EVIDENTLY = True
+except ModuleNotFoundError:
+    pass
+
+
+if _HAS_EVIDENTLY:
+    from evidently.renderers.notebook_utils import determine_template
+    from evidently.report.report import Report
+    from evidently.suite.base_suite import Suite
+    from evidently.ui.workspace import STR_UUID, Workspace
+    from evidently.utils.dashboard import TemplateParams
 
 
 class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
     def __init__(
-        self, evidently_workspace_path: str = None, evidently_project_id: str = None
-    ):
+        self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
+    ) -> None:
         """
         A class for integrating Evidently for mlrun model monitoring within a monitoring application.
+        Note: evidently is not installed by default and must be installed separately.
 
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param evidently_project_id:        (str) The ID of the Evidently project.
 
         """
+        if not _HAS_EVIDENTLY:
+            raise ModuleNotFoundError("Evidently is not installed - the app cannot run")
         self.evidently_workspace = Workspace.create(evidently_workspace_path)
         self.evidently_project_id = evidently_project_id
         self.evidently_project = self.evidently_workspace.get_project(
@@ -43,7 +57,7 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
         )
 
     def log_evidently_object(
-        self, evidently_object: Union[Report, Suite], artifact_name: str
+        self, evidently_object: Union["Report", "Suite"], artifact_name: str
     ):
         """
          Logs an Evidently report or suite as an artifact.
@@ -85,5 +99,5 @@ class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
         )
 
     @staticmethod
-    def _render(temple_func, template_params: TemplateParams):
+    def _render(temple_func, template_params: "TemplateParams"):
         return temple_func(params=template_params)

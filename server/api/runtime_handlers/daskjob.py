@@ -29,9 +29,9 @@ import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+from server.api.common.runtime_handlers import get_resource_labels
 from server.api.db.base import DBInterface
 from server.api.runtime_handlers import BaseRuntimeHandler
-from server.api.runtime_handlers.utils import get_resource_labels
 
 
 def get_dask_resource():

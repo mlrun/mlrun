@@ -570,6 +570,7 @@ class HTTPRunDB(RunDBInterface):
         """
         Abort a running run - will remove the run's runtime resources and mark its state as aborted
         """
+        # TODO: deprecate and use dedicated abort_run API
         self.update_run(
             {"status.state": mlrun.runtimes.constants.RunStates.aborted},
             uid,

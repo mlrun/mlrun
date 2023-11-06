@@ -424,8 +424,7 @@ async def abort_run(
         project,
         background_tasks,
         _abort_run,
-        None,
-        # background_timeout,
+        None,  # timeout
         # args for _abort_run
         db_session,
         data,

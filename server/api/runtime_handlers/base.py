@@ -31,8 +31,8 @@ import mlrun.secrets
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+import server.api.common.runtime_handlers
 import server.api.crud as crud
-import server.api.runtime_handlers.utils
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -1455,7 +1455,7 @@ class BaseRuntimeHandler(ABC):
     ) -> k8s_client.V1ObjectMeta:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
 
-        labels = server.api.runtime_handlers.utils.get_resource_labels(
+        labels = server.api.common.runtime_handlers.get_resource_labels(
             runtime, run, run.spec.scrape_metrics
         )
         new_meta = k8s_client.V1ObjectMeta(

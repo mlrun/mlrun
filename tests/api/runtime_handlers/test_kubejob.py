@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
-import server.api.runtime_handlers.utils
+import server.api.utils.runtimes
 import tests.conftest
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -562,7 +562,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_abort_run(self, db: Session, client: TestClient):
-        server.api.runtime_handlers.utils.abort_run(
+        server.api.utils.runtimes.abort_run(
             self.run, self.run_uid, self.project, status_text="some error"
         )
 

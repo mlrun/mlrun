@@ -354,6 +354,14 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
+    if hasattr(context, "platform") and hasattr(
+        context.platform, "set_termination_callback"
+    ):
+        context.logger.debug(
+            "Setting termination callback to terminate graph on worker shutdown"
+        )
+        context.platform.set_termination_callback(server.wait_for_completion)
+
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
@@ -465,6 +473,10 @@ class GraphContext:
         if nuclio_context:
             self.logger = nuclio_context.logger
             self.Response = nuclio_context.Response
+            if hasattr(nuclio_context, "trigger") and hasattr(
+                nuclio_context.trigger, "kind"
+            ):
+                self.trigger = nuclio_context.trigger.kind
             self.worker_id = nuclio_context.worker_id
             if hasattr(nuclio_context, "platform"):
                 self.platform = nuclio_context.platform

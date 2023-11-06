@@ -20,8 +20,7 @@ import unittest.mock
 
 import pytest
 
-import mlrun.api.utils.db.backup
-import mlrun.api.utils.db.mysql
+import server.api.utils.db.backup
 from mlrun import mlconf
 
 
@@ -42,7 +41,7 @@ def test_backup_and_load_sqlite(mock_db_dsn, mock_shutil_copy, mock_is_file_resu
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup = server.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
     db_backup.backup_database(Constants.backup_file)
 
     mock_is_file_result(True)
@@ -70,7 +69,7 @@ def test_backup_and_load_sqlite(mock_db_dsn, mock_shutil_copy, mock_is_file_resu
 def test_backup_and_load_mysql(mock_db_dsn, mock_is_file_result):
     mock_db_dsn(Constants.mysql_dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup = server.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
     db_backup._run_shell_command = unittest.mock.Mock(return_value=0)
     db_backup.backup_database(Constants.backup_file)
 
@@ -101,7 +100,7 @@ def test_load_backup_file_does_not_exist_sqlite(
     dsn = f"sqlite:///{Constants.sqlite_db_file_path}"
     mock_db_dsn(dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup = server.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
 
     mock_is_file_result(False)
 
@@ -119,7 +118,7 @@ def test_load_backup_file_does_not_exist_sqlite(
 def test_load_backup_file_does_not_exist_mysql(mock_db_dsn, mock_is_file_result):
     mock_db_dsn(Constants.mysql_dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
+    db_backup = server.api.utils.db.backup.DBBackupUtil(backup_rotation=False)
     db_backup._run_shell_command = unittest.mock.Mock(return_value=0)
 
     mock_is_file_result(False)
@@ -138,7 +137,7 @@ def test_load_backup_file_does_not_exist_mysql(mock_db_dsn, mock_is_file_result)
 def test_backup_file_rotation(mock_db_dsn, mock_listdir_result, mock_os_remove):
     mock_db_dsn(Constants.mysql_dsn)
 
-    db_backup = mlrun.api.utils.db.backup.DBBackupUtil(
+    db_backup = server.api.utils.db.backup.DBBackupUtil(
         backup_rotation=True, backup_rotation_limit=3
     )
 

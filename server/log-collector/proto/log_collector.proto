@@ -1,0 +1,77 @@
+// Copyright 2023 Iguazio
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package mlrun;
+
+option go_package = "proto/build/log_collector";
+
+service LogCollector {
+  rpc StartLog(StartLogRequest) returns (BaseResponse) {}
+  rpc GetLogs(GetLogsRequest) returns (stream GetLogsResponse) {}
+  rpc HasLogs(HasLogsRequest) returns (HasLogsResponse) {}
+  rpc StopLogs(StopLogsRequest) returns (BaseResponse) {}
+  rpc DeleteLogs(StopLogsRequest) returns (BaseResponse) {}
+}
+
+message BaseResponse {
+  bool success = 1;
+  int32 errorCode = 2;
+  string errorMessage = 3;
+}
+
+message StartLogRequest {
+  string runUID = 1;
+  string selector = 2;
+  string projectName = 3;
+  bool bestEffort = 4;
+  int64 lastLogTime = 5;
+}
+
+message GetLogsRequest {
+  string runUID = 1;
+  int64 offset = 2;
+  int64 size = 3;
+  string projectName = 4;
+}
+
+message GetLogsResponse {
+  bool success = 1;
+  bytes logs = 2;
+  int32 errorCode = 3;
+  string errorMessage = 4;
+}
+
+message HasLogsRequest {
+  string runUID = 1;
+  string projectName = 2;
+}
+
+message HasLogsResponse {
+  bool success = 1;
+  bool hasLogs = 2;
+  int32 errorCode = 3;
+  string errorMessage = 4;
+}
+
+message StopLogsRequest {
+  string project = 1;
+  repeated string runUIDs = 2;
+}
+
+// StringArray is a wrapper around a repeated string field, used in map values.
+message StringArray {
+  repeated string values = 1;
+}

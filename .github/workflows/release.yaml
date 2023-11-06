@@ -38,7 +38,7 @@ on:
         type: choice
         options: [ 'bump-rc', 'stable' ]
       skip_images:
-        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,ui,api,base,models,models-gpu,jupyter,test'
+        description: 'Comma separated list of images to skip building, example with all possible images: mlrun,mlrun-gpu,ui,api,base,models,jupyter,test'
         required: false
         default: ''
       skip_publish_pypi:
@@ -248,6 +248,7 @@ jobs:
           body: ${{ steps.resolve-release-notes.outputs.body }}
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}
 
   update-tutorials:
     name: Bundle tutorials
@@ -257,7 +258,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Create tutorials tar
         run: |
-          tar -cvf mlrun-tutorials.tar docs/tutorial
+          tar -cvf mlrun-tutorials.tar docs/tutorials
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@v1
         with:
@@ -265,3 +266,4 @@ jobs:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: mlrun-tutorials.tar
+          prerelease: ${{ needs.prepare-inputs.outputs.is_stable_version == 'false' }}

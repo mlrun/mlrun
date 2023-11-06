@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.datastore_profile import TemporaryClientDatastoreProfiles
 from mlrun.errors import err_to_str
 
 from ..utils import DB_SCHEMA, run_keys
@@ -50,7 +51,10 @@ def parse_url(url):
 
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
-    if not schema or schema in ["file"] + list(string.ascii_lowercase):
+
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
+    if not schema or schema in ["file", "kafka_target"] + list(string.ascii_lowercase):
         return FileStore
     elif schema == "s3":
         try:
@@ -188,10 +192,13 @@ class StoreManager:
 
         if schema == "ds":
             profile_name = endpoint
-            project_name = urlparse(url).username or mlrun.mlconf.default_project
-            datastore = mlrun.db.get_run_db(
-                secrets=self._secrets
-            ).get_datastore_profile(profile_name, project_name)
+            datastore = TemporaryClientDatastoreProfiles().get(profile_name)
+            if not datastore:
+                project_name = urlparse(url).username or mlrun.mlconf.default_project
+                datastore = mlrun.db.get_run_db(
+                    secrets=self._secrets
+                ).get_datastore_profile(profile_name, project_name)
+
             datastore_type = datastore.type
 
         if schema == "memory":

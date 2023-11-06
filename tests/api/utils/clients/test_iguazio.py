@@ -27,11 +27,11 @@ import starlette.datastructures
 from aioresponses import CallbackResult
 from requests.cookies import cookiejar_from_dict
 
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-from mlrun.api.utils.asyncio import maybe_coroutine
+import server.api.utils.clients.iguazio
+from server.api.utils.asyncio import maybe_coroutine
 from tests.common_fixtures import aioresponses_mock
 
 
@@ -74,7 +74,7 @@ def patch_restful_request(
 @pytest.mark.asyncio
 async def test_verify_request_session_success(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
@@ -163,7 +163,7 @@ async def test_verify_request_session_success(
 @pytest.mark.asyncio
 async def test_verify_request_session_failure(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
@@ -187,7 +187,7 @@ async def test_verify_request_session_failure(
 @pytest.mark.asyncio
 async def test_verify_session_success(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     aioresponses_mock: aioresponses_mock,
 ):
@@ -227,7 +227,7 @@ async def test_verify_session_success(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_success(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     expected_grafana_url = (
@@ -255,7 +255,7 @@ async def test_get_grafana_service_url_success(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_ignoring_disabled_service(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     grafana_service = {"spec": {"kind": "grafana"}, "status": {"state": "disabled"}}
@@ -271,7 +271,7 @@ async def test_get_grafana_service_url_ignoring_disabled_service(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_no_grafana_exists(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     response_body = _generate_app_services_manifests_body([])
@@ -286,7 +286,7 @@ async def test_get_grafana_service_url_no_grafana_exists(
 @pytest.mark.asyncio
 async def test_get_grafana_service_url_no_urls(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     grafana_service = {
@@ -305,11 +305,11 @@ async def test_get_grafana_service_url_no_urls(
 @pytest.mark.asyncio
 async def test_get_or_create_access_key_success(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     planes = [
-        mlrun.api.utils.clients.iguazio.SessionPlanes.control,
+        server.api.utils.clients.iguazio.SessionPlanes.control,
     ]
     access_key_id = "some-id"
     session = "1234"
@@ -362,7 +362,7 @@ async def test_get_or_create_access_key_success(
 @pytest.mark.asyncio
 async def test_get_project_owner(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     owner_username = "some-username"
@@ -402,7 +402,7 @@ async def test_get_project_owner(
 @pytest.mark.asyncio
 async def test_list_project_with_updated_after(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -419,6 +419,7 @@ async def test_list_project_with_updated_after(
                     mlrun.mlconf.httpdb.projects.iguazio_list_projects_default_page_size
                 )
             ],
+            "filter[operational_status]": ["[$ne]deleting"],
         }
         context.status_code = http.HTTPStatus.OK.value
         _verify_project_request_headers(request.headers, session)
@@ -450,7 +451,7 @@ async def test_list_project_with_updated_after(
 @pytest.mark.asyncio
 async def test_list_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     mock_projects = [
@@ -532,7 +533,7 @@ async def test_list_project(
 @pytest.mark.asyncio
 async def test_create_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -543,7 +544,7 @@ async def test_create_project(
 @pytest.mark.asyncio
 async def test_create_project_failures(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     """
@@ -596,7 +597,7 @@ async def test_create_project_failures(
         requests_mock,
         session,
         job_id,
-        mlrun.api.utils.clients.iguazio.JobStates.failed,
+        server.api.utils.clients.iguazio.JobStates.failed,
         job_result,
     )
 
@@ -616,7 +617,7 @@ async def test_create_project_failures(
         requests_mock,
         session,
         job_id,
-        mlrun.api.utils.clients.iguazio.JobStates.failed,
+        server.api.utils.clients.iguazio.JobStates.failed,
     )
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -632,7 +633,7 @@ async def test_create_project_failures(
 @pytest.mark.asyncio
 async def test_create_project_minimal_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = mlrun.common.schemas.Project(
@@ -647,7 +648,7 @@ async def test_create_project_minimal_project(
 @pytest.mark.asyncio
 async def test_create_project_without_wait(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -670,7 +671,7 @@ async def test_create_project_without_wait(
 @pytest.mark.asyncio
 async def test_update_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project()
@@ -699,7 +700,7 @@ async def test_update_project(
 @pytest.mark.asyncio
 async def test_update_project_remove_labels_and_annotations(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project = _generate_project(name="empty-labels", labels={}, annotations={})
@@ -753,7 +754,7 @@ async def test_update_project_remove_labels_and_annotations(
 @pytest.mark.asyncio
 async def test_delete_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -792,7 +793,7 @@ async def test_delete_project(
 @pytest.mark.asyncio
 async def test_delete_project_without_wait(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
 ):
     project_name = "project-name"
@@ -813,7 +814,7 @@ async def test_delete_project_without_wait(
 @pytest.mark.asyncio
 async def test_format_as_leader_project(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
 ):
     project = _generate_project()
     iguazio_project = await maybe_coroutine(
@@ -880,7 +881,7 @@ def _assert_auth_info(
 
 async def _create_project_and_assert(
     api_url: str,
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     requests_mock: requests_mock_package.Mocker,
     project: mlrun.common.schemas.Project,
 ):
@@ -963,7 +964,7 @@ def _mock_job_progress(
     requests_mock,
     session: str,
     job_id: str,
-    terminal_job_state: str = mlrun.api.utils.clients.iguazio.JobStates.completed,
+    terminal_job_state: str = server.api.utils.clients.iguazio.JobStates.completed,
     job_result: str = "",
 ):
     def _mock_get_job(state, result, session, request, context):
@@ -974,13 +975,13 @@ def _mock_job_progress(
     responses = [
         functools.partial(
             _mock_get_job,
-            mlrun.api.utils.clients.iguazio.JobStates.in_progress,
+            server.api.utils.clients.iguazio.JobStates.in_progress,
             job_result,
             session,
         ),
         functools.partial(
             _mock_get_job,
-            mlrun.api.utils.clients.iguazio.JobStates.in_progress,
+            server.api.utils.clients.iguazio.JobStates.in_progress,
             job_result,
             session,
         ),
@@ -1030,7 +1031,7 @@ def _generate_project(
 
 
 def _build_project_response(
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     project: mlrun.common.schemas.Project,
     job_id: typing.Optional[str] = None,
     operational_status: typing.Optional[mlrun.common.schemas.ProjectState] = None,
@@ -1086,7 +1087,7 @@ def _build_project_response(
 
 
 def _assert_project_creation(
-    iguazio_client: mlrun.api.utils.clients.iguazio.Client,
+    iguazio_client: server.api.utils.clients.iguazio.Client,
     request_body: dict,
     project: mlrun.common.schemas.Project,
 ):

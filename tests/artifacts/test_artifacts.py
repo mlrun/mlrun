@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import pathlib
 import typing
 import unittest.mock
@@ -20,7 +19,6 @@ import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
-import yaml
 
 import mlrun
 import mlrun.artifacts
@@ -493,36 +491,6 @@ def test_inline_body():
     )
     assert artifact.spec.get_body() == "123"
     assert artifact.metadata.key == "y"
-
-
-def test_tag_not_in_model_spec():
-    model_name = "my-model"
-    tag = "some-tag"
-    project_name = "model-spec-test"
-    artifact_path = results_dir / project_name
-
-    # create a project and log a model
-    project = mlrun.new_project(project_name, save=False)
-    project.log_model(
-        model_name,
-        body="model body",
-        model_file="trained_model.pkl",
-        tag=tag,
-        artifact_path=artifact_path,
-        upload=True,
-    )
-
-    # list the artifact path dir and verify the model spec file exists
-    model_path = artifact_path / model_name
-    files = os.listdir(model_path)
-    assert mlrun.artifacts.model.model_spec_filename in files
-
-    # open the model spec file and verify the tag is not there
-    with open(model_path / mlrun.artifacts.model.model_spec_filename) as f:
-        model_spec = yaml.load(f, Loader=yaml.FullLoader)
-
-    assert "tag" not in model_spec, "tag should not be in model spec"
-    assert "tag" not in model_spec["metadata"], "tag should not be in metadata"
 
 
 def test_register_artifacts(rundb_mock):

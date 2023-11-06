@@ -15,13 +15,12 @@ import enum
 import getpass
 import http
 import re
-import warnings
+import typing
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
 import requests.exceptions
-from deprecated import deprecated
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
@@ -73,8 +72,8 @@ class RuntimeClassMode(enum.Enum):
     """
     Runtime class mode
     Currently there are two modes:
-    1. run - the runtime class is used to run a function
-    2. build - the runtime class is used to build a function
+    * run - the runtime class is used to run a function
+    * build - the runtime class is used to build a function
 
     The runtime class mode is used to determine what should be the name of the runtime class, each runtime might have a
     different name for each mode and some might not have both modes.
@@ -262,6 +261,18 @@ class BaseRuntime(ModelObj):
             mlrun.model.Credentials.generate_access_key
         )
 
+    def generate_runtime_k8s_env(self, runobj: RunObject = None) -> List[Dict]:
+        """
+        Prepares a runtime environment as it's expected by kubernetes.models.V1Container
+
+        :param runobj: Run context object (RunObject) with run metadata and status
+        :return: List of dicts with the structure {"name": "var_name", "value": "var_value"}
+        """
+        return [
+            {"name": k, "value": v}
+            for k, v in self._generate_runtime_env(runobj).items()
+        ]
+
     def run(
         self,
         runspec: Optional[
@@ -308,8 +319,13 @@ class BaseRuntime(ModelObj):
                                (which will be converted to the class using its `from_crontab` constructor),
                                see this link for help:
                                https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param hyperparams:    Dict of param name and list of values to be enumerated e.g. {"p1": [1,2,3]}
-                               the default strategy is grid search, can specify strategy (grid, list, random)
+        :param hyperparams:    Dict of param name and list of values to be enumerated.
+                               The default strategy is grid search and uses e.g. {"p1": [1,2,3]}.
+                               (Can be specified as a JSON file)
+                               For list, lists must be of equal length, e.g. {"p1": [1], "p2": [2]}.
+                               (Can be specified as JSON file or as a CSV file listing the parameter values
+                               per iteration.)
+                               You can specify strategy of type grid, list, random,
                                and other options in the hyper_param_options parameter.
         :param hyper_param_options: Dict or :py:class:`~mlrun.model.HyperParamOptions` struct of hyperparameter options.
         :param verbose:             Add verbose prints/logs.
@@ -331,8 +347,6 @@ class BaseRuntime(ModelObj):
                           artifact type is specified, the object's default artifact type will be used.
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
-        :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
-                                        e.g. builder_env={"GIT_TOKEN": token}
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -374,15 +388,25 @@ class BaseRuntime(ModelObj):
         if task:
             return task.to_dict()
 
-    def _generate_runtime_env(self, runobj: RunObject):
+    def _generate_runtime_env(self, runobj: RunObject = None) -> Dict:
+        """
+        Prepares all available environment variables for usage on a runtime
+        Data will be extracted from several sources and most of them are not guaranteed to be available
+
+        :param runobj: Run context object (RunObject) with run metadata and status
+        :return: Dictionary with all the variables that could be parsed
+        """
         runtime_env = {
-            "MLRUN_EXEC_CONFIG": runobj.to_json(),
-            "MLRUN_DEFAULT_PROJECT": runobj.metadata.project
-            or self.metadata.project
-            or config.default_project,
+            "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
-        if runobj.spec.verbose:
-            runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
+        if runobj:
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json(
+                exclude_notifications_params=True
+            )
+            if runobj.metadata.project:
+                runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
+            if runobj.spec.verbose:
+                runtime_env["MLRUN_LOG_LEVEL"] = "DEBUG"
         if config.httpdb.api_url:
             runtime_env["MLRUN_DBPATH"] = config.httpdb.api_url
         if self.metadata.namespace or config.namespace:
@@ -414,62 +438,6 @@ class BaseRuntime(ModelObj):
                 struct, self.metadata.name, self.metadata.project, versioned=True
             )
             runspec.spec.function = self._function_uri(hash_key=hash_key)
-
-    def _get_cmd_args(self, runobj: RunObject):
-        extra_env = self._generate_runtime_env(runobj)
-        if self.spec.pythonpath:
-            extra_env["PYTHONPATH"] = self.spec.pythonpath
-        args = []
-        command = self.spec.command
-        code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
-        )
-
-        if runobj.spec.handler and self.spec.mode == "pass":
-            raise ValueError('cannot use "pass" mode with handler')
-
-        if code:
-            extra_env["MLRUN_EXEC_CODE"] = code
-
-        load_archive = self.spec.build.load_source_on_run and self.spec.build.source
-        need_mlrun = code or load_archive or self.spec.mode != "pass"
-
-        if need_mlrun:
-            args = ["run", "--name", runobj.metadata.name, "--from-env"]
-            if runobj.spec.handler:
-                args += ["--handler", runobj.spec.handler]
-            if self.spec.mode:
-                args += ["--mode", self.spec.mode]
-            if self.spec.build.origin_filename:
-                args += ["--origin-file", self.spec.build.origin_filename]
-
-            if load_archive:
-                if code:
-                    raise ValueError("cannot specify both code and source archive")
-                args += ["--source", self.spec.build.source]
-                if self.spec.workdir:
-                    # set the absolute/relative path to the cloned code
-                    args += ["--workdir", self.spec.workdir]
-
-            if command:
-                args += [command]
-
-            if self.spec.args:
-                if not command:
-                    # * is a placeholder for the url argument in the run CLI command,
-                    # where the code is passed in the `MLRUN_EXEC_CODE` meaning there is no "actual" file to execute
-                    # until the run command will create that file from the env param.
-                    args += ["*"]
-                args = args + self.spec.args
-
-            command = "mlrun"
-        else:
-            command = command.format(**runobj.spec.parameters)
-            if self.spec.args:
-                args = [arg.format(**runobj.spec.parameters) for arg in self.spec.args]
-
-        extra_env = [{"name": k, "value": v} for k, v in extra_env.items()]
-        return command, args, extra_env
 
     def _pre_run(self, runspec: RunObject, execution):
         pass
@@ -531,7 +499,7 @@ class BaseRuntime(ModelObj):
         resp: dict = None,
         task: RunObject = None,
         err=None,
-    ) -> dict:
+    ) -> typing.Optional[dict]:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -767,9 +735,8 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[List[str]] = None,
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",
     ):
@@ -778,21 +745,12 @@ class BaseRuntime(ModelObj):
         :param requirements:                a list of python packages
         :param requirements_file:           a local python requirements file path
         :param overwrite:                   overwrite existing requirements
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
         self.spec.build.with_requirements(requirements, requirements_file, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
 
         return self
@@ -801,30 +759,19 @@ class BaseRuntime(ModelObj):
         self,
         commands: List[str],
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
     ):
         """add commands to build spec.
 
         :param commands:                    list of commands to run during build
         :param overwrite:                   overwrite existing commands
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
 
         :return: function object
         """
         self.spec.build.with_commands(commands, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
-
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
         return self
 
@@ -836,15 +783,6 @@ class BaseRuntime(ModelObj):
 
         self.spec.build = {}
         return self
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
-        category=FutureWarning,
-    )
-    def verify_base_image(self):
-        self.prepare_image_for_deploy()
 
     def prepare_image_for_deploy(self):
         """

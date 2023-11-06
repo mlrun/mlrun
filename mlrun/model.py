@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import inspect
+import json
 import pathlib
 import re
 import time
 import typing
-import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -422,7 +422,7 @@ class ImageBuilder(ModelObj):
             self.base_image = base_image
         if commands:
             self.with_commands(commands, overwrite=overwrite)
-        if requirements:
+        if requirements or requirements_file:
             self.with_requirements(requirements, requirements_file, overwrite=overwrite)
         if extra:
             self.extra = extra
@@ -470,7 +470,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[List[str]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -482,14 +482,8 @@ class ImageBuilder(ModelObj):
                                     when False (default) will append to existing requirements
         :return: function object
         """
-        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
-            # TODO: remove in 1.6.0
-            warnings.warn(
-                "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
-                "and will be removed in 1.6.0, use 'requirements_file' instead",
-                FutureWarning,
-            )
-
+        requirements = requirements or []
+        self._verify_list(requirements, "requirements")
         resolved_requirements = self._resolve_requirements(
             requirements, requirements_file
         )
@@ -503,9 +497,8 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(
-        requirements: typing.Union[str, list], requirements_file: str = ""
-    ) -> list:
+    def _resolve_requirements(requirements: list, requirements_file: str = "") -> list:
+        requirements = requirements or []
         requirements_to_resolve = []
 
         # handle the requirements_file argument
@@ -514,18 +507,7 @@ class ImageBuilder(ModelObj):
                 requirements_to_resolve.extend(fp.read().splitlines())
 
         # handle the requirements argument
-        # TODO: remove in 1.6.0, when requirements can only be a list
-        if isinstance(requirements, str):
-            # if it's a file path, read the file and add its content to the list
-            if mlrun.utils.is_file_path(requirements):
-                with open(requirements, "r") as fp:
-                    requirements_to_resolve.extend(fp.read().splitlines())
-            else:
-                # it's a string but not a file path, split it by lines and add it to the list
-                requirements_to_resolve.append(requirements)
-        else:
-            # it's a list, add it to the list
-            requirements_to_resolve.extend(requirements)
+        requirements_to_resolve.extend(requirements)
 
         requirements = []
         for requirement in requirements_to_resolve:
@@ -558,9 +540,11 @@ class Notification(ModelObj):
         severity=None,
         when=None,
         condition=None,
+        secret_params=None,
         params=None,
         status=None,
         sent_time=None,
+        reason=None,
     ):
         self.kind = kind or mlrun.common.schemas.notification.NotificationKind.slack
         self.name = name or ""
@@ -570,9 +554,11 @@ class Notification(ModelObj):
         )
         self.when = when or ["completed"]
         self.condition = condition or ""
+        self.secret_params = secret_params or {}
         self.params = params or {}
         self.status = status
         self.sent_time = sent_time
+        self.reason = reason
 
         self.validate_notification()
 
@@ -583,6 +569,17 @@ class Notification(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid notification object"
             ) from exc
+
+        # validate that size of notification secret_params doesn't exceed 1 MB,
+        # due to k8s default secret size limitation.
+        # a buffer of 100 KB is added to the size to account for the size of the secret metadata
+        if (
+            len(json.dumps(self.secret_params))
+            > mlrun.common.schemas.notification.NotificationLimits.max_params_size.value
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Notification params size exceeds max size of 1 MB"
+            )
 
     @staticmethod
     def validate_notification_uniqueness(notifications: List["Notification"]):
@@ -642,22 +639,22 @@ class HyperParamOptions(ModelObj):
     """Hyper Parameter Options
 
     Parameters:
-        param_file (str):       hyper params input file path/url, instead of inline
-        strategy (str):         hyper param strategy - grid, list or random
-        selector (str):         selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
-        stop_condition (str):   early stop condition e.g. "accuracy > 0.9"
-        parallel_runs (int):    number of param combinations to run in parallel (over Dask)
-        dask_cluster_uri (str): db uri for a deployed dask cluster function, e.g. db://myproject/dask
-        max_iterations (int):   max number of runs (in random strategy)
-        max_errors (int):       max number of child runs errors for the overall job to fail
-        teardown_dask (bool):   kill the dask cluster pods after the runs
+        param_file (str):                   hyper params input file path/url, instead of inline
+        strategy (HyperParamStrategies):    hyper param strategy - grid, list or random
+        selector (str):                     selection criteria for best result ([min|max.]<result>), e.g. max.accuracy
+        stop_condition (str):               early stop condition e.g. "accuracy > 0.9"
+        parallel_runs (int):                number of param combinations to run in parallel (over Dask)
+        dask_cluster_uri (str):             db uri for a deployed dask cluster function, e.g. db://myproject/dask
+        max_iterations (int):               max number of runs (in random strategy)
+        max_errors (int):                   max number of child runs errors for the overall job to fail
+        teardown_dask (bool):               kill the dask cluster pods after the runs
     """
 
     def __init__(
         self,
         param_file=None,
-        strategy=None,
-        selector: HyperParamStrategies = None,
+        strategy: typing.Optional[HyperParamStrategies] = None,
+        selector=None,
         stop_condition=None,
         parallel_runs=None,
         dask_cluster_uri=None,
@@ -1203,6 +1200,29 @@ class RunObject(RunTemplate):
     def from_template(cls, template: RunTemplate):
         return cls(template.spec, template.metadata)
 
+    def to_json(self, exclude=None, **kwargs):
+        # Since the `params` attribute within each notification object can be large,
+        # it has the potential to cause errors and is unnecessary for the notification functionality.
+        # Therefore, in this section, we remove the `params` attribute from each notification object.
+        if (
+            exclude_notifications_params := kwargs.get("exclude_notifications_params")
+        ) and exclude_notifications_params:
+            if self.spec.notifications:
+                # Extract and remove 'params' from each notification
+                extracted_params = []
+                for notification in self.spec.notifications:
+                    extracted_params.append(notification.params)
+                    del notification.params
+                # Generate the JSON representation, excluding specified fields
+                json_obj = super().to_json(exclude=exclude)
+                # Restore 'params' back to the notifications
+                for notification, params in zip(
+                    self.spec.notifications, extracted_params
+                ):
+                    notification.params = params
+                return json_obj
+        return super().to_json(exclude=exclude)
+
     @property
     def status(self) -> RunStatus:
         return self._status
@@ -1440,12 +1460,23 @@ class EntrypointParam(ModelObj):
 
 
 class FunctionEntrypoint(ModelObj):
-    def __init__(self, name="", doc="", parameters=None, outputs=None, lineno=-1):
+    def __init__(
+        self,
+        name="",
+        doc="",
+        parameters=None,
+        outputs=None,
+        lineno=-1,
+        has_varargs=None,
+        has_kwargs=None,
+    ):
         self.name = name
         self.doc = doc
         self.parameters = [] if parameters is None else parameters
         self.outputs = [] if outputs is None else outputs
         self.lineno = lineno
+        self.has_varargs = has_varargs
+        self.has_kwargs = has_kwargs
 
 
 def new_task(
@@ -1613,7 +1644,7 @@ class DataSource(ModelObj):
         self,
         name: str = None,
         path: str = None,
-        attributes: Dict[str, str] = None,
+        attributes: Dict[str, object] = None,
         key_field: str = None,
         time_field: str = None,
         schedule: str = None,

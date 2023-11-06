@@ -19,7 +19,6 @@ import re
 import shutil
 import tempfile
 import unittest.mock
-import warnings
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -424,9 +423,13 @@ def _assert_project_function_objects(project, expected_function_objects):
     assert len(project_function_objects) == len(expected_function_objects)
     for function_name, function_object in expected_function_objects.items():
         assert function_name in project_function_objects
+        project_function = project_function_objects[function_name].to_dict()
+        project_function["metadata"]["tag"] = (
+            project_function["metadata"]["tag"] or "latest"
+        )
         assert (
             deepdiff.DeepDiff(
-                project_function_objects[function_name].to_dict(),
+                project_function,
                 function_object.to_dict(),
                 ignore_order=True,
                 exclude_paths=["root['spec']['build']['code_origin']"],
@@ -462,7 +465,8 @@ def test_set_function_requirements(rundb_mock):
 
 def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -504,7 +508,8 @@ def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
 
 def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.projects.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
 
@@ -555,14 +560,14 @@ def test_set_func_with_tag():
         image="mlrun/mlrun",
     )
     func = project.get_function("desc1")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
     project.set_function(
         str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
         "desc2",
         image="mlrun/mlrun",
     )
     func = project.get_function("desc2")
-    assert func.metadata.tag is None
+    assert func.metadata.tag == "latest"
 
 
 def test_set_function_with_tagged_key():
@@ -614,6 +619,140 @@ def test_set_function_with_tagged_key():
 
     func = project.get_function(f"{my_func_v2.metadata.name}:{tag_v2}", tag=tag_v2)
     assert func.metadata.tag == tag_v2
+
+
+def test_set_function_update_code():
+    project = mlrun.new_project("set-func-update-code", save=False)
+    for i in range(2):
+        func = project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name="handler",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+            tag="v1",
+        )
+
+        assert id(func) == id(
+            project.get_function("handler")
+        ), f"Function of index {i} was not set correctly"
+        assert id(func) == id(
+            project.get_function("handler:v1")
+        ), f"Function of index {i} was not set and tagged correctly"
+
+
+def test_set_function_with_conflicting_tag():
+    project = mlrun.new_project("set-func-conflicting-tag", save=False)
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name="handler:v2",
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+            tag="v1",
+        )
+    assert "Tag parameter (v1) and tag in function name (handler:v2) must match" in str(
+        exc.value
+    )
+
+
+def test_set_function_with_multiple_tags():
+    project = mlrun.new_project("set-func-multi-tags", save=False)
+    name = "handler:v2:v3"
+    with pytest.raises(ValueError) as exc:
+        project.set_function(
+            func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+            name=name,
+            kind="job",
+            image="mlrun/mlrun",
+            handler="myhandler",
+        )
+    assert (
+        f"Function name ({name}) must be in the format <name>:<tag> or <name>"
+        in str(exc.value)
+    )
+
+
+@pytest.mark.parametrize(
+    "name, tag, expected_name, expected_tag",
+    [
+        ("handler:v2", None, "handler", "v2"),
+        ("handler", None, "handler", "latest"),
+        ("handler", "v2", "handler", "v2"),
+    ],
+)
+def test_set_function_name_and_tag(name, tag, expected_name, expected_tag):
+    project = mlrun.new_project("set-func-untagged-name", save=False)
+    func = project.set_function(
+        func=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        name=name,
+        kind="job",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag=tag,
+    )
+    assert func.metadata.name == expected_name
+    assert func.metadata.tag == expected_tag
+
+
+def test_set_function_from_object():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function = project.set_function(func)
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+    project_function = project.get_function("handler")
+    assert project_function.metadata.name == "handler"
+    assert project_function.metadata.tag == "v1"
+
+    assert "handler:v1" not in project.spec._function_objects
+
+
+def test_set_function_from_object_override_tag():
+    project = mlrun.new_project("set-func-from-object", save=False)
+    func = mlrun.code_to_function(
+        filename=str(pathlib.Path(__file__).parent / "assets" / "handler.py"),
+        kind="job",
+        name="handler",
+        image="mlrun/mlrun",
+        handler="myhandler",
+        tag="v1",
+    )
+    project_function_v2 = project.set_function(func, tag="v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v2 = project.get_function("handler")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v2 = project.get_function("handler:v2")
+    assert project_function_v2.metadata.name == "handler"
+    assert project_function_v2.metadata.tag == "v2"
+
+    project_function_v3 = project.set_function(func, name="other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    project_function_v3 = project.get_function("other-func:v3")
+    assert project_function_v3.metadata.name == "other-func"
+    assert project_function_v3.metadata.tag == "v3"
+
+    # only name param (other-func:v3) should be set
+    assert "other-func" not in project.spec._function_objects
+
+    # assert original function changed
+    assert func.metadata.name == "other-func"
+    assert func.metadata.tag == "v3"
 
 
 def test_set_function_with_relative_path(context):
@@ -958,6 +1097,12 @@ def test_set_workflow_with_invalid_path(
         proj.set_workflow("main", workflow_path)
 
 
+def test_set_workflow_local_engine():
+    proj = mlrun.new_project("proj", save=False)
+    with pytest.raises(ValueError):
+        proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -974,44 +1119,6 @@ def test_project_ops():
     run = proj2.run_function("f2", params={"x": 2}, local=True)
     assert run.spec.function.startswith("proj2/f2")
     assert run.output("y") == 4  # = x * 2
-
-
-def test_clear_context():
-    proj = mlrun.new_project("proj", save=False)
-    proj_with_subpath = mlrun.new_project(
-        "proj",
-        subpath="test",
-        context=pathlib.Path(tests.conftest.tests_root_directory),
-        save=False,
-    )
-    subdir_path = os.path.join(
-        proj_with_subpath.spec.context, proj_with_subpath.spec.subpath
-    )
-    # when the context is relative, assert no deletion called
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, warnings.catch_warnings(record=True) as w:
-        proj.clear_context()
-        rmtree.assert_not_called()
-
-        assert len(w) == 2
-        assert issubclass(w[-2].category, FutureWarning)
-        assert (
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0." in str(w[-1].message)
-        )
-
-    # when the context is not relative and subdir specified, assert that the subdir is deleted rather than the context
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, unittest.mock.patch(
-        "os.path.exists", return_value=True
-    ), unittest.mock.patch(
-        "os.path.isdir", return_value=True
-    ):
-        proj_with_subpath.clear_context()
-        rmtree.assert_called_once_with(subdir_path)
 
 
 @pytest.mark.parametrize(
@@ -1100,3 +1207,259 @@ def test_set_secrets_file_not_found():
     with pytest.raises(mlrun.errors.MLRunNotFoundError) as excinfo:
         project.set_secrets(file_path=file_name)
     assert f"{file_name} does not exist" in str(excinfo.value)
+
+
+def test_authenticated_git_action_with_remote_cleanup(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy, remote="origin", secrets={"GIT_TOKEN": "my-token"}
+    )
+
+    expected_calls = [
+        unittest.mock.call(
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+            "https://git.server/my-repo",
+        ),
+        unittest.mock.call(
+            "https://git.server/my-repo",
+            "https://my-token:x-oauth-basic@git.server/my-repo",
+        ),
+    ]
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["origin"].set_url.assert_has_calls(
+        expected_calls,
+        any_order=False,
+    )
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+
+
+def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec.repo = mock_git_repo
+
+    dummy = unittest.mock.Mock()
+    project._run_authenticated_git_action(
+        action=dummy,
+        remote="organization",
+    )
+
+    dummy.assert_called_once()
+    project.spec.repo.remotes["organization"].set_url.assert_not_called()
+    project.spec.repo.remotes["origin"].set_url.assert_not_called()
+
+
+def test_get_or_create_project_no_db():
+    mlrun.config.config.dbpath = ""
+    project_name = "project-name"
+    project = mlrun.get_or_create_project(project_name)
+    assert project.name == project_name
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file, commands",
+    [
+        (["pandas", "scikit-learn"], False, ["echo 123"]),
+        (["pandas", "scikit-learn"], True, ["echo 123"]),
+        ([], True, ["echo 123"]),
+        (None, True, ["echo 123"]),
+        ([], False, ["echo 123"]),
+    ],
+)
+def test_project_build_config(requirements, with_requirements_file, commands):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    project.build_config(
+        image=image,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+        commands=commands,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+    assert project.spec.build.image == image
+    assert project.spec.build.requirements == expected_requirements
+    assert project.spec.build.commands == commands
+
+
+@pytest.mark.parametrize(
+    "requirements ,with_requirements_file",
+    [
+        (["pandas", "scikit-learn"], False),
+        (["pandas", "scikit-learn"], True),
+        ([], True),
+        (None, True),
+        ([], False),
+    ],
+)
+def test_project_set_function_with_requirements(requirements, with_requirements_file):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    image = "my-image"
+    requirements_file = str(assets_path() / "requirements-test.txt")
+    func = project.set_function(
+        name="my-func",
+        image=image,
+        func=str(assets_path() / "handler.py"),
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    expected_requirements = requirements
+    if with_requirements_file:
+        expected_requirements = [
+            "faker",
+            "python-dotenv",
+            "chardet>=3.0.2, <4.0",
+        ] + (requirements or [])
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements
+
+    # set from object
+    if requirements or with_requirements_file:
+        # change requirements to make sure they are overriden
+        func.spec.build.requirements = ["some-req"]
+    project.set_function(
+        name="my-func",
+        image=image,
+        func=func,
+        requirements=requirements,
+        requirements_file=requirements_file if with_requirements_file else None,
+    )
+
+    if requirements or with_requirements_file:
+        assert func.spec.build.base_image == image
+    else:
+        assert func.spec.image == image
+
+    assert func.spec.build.requirements == expected_requirements
+
+
+def test_init_function_from_dict_function_in_spec():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    func_dict = {
+        "name": "sparkjob-from-github",
+        "spec": {
+            "kind": "spark",
+            "metadata": {
+                "name": "sparkjob-from-github",
+                "tag": "latest",
+                "project": project_name,
+                "categories": [],
+            },
+            "spec": {
+                "command": "simple_job.py",
+                "args": [],
+                "image": ".sparkjob-from-github:latest",
+                "build": {
+                    "source": "./",
+                    "base_image": "iguazio/spark-app:3.5.5-b697",
+                    "commands": [],
+                    "load_source_on_run": False,
+                    "requirements": ["pyspark==3.2.3"],
+                },
+                "description": "",
+                "disable_auto_mount": False,
+                "clone_target_dir": "/home/mlrun_code/",
+                "env": [],
+                "replicas": 1,
+                "image_pull_policy": "Always",
+                "priority_class_name": "dummy-class",
+                "preemption_mode": "prevent",
+                "driver_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1300m"},
+                },
+                "executor_resources": {
+                    "requests": {"memory": "512m", "cpu": 1},
+                    "limits": {"cpu": "1400m"},
+                },
+                "deps": {
+                    "jars": [
+                        "local:///spark/v3io-libs/v3io-hcfs_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-streaming_2.12.jar",
+                        "local:///spark/v3io-libs/v3io-spark3-object-dataframe_2.12.jar",
+                        "local:///igz/java/libs/scala-library-2.12.14.jar",
+                        "local:///spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                    ],
+                    "files": ["local:///igz/java/libs/v3io-pyspark.zip"],
+                },
+                "use_default_image": False,
+                "monitoring": {
+                    "enabled": True,
+                    "exporter_jar": "/spark/jars/jmx_prometheus_javaagent-0.16.1.jar",
+                },
+                "driver_preemption_mode": "prevent",
+                "executor_preemption_mode": "prevent",
+                "affinity": None,
+                "tolerations": None,
+                "security_context": {},
+                "executor_affinity": None,
+                "executor_tolerations": None,
+                "driver_affinity": None,
+                "driver_tolerations": None,
+                "volume_mounts": [],
+                "volumes": [],
+                "driver_volume_mounts": [],
+                "executor_volume_mounts": [],
+            },
+            "verbose": False,
+        },
+    }
+    func = mlrun.projects.project._init_function_from_dict(func_dict, project)
+    assert (
+        deepdiff.DeepDiff(func[1].to_dict(), func_dict["spec"], ignore_order=True) == {}
+    )
+
+
+def test_load_project_from_yaml_with_function(context):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    function = mlrun.code_to_function(
+        name="my-func",
+        image="my-image",
+        kind="job",
+        filename=str(assets_path() / "handler.py"),
+    )
+    function.save()
+    project.set_function(function)
+    project.set_function(
+        name="my-other-func",
+        image="my-image",
+        func=str(assets_path() / "handler.py"),
+        tag="latest",
+    )
+    project.save()
+    loaded_project = mlrun.load_project(context=str(context))
+    for function_name in ["my-func", "my-other-func"]:
+        assert (
+            deepdiff.DeepDiff(
+                project.get_function(function_name).to_dict(),
+                loaded_project.get_function(function_name).to_dict(),
+                ignore_order=True,
+                exclude_paths=[
+                    "root['spec']['build']['code_origin']",
+                    "root['metadata']['categories']",
+                ],
+            )
+            == {}
+        )

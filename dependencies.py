@@ -39,7 +39,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
-            "azure-storage-blob~=12.13",
+            "azure-storage-blob>=12.13, !=12.18.0",
             "adlfs>=2022.2,<2023.5",
             "pyopenssl>=23",
         ],
@@ -72,7 +72,13 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "avro~=1.11",
         ],
         "redis": ["redis~=4.3"],
+        "mlflow": ["mlflow~=2.5"],
         "databricks-sdk": ["databricks-sdk~=0.3.0"],
+        "sqlalchemy": ["sqlalchemy~=1.4"],
+        "dask": [
+            "dask~=2023.9.0",
+            "distributed~=2023.9.0",
+        ],
     }
 
     # see above why we are excluding google-cloud

@@ -22,8 +22,6 @@ import kubernetes
 import sqlalchemy.orm
 
 import mlrun
-import mlrun.api.crud
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes

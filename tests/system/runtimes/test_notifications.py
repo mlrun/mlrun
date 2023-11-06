@@ -39,13 +39,14 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             ].items():
                 if notification_name == error_notification.name:
                     assert notification["status"] == "error"
+                    assert len(notification["reason"]) > 0
                 elif notification_name == success_notification.name:
                     assert notification["status"] == "sent"
 
         error_notification = self._create_notification(
             name=error_notification_name,
             message="should-fail",
-            params={
+            secret_params={
                 "webhook": "https://invalid.slack.url.com",
             },
         )
@@ -53,7 +54,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             kind="slack",
             name=success_notification_name,
             message="should-succeed",
-            params={
+            secret_params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",
             },
@@ -158,7 +159,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         notification = self._create_notification(
             name=notification_name,
             message="should-succeed",
-            params={
+            secret_params={
                 # dummy slack test url should return 200
                 "webhook": "https://slack.com/api/api.test",
             },
@@ -180,6 +181,28 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             self._logger,
             True,
             _assert_notification_in_schedule,
+        )
+
+    @staticmethod
+    def _create_notification(
+        kind=None,
+        name=None,
+        message=None,
+        severity=None,
+        when=None,
+        condition=None,
+        secret_params=None,
+        params=None,
+    ):
+        return mlrun.model.Notification(
+            kind=kind or "slack",
+            when=when or ["completed"],
+            name=name or "test-notification",
+            message=message or "test-notification-message",
+            condition=condition,
+            severity=severity or "info",
+            secret_params=secret_params or {},
+            params=params or {},
         )
 
     @pytest.mark.parametrize(
@@ -210,7 +233,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             name=notification_name,
             message="completed",
             severity="info",
-            params={
+            secret_params={
                 "url": url,
                 "method": "GET",
                 "verify_ssl": verify_ssl,
@@ -238,26 +261,6 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             self._logger,
             True,
             _assert_notifications,
-        )
-
-    @staticmethod
-    def _create_notification(
-        kind=None,
-        name=None,
-        message=None,
-        severity=None,
-        when=None,
-        condition=None,
-        params=None,
-    ):
-        return mlrun.model.Notification(
-            kind=kind or "slack",
-            when=when or ["completed"],
-            name=name or "test-notification",
-            message=message or "test-notification-message",
-            condition=condition,
-            severity=severity or "info",
-            params=params or {},
         )
 
     def _create_sleep_func_in_project(self):

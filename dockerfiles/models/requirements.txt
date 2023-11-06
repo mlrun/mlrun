@@ -1,5 +1,0 @@
-gnureadline~=8.0
-transformers~=4.11.3
-xgboost~=1.1
-tensorboard~=2.5
-mpi4py~=3.1

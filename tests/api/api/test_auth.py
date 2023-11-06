@@ -17,8 +17,8 @@ import http
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.utils.auth.verifier
 import mlrun.common.schemas
+import server.api.utils.auth.verifier
 
 
 def test_verify_authorization(
@@ -35,7 +35,7 @@ def test_verify_authorization(
         assert authorization_verification_input.resource == resource
         assert authorization_verification_input.action == action
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_permissions = (
         _mock_successful_query_permissions
     )
     response = client.post(

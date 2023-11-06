@@ -6,13 +6,13 @@ A project is a container for all the assets, configuration, and code of a partic
 <p align="center"><img src="../_static/images/project.png" alt="mlrun-project" width="600"/></p><br>
 
 **In this section**
-- [Creating a new project](#create)
+- [Creating a project](#create)
 - [Adding functions, artifacts, workflow, and config](#add-elements)
 - [Pushing the project content into git or an archive](#push)
 - [Get a project from DB or create it](#get-or-create)
 
 <a id="create"></a>
-## Creating a new project
+## Creating a project
 
 Project files (code, configuration, etc.) are stored in a directory (the project `context` path) and can be pushed to, or loaded from, the source repository. See the following project directory example:
 
@@ -247,3 +247,6 @@ Example:
     project.run("main", arguments={'data': data_url})  # run the workflow "main"
 ```
 
+## Deleting a project
+
+See {py:class}`~mlrun.db.httpdb.HTTPRunDB.delete_project`.

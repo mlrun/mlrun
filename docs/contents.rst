@@ -7,7 +7,7 @@ Table of Contents
    
    index
    mlops-dev-flow
-   tutorial/index
+   tutorials/index
    install   
 
 .. toctree::
@@ -21,8 +21,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    concepts/monitoring
-   concepts/notifications
-    
+       
 .. toctree::
    :maxdepth: 1
    :caption: MLOps tasks
@@ -32,7 +31,6 @@ Table of Contents
    deployment/index
    monitoring/index
    projects/ci-cd-automate
-   projects/ci-integration
      
 .. toctree::
    :maxdepth: 1

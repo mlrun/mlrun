@@ -18,7 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -435,6 +435,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
+            config.external_platform_tracking = (
+                server_cfg.get("external_platform_tracking")
+                or config.external_platform_tracking
+            )
             config.model_endpoint_monitoring.store_type = (
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
@@ -630,7 +634,10 @@ class HTTPRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """
+        Retrieve a list of runs, filtered by various options.
+        If no filter is provided, will return runs from the last week.
+
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
@@ -666,6 +673,26 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
@@ -964,7 +991,7 @@ class HTTPRunDB(RunDBInterface):
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
-            "label_selector": label_selector,
+            "label-selector": label_selector,
             "group-by": group_by,
             "kind": kind,
             "object-id": object_id,
@@ -1166,6 +1193,7 @@ class HTTPRunDB(RunDBInterface):
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1178,6 +1206,7 @@ class HTTPRunDB(RunDBInterface):
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+        :param force_build:   Force building the image, even when no changes were made
         """
 
         try:
@@ -1185,6 +1214,7 @@ class HTTPRunDB(RunDBInterface):
                 "function": func.to_dict(),
                 "with_mlrun": bool2str(with_mlrun),
                 "skip_deployed": skip_deployed,
+                "force_build": force_build,
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
@@ -1451,15 +1481,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(
@@ -1515,7 +1547,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         namespace: str = None,
-        timeout: int = 10,
+        timeout: int = 30,
         format_: Union[
             str, mlrun.common.schemas.PipelinesFormat
         ] = mlrun.common.schemas.PipelinesFormat.summary,
@@ -2161,7 +2193,7 @@ class HTTPRunDB(RunDBInterface):
         owner: str = None,
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        ] = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -2170,9 +2202,9 @@ class HTTPRunDB(RunDBInterface):
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
 
-            - ``full`` (default value) - Return full project objects.
+            - ``name_only`` (default value) - Return just the names of the projects.
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
-            - ``name_only`` - Return just the names of the projects.
+            - ``full``  - Return full project objects.
 
         :param labels: Filter by labels attached to the project.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
@@ -2226,14 +2258,16 @@ class HTTPRunDB(RunDBInterface):
             - ``cascade`` - Automatically delete all child objects when deleting the project.
         """
 
-        path = f"projects/{name}"
+        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            return self._wait_for_project_to_be_deleted(name)
+            logger.info("Project is being deleted", project_name=name)
+            self._wait_for_project_to_be_deleted(name)
+        logger.info("Project deleted", project_name=name)
 
     def store_project(
         self,
@@ -2296,7 +2330,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2320,7 +2356,7 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,
@@ -3204,6 +3240,11 @@ class HTTPRunDB(RunDBInterface):
             if hasattr(workflow_spec, "image")
             else workflow_spec.get("image", None)
         )
+        workflow_name = name or (
+            workflow_spec.name
+            if hasattr(workflow_spec, "name")
+            else workflow_spec.get("name", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -3211,16 +3252,20 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+        if isinstance(
+            workflow_spec,
+            mlrun.common.schemas.WorkflowSpec,
+        ):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+        req["spec"]["name"] = workflow_name
         response = self.api_call(
             "POST",
-            f"projects/{project}/workflows/{name}/submit",
+            f"projects/{project}/workflows/{workflow_name}/submit",
             json=req,
         )
         return mlrun.common.schemas.WorkflowResponse(**response.json())
@@ -3312,12 +3357,26 @@ class HTTPRunDB(RunDBInterface):
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        self.api_call(method="DELETE", path=path)
+        return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
-        pass
+        project = project or config.default_project
+        path = self._path_of("projects", project, "datastore-profiles")
+
+        res = self.api_call(method="GET", path=path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str

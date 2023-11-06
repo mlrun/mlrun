@@ -214,7 +214,7 @@ with warnings.catch_warnings():
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
-            Index("idx_runs_project_uid", "id", "project", unique=True),
+            Index("idx_runs_project_id", "id", "project", unique=True),
         )
 
         Label = make_label(__tablename__)

@@ -135,12 +135,13 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self.project.set_model_monitoring_application(
+        fn = self.project.set_model_monitoring_function(
             func=str((Path(__file__).parent / "assets/application.py").absolute()),
             application_class="DemoMonitoringApp",
             name=self.app_name,
             image="mlrun/mlrun",
         )
+        fn.deploy()
         self._log_model()
         self.serving_fn = self._deploy_model_serving()
 

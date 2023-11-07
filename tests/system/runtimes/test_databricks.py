@@ -173,9 +173,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             function.spec.env.append({"name": name, "value": val})
 
     @pytest.mark.parametrize(
-        # "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
-        "use_existing_cluster, fail",
-        [(True, False), (False, True)],
+        "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
     )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
         code = print_kwargs_function % "print_kwargs"

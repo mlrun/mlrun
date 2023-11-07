@@ -25,6 +25,15 @@ RUN apt-get update && \
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y curl apt-transport-https
+# Download and install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/
+
+
+
 USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
@@ -68,6 +77,10 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_ENV_FILE=$HOME/mlrun.env
+
+RUN tar -cvf /tmp/basehome.tar $HOME
+
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlcestart.sh /usr/local/bin/mlcestart.sh
 
 # run the mlrun db (api) and the notebook in parallel
 CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \

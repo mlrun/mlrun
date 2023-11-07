@@ -12,19 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from server.api.utils.db.mysql import MySQLUtil
 
-# fmt: off
-mysql_dsn_data = MySQLUtil.get_mysql_dsn_data()
-if mysql_dsn_data:
-    from .models_mysql import *  # noqa
+_tagged = None
+_labeled = None
+_with_notifications = None
+_classes = None
 
-    # importing private variables as well
-    from .common import _classes, _labeled, _tagged, _with_notifications  # noqa # isort:skip
-else:
-    from .models_sqlite import *  # noqa
 
-    # importing private variables as well
-    from .common import _classes, _labeled, _tagged, _with_notifications  # noqa # isort:skip
-
-# fmt: on
+def post_table_definitions(base_cls):
+    global _tagged
+    global _labeled
+    global _with_notifications
+    global _classes
+    _tagged = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Tag")]
+    _labeled = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Label")]
+    _with_notifications = [
+        cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
+    ]
+    _classes = [cls for cls in base_cls.__subclasses__()]

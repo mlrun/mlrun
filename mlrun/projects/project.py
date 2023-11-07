@@ -17,7 +17,6 @@ import glob
 import http
 import importlib.util as imputil
 import json
-import os.path
 import pathlib
 import shutil
 import tempfile
@@ -36,7 +35,6 @@ import kfp
 import nuclio
 import requests
 import yaml
-from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -1009,59 +1007,12 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        # TODO: remove all arguments except metadata and spec in 1.6.0
-        name=None,
-        description=None,
-        params=None,
-        functions=None,
-        workflows=None,
-        artifacts=None,
-        artifact_path=None,
-        conda=None,
-        # all except these metadata and spec are for backwards compatibility with MlrunProjectLegacy
-        metadata=None,
-        spec=None,
-        default_requirements: typing.Union[str, typing.List[str]] = None,
+        metadata: Optional[Union[ProjectMetadata, Dict]] = None,
+        spec: Optional[Union[ProjectSpec, Dict]] = None,
     ):
-        self._metadata = None
-        self.metadata = metadata
-        self._spec = None
-        self.spec = spec
-        self._status = None
+        self.metadata: ProjectMetadata = metadata
+        self.spec: ProjectSpec = spec
         self.status = None
-
-        if any(
-            [
-                name,
-                description,
-                params,
-                functions,
-                workflows,
-                artifacts,
-                artifact_path,
-                conda,
-                default_requirements,
-            ]
-        ):
-            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
-            warnings.warn(
-                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
-                " use metadata and spec instead",
-                FutureWarning,
-            )
-
-        # Handling the fields given in the legacy way
-        self.metadata.name = name or self.metadata.name
-        self.spec.description = description or self.spec.description
-        self.spec.params = params or self.spec.params
-        self.spec.functions = functions or self.spec.functions
-        self.spec.workflows = workflows or self.spec.workflows
-        self.spec.artifacts = artifacts or self.spec.artifacts
-        self.spec.artifact_path = artifact_path or self.spec.artifact_path
-        self.spec.conda = conda or self.spec.conda
-        self.spec.default_requirements = (
-            default_requirements or self.spec.default_requirements
-        )
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -1204,17 +1155,11 @@ class MlrunProject(ModelObj):
         self.spec.mountdir = mountdir
 
     @property
-    def params(self) -> str:
+    def params(self) -> dict:
         return self.spec.params
 
     @params.setter
     def params(self, params):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.params instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
         self.spec.params = params
 
     @property
@@ -1278,6 +1223,7 @@ class MlrunProject(ModelObj):
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                              Note that "local" engine does not support this argument
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
@@ -1290,6 +1236,9 @@ class MlrunProject(ModelObj):
             raise ValueError(
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
+
+        if engine and "local" in engine and schedule:
+            raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
         # engine could be "remote" or "remote:local"
         if image and ((engine and "remote" in engine) or schedule):
@@ -2507,10 +2456,7 @@ class MlrunProject(ModelObj):
             )
 
         if not name and not workflow_path and not workflow_handler:
-            if self.spec.workflows:
-                name = list(self.spec._workflows.keys())[0]
-            else:
-                raise ValueError("Workflow name or path must be specified")
+            raise ValueError("Workflow name, path, or handler must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
@@ -2598,43 +2544,6 @@ class MlrunProject(ModelObj):
             expected_statuses=expected_statuses,
             notifiers=notifiers,
         )
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'clear_context' will be removed in 1.6.0, this can cause unexpected issues",
-        category=FutureWarning,
-    )
-    def clear_context(self):
-        """delete all files and clear the context dir"""
-        warnings.warn(
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0."
-        )
-        # clear only if the context path exists and not relative
-        if self.spec.context and os.path.isabs(self.spec.context):
-            # if a subpath is defined, will empty the subdir instead of the entire context
-            if self.spec.subpath:
-                path_to_clear = path.join(self.spec.context, self.spec.subpath)
-                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
-            else:
-                path_to_clear = self.spec.context
-                logger.info(
-                    f"Subpath is not defined, Clearing context: {path_to_clear}"
-                )
-            if path.exists(path_to_clear) and path.isdir(path_to_clear):
-                shutil.rmtree(path_to_clear)
-            else:
-                logger.warn(
-                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
-                    " Please ensure that your context or subdpath are properly defined."
-                )
-        else:
-            logger.warn(
-                "Your context path is a relative path;"
-                " in order to avoid unexpected results, we do not allow the deletion of relative paths."
-            )
 
     def save(self, filepath=None, store=True):
         """export project to yaml file and save project in database
@@ -2971,7 +2880,7 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have the image specified built
+        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
@@ -2988,6 +2897,14 @@ class MlrunProject(ModelObj):
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
         :param force_build:
         """
+
+        if skip_deployed:
+            warnings.warn(
+                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
+                "This parameter is ignored.",
+                # TODO: remove in 1.7.0
+                FutureWarning,
+            )
 
         self.build_config(
             image=image,
@@ -3012,7 +2929,6 @@ class MlrunProject(ModelObj):
             commands=build.commands,
             secret_name=build.secret,
             requirements=build.requirements,
-            skip_deployed=skip_deployed,
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
@@ -3302,6 +3218,10 @@ class MlrunProject(ModelObj):
         )
 
     def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        """
+        Returns a list of datastore profiles associated with the project.
+        The information excludes private details, showcasing only public data.
+        """
         return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
             self.name
         )
@@ -3406,7 +3326,11 @@ def _init_function_from_dict(
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f, tag=tag)
+        if "spec" in f["spec"]:
+            # Functions are stored in the project yaml as a dict with a spec key where the spec is the function
+            func = new_function(name, runtime=f["spec"])
+        else:
+            func = new_function(name, runtime=f, tag=tag)
 
     elif not url and has_module:
         func = new_function(

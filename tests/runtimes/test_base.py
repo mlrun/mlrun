@@ -123,21 +123,13 @@ class TestAutoMount:
         ],
     )
     def test_resolve_requirements(self, requirements, encoded_requirements):
-        for requirements_as_file in [True, False]:
-            if requirements_as_file:
-
-                # create a temporary file with the requirements
-                requirements = self._create_temp_requirements_file(requirements)
-
-            encoded = self._generate_runtime().spec.build._resolve_requirements(
-                requirements
-            )
-            assert (
-                encoded == encoded_requirements
-            ), f"Failed to encode {requirements} as file {requirements_as_file}"
+        encoded = self._generate_runtime().spec.build._resolve_requirements(
+            requirements
+        )
+        assert encoded == encoded_requirements, f"Failed to encode {requirements}"
 
     @pytest.mark.parametrize(
-        "requirements,requirements_in_file,encoded_requirements,requirements_as_file",
+        "requirements,requirements_in_file,encoded_requirements",
         [
             (
                 ["pandas==1.0.0", "numpy==1.0.0"],
@@ -148,18 +140,6 @@ class TestAutoMount:
                     "pandas==1.0.0",
                     "numpy==1.0.0",
                 ],
-                False,
-            ),
-            (
-                ["pandas==1.0.0", "numpy==1.0.0"],
-                ["something==1.0.0", "otherthing==1.0.0"],
-                [
-                    "something==1.0.0",
-                    "otherthing==1.0.0",
-                    "pandas==1.0.0",
-                    "numpy==1.0.0",
-                ],
-                True,
             ),
         ],
     )
@@ -168,13 +148,9 @@ class TestAutoMount:
         requirements,
         requirements_in_file,
         encoded_requirements,
-        requirements_as_file,
     ):
         # create requirements file
         requirements_file = self._create_temp_requirements_file(requirements_in_file)
-
-        if requirements_as_file:
-            requirements = self._create_temp_requirements_file(requirements)
 
         encoded = self._generate_runtime().spec.build._resolve_requirements(
             requirements, requirements_file

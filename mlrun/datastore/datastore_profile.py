@@ -16,7 +16,7 @@ import ast
 import base64
 import json
 import typing
-from urllib.parse import ParseResult, urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse
 
 import pydantic
 from mergedeep import merge
@@ -47,6 +47,14 @@ class DatastoreProfile(pydantic.BaseModel):
             + profile_name
         )
         return full_key
+
+    @classmethod
+    def secrets(self) -> dict:
+        return None
+
+    @classmethod
+    def url(self, subpath) -> str:
+        return None
 
 
 class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
@@ -133,6 +141,27 @@ class DatastoreProfileS3(DatastoreProfile):
     access_key: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
+    def secrets(self) -> dict:
+        res = {}
+        if self.access_key:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.secret_key:
+            res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
+        if self.endpoint_url:
+            res["S3_ENDPOINT_URL"] = self.endpoint_url
+        if self.force_non_anonymous:
+            res["S3_NON_ANONYMOUS"] = self.force_non_anonymous
+        if self.profile_name:
+            res["AWS_PROFILE"] = self.profile_name
+        if self.assume_role_arn:
+            res["MLRUN_AWS_ROLE_ARN"] = self.assume_role_arn
+        return res if res else None
+
+    def url(self, subpath):
+        if not self.endpoint_url:
+            return f"s3://{subpath}"
+        return self.endpoint_url + subpath
+
 
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
@@ -141,32 +170,16 @@ class DatastoreProfileRedis(DatastoreProfile):
     username: typing.Optional[str] = None
     password: typing.Optional[str] = None
 
-    def is_secured(self):
-        return self.endpoint_url.startswith("rediss://")
+    def secrets(self) -> dict:
+        res = {}
+        if self.username:
+            res["REDIS_USER"] = self.username
+        if self.password:
+            res["REDIS_PASSWORD"] = self.password
+        return res if res else None
 
-    def url_with_credentials(self):
-        parsed_url = urlparse(self.endpoint_url)
-        username = self.username
-        password = self.password
-        netloc = parsed_url.hostname
-        if username:
-            if password:
-                netloc = f"{username}:{password}@{parsed_url.hostname}"
-            else:
-                netloc = f"{username}@{parsed_url.hostname}"
-
-        if parsed_url.port:
-            netloc += f":{parsed_url.port}"
-
-        new_parsed_url = ParseResult(
-            scheme=parsed_url.scheme,
-            netloc=netloc,
-            path=parsed_url.path,
-            params=parsed_url.params,
-            query=parsed_url.query,
-            fragment=parsed_url.fragment,
-        )
-        return urlunparse(new_parsed_url)
+    def url(self, subpath):
+        return self.endpoint_url + subpath
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -272,6 +285,10 @@ def datastore_profile_read(url):
 
 
 def register_temporary_client_datastore_profile(profile: DatastoreProfile):
+    """Register the datastore profile.
+    This profile is temporary and remains valid only for the duration of the caller's session.
+    It's beneficial for testing purposes.
+    """
     TemporaryClientDatastoreProfiles().add(profile)
 
 

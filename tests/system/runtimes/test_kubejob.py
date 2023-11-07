@@ -60,7 +60,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             project=self.project_name,
             filename=code_path,
             image="mlrun/mlrun",
-            requirements=requirements_path,
+            requirements_file=requirements_path,
         )
         function.deploy()
         run = function.run(handler="mycls::do")

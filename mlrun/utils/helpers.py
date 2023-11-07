@@ -40,6 +40,7 @@ import yaml
 from dateutil import parser
 from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
+from timelength import TimeLength
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -1504,3 +1505,15 @@ def line_terminator_kwargs():
         else "line_terminator"
     )
     return {line_terminator_parameter: "\n"}
+
+
+def time_string_to_seconds(time_str: str):
+    if time_str == "-1":
+        return -1
+
+    parsed_length = TimeLength(time_str, strict=True)
+    total_seconds = parsed_length.to_seconds()
+    if total_seconds < 1:
+        raise ValueError(f"Invalid time string {time_str}, must be at least 1 second")
+
+    return total_seconds

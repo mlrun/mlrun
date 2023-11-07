@@ -1406,6 +1406,9 @@ class KafkaTarget(BaseStoreTarget):
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
 
+    def purge(self):
+        pass
+
 
 class TSDBTarget(BaseStoreTarget):
     kind = TargetTypes.tsdb

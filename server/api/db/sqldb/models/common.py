@@ -11,16 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-from urllib.parse import urlparse
+_tagged = None
+_labeled = None
+_with_notifications = None
+_classes = None
 
-import s3fs
 
-
-class S3FileSystemWithDS(s3fs.S3FileSystem):
-    @classmethod
-    def _strip_protocol(cls, url):
-        if url.startswith("ds://"):
-            parsed_url = urlparse(url)
-            url = parsed_url.path[1:]
-        return super()._strip_protocol(url)
+def post_table_definitions(base_cls):
+    global _tagged
+    global _labeled
+    global _with_notifications
+    global _classes
+    _tagged = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Tag")]
+    _labeled = [cls for cls in base_cls.__subclasses__() if hasattr(cls, "Label")]
+    _with_notifications = [
+        cls for cls in base_cls.__subclasses__() if hasattr(cls, "Notification")
+    ]
+    _classes = [cls for cls in base_cls.__subclasses__()]

@@ -24,6 +24,7 @@ from sqlalchemy import (
     JSON,
     Column,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -36,6 +37,8 @@ import mlrun.common.schemas
 import mlrun.utils.db
 from server.api.utils.db.sql_collation import SQLCollationUtil
 
+from .common import post_table_definitions
+
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 
@@ -45,6 +48,7 @@ def make_label(table):
         __tablename__ = f"{table}_labels"
         __table_args__ = (
             UniqueConstraint("name", "parent", name=f"_{table}_labels_uc"),
+            Index(f"idx_{table}_labels_name_value", "name", "value"),
         )
 
         id = Column(Integer, primary_key=True)
@@ -210,6 +214,7 @@ with warnings.catch_warnings():
         __tablename__ = "runs"
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
+            Index("idx_runs_project_id", "id", "project", unique=True),
         )
 
         Label = make_label(__tablename__)
@@ -550,10 +555,4 @@ with warnings.catch_warnings():
 
 
 # Must be after all table definitions
-_tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
-_labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
-_with_notifications = [
-    cls for cls in Base.__subclasses__() if hasattr(cls, "Notification")
-]
-_classes = [cls for cls in Base.__subclasses__()]
-_table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}
+post_table_definitions(base_cls=Base)

@@ -16,11 +16,7 @@ from dateutil import parser
 
 import mlrun.runtimes.constants
 from mlrun.utils import get_in
-from server.api.db.sqldb.models import Base, _table2cls
-
-
-def table2cls(name):
-    return _table2cls.get(name)
+from server.api.db.sqldb.models import Base
 
 
 def label_set(labels):

@@ -469,7 +469,7 @@ class MLFlowTracker(Tracker):
             "model_file": str(archive_path),
             "metrics": metrics,
             "labels": {
-                "mlflow_flavors": list(model_info.flavors.keys()),
+                "mlflow_flavors": str(list(model_info.flavors.keys())),
                 "mlflow_run_id": model_info.run_id,
                 "mlflow_version": model_info.mlflow_version,
                 "mlflow_model_uuid": model_info.model_uuid,

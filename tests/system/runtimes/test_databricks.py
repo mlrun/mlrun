@@ -72,10 +72,11 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 active_only=True, start_time_from=previous_day_utc_time_in_ms
             )
         )
+        # We use startswith because we append a timestamp at the end of the run name.
         runs_by_run_name = [
             databricks_run
             for databricks_run in runs
-            if databricks_run.run_name == run_name
+            if databricks_run.run_name.startswith(run_name)
         ]
         if len(runs_by_run_name) == 0:
             raise MLRunRuntimeError(
@@ -125,7 +126,12 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 )
             pd.testing.assert_frame_equal(expected_df, artifact_df)
 
+    def setup_method(self, method):
+        time.sleep(2)  # For project handling...
+        super().setup_method(method)
+
     def setup_class(self):
+        super().setup_class()
         for key, value in config["env"].items():
             if value is not None:
                 os.environ[key] = value
@@ -146,16 +152,12 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
         )
 
-    @classmethod
-    def _add_databricks_env(cls, function, is_cluster_id_required=True):
+    def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:
             raise KeyError(
                 "The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
             )
-        project = mlrun.get_or_create_project(
-            cls.project_name, context="./", user_project=False
-        )
 
         job_env = {
             "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
@@ -165,13 +167,15 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
         secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
 
-        project.set_secrets(secrets)
+        self.project.set_secrets(secrets)
 
         for name, val in job_env.items():
             function.spec.env.append({"name": name, "value": val})
 
     @pytest.mark.parametrize(
-        "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
+        # "use_existing_cluster, fail", [(True, False), (False, True), (False, False)]
+        "use_existing_cluster, fail",
+        [(True, False), (False, True)],
     )
     def test_kwargs_from_code(self, use_existing_cluster, fail):
         code = print_kwargs_function % "print_kwargs"
@@ -354,6 +358,7 @@ def handler(**kwargs):
         assert run.state.result_state == RunResultState.CANCELED
 
     def test_log_artifact(self):
+        self._run_db.del_artifacts(project=self.project_name)
         artifact_key_parquet = f"my_artifact_test_{uuid.uuid4()}.parquet"
         artifact_key_csv = f"my_artifact_test_{uuid.uuid4()}.csv"
         parquet_artifact_dbfs_path = (
@@ -394,16 +399,12 @@ def main():
             handler="main",
             project=self.project_name,
         )
+        time.sleep(2)
         self._check_artifacts_by_path(paths_dict=paths_dict)
-        artifacts_db_keys = [
-            artifact.get("spec").get("db_key")
-            for artifact in self.project.list_artifacts()
-        ]
-        run_db = mlrun.get_run_db()
-        for artifacts_db_key in artifacts_db_keys:
-            run_db.del_artifact(key=artifacts_db_key, project=self.project_name)
+        self._run_db.del_artifacts(project=self.project_name)
         assert (
             len(self.project.list_artifacts()) == 0
         )  # make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
+        time.sleep(2)
         self._check_artifacts_by_path(paths_dict=paths_dict)

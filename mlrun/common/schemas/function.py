@@ -105,11 +105,15 @@ class ServiceAccount(pydantic.BaseModel):
     default: typing.Optional[str]
 
 
+class StateThresholds(pydantic.BaseModel):
+    default: typing.Optional[typing.Dict[str, str]]
+
+
 class FunctionSpec(pydantic.BaseModel):
     image_pull_secret: typing.Optional[ImagePullSecret]
     security_context: typing.Optional[SecurityContext]
     service_account: typing.Optional[ServiceAccount]
-    state_thresholds: typing.Optional[typing.Dict[str, str]]
+    state_thresholds: typing.Optional[StateThresholds]
 
 
 class Function(pydantic.BaseModel):

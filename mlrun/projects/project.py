@@ -1747,7 +1747,7 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
-         Update or add a monitoring function to the project.
+        Update or add a monitoring function to the project.
 
         examples::
             project.set_model_monitoring_function(application_class_name="MyApp",

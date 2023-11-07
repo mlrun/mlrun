@@ -19,7 +19,6 @@ import re
 import shutil
 import tempfile
 import unittest.mock
-import warnings
 import zipfile
 from contextlib import nullcontext as does_not_raise
 
@@ -466,7 +465,8 @@ def test_set_function_requirements(rundb_mock):
 
 def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
@@ -508,7 +508,8 @@ def test_backwards_compatibility_get_non_normalized_function_name(rundb_mock):
 
 def test_set_function_underscore_name(rundb_mock):
     project = mlrun.projects.MlrunProject(
-        "project", default_requirements=["pandas>1, <3"]
+        mlrun.projects.ProjectMetadata("project"),
+        mlrun.projects.ProjectSpec(default_requirements=["pandas>1, <3"]),
     )
     func_name = "name_with_underscores"
 
@@ -1120,44 +1121,6 @@ def test_project_ops():
     assert run.output("y") == 4  # = x * 2
 
 
-def test_clear_context():
-    proj = mlrun.new_project("proj", save=False)
-    proj_with_subpath = mlrun.new_project(
-        "proj",
-        subpath="test",
-        context=pathlib.Path(tests.conftest.tests_root_directory),
-        save=False,
-    )
-    subdir_path = os.path.join(
-        proj_with_subpath.spec.context, proj_with_subpath.spec.subpath
-    )
-    # when the context is relative, assert no deletion called
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, warnings.catch_warnings(record=True) as w:
-        proj.clear_context()
-        rmtree.assert_not_called()
-
-        assert len(w) == 2
-        assert issubclass(w[-2].category, FutureWarning)
-        assert (
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0." in str(w[-1].message)
-        )
-
-    # when the context is not relative and subdir specified, assert that the subdir is deleted rather than the context
-    with unittest.mock.patch(
-        "shutil.rmtree", return_value=True
-    ) as rmtree, unittest.mock.patch(
-        "os.path.exists", return_value=True
-    ), unittest.mock.patch(
-        "os.path.isdir", return_value=True
-    ):
-        proj_with_subpath.clear_context()
-        rmtree.assert_called_once_with(subdir_path)
-
-
 @pytest.mark.parametrize(
     "parameters,hyperparameters,expectation,run_saved",
     [
@@ -1458,6 +1421,7 @@ def test_init_function_from_dict_function_in_spec():
                 "volumes": [],
                 "driver_volume_mounts": [],
                 "executor_volume_mounts": [],
+                "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
             "verbose": False,
         },

@@ -17,7 +17,6 @@ import glob
 import http
 import importlib.util as imputil
 import json
-import os.path
 import pathlib
 import shutil
 import tempfile
@@ -36,7 +35,6 @@ import kfp
 import nuclio
 import requests
 import yaml
-from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -1009,59 +1007,12 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        # TODO: remove all arguments except metadata and spec in 1.6.0
-        name=None,
-        description=None,
-        params=None,
-        functions=None,
-        workflows=None,
-        artifacts=None,
-        artifact_path=None,
-        conda=None,
-        # all except these metadata and spec are for backwards compatibility with MlrunProjectLegacy
-        metadata=None,
-        spec=None,
-        default_requirements: typing.Union[str, typing.List[str]] = None,
+        metadata: Optional[Union[ProjectMetadata, Dict]] = None,
+        spec: Optional[Union[ProjectSpec, Dict]] = None,
     ):
-        self._metadata = None
-        self.metadata = metadata
-        self._spec = None
-        self.spec = spec
-        self._status = None
+        self.metadata: ProjectMetadata = metadata
+        self.spec: ProjectSpec = spec
         self.status = None
-
-        if any(
-            [
-                name,
-                description,
-                params,
-                functions,
-                workflows,
-                artifacts,
-                artifact_path,
-                conda,
-                default_requirements,
-            ]
-        ):
-            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
-            warnings.warn(
-                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
-                " use metadata and spec instead",
-                FutureWarning,
-            )
-
-        # Handling the fields given in the legacy way
-        self.metadata.name = name or self.metadata.name
-        self.spec.description = description or self.spec.description
-        self.spec.params = params or self.spec.params
-        self.spec.functions = functions or self.spec.functions
-        self.spec.workflows = workflows or self.spec.workflows
-        self.spec.artifacts = artifacts or self.spec.artifacts
-        self.spec.artifact_path = artifact_path or self.spec.artifact_path
-        self.spec.conda = conda or self.spec.conda
-        self.spec.default_requirements = (
-            default_requirements or self.spec.default_requirements
-        )
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -1204,17 +1155,11 @@ class MlrunProject(ModelObj):
         self.spec.mountdir = mountdir
 
     @property
-    def params(self) -> str:
+    def params(self) -> dict:
         return self.spec.params
 
     @params.setter
     def params(self, params):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.params instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
         self.spec.params = params
 
     @property
@@ -2770,43 +2715,6 @@ class MlrunProject(ModelObj):
             expected_statuses=expected_statuses,
             notifiers=notifiers,
         )
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'clear_context' will be removed in 1.6.0, this can cause unexpected issues",
-        category=FutureWarning,
-    )
-    def clear_context(self):
-        """delete all files and clear the context dir"""
-        warnings.warn(
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0."
-        )
-        # clear only if the context path exists and not relative
-        if self.spec.context and os.path.isabs(self.spec.context):
-            # if a subpath is defined, will empty the subdir instead of the entire context
-            if self.spec.subpath:
-                path_to_clear = path.join(self.spec.context, self.spec.subpath)
-                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
-            else:
-                path_to_clear = self.spec.context
-                logger.info(
-                    f"Subpath is not defined, Clearing context: {path_to_clear}"
-                )
-            if path.exists(path_to_clear) and path.isdir(path_to_clear):
-                shutil.rmtree(path_to_clear)
-            else:
-                logger.warn(
-                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
-                    " Please ensure that your context or subdpath are properly defined."
-                )
-        else:
-            logger.warn(
-                "Your context path is a relative path;"
-                " in order to avoid unexpected results, we do not allow the deletion of relative paths."
-            )
 
     def save(self, filepath=None, store=True):
         """export project to yaml file and save project in database

@@ -716,6 +716,7 @@ class TestSpark3Runtime(tests.api.runtimes.base.TestRuntimeBase):
             "function": "None/my-vector-merger@349f744e83e1a71d8b1faf4bbf3723dc0625daed",
             "data_stores": [],
             "handler": "merge_handler",
+            "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
         }
         assert (
             deepdiff.DeepDiff(

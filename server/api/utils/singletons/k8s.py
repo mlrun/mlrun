@@ -159,8 +159,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             # ignore error if pod is already removed
             if exc.status != 404:
                 logger.error(
-                    f"failed to delete pod: {mlrun.errors.err_to_str(exc)}",
+                    "Failed to delete pod",
                     pod_name=name,
+                    error=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
 

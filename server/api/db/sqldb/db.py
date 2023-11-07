@@ -75,10 +75,8 @@ from server.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
-    _labeled,
-    _tagged,
-    _with_notifications,
 )
+from server.api.db.sqldb.models.common import _labeled, _tagged, _with_notifications
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
@@ -1373,7 +1371,9 @@ class SQLDB(DBInterface):
         kind: mlrun.common.schemas.ScheduleKinds = None,
     ) -> List[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedules from db", project=project, name=name, kind=kind)
-        query = self._query(session, Schedule, project=project, kind=kind)
+        query = self._query(session, Schedule, kind=kind)
+        if project and project != "*":
+            query = query.filter(Schedule.project == project)
         if name is not None:
             query = query.filter(generate_query_predicate_for_name(Schedule.name, name))
         labels = label_set(labels)

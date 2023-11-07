@@ -206,6 +206,8 @@ class LogCollectorClient(
                         http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
                         mlrun.errors.err_to_str(exc),
                     )
+
+                # breath
                 await asyncio.sleep(3)
 
     async def has_logs(

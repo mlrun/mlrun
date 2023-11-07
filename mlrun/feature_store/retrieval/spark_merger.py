@@ -169,7 +169,7 @@ class SparkFeatureMerger(BaseMerger):
             if self._pandas_df is None:
                 df = self._result_df
                 # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
-                # when we upgrade pyspark, we should check whether this is workaround is still necessary
+                # when we upgrade pyspark, we should check whether this workaround is still necessary
                 # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
                 if semver.parse(pd.__version__)["major"] >= 2:
                     type_conversion_dict = {}

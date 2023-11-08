@@ -597,7 +597,9 @@ class _KFPRunner(_PipelineRunner):
             try:
                 func.spec.rollback_fields()
             except AttributeError:
-                logger.debug(f"Function of type {type(func)} doesn't require a spec field rollback")
+                logger.debug(
+                    f"Function of type {type(func)} doesn't require a spec field rollback"
+                )
             except Exception as exc:
                 logger.warning(
                     f"Failed to rollback spec fields for function {func.metadata.name}",

@@ -347,9 +347,13 @@ class KubeResourceSpec(FunctionSpec):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
         for pattern in mlrun.utils.regex.pipeline_param:
             if re.match(pattern, str(cpu)) or re.match(pattern, str(mem)):
-                self.__fields_pending_rollback.update({
-                    resources_field_name: copy.deepcopy(getattr(self, resources_field_name)),
-                })
+                self.__fields_pending_rollback.update(
+                    {
+                        resources_field_name: copy.deepcopy(
+                            getattr(self, resources_field_name)
+                        ),
+                    }
+                )
         if not patch:
             update_in(
                 getattr(self, resources_field_name),

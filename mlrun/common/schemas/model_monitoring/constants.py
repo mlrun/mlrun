@@ -274,5 +274,5 @@ class ResultStatusApp(enum.IntEnum):
 
 
 class ModelMonitoringAppLabel:
-    KEY = "__mlrun__type"
-    VAL = "__mlrun__model-monitoring-application"
+    KEY = "mlrun__type"
+    VAL = "mlrun__model-monitoring-application"

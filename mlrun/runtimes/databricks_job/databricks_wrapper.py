@@ -94,7 +94,6 @@ def run_mlrun_databricks_job(
     task_parameters: dict,
     **kwargs,
 ):
-    mlrun_databricks_job_id = uuid.uuid4()
     spark_app_code = task_parameters["spark_app_code"]
     token_key = task_parameters.get("token_key", "DATABRICKS_TOKEN")
     databricks_token = mlrun.get_secret_or_env(key=token_key)
@@ -103,16 +102,12 @@ def run_mlrun_databricks_job(
     number_of_workers = task_parameters.get("number_of_workers", 1)
     new_cluster_spec = task_parameters.get("new_cluster_spec")
     artifact_json_path = task_parameters.get("artifact_json_path")
-    databricks_run_name = task_parameters.get(
-        "databricks_run_name", f"mlrun_task_{mlrun_databricks_job_id}"
-    )
     current_time = datetime.datetime.utcnow()
     run_time = current_time.strftime("%H_%M_%S_%f")
-    databricks_run_name = (
-        databricks_run_name
-        if str(mlrun_databricks_job_id) in databricks_run_name
-        else f"{databricks_run_name}_{run_time}"
+    databricks_run_name = task_parameters.get(
+        "databricks_run_name", f"mlrun_task_"
     )
+    databricks_run_name = f"{databricks_run_name}_{run_time}"
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)
     script_path_on_dbfs = (

@@ -1116,6 +1116,5 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             context=mlrun.get_or_create_ctx(
                 name=f"{self.name_prefix}-context"
             ),  # pyright: ignore[reportGeneralTypeIssues]
-            default_batch_image="mlrun/mlrun:1.6.0-rc4",
         )
         self._test_v3io_tsdb_record()

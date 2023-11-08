@@ -591,6 +591,20 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
         )
+
+        # The user provided workflow code might have made changes to function specs that require cleanup
+        for func in project.spec._function_objects.values():
+            try:
+                func.spec.rollback_fields()
+            except AttributeError:
+                logger.debug(f"Function of type {type(func)} doesn't require a spec field rollback")
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to rollback spec fields for function {func.metadata.name}",
+                    project=project,
+                    exc_info=err_to_str(exc),
+                )
+
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),

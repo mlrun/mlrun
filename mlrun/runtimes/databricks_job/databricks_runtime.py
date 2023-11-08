@@ -28,7 +28,7 @@ class DatabricksRuntime(KubejobRuntime):
 
     def _get_log_artifacts_code(self, runobj: RunObject, task_parameters: dict):
         artifact_json_dir = task_parameters.get(
-            "artifact_json_dir", "/mlrun_databricks_runtime/artifacts_dictionaries"
+            "artifact_json_dir", mlrun.mlconf.function.databricks.artifact_directory_path
         )
         artifact_json_path = (
             f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"

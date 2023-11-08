@@ -104,9 +104,7 @@ def run_mlrun_databricks_job(
     artifact_json_path = task_parameters.get("artifact_json_path")
     current_time = datetime.datetime.utcnow()
     run_time = current_time.strftime("%H_%M_%S_%f")
-    databricks_run_name = task_parameters.get(
-        "databricks_run_name", f"mlrun_task_"
-    )
+    databricks_run_name = task_parameters.get("databricks_run_name", f"mlrun_task_")
     databricks_run_name = f"{databricks_run_name}_{run_time}"
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)

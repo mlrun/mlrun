@@ -61,9 +61,17 @@ class DatabricksRuntime(KubejobRuntime):
         if original_handler:
             code += f"\nresult = {original_handler}(**handler_arguments)\n"
             code += """\n
+default_key_template = 'mlrun_return_value_'
 if result:
-    for key, path in result.items():
-        mlrun_log_artifact(name=key, path=path)
+    if isinstance(result, dict):
+        for key, path in result.items():
+            mlrun_log_artifact(name=key, path=path)
+    elif isinstance(result, (list, tuple, set)):
+        for index, value in enumerate(result):
+            key = f'{default_key_template}{index+1}'
+            mlrun_log_artifact(name=key, path=value)
+    elif isinstance(result, str):
+        mlrun_log_artifact(name=f'{default_key_template}1', path=result)
 """
         code = b64encode(code.encode("utf-8")).decode("utf-8")
         updated_task_parameters = {
@@ -159,6 +167,12 @@ handler_arguments = json.loads(handler_arguments)
 
 artifacts_code_template = """\n
 def mlrun_log_artifact(name, path):
+    if not name or not path:
+        raise ValueError('name and path required for logging an artifact')
+    if not isinstance(name, str) or isinstance(path, str):
+        raise ValueError('name and path must be in a string type for logging an artifact')
+    if not path.startswith('/dbfs') and not path.startswith('dbfs://'):
+        raise ValueError('path for artifact must start with /dbfs or dbfs://')
     mlrun_artifacts_path = '{}'
     import json
     import os

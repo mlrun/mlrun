@@ -16,7 +16,6 @@
 import datetime
 import json
 import typing
-import uuid
 from base64 import b64decode
 
 import yaml
@@ -56,11 +55,19 @@ def log_artifacts_by_dbfs_json(
     with workspace.dbfs.open(artifact_json_path, read=True) as artifact_file:
         artifact_json = json.load(artifact_file)
     for artifact_name, artifact_path in artifact_json.items():
-        fixed_artifact_path = (
-            artifact_path.replace("/dbfs", "dbfs://", 1)
-            if artifact_path.startswith("/dbfs")
-            else artifact_path
-        )
+        fixed_artifact_path = ""
+        if artifact_path.startswith("/dbfs"):
+            fixed_artifact_path = artifact_path.replace("/dbfs", "dbfs://", 1)
+        # for pyspark format:
+        elif artifact_path.startswith("dbfs:/") and not artifact_path.startswith(
+            "dbfs://"
+        ):
+            fixed_artifact_path = artifact_path.replace("dbfs:/", "dbfs:///", 1)
+        elif not artifact_path.startswith("dbfs:///"):
+            context.logger.error(
+                f"can not log artifact: {artifact_name}: {artifact_path}"
+            )
+            continue
         context.log_artifact(
             artifact_name, local_path=fixed_artifact_path, upload=False
         )
@@ -104,7 +111,7 @@ def run_mlrun_databricks_job(
     artifact_json_path = task_parameters.get("artifact_json_path")
     current_time = datetime.datetime.utcnow()
     run_time = current_time.strftime("%H_%M_%S_%f")
-    databricks_run_name = task_parameters.get("databricks_run_name", f"mlrun_task_")
+    databricks_run_name = task_parameters.get("databricks_run_name", "mlrun_task_")
     databricks_run_name = f"{databricks_run_name}_{run_time}"
     logger = context.logger
     workspace = WorkspaceClient(token=databricks_token)

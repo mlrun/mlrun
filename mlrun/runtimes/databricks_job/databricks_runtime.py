@@ -171,8 +171,8 @@ def mlrun_log_artifact(name, path):
         raise ValueError('name and path required for logging an artifact')
     if not isinstance(name, str) or not isinstance(path, str):
         raise ValueError('name and path must be in a string type for logging an artifact')
-    if not path.startswith('/dbfs') and not path.startswith('dbfs://'):
-        raise ValueError('path for artifact must start with /dbfs or dbfs://')
+    if not path.startswith('/dbfs') and not path.startswith('dbfs:/'):
+        raise ValueError('path for artifact must start with /dbfs or dbfs:/')
     mlrun_artifacts_path = '{}'
     import json
     import os

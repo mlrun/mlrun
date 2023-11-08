@@ -91,9 +91,9 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls._v3io_container
         )
 
-    def _set_monitoring_apps(self) -> None:
+    def _set_and_deploy_monitoring_apps(self) -> None:
         for app_data in self.apps_data:
-            self.project.set_model_monitoring_application(
+            fn = self.project.set_model_monitoring_function(
                 func=app_data.abs_path,
                 application_class=app_data.class_.__name__,
                 name=app_data.class_.name,
@@ -101,6 +101,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                 requirements=app_data.requirements,
                 **app_data.kwargs,
             )
+            self.project.deploy_function(fn)
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -176,14 +177,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        fn = self.project.set_model_monitoring_function(
-            func=str((Path(__file__).parent / "assets/application.py").absolute()),
-            application_class="DemoMonitoringApp",
-            name=self.app_name,
-            image="mlrun/mlrun",
-        )
-        fn.deploy()
-        self._set_monitoring_apps()
+        self._set_and_deploy_monitoring_apps()
         self._log_model()
         self.serving_fn = self._deploy_model_serving()
 

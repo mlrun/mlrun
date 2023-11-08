@@ -685,26 +685,24 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_internal_client_abort_run()
-        self.runtime_handler.monitor_runs(get_db(), db)
-
-        await asyncio.sleep(0.2)
-        expected_jsons = []
+        stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
+        assert len(stale_runs) == 3
+        stale_run_uids = [run["uid"] for run in stale_runs]
+        expected_stale_run_uids = [
+            pending_scheduled_pod.metadata.labels["mlrun/uid"],
+            running_overtime_pod.metadata.labels["mlrun/uid"],
+            image_pull_backoff_pod.metadata.labels["mlrun/uid"],
+        ]
+        assert stale_run_uids == expected_stale_run_uids
+        stale_run_updates = [run["run_updates"] for run in stale_runs]
+        expected_run_updates = []
         for state in ["pending_scheduled", "running", "image_pull_backoff"]:
-            expected_jsons.append(
+            expected_run_updates.append(
                 {
-                    "status.state": RunStates.aborted,
                     "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
                 }
             )
-        self._assert_abort_runs(
-            [
-                pending_scheduled_pod.metadata.labels["mlrun/uid"],
-                running_overtime_pod.metadata.labels["mlrun/uid"],
-                image_pull_backoff_pod.metadata.labels["mlrun/uid"],
-            ],
-            self.project,
-            expected_jsons,
-        )
+        assert stale_run_updates == expected_run_updates
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

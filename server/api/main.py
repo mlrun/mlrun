@@ -33,6 +33,7 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.crud
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
@@ -599,14 +600,15 @@ async def _align_worker_state_with_chief_state(
     cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
 
-def _monitor_runs():
+async def _monitor_runs():
     db = get_db()
     db_session = create_session()
+    stale_runs = []
     try:
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(db, db_session)
+                stale_runs = runtime_handler.monitor_runs(db, db_session)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring",
@@ -614,6 +616,7 @@ def _monitor_runs():
                     kind=kind,
                 )
         _push_terminal_run_notifications(db, db_session)
+        await _abort_stale_runs(db_session, stale_runs)
     finally:
         close_session(db_session)
 
@@ -675,6 +678,25 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
     _last_notification_push_time = now
+
+
+async def _abort_stale_runs(db_session, stale_runs: typing.List[dict]):
+    coroutines = []
+    for stale_run in stale_runs:
+        coroutine = fastapi.concurrency.run_in_threadpool(
+            server.api.crud.Runs().abort_run, db_session, **stale_run
+        )
+        coroutines.append(coroutine)
+
+    if coroutines:
+        results = await asyncio.gather(*coroutines, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(
+                    "Failed aborting stale run. Ignoring",
+                    exc=err_to_str(result),
+                )
 
 
 async def _stop_logs():

@@ -189,7 +189,7 @@ class BaseRuntimeHandler(ABC):
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
-        coroutines = []
+        stale_runs = []
         for runtime_resource in runtime_resources:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
             run_runtime_resources_map.setdefault(project, {})
@@ -205,7 +205,7 @@ class BaseRuntimeHandler(ABC):
                     project,
                     uid,
                     name,
-                    coroutines,
+                    stale_runs,
                 )
             except Exception as exc:
                 logger.warning(
@@ -217,15 +217,11 @@ class BaseRuntimeHandler(ABC):
                     traceback=traceback.format_exc(),
                 )
 
-        async def _gather_coroutines():
-            await asyncio.gather(*coroutines, return_exceptions=True)
-
-        if coroutines:
-            server.api.utils.helpers.run_async_in_loop(_gather_coroutines)
-
         self._terminate_resourceless_runs(
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
+
+        return stale_runs
 
     def resolve_label_selector(
         self,
@@ -1145,7 +1141,7 @@ class BaseRuntimeHandler(ABC):
         project: str = None,
         uid: str = None,
         name: str = None,
-        coroutines: List[Coroutine] = None,
+        stale_runs: List[dict] = None,
     ):
         if not project and not uid and not name:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
@@ -1169,9 +1165,8 @@ class BaseRuntimeHandler(ABC):
         (
             run_state,
             threshold_exceeded,
-            status_text,
         ) = self._resolve_resource_state_and_apply_threshold(
-            run, runtime_resource, runtime_resource_is_crd, namespace, coroutines
+            run, runtime_resource, runtime_resource_is_crd, namespace, stale_runs
         )
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1184,7 +1179,6 @@ class BaseRuntimeHandler(ABC):
             run,
             search_run=False,
             force=threshold_exceeded,
-            status_text=status_text,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
@@ -1201,10 +1195,9 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-        coroutines: List[Coroutine] = None,
-    ) -> Tuple[str, bool, Optional[str]]:
+        stale_runs: List[dict] = None,
+    ) -> Tuple[str, bool]:
         threshold_exceeded = False
-        status_text = None
 
         if runtime_resource_is_crd:
             (
@@ -1231,7 +1224,7 @@ class BaseRuntimeHandler(ABC):
                     run_uid=run.get("metadata", {}).get("uid"),
                     run_state=run_state,
                 )
-                return run_state, False, None
+                return run_state, False
 
             now = datetime.now(timezone.utc)
             delta = now - start_time
@@ -1254,22 +1247,20 @@ class BaseRuntimeHandler(ABC):
                     namespace=namespace,
                 )
                 run_updates = {
-                    "status.state": RunStates.aborted,
                     "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
                 }
 
-                # Best effort - pass the request to another API instance, if it fails,
-                # we will try again in the next iteration
-                # TODO: abort run requires a session - verify it works in CE
-                coroutines.append(
-                    server.api.utils.clients.internal.Client().abort_run(
-                        run["metadata"]["project"],
-                        run["metadata"]["uid"],
-                        run_updates,
-                    )
+                stale_runs.append(
+                    {
+                        "project": run["metadata"]["project"],
+                        "uid": run["metadata"]["uid"],
+                        "iter": run["metadata"].get("iteration", 0),
+                        "run_updates": run_updates,
+                        "run": run,
+                    }
                 )
 
-        return run_state, threshold_exceeded, status_text
+        return run_state, threshold_exceeded
 
     @staticmethod
     def _resolve_run_threshold(
@@ -1451,7 +1442,6 @@ class BaseRuntimeHandler(ABC):
         run: Dict = None,
         search_run=True,
         force: bool = False,
-        status_text: str = None,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1500,8 +1490,6 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run["status"]["last_update"] = now_date().isoformat()
-        if status_text:
-            run["status"]["status_text"] = status_text
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run

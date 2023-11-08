@@ -423,25 +423,14 @@ async def abort_run(
         db_session,
         project,
         background_tasks,
-        _abort_run,
+        server.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
-        # args for _abort_run
+        # args for abort_run
         db_session,
-        data,
-        uid,
         project,
+        uid,
         iter,
+        run_updates=data,
     )
 
     return background_task
-
-
-def _abort_run(db_session: Session, data: dict, uid: str, project: str, iter: int):
-    data["status.state"] = mlrun.runtimes.constants.RunStates.aborted
-    return server.api.crud.runs.Runs().update_run(
-        db_session,
-        project=project,
-        uid=uid,
-        iter=iter,
-        data=data,
-    )

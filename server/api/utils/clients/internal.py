@@ -206,12 +206,13 @@ class Client(
         """
         Run abortion distribution to workers as background tasks
         """
-        # TODO: get the session from outside and rename the access key to not only events
-        cookies = {"session": f'j:{{"sid": "{mlrun.mlconf.events.access_key}"}}'}
-        unquoted_session = urllib.parse.unquote(cookies["session"])
-        cookies["session"] = urllib.parse.quote(unquoted_session)
+        # TODO: This method is ment to be used between workers and chief instead of having the chief preforming the
+        #  abortion of stale runs as part of the run monitoring. We need to support internal messaging between them
+        #  for it.
         return await self._forward_request(
-            "POST", f"projects/{project}/runs/{uid}/abort", json=json, cookies=cookies
+            "POST",
+            f"projects/{project}/runs/{uid}/abort",
+            json=json,
         )
 
     async def _forward_request(

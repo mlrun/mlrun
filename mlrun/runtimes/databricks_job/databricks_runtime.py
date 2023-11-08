@@ -180,6 +180,5 @@ def mlrun_log_artifact(name, path):
             os.makedirs(parent_dir, exist_ok=True)
         with open(mlrun_artifacts_path, 'w') as json_file:
             json.dump(new_data, json_file)
-        first_mlrun_artifact = False
 \n
 """

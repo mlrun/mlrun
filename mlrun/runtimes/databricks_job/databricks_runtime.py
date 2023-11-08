@@ -52,7 +52,7 @@ class DatabricksRuntime(KubejobRuntime):
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
         if not encoded_code:
-            return "", original_handler
+            raise ValueError("Databricks function must be provided with user code")
         decoded_code = b64decode(encoded_code).decode("utf-8")
         artifacts_code, artifact_json_path = self._get_log_artifacts_code(
             runobj=runobj, task_parameters=task_parameters
@@ -74,27 +74,22 @@ if result:
 
     def _pre_run(self, runspec: RunObject, execution):
         internal_code, updated_task_parameters = self.get_internal_parameters(runspec)
-        if internal_code:
-            task_parameters = runspec.spec.parameters.get("task_parameters", {})
-            task_parameters["spark_app_code"] = internal_code
-            for key, value in updated_task_parameters.items():
-                if value:
-                    task_parameters[key] = value  # in order to handle reruns.
-            runspec.spec.parameters["task_parameters"] = task_parameters
-            current_file = os.path.abspath(__file__)
-            current_dir = os.path.dirname(current_file)
-            databricks_runtime_wrap_path = os.path.join(
-                current_dir, "databricks_wrapper.py"
-            )
-            with open(
-                databricks_runtime_wrap_path, "r"
-            ) as databricks_runtime_wrap_file:
-                wrap_code = databricks_runtime_wrap_file.read()
-                wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
-            self.spec.build.functionSourceCode = wrap_code
-            runspec.spec.handler = "run_mlrun_databricks_job"
-        else:
-            raise ValueError("Databricks function must be provided with user code")
+        task_parameters = runspec.spec.parameters.get("task_parameters", {})
+        task_parameters["spark_app_code"] = internal_code
+        for key, value in updated_task_parameters.items():
+            if value:
+                task_parameters[key] = value  # in order to handle reruns.
+        runspec.spec.parameters["task_parameters"] = task_parameters
+        current_file = os.path.abspath(__file__)
+        current_dir = os.path.dirname(current_file)
+        databricks_runtime_wrap_path = os.path.join(
+            current_dir, "databricks_wrapper.py"
+        )
+        with open(databricks_runtime_wrap_path, "r") as databricks_runtime_wrap_file:
+            wrap_code = databricks_runtime_wrap_file.read()
+            wrap_code = b64encode(wrap_code.encode("utf-8")).decode("utf-8")
+        self.spec.build.functionSourceCode = wrap_code
+        runspec.spec.handler = "run_mlrun_databricks_job"
 
     def run(
         self,

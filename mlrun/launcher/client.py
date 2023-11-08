@@ -39,6 +39,8 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     ):
         runtime.try_auto_mount_based_on_config()
         runtime._fill_credentials()
+        if project_name:
+            runtime.metadata.project = project_name
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):

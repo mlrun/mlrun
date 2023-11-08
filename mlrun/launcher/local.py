@@ -75,7 +75,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
                 "local and schedule cannot be used together"
             )
 
-        self.enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
 
         if self._is_run_local:

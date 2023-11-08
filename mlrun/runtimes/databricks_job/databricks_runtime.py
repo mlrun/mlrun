@@ -66,18 +66,18 @@ if result:
         mlrun_log_artifact(name=key, path=path)
 """
         code = b64encode(code.encode("utf-8")).decode("utf-8")
-        required_task_parameters = {
+        updated_task_parameters = {
             "original_handler": original_handler,
             "artifact_json_path": artifact_json_path,
         }
-        return code, required_task_parameters
+        return code, updated_task_parameters
 
     def _pre_run(self, runspec: RunObject, execution):
-        internal_code, required_task_parameters = self.get_internal_parameters(runspec)
+        internal_code, updated_task_parameters = self.get_internal_parameters(runspec)
         if internal_code:
             task_parameters = runspec.spec.parameters.get("task_parameters", {})
             task_parameters["spark_app_code"] = internal_code
-            for key, value in required_task_parameters.items():
+            for key, value in updated_task_parameters.items():
                 if value:
                     task_parameters[key] = value  # in order to handle reruns.
             runspec.spec.parameters["task_parameters"] = task_parameters

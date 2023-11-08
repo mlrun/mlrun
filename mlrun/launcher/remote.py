@@ -58,7 +58,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
         state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
-        self.enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
 
         run = self._enrich_run(

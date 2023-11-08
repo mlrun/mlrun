@@ -417,7 +417,12 @@ def run(
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
         resp = fn.run(
-            runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
+            runobj,
+            watch=watch,
+            schedule=schedule,
+            local=local,
+            auto_build=auto_build,
+            project=project,
         )
         if resp and dump:
             print(resp.to_yaml())

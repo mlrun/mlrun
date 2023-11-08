@@ -86,15 +86,19 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             else:
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
         except Exception as exc:
+            err_str = mlrun.errors.err_to_str(exc)
             logger.warning(
-                f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
+                "Background task execution failed",
+                function_name=function.__name__,
+                exc=err_str,
+                tb=traceback.format_exc(),
             )
             server.api.utils.singletons.db.get_db().store_background_task(
                 db_session,
                 name,
                 project=project,
                 state=mlrun.common.schemas.BackgroundTaskState.failed,
-                error=mlrun.errors.err_to_str(exc),
+                error=err_str,
             )
         else:
             server.api.utils.singletons.db.get_db().store_background_task(
@@ -156,12 +160,16 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             else:
                 await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
 
-        except Exception:
+        except Exception as exc:
+            err_str = mlrun.errors.err_to_str(exc)
             logger.warning(
-                f"Failed during background task execution: {function.__name__}, exc: {traceback.format_exc()}"
+                "Background task execution failed",
+                function_name=function.__name__,
+                exc=err_str,
+                tb=traceback.format_exc(),
             )
             self._update_background_task(
-                name, mlrun.common.schemas.BackgroundTaskState.failed
+                name, mlrun.common.schemas.BackgroundTaskState.failed, error=err_str
             )
         else:
             self._update_background_task(
@@ -172,9 +180,11 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         name: str,
         state: mlrun.common.schemas.BackgroundTaskState,
+        error: typing.Optional[str] = None,
     ):
         background_task = self._internal_background_tasks[name]
         background_task.status.state = state
+        background_task.status.error = error
         background_task.metadata.updated = datetime.datetime.utcnow()
 
     @staticmethod

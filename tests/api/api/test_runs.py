@@ -162,7 +162,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     runtime_resources = server.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
     # completed is terminal state - should fail
-    response = client.put(
+    response = client.post(
         f"projects/{project}/runs/{run_completed_uid}/abort", json=abort_body
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
@@ -178,7 +178,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         == "Run is already in terminal state, can not be aborted"
     )
     # aborted is terminal state - should fail
-    response = client.put(
+    response = client.post(
         f"projects/{project}/runs/{run_aborted_uid}/abort", json=abort_body
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
@@ -194,7 +194,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
         == "Run is already in terminal state, can not be aborted"
     )
     # dask kind not abortable - should fail
-    response = client.put(
+    response = client.post(
         f"projects/{project}/runs/{run_dask_uid}/abort", json=abort_body
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value
@@ -207,7 +207,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     )
     assert background_task.status.error == "Run of kind dask can not be aborted"
     # running is ok - should succeed
-    response = client.put(
+    response = client.post(
         f"projects/{project}/runs/{run_in_progress_uid}/abort", json=abort_body
     )
     assert response.status_code == HTTPStatus.ACCEPTED.value

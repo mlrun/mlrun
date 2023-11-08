@@ -36,7 +36,7 @@ import server.api.apiuvicorn as uvicorn
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 import server.api.utils.clients.log_collector
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -551,7 +551,7 @@ async def _synchronize_with_chief_clusterization_spec():
         cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
     try:
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         clusterization_spec = await chief_client.get_clusterization_spec(
             return_fastapi_response=False, raise_on_failure=True
         )

@@ -388,7 +388,7 @@ async def set_run_notifications(
     return Response(status_code=HTTPStatus.OK.value)
 
 
-@router.put(
+@router.post(
     "/projects/{project}/runs/{uid}/abort",
     response_model=mlrun.common.schemas.BackgroundTask,
     status_code=HTTPStatus.ACCEPTED.value,
@@ -424,7 +424,7 @@ async def abort_run(
         project,
         background_tasks,
         _abort_run,
-        None,  # timeout
+        mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
         # args for _abort_run
         db_session,
         data,

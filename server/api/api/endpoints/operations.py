@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import server.api.initial_data
 import server.api.utils.background_tasks
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -48,7 +48,7 @@ async def trigger_migrations(
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
         logger.info("Requesting to trigger migrations, re-routing to chief")
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.trigger_migrations(request)
 
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment

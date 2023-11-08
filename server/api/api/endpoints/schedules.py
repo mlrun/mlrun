@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 from server.api.api import deps
@@ -62,7 +62,7 @@ async def create_schedule(
             project=project,
             schedule=schedule.dict(),
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.create_schedule(
             project=project,
             request=request,
@@ -113,7 +113,7 @@ async def update_schedule(
             name=name,
             schedule=schedule.dict(),
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.update_schedule(
             project=project,
             name=name,
@@ -232,7 +232,7 @@ async def invoke_schedule(
             project=project,
             name=name,
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.invoke_schedule(
             project=project, name=name, request=request
         )
@@ -265,7 +265,7 @@ async def delete_schedule(
             project=project,
             name=name,
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.delete_schedule(
             project=project, name=name, request=request
         )
@@ -302,7 +302,7 @@ async def delete_schedules(
             "Requesting to delete all project schedules, re-routing to chief",
             project=project,
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.delete_schedules(project=project, request=request)
 
     await run_in_threadpool(get_scheduler().delete_schedules, db_session, project)
@@ -347,7 +347,7 @@ async def set_schedule_notifications(
             project=project,
             schedule=set_notifications_request.dict(),
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.set_schedule_notifications(
             project=project,
             schedule_name=name,

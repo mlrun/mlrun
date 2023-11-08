@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import mlrun.utils.helpers
 import server.api.api.utils
 import server.api.utils.auth.verifier
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 from server.api.api import deps
@@ -98,7 +98,7 @@ async def submit_job(
                 url=function_url,
                 task=task,
             )
-            chief_client = server.api.utils.clients.chief.Client()
+            chief_client = server.api.utils.clients.internal.Client()
             return await chief_client.submit_job(request=request, json=data)
 
     else:

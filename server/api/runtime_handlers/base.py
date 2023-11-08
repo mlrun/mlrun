@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import traceback
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Coroutine, Dict, List, Optional, Tuple, Union
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -33,6 +34,7 @@ import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
 import server.api.crud as crud
+import server.api.utils.clients.internal
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
@@ -187,6 +189,7 @@ class BaseRuntimeHandler(ABC):
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
+        coroutines = []
         for runtime_resource in runtime_resources:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
             run_runtime_resources_map.setdefault(project, {})
@@ -202,6 +205,7 @@ class BaseRuntimeHandler(ABC):
                     project,
                     uid,
                     name,
+                    coroutines,
                 )
             except Exception as exc:
                 logger.warning(
@@ -213,39 +217,15 @@ class BaseRuntimeHandler(ABC):
                     traceback=traceback.format_exc(),
                 )
 
+        async def _gather_coroutines():
+            await asyncio.gather(*coroutines, return_exceptions=True)
+
+        if coroutines:
+            server.api.utils.helpers.run_async_in_loop(_gather_coroutines)
+
         self._terminate_resourceless_runs(
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
-
-    def _terminate_resourceless_runs(
-        self, db, db_session, project_run_uid_map, run_runtime_resources_map
-    ):
-        for project, runs in project_run_uid_map.items():
-            if runs:
-                for run_uid, run in runs.items():
-                    try:
-                        if not run:
-                            run = db.read_run(db_session, run_uid, project)
-                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
-                            "kind", ""
-                        ):
-                            self._ensure_run_not_stuck_on_non_terminal_state(
-                                db,
-                                db_session,
-                                project,
-                                run_uid,
-                                run,
-                                run_runtime_resources_map,
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed ensuring run not stuck. Continuing",
-                            run_uid=run_uid,
-                            run=run,
-                            project=project,
-                            exc=err_to_str(exc),
-                            traceback=traceback.format_exc(),
-                        )
 
     def resolve_label_selector(
         self,
@@ -469,6 +449,36 @@ class BaseRuntimeHandler(ABC):
         Should return the label selector to get only resources of a specific object (with id object_id)
         """
         pass
+
+    def _terminate_resourceless_runs(
+        self, db, db_session, project_run_uid_map, run_runtime_resources_map
+    ):
+        for project, runs in project_run_uid_map.items():
+            if runs:
+                for run_uid, run in runs.items():
+                    try:
+                        if not run:
+                            run = db.read_run(db_session, run_uid, project)
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed ensuring run not stuck. Continuing",
+                            run_uid=run_uid,
+                            run=run,
+                            project=project,
+                            exc=err_to_str(exc),
+                            traceback=traceback.format_exc(),
+                        )
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: Union[RuntimeClassMode, str] = None
@@ -1135,6 +1145,7 @@ class BaseRuntimeHandler(ABC):
         project: str = None,
         uid: str = None,
         name: str = None,
+        coroutines: List[Coroutine] = None,
     ):
         if not project and not uid and not name:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
@@ -1160,7 +1171,7 @@ class BaseRuntimeHandler(ABC):
             threshold_exceeded,
             status_text,
         ) = self._resolve_resource_state_and_apply_threshold(
-            run, runtime_resource, runtime_resource_is_crd, namespace
+            run, runtime_resource, runtime_resource_is_crd, namespace, coroutines
         )
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1190,6 +1201,7 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
+        coroutines: List[Coroutine] = None,
     ) -> Tuple[str, bool, Optional[str]]:
         threshold_exceeded = False
         status_text = None
@@ -1232,30 +1244,30 @@ class BaseRuntimeHandler(ABC):
                 threshold is not None and 0 <= threshold < delta.total_seconds()
             )
             if threshold_exceeded:
-                # TODO: make run abortion a background task and enable it here instead of pod deletion
-                # run_state = RunStates.aborted
-                run_state = RunStates.error
-                runtime_resource_name = runtime_resource["metadata"]["name"]
                 logger.warning(
                     "Runtime resource exceeded state threshold. Aborting run",
-                    runtime_resource_name=runtime_resource_name,
+                    runtime_resource_name=runtime_resource["metadata"]["name"],
                     run_state=run_state,
                     pod_phase=pod_phase,
                     threshold=threshold,
                     start_time=str(start_time),
                     namespace=namespace,
                 )
-                try:
-                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                        runtime_resource_name, namespace, self.pod_grace_period_seconds
+                run_updates = {
+                    "status.state": RunStates.aborted,
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+                }
+
+                # Best effort - pass the request to another API instance, if it fails,
+                # we will try again in the next iteration
+                # TODO: abort run requires a session - verify it works in CE
+                coroutines.append(
+                    server.api.utils.clients.internal.Client().abort_run(
+                        run["metadata"]["project"],
+                        run["metadata"]["uid"],
+                        run_updates,
                     )
-                    status_text = f"Run aborted due to exceeded state threshold: {threshold_state}"
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to kill pod",
-                        runtime_resource_name=runtime_resource_name,
-                        exc=err_to_str(exc),
-                    )
+                )
 
         return run_state, threshold_exceeded, status_text
 

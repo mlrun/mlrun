@@ -45,7 +45,7 @@ import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 from mlrun.common.helpers import parse_versioned_object_uri
@@ -193,7 +193,7 @@ async def delete_function(
                 function=name,
                 project=project,
             )
-            chief_client = server.api.utils.clients.chief.Client()
+            chief_client = server.api.utils.clients.internal.Client()
             await chief_client.delete_schedule(project=project, name=name)
         else:
             await run_in_threadpool(
@@ -306,7 +306,7 @@ async def build_function(
                 project=project,
                 function=function,
             )
-            chief_client = server.api.utils.clients.chief.Client()
+            chief_client = server.api.utils.clients.internal.Client()
             return await chief_client.build_function(request=request, json=data)
 
     if isinstance(data.get("with_mlrun"), bool):

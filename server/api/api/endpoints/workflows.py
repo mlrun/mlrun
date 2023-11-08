@@ -29,7 +29,7 @@ import mlrun.projects.pipelines
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
 from mlrun.k8s_utils import sanitize_label_value
@@ -123,7 +123,7 @@ async def submit_workflow(
         and mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.submit_workflow(
             project=project.metadata.name,
             name=name,

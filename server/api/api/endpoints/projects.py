@@ -23,7 +23,7 @@ import mlrun.common.schemas
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 from mlrun.utils import logger
 from server.api.utils.singletons.project_member import get_project_member
 
@@ -192,7 +192,7 @@ async def delete_project(
             project=name,
             deletion_strategy=deletion_strategy,
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.delete_project(name=name, request=request)
 
     is_running_in_background = await run_in_threadpool(

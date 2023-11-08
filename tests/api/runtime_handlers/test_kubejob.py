@@ -684,34 +684,27 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             ],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_internal_client_abort_run()
         self.runtime_handler.monitor_runs(get_db(), db)
 
-        self._assert_delete_namespaced_pods(
-            [
-                pending_scheduled_pod.metadata.name,
-                running_overtime_pod.metadata.name,
-                image_pull_backoff_pod.metadata.name,
-            ],
-            self.running_job_pod.metadata.namespace,
-        )
-
-    @pytest.mark.asyncio
-    async def test_abort_run(self, db: Session, client: TestClient):
-        server.api.utils.runtimes.abort_run(
-            self.run, self.run_uid, self.project, status_text="some error"
-        )
-
-        for _ in range(20):
-            run = server.api.crud.Runs().get_run(
-                db, self.run_uid, iter=0, project=self.project
+        await asyncio.sleep(0.2)
+        expected_jsons = []
+        for state in ["pending_scheduled", "running", "image_pull_backoff"]:
+            expected_jsons.append(
+                {
+                    "status.state": RunStates.aborted,
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                }
             )
-            if run["status"]["state"] == RunStates.aborted:
-                break
-            await asyncio.sleep(0.2)
-        else:
-            assert False, "Run did not reach aborted state"
-
-        assert run["status"]["status_text"] == "some error"
+        self._assert_abort_runs(
+            [
+                pending_scheduled_pod.metadata.labels["mlrun/uid"],
+                running_overtime_pod.metadata.labels["mlrun/uid"],
+                image_pull_backoff_pod.metadata.labels["mlrun/uid"],
+            ],
+            self.project,
+            expected_jsons,
+        )
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

@@ -21,7 +21,7 @@ import mlrun.common.schemas
 import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.chief
+import server.api.utils.clients.internal
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()
@@ -89,7 +89,7 @@ async def get_internal_background_task(
             "Requesting internal background task, re-routing to chief",
             internal_background_task=name,
         )
-        chief_client = server.api.utils.clients.chief.Client()
+        chief_client = server.api.utils.clients.internal.Client()
         return await chief_client.get_internal_background_task(
             name=name, request=request
         )

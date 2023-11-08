@@ -27,6 +27,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.constants
 import server.api.crud
+import server.api.utils.clients.internal
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 from server.api.constants import LogSources
@@ -403,6 +404,27 @@ class TestRuntimeHandlerBase:
             get_k8s_helper().v1api.delete_namespaced_pod.assert_has_calls(calls)
 
     @staticmethod
+    def _assert_abort_runs(
+        expected_run_uids: List[str],
+        project: str = None,
+        expected_jsons: List[dict] = None,
+    ):
+        calls = [
+            unittest.mock.call(
+                project,
+                expected_run_uid,
+                json,
+            )
+            for expected_run_uid, json in zip(
+                expected_run_uids, expected_jsons or [None] * len(expected_run_uids)
+            )
+        ]
+        if not expected_run_uids:
+            assert server.api.utils.clients.internal.Client().abort_run.call_count == 0
+        else:
+            server.api.utils.clients.internal.Client().abort_run.assert_has_calls(calls)
+
+    @staticmethod
     def _assert_delete_namespaced_services(
         expected_service_names: List[str], expected_service_namespace: str = None
     ):
@@ -486,6 +508,10 @@ class TestRuntimeHandlerBase:
             return_value=services_list
         )
         return services
+
+    @staticmethod
+    def _mock_internal_client_abort_run():
+        server.api.utils.clients.internal.Client().abort_run = unittest.mock.AsyncMock()
 
     @staticmethod
     def _assert_list_namespaced_pods_calls(

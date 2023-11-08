@@ -348,8 +348,8 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
 
 	// write log file
-	// write 1k log lines
-	for i := 0; i < 1000; i++ {
+	// write 10 times buffer size log lines
+	for i := 0; i < 10*suite.logCollectorServer.getLogsBufferSizeBytes; i++ {
 		logText := fmt.Sprintf("Some fake pod logs %d\n", i)
 		err := common.WriteToFile(logFilePath, []byte(logText), true)
 		suite.Require().NoError(err, "Failed to write to file")
@@ -364,12 +364,14 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 		offset           int
 		readSize         int
 		expectedReadSize int
+		verifyContents   bool
 	}{
 		{
 			name:             "Read it all",
 			offset:           0,
 			readSize:         -1,
 			expectedReadSize: fileContentsLength,
+			verifyContents:   true,
 		},
 		{
 			name:             "Read nothing",
@@ -382,12 +384,28 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 			offset:           0,
 			readSize:         100,
 			expectedReadSize: 100,
+			verifyContents:   true,
 		},
 		{
-			name:             "Read 100 bytes with offset",
-			offset:           10,
-			readSize:         100,
-			expectedReadSize: 100,
+			name:             "Read buffer size bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read buffer size * 2 bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes * 2,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes * 2,
+			verifyContents:   true,
+		},
+		{
+			name:             "Read buffer size / 2 bytes with offset",
+			offset:           fileContentsLength / 2,
+			readSize:         suite.logCollectorServer.getLogsBufferSizeBytes / 2,
+			expectedReadSize: suite.logCollectorServer.getLogsBufferSizeBytes / 2,
+			verifyContents:   true,
 		},
 		{
 
@@ -397,15 +415,17 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 			offset:           fileContentsLength - int(1.5*float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
 			readSize:         int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
 			expectedReadSize: int(1.3 * float64(suite.logCollectorServer.getLogsBufferSizeBytes)),
+			verifyContents:   true,
 		},
 		{
 			name:             "Overflowing read size return what is left",
 			offset:           fileContentsLength - 1,
 			readSize:         100,
 			expectedReadSize: 1,
+			verifyContents:   true,
 		},
 		{
-			name:             "Overflowing offset",
+			name:             "Overflowing offset - returns nothing",
 			offset:           fileContentsLength,
 			readSize:         -1,
 			expectedReadSize: 0,
@@ -423,6 +443,11 @@ func (suite *LogCollectorTestSuite) TestGetLogsWithSize() {
 
 			// verify logs
 			suite.Require().Equal(testCase.expectedReadSize, len(nopStream.Logs))
+			if testCase.verifyContents {
+				suite.Require().Equal(string(
+					fileContents[testCase.offset:testCase.offset+testCase.expectedReadSize]),
+					string(nopStream.Logs))
+			}
 		})
 	}
 

@@ -404,7 +404,7 @@ def main():
         self._run_db.del_artifacts(project=self.project_name)
         assert (
             len(self.project.list_artifacts()) == 0
-        )  # make sure all artifacts have been deleted.
+        )  # Make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
         time.sleep(2)
         self._check_artifacts_by_path(paths_dict=paths_dict)

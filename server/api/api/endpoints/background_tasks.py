@@ -89,7 +89,7 @@ async def get_internal_background_task(
             "Requesting internal background task, re-routing to chief",
             internal_background_task=name,
         )
-        chief_client = server.api.utils.clients.internal.Client()
+        chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.get_internal_background_task(
             name=name, request=request
         )

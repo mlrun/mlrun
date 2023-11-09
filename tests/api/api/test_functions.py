@@ -280,7 +280,7 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function_name = "test-function"
     function = _generate_function(function_name)
 
-    handler_mock = server.api.utils.clients.internal.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock._forward_request = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
@@ -363,7 +363,7 @@ def test_tracking_on_serving(
     function.set_tracking()
 
     # Mock the client and unnecessary functions for this test
-    handler_mock = server.api.utils.clients.internal.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock._forward_request = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )

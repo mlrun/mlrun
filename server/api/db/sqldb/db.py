@@ -3661,6 +3661,7 @@ class SQLDB(DBInterface):
         timeout: int = None,
         error: str = None,
     ):
+        error = server.api.db.sqldb.helpers.ensure_max_length(error)
         background_task_record = self._query(
             session,
             BackgroundTask,

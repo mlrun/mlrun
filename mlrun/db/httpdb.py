@@ -570,18 +570,31 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         """
-        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        # TODO: deprecate and use dedicated abort_run API
-        self.update_run(
-            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
-            uid,
-            project,
-            iter,
-            timeout,
+        params = {"iter": iter}
+        updates = {}
+        if status_text:
+            updates["status.status_text"] = status_text
+        body = _as_json(updates)
+
+        response = self.api_call(
+            "POST",
+            path=f"project/{project}/runs/{uid}/abort",
+            error="Failed run abortion",
+            params=params,
+            body=body,
+            timeout=timeout,
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name
+            )
+        return None
 
     def read_run(self, uid, project="", iter=0):
         """Read the details of a stored run from the DB.

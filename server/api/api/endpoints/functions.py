@@ -193,7 +193,7 @@ async def delete_function(
                 function=name,
                 project=project,
             )
-            chief_client = server.api.utils.clients.internal.Client()
+            chief_client = server.api.utils.clients.chief.Client()
             await chief_client.delete_schedule(project=project, name=name)
         else:
             await run_in_threadpool(
@@ -306,7 +306,7 @@ async def build_function(
                 project=project,
                 function=function,
             )
-            chief_client = server.api.utils.clients.internal.Client()
+            chief_client = server.api.utils.clients.chief.Client()
             return await chief_client.build_function(request=request, json=data)
 
     if isinstance(data.get("with_mlrun"), bool):

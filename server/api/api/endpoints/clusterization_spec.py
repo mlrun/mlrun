@@ -29,7 +29,7 @@ async def clusterization_spec():
         mlrun.mlconf.httpdb.clusterization.role
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
-        chief_client = server.api.utils.clients.internal.Client()
+        chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.get_clusterization_spec()
 
     # TODO: cache me

@@ -552,7 +552,7 @@ async def _synchronize_with_chief_clusterization_spec():
         cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
     try:
-        chief_client = server.api.utils.clients.internal.Client()
+        chief_client = server.api.utils.clients.chief.Client()
         clusterization_spec = await chief_client.get_clusterization_spec(
             return_fastapi_response=False, raise_on_failure=True
         )

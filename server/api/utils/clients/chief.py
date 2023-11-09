@@ -44,15 +44,7 @@ class Client(
     def __init__(self) -> None:
         super().__init__()
         self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
-
-        if (
-            mlrun.mlconf.httpdb.clusterization.role
-            != mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            self._api_url = mlrun.mlconf.resolve_chief_api_url()
-
-        else:
-            self._api_url = mlrun.mlconf.httpdb.api_url
+        self._api_url = mlrun.mlconf.resolve_chief_api_url()
         self._api_url = self._api_url.rstrip("/")
 
     async def get_internal_background_task(
@@ -61,7 +53,9 @@ class Client(
         """
         internal background tasks are managed by the chief only
         """
-        return await self._forward_request("GET", f"background-tasks/{name}", request)
+        return await self._proxy_request_to_chief(
+            "GET", f"background-tasks/{name}", request
+        )
 
     async def trigger_migrations(
         self, request: fastapi.Request = None
@@ -69,7 +63,9 @@ class Client(
         """
         only chief can execute migrations
         """
-        return await self._forward_request("POST", "operations/migrations", request)
+        return await self._proxy_request_to_chief(
+            "POST", "operations/migrations", request
+        )
 
     async def create_schedule(
         self, project: str, request: fastapi.Request, json: dict
@@ -77,7 +73,7 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules", request, json
         )
 
@@ -87,7 +83,7 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "PUT", f"projects/{project}/schedules/{name}", request, json
         )
 
@@ -97,7 +93,7 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
 
@@ -111,7 +107,7 @@ class Client(
         """
         Workflow schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "POST", f"projects/{project}/workflows/{name}/submit", request, json
         )
 
@@ -121,7 +117,7 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{project}/schedules", request
         )
 
@@ -131,7 +127,7 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "POST", f"projects/{project}/schedules/{name}/invoke", request
         )
 
@@ -142,7 +138,7 @@ class Client(
         submit job can be responsible for creating schedules and schedules are running only on chief,
         so when the job contains a schedule, we re-route the request to chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "POST",
             "submit_job",
             request,
@@ -157,7 +153,9 @@ class Client(
         if serving function and track_models is enabled, it means that schedules will be created as part of
         building the function, then we re-route the request to chief
         """
-        return await self._forward_request("POST", "build/function", request, json)
+        return await self._proxy_request_to_chief(
+            "POST", "build/function", request, json
+        )
 
     async def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         """
@@ -166,7 +164,7 @@ class Client(
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
         # project resources (depends on the deletion strategy)
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "DELETE", f"projects/{name}", request, timeout=120
         )
 
@@ -181,13 +179,15 @@ class Client(
             method="GET",
             path="clusterization-spec",
             raise_on_failure=raise_on_failure,
-        ) as response:
+        ) as chief_response:
             if return_fastapi_response:
                 return await self._convert_requests_response_to_fastapi_response(
-                    response
+                    chief_response
                 )
 
-            return mlrun.common.schemas.ClusterizationSpec(**(await response.json()))
+            return mlrun.common.schemas.ClusterizationSpec(
+                **(await chief_response.json())
+            )
 
     async def set_schedule_notifications(
         self, project: str, schedule_name: str, request: fastapi.Request, json: dict
@@ -195,27 +195,14 @@ class Client(
         """
         Schedules are running only on chief
         """
-        return await self._forward_request(
+        return await self._proxy_request_to_chief(
             "PUT",
             f"projects/{project}/schedules/{schedule_name}/notifications",
             request,
             json,
         )
 
-    async def abort_run(self, project: str, uid: str, json: dict) -> fastapi.Response:
-        """
-        Run abortion distribution to workers as background tasks
-        """
-        # TODO: This method is ment to be used between workers and chief instead of having the chief preforming the
-        #  abortion of stale runs as part of the run monitoring. We need to support internal messaging between them
-        #  for it.
-        return await self._forward_request(
-            "POST",
-            f"projects/{project}/runs/{uid}/abort",
-            json=json,
-        )
-
-    async def _forward_request(
+    async def _proxy_request_to_chief(
         self,
         method,
         path,
@@ -233,17 +220,19 @@ class Client(
             path=path,
             raise_on_failure=raise_on_failure,
             **request_kwargs,
-        ) as response:
-            return await self._convert_requests_response_to_fastapi_response(response)
+        ) as chief_response:
+            return await self._convert_requests_response_to_fastapi_response(
+                chief_response
+            )
 
     @staticmethod
     def _resolve_request_kwargs_from_request(
         request: fastapi.Request = None, json: dict = None, **kwargs
     ) -> dict:
         request_kwargs = {}
-        json = json if json else {}
-        request_kwargs.update({"json": json})
         if request:
+            json = json if json else {}
+            request_kwargs.update({"json": json})
             request_kwargs.update({"headers": dict(request.headers)})
             request_kwargs.update({"params": dict(request.query_params)})
             request_kwargs.update({"cookies": request.cookies})
@@ -283,16 +272,16 @@ class Client(
 
     @staticmethod
     async def _convert_requests_response_to_fastapi_response(
-        response: aiohttp.ClientResponse,
+        chief_response: aiohttp.ClientResponse,
     ) -> fastapi.Response:
         # based on the way we implemented the exception handling for endpoints in MLRun we can expect the media type
         # of the response to be of type application/json, see server.api.http_status_error_handler for reference
         return fastapi.responses.Response(
-            content=await response.text(),
-            status_code=response.status,
+            content=await chief_response.text(),
+            status_code=chief_response.status,
             headers=dict(
-                response.headers
-            ),  # response.headers is of type CaseInsensitiveDict
+                chief_response.headers
+            ),  # chief_response.headers is of type CaseInsensitiveDict
             media_type="application/json",
         )
 
@@ -306,7 +295,7 @@ class Client(
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
             )
-        logger.debug("Sending request to MLRun API", method=method, url=url, **kwargs)
+        logger.debug("Sending request to chief", method=method, url=url, **kwargs)
         response = None
         try:
             response = await self._session.request(
@@ -318,7 +307,7 @@ class Client(
                 )
             else:
                 logger.debug(
-                    "Request to MLRun API succeeded",
+                    "Request to chief succeeded",
                     method=method,
                     url=url,
                     **kwargs,
@@ -331,7 +320,7 @@ class Client(
     async def _ensure_session(self):
         if not self._session:
             self._session = mlrun.utils.AsyncClientWithRetry(
-                # This client handles forwarding requests between internal APIs.
+                # This client handles forwarding requests from worker to chief.
                 # if we receive 5XX error, the code will be returned to the client.
                 #  if client is the SDK - it will handle and retry the request itself, upon its own retry policy
                 #  if the client is UI  - it will propagate the error to the user.
@@ -367,6 +356,6 @@ class Client(
                 log_kwargs.update(
                     {"error": error, "error_stack_trace": error_stack_trace}
                 )
-        logger.warning("Request to MLRun API failed", **log_kwargs)
+        logger.warning("Request to chief failed", **log_kwargs)
         if raise_on_failure:
             mlrun.errors.raise_for_status(response)

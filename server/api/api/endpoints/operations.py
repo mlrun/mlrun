@@ -48,7 +48,7 @@ async def trigger_migrations(
         != mlrun.common.schemas.ClusterizationRole.chief
     ):
         logger.info("Requesting to trigger migrations, re-routing to chief")
-        chief_client = server.api.utils.clients.internal.Client()
+        chief_client = server.api.utils.clients.chief.Client()
         return await chief_client.trigger_migrations(request)
 
     # we didn't yet decide who should have permissions to such actions, therefore no authorization at the moment

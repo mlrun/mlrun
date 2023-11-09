@@ -43,7 +43,7 @@ async def api_url() -> str:
 async def chief_client(
     api_url: str,
 ) -> server.api.utils.clients.internal.Client:
-    client = server.api.utils.clients.internal.Client()
+    client = server.api.utils.clients.chief.Client()
     # force running init again so the configured api url will be used
     client.__init__()
 

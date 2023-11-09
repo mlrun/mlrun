@@ -419,7 +419,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
         image="mlrun/mlrun",
     )
 
-    handler_mock = server.api.utils.clients.internal.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock._forward_request = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )

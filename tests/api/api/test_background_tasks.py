@@ -249,7 +249,7 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
     expected_background_task = _generate_background_task(name)
-    handler_mock = server.api.utils.clients.internal.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         return_value=expected_background_task
     )
@@ -269,7 +269,7 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
 ):
     mlrun.mlconf.httpdb.clusterization.role = "worker"
     name = "task-name"
-    handler_mock = server.api.utils.clients.internal.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock.get_internal_background_task = unittest.mock.AsyncMock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
@@ -325,7 +325,7 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
         expected_response = fastapi.Response(
             status_code=test_case.get("status_code"), content=test_case.get("content")
         )
-        handler_mock = server.api.utils.clients.internal.Client()
+        handler_mock = server.api.utils.clients.chief.Client()
         handler_mock.trigger_migrations = unittest.mock.AsyncMock(
             return_value=expected_response
         )

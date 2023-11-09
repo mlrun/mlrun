@@ -1626,6 +1626,30 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert deploy_spec["readinessTimeoutSeconds"] == 501
         assert deploy_spec["waitReadinessTimeoutBeforeFailure"]
 
+    def test_deploy_with_disabled_http_trigger_creation(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.disable_default_http_trigger()
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert not deploy_spec["disableDefaultHTTPTrigger"]
+
+    def test_deploy_with_enabled_http_trigger_creation(
+        self, db: Session, client: TestClient
+    ):
+        function = self._generate_runtime(self.runtime_kind)
+        function.enable_default_http_trigger()
+
+        self.execute_function(function)
+        args, _ = nuclio.deploy.deploy_config.call_args
+        deploy_spec = args[0]["spec"]
+
+        assert deploy_spec["disableDefaultHTTPTrigger"]
+
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well
 class TestNuclioMLRunRuntime(TestNuclioRuntime):

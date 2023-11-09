@@ -584,6 +584,7 @@ class DBInterface(ABC):
         project: str,
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
+        error: str = None,
     ):
         pass
 

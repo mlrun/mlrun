@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import copy
 import traceback
-import typing
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
@@ -33,6 +31,7 @@ import mlrun.secrets
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
+import server.api.common.runtime_handlers
 import server.api.crud as crud
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
@@ -40,7 +39,6 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode
 from mlrun.runtimes.constants import PodPhases, RunStates, ThresholdStates
-from mlrun.runtimes.utils import mlrun_key
 from mlrun.utils import logger, now_date
 from server.api.constants import LogSources
 from server.api.db.base import DBInterface
@@ -176,7 +174,7 @@ class BaseRuntimeHandler(ABC):
         )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    def monitor_runs(self, db: DBInterface, db_session: Session):
+    def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
@@ -189,6 +187,7 @@ class BaseRuntimeHandler(ABC):
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
+        stale_runs = []
         for runtime_resource in runtime_resources:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
             run_runtime_resources_map.setdefault(project, {})
@@ -204,6 +203,7 @@ class BaseRuntimeHandler(ABC):
                     project,
                     uid,
                     name,
+                    stale_runs,
                 )
             except Exception as exc:
                 logger.warning(
@@ -219,35 +219,7 @@ class BaseRuntimeHandler(ABC):
             db, db_session, project_run_uid_map, run_runtime_resources_map
         )
 
-    def _terminate_resourceless_runs(
-        self, db, db_session, project_run_uid_map, run_runtime_resources_map
-    ):
-        for project, runs in project_run_uid_map.items():
-            if runs:
-                for run_uid, run in runs.items():
-                    try:
-                        if not run:
-                            run = db.read_run(db_session, run_uid, project)
-                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
-                            "kind", ""
-                        ):
-                            self._ensure_run_not_stuck_on_non_terminal_state(
-                                db,
-                                db_session,
-                                project,
-                                run_uid,
-                                run,
-                                run_runtime_resources_map,
-                            )
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed ensuring run not stuck. Continuing",
-                            run_uid=run_uid,
-                            run=run,
-                            project=project,
-                            exc=err_to_str(exc),
-                            traceback=traceback.format_exc(),
-                        )
+        return stale_runs
 
     def resolve_label_selector(
         self,
@@ -297,7 +269,7 @@ class BaseRuntimeHandler(ABC):
     def add_secrets_to_spec_before_running(
         self,
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
     ):
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
@@ -319,7 +291,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def add_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
     ):
         if project_name is None:
             logger.warning("No project provided. Cannot add vault parameters")
@@ -369,7 +341,7 @@ class BaseRuntimeHandler(ABC):
     @staticmethod
     def add_azure_vault_params_to_spec(
         runtime: mlrun.runtimes.pod.KubeResource,
-        k8s_secret_name: typing.Optional[str] = None,
+        k8s_secret_name: Optional[str] = None,
     ):
         secret_name = (
             k8s_secret_name
@@ -399,7 +371,7 @@ class BaseRuntimeHandler(ABC):
     def add_k8s_secrets_to_spec(
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
-        project_name: typing.Optional[str] = None,
+        project_name: Optional[str] = None,
         encode_key_names: bool = True,
     ):
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
@@ -471,6 +443,36 @@ class BaseRuntimeHandler(ABC):
         Should return the label selector to get only resources of a specific object (with id object_id)
         """
         pass
+
+    def _terminate_resourceless_runs(
+        self, db, db_session, project_run_uid_map, run_runtime_resources_map
+    ):
+        for project, runs in project_run_uid_map.items():
+            if runs:
+                for run_uid, run in runs.items():
+                    try:
+                        if not run:
+                            run = db.read_run(db_session, run_uid, project)
+                        if self.kind == run.get("metadata", {}).get("labels", {}).get(
+                            "kind", ""
+                        ):
+                            self._ensure_run_not_stuck_on_non_terminal_state(
+                                db,
+                                db_session,
+                                project,
+                                run_uid,
+                                run,
+                                run_runtime_resources_map,
+                            )
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed ensuring run not stuck. Continuing",
+                            run_uid=run_uid,
+                            run=run,
+                            project=project,
+                            exc=err_to_str(exc),
+                            traceback=traceback.format_exc(),
+                        )
 
     def _get_possible_mlrun_class_label_values(
         self, class_mode: Union[RuntimeClassMode, str] = None
@@ -1137,6 +1139,7 @@ class BaseRuntimeHandler(ABC):
         project: str = None,
         uid: str = None,
         name: str = None,
+        stale_runs: List[dict] = None,
     ):
         if not project and not uid and not name:
             project, uid, name = self._resolve_runtime_resource_run(runtime_resource)
@@ -1160,10 +1163,13 @@ class BaseRuntimeHandler(ABC):
         (
             run_state,
             threshold_exceeded,
-            status_text,
         ) = self._resolve_resource_state_and_apply_threshold(
-            run, runtime_resource, runtime_resource_is_crd, namespace
+            run, runtime_resource, runtime_resource_is_crd, namespace, stale_runs
         )
+
+        # If threshold exceeded, an abort run job will be triggered.
+        if threshold_exceeded:
+            return
 
         _, updated_run_state, run = self._ensure_run_state(
             db,
@@ -1174,16 +1180,13 @@ class BaseRuntimeHandler(ABC):
             run_state,
             run,
             search_run=False,
-            force=threshold_exceeded,
-            status_text=status_text,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        # If threshold exceeded, the logs will be collected the abort run job
-        if not threshold_exceeded and updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1192,9 +1195,9 @@ class BaseRuntimeHandler(ABC):
         runtime_resource: Dict,
         runtime_resource_is_crd: bool,
         namespace: str,
-    ) -> Tuple[str, bool, Optional[str]]:
+        stale_runs: List[dict] = None,
+    ) -> Tuple[str, bool]:
         threshold_exceeded = False
-        status_text = None
 
         if runtime_resource_is_crd:
             (
@@ -1221,7 +1224,7 @@ class BaseRuntimeHandler(ABC):
                     run_uid=run.get("metadata", {}).get("uid"),
                     run_state=run_state,
                 )
-                return run_state, False, None
+                return run_state, False
 
             now = datetime.now(timezone.utc)
             delta = now - start_time
@@ -1234,32 +1237,30 @@ class BaseRuntimeHandler(ABC):
                 threshold is not None and 0 <= threshold < delta.total_seconds()
             )
             if threshold_exceeded:
-                # TODO: make run abortion a background task and enable it here instead of pod deletion
-                # run_state = RunStates.aborted
-                run_state = RunStates.error
-                runtime_resource_name = runtime_resource["metadata"]["name"]
                 logger.warning(
-                    "Runtime resource exceeded state threshold. Aborting run",
-                    runtime_resource_name=runtime_resource_name,
+                    "Runtime resource exceeded state threshold. Run will be aborted.",
+                    runtime_resource_name=runtime_resource["metadata"]["name"],
                     run_state=run_state,
                     pod_phase=pod_phase,
                     threshold=threshold,
                     start_time=str(start_time),
                     namespace=namespace,
                 )
-                try:
-                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                        runtime_resource_name, namespace, self.pod_grace_period_seconds
-                    )
-                    status_text = f"Run aborted due to exceeded state threshold: {threshold_state}"
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to kill pod",
-                        runtime_resource_name=runtime_resource_name,
-                        exc=err_to_str(exc),
-                    )
+                run_updates = {
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+                }
 
-        return run_state, threshold_exceeded, status_text
+                stale_runs.append(
+                    {
+                        "project": run["metadata"]["project"],
+                        "uid": run["metadata"]["uid"],
+                        "iter": run["metadata"].get("iteration", 0),
+                        "run_updates": run_updates,
+                        "run": run,
+                    }
+                )
+
+        return run_state, threshold_exceeded
 
     @staticmethod
     def _resolve_run_threshold(
@@ -1440,8 +1441,6 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run=True,
-        force: bool = False,
-        status_text: str = None,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1453,7 +1452,7 @@ class BaseRuntimeHandler(ABC):
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states() and not force:
+            if db_run_state in RunStates.terminal_states():
 
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
@@ -1490,8 +1489,6 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run["status"]["last_update"] = now_date().isoformat()
-        if status_text:
-            run["status"]["status_text"] = status_text
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run
@@ -1566,7 +1563,9 @@ class BaseRuntimeHandler(ABC):
     ) -> k8s_client.V1ObjectMeta:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
 
-        labels = get_resource_labels(runtime, run, run.spec.scrape_metrics)
+        labels = server.api.common.runtime_handlers.get_resource_labels(
+            runtime, run, run.spec.scrape_metrics
+        )
         new_meta = k8s_client.V1ObjectMeta(
             namespace=namespace,
             annotations=runtime.metadata.annotations or run.metadata.annotations,
@@ -1582,32 +1581,3 @@ class BaseRuntimeHandler(ABC):
         else:
             new_meta.generate_name = norm_name
         return new_meta
-
-
-def get_resource_labels(function, run=None, scrape_metrics=None):
-    scrape_metrics = (
-        scrape_metrics if scrape_metrics is not None else mlrun.mlconf.scrape_metrics
-    )
-    run_uid, run_name, run_project, run_owner = None, None, None, None
-    if run:
-        run_uid = run.metadata.uid
-        run_name = run.metadata.name
-        run_project = run.metadata.project
-        run_owner = run.metadata.labels.get("owner")
-    labels = copy.deepcopy(function.metadata.labels)
-    labels[mlrun_key + "class"] = function.kind
-    labels[mlrun_key + "project"] = run_project or function.metadata.project
-    labels[mlrun_key + "function"] = str(function.metadata.name)
-    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
-    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
-
-    if run_uid:
-        labels[mlrun_key + "uid"] = run_uid
-
-    if run_name:
-        labels[mlrun_key + "name"] = run_name
-
-    if run_owner:
-        labels[mlrun_key + "owner"] = run_owner
-
-    return labels

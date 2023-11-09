@@ -33,6 +33,7 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.crud
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
@@ -70,7 +71,6 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
 _last_notification_push_time: typing.Optional[datetime.datetime] = None
-
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -599,23 +599,38 @@ async def _align_worker_state_with_chief_state(
     cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
 
-def _monitor_runs():
+async def _monitor_runs():
+    stale_runs = await fastapi.concurrency.run_in_threadpool(
+        server.api.db.session.run_function_with_new_db_session,
+        _monitor_runs_and_push_terminal_notifications,
+    )
+    await _abort_stale_runs(stale_runs)
+
+
+def _monitor_runs_and_push_terminal_notifications(db_session):
     db = get_db()
-    db_session = create_session()
+    stale_runs = []
+    for kind in RuntimeKinds.runtime_with_handlers():
+        try:
+            runtime_handler = get_runtime_handler(kind)
+            runtime_stale_runs = runtime_handler.monitor_runs(db, db_session)
+            stale_runs.extend(runtime_stale_runs)
+        except Exception as exc:
+            logger.warning(
+                "Failed monitoring runs. Ignoring",
+                exc=err_to_str(exc),
+                kind=kind,
+            )
+
     try:
-        for kind in RuntimeKinds.runtime_with_handlers():
-            try:
-                runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(db, db_session)
-            except Exception as exc:
-                logger.warning(
-                    "Failed monitoring runs. Ignoring",
-                    exc=err_to_str(exc),
-                    kind=kind,
-                )
         _push_terminal_run_notifications(db, db_session)
-    finally:
-        close_session(db_session)
+    except Exception as exc:
+        logger.warning(
+            "Failed pushing terminal run notifications. Ignoring",
+            exc=err_to_str(exc),
+        )
+
+    return stale_runs
 
 
 def _cleanup_runtimes():
@@ -675,6 +690,31 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 
     _last_notification_push_time = now
+
+
+async def _abort_stale_runs(stale_runs: typing.List[dict]):
+    semaphore = asyncio.Semaphore(
+        int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
+    )
+
+    async def abort_run(stale_run):
+        # Using semaphore to limit the chunk we get from the thread pool for run aborting
+        async with semaphore:
+            await fastapi.concurrency.run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Runs().abort_run,
+                **stale_run,
+            )
+
+    coroutines = [abort_run(_stale_run) for _stale_run in stale_runs]
+    if coroutines:
+        results = await asyncio.gather(*coroutines, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(
+                    "Failed aborting stale run. Ignoring",
+                    exc=err_to_str(result),
+                )
 
 
 async def _stop_logs():

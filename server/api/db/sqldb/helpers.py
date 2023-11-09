@@ -18,6 +18,8 @@ import mlrun.runtimes.constants
 from mlrun.utils import get_in
 from server.api.db.sqldb.models import Base
 
+max_str_length = 255
+
 
 def label_set(labels):
     if isinstance(labels, str):
@@ -80,3 +82,9 @@ def generate_query_predicate_for_name(column, query_string):
         return column.ilike(f"%{query_string[1:]}%")
     else:
         return column.__eq__(query_string)
+
+
+def ensure_max_length(string: str):
+    if string and len(string) > max_str_length:
+        string = string[:max_str_length]
+    return string

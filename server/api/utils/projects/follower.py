@@ -69,7 +69,7 @@ class Member(
             # Basically the delete operation in our projects mechanism is fully consistent, meaning the leader won't
             # remove the project from its persistency (the source of truth) until it was successfully removed from all
             # followers. Therefore, when syncing projects from the leader, we don't need to search for the deletions
-            # that may happened without us knowing about it (therefore full_sync by default is false). When we
+            # that may happen without us knowing about it (therefore full_sync by default is false). When we
             # introduced the chief/worker mechanism, we needed to change the follower to keep its projects in the DB
             # instead of in cache. On the switch, since we were using cache and the projects table in the DB was not
             # maintained, we know we may have projects that shouldn't be there anymore, ideally we would have trigger

@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
+import server.api.utils.runtimes
 import tests.conftest
 from mlrun.config import config
 from mlrun.runtimes import RuntimeKinds
@@ -682,16 +683,26 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             ],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        self.runtime_handler.monitor_runs(get_db(), db)
+        stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
+        assert len(stale_runs) == 3
 
-        self._assert_delete_namespaced_pods(
-            [
-                pending_scheduled_pod.metadata.name,
-                running_overtime_pod.metadata.name,
-                image_pull_backoff_pod.metadata.name,
-            ],
-            self.running_job_pod.metadata.namespace,
-        )
+        stale_run_uids = [run["uid"] for run in stale_runs]
+        expected_stale_run_uids = [
+            pending_scheduled_pod.metadata.labels["mlrun/uid"],
+            running_overtime_pod.metadata.labels["mlrun/uid"],
+            image_pull_backoff_pod.metadata.labels["mlrun/uid"],
+        ]
+        assert stale_run_uids == expected_stale_run_uids
+
+        stale_run_updates = [run["run_updates"] for run in stale_runs]
+        expected_run_updates = []
+        for state in ["pending_scheduled", "running", "image_pull_backoff"]:
+            expected_run_updates.append(
+                {
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                }
+            )
+        assert stale_run_updates == expected_run_updates
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

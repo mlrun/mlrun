@@ -29,9 +29,9 @@ import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
+from server.api.common.runtime_handlers import get_resource_labels
 from server.api.db.base import DBInterface
 from server.api.runtime_handlers import BaseRuntimeHandler
-from server.api.runtime_handlers.base import get_resource_labels
 
 
 def get_dask_resource():
@@ -61,8 +61,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
         self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
-    ):
-        return
+    ) -> List[dict]:
+        return []
 
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:

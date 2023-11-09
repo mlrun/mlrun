@@ -592,7 +592,7 @@ class HTTPRunDB(RunDBInterface):
         if response.status_code == http.HTTPStatus.ACCEPTED:
             background_task = mlrun.common.schemas.BackgroundTask(**response.json())
             return self._wait_for_background_task_to_reach_terminal_state(
-                background_task.metadata.name
+                background_task.metadata.name, project=project
             )
         return None
 
@@ -2377,10 +2377,13 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _wait_for_background_task_to_reach_terminal_state(
-        self, name: str
+        self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
-            background_task = self.get_background_task(name)
+            if project:
+                background_task = self.get_project_background_task(project, name)
+            else:
+                background_task = self.get_background_task(name)
             state = background_task.status.state
             if state not in mlrun.common.schemas.BackgroundTaskState.terminal_states():
                 raise Exception(

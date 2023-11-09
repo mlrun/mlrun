@@ -1508,6 +1508,9 @@ def line_terminator_kwargs():
 
 
 def time_string_to_seconds(time_str: str):
+    if not time_str:
+        return None
+
     if time_str == "-1":
         return -1
 

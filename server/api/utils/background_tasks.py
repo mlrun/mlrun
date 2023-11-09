@@ -43,6 +43,12 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
         name = str(uuid.uuid4())
+        logger.debug(
+            "Creating background task",
+            name=name,
+            project=project,
+            function=function.__name__,
+        )
         server.api.utils.singletons.db.get_db().store_background_task(
             db_session,
             name,
@@ -200,7 +206,8 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             ),
             spec=mlrun.common.schemas.BackgroundTaskSpec(),
             status=mlrun.common.schemas.BackgroundTaskStatus(
-                state=mlrun.common.schemas.BackgroundTaskState.failed
+                state=mlrun.common.schemas.BackgroundTaskState.failed,
+                error="Background task not found",
             ),
         )
 

@@ -773,7 +773,7 @@ async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
                     "Failed stopping logs for runs. Ignoring",
                     exc=err_to_str(exc),
                     project=project_name,
-                    run_uids=run_uids,
+                    chunked_run_uids=chunked_run_uids,
                 )
 
 

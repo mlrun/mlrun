@@ -281,7 +281,7 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     function = _generate_function(function_name)
 
     handler_mock = server.api.utils.clients.chief.Client()
-    handler_mock._forward_request = unittest.mock.AsyncMock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
@@ -293,13 +293,13 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     json_body = _generate_build_function_request(function)
     client.post(endpoint, data=json_body)
     # no schedule inside job body, expecting to be run in worker
-    assert handler_mock._forward_request.call_count == 0
+    assert handler_mock._proxy_request_to_chief.call_count == 0
 
     function_with_track_models = _generate_function(function_name)
     function_with_track_models.spec.track_models = True
     json_body = _generate_build_function_request(function_with_track_models)
     client.post(endpoint, data=json_body)
-    assert handler_mock._forward_request.call_count == 1
+    assert handler_mock._proxy_request_to_chief.call_count == 1
 
 
 def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_models(
@@ -364,7 +364,7 @@ def test_tracking_on_serving(
 
     # Mock the client and unnecessary functions for this test
     handler_mock = server.api.utils.clients.chief.Client()
-    handler_mock._forward_request = unittest.mock.AsyncMock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
 

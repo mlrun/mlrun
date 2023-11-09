@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import asyncio
-import typing
 
 import mlrun
 import mlrun.common.schemas
@@ -72,15 +71,3 @@ def minimize_project_schema(
     project.spec.workflows = None
     project.spec.artifacts = None
     return project
-
-
-def run_async_in_loop(func: typing.Callable):
-    try:
-        event_loop = asyncio.get_event_loop()
-    except RuntimeError:
-        event_loop = asyncio.new_event_loop()
-
-    if not event_loop.is_running():
-        event_loop.run_until_complete(func())
-    else:
-        asyncio.run_coroutine_threadsafe(func(), event_loop)

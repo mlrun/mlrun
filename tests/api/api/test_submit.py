@@ -420,7 +420,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     )
 
     handler_mock = server.api.utils.clients.chief.Client()
-    handler_mock._forward_request = unittest.mock.AsyncMock(
+    handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
@@ -432,15 +432,15 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     submit_job_body = _create_submit_job_body_with_schedule(function, project)
     json_body = mlrun.utils.dict_to_json(submit_job_body)
     client.post("submit_job", data=json_body)
-    assert handler_mock._forward_request.call_count == 1
+    assert handler_mock._proxy_request_to_chief.call_count == 1
 
-    handler_mock._forward_request.reset_mock()
+    handler_mock._proxy_request_to_chief.reset_mock()
 
     submit_job_body = _create_submit_job_body(function, project)
     json_body = mlrun.utils.dict_to_json(submit_job_body)
     client.post("submit_job", data=json_body)
     # no schedule inside job body, expecting to be run in worker
-    assert handler_mock._forward_request.call_count == 0
+    assert handler_mock._proxy_request_to_chief.call_count == 0
 
 
 def test_redirection_from_worker_to_chief_submit_job_with_schedule(

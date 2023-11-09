@@ -33,7 +33,6 @@ import mlrun.utils.notifications
 import mlrun.utils.regex
 import server.api.common.runtime_handlers
 import server.api.crud as crud
-import server.api.utils.clients.chief
 import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config

@@ -86,5 +86,5 @@ def generate_query_predicate_for_name(column, query_string):
 
 def ensure_max_length(string: str):
     if string and len(string) > max_str_length:
-        string = string[:max_str_length]  # Truncate the string to 255 characters
+        string = string[:max_str_length]
     return string

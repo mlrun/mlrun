@@ -188,7 +188,7 @@ class ServingSpec(NuclioSpec):
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             clone_target_dir=clone_target_dir,
-            disable_default_http_trigger=disable_default_http_trigger
+            disable_default_http_trigger=disable_default_http_trigger,
         )
 
         self.models = models or {}

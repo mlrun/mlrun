@@ -198,6 +198,6 @@ def mlrun_log_artifact(name, path):
             os.makedirs(parent_dir, exist_ok=True)
         with open(mlrun_artifacts_path, 'w') as json_file:
             json.dump(new_data, json_file)
-    mlrun_logger.info(f'successfully wrote artifact details to the artifact JSON file in DBFS - {name} : {path}')
+    mlrun_logger.info(f'successfully wrote artifact details to the artifact JSON file in DBFS - {{name}} : {{path}}')
 \n
 """

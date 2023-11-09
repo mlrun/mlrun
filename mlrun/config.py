@@ -97,6 +97,13 @@ default_config = {
     # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
     # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
+    "monitoring": {
+        # TODO: move runs_monitoring_interval and runs_monitoring_missing_runtime_resources_debouncing_interval to here
+        "runs": {
+            # max number of parallel abort run jobs in runs monitoring
+            "concurrent_abort_stale_runs_workers": 15,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",

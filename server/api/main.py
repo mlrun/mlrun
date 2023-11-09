@@ -687,7 +687,9 @@ def _push_terminal_run_notifications(db_session):
 
 
 async def _abort_stale_runs(stale_runs: typing.List[dict]):
-    semaphore = asyncio.Semaphore(10)
+    semaphore = asyncio.Semaphore(
+        int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
+    )
 
     async def _abort_run(stale_run):
         async with semaphore:

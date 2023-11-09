@@ -1507,7 +1507,10 @@ def line_terminator_kwargs():
     return {line_terminator_parameter: "\n"}
 
 
-def time_string_to_seconds(time_str: str):
+def time_string_to_seconds(time_str: str) -> Optional[int]:
+    if not time_str:
+        return None
+
     if time_str == "-1":
         return -1
 

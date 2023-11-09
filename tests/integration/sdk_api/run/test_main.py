@@ -406,6 +406,11 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
         assert out.find("return: '[6, 7]'") != -1, out
 
+    def test_get_runs_with_tag(self):
+        args = ["runs", "-p", "obj=[6,7]", "--tag", "666"]
+        out = self._exec_main("get", args)
+        assert out.find("Unsupported argument") != -1, out
+
     def test_main_env_file(self):
         # test run with env vars loaded from a .env file
         function_path = str(self.assets_path / "handler.py")

@@ -452,7 +452,7 @@ def run(
     "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
 )
 @click.option(
-    "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
+    "--kfp", is_flag=True, help="running inside Kubeflow Pipelines, do not use"
 )
 @click.option("--skip", is_flag=True, help="skip if already deployed")
 @click.option(
@@ -727,6 +727,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             print()
 
     elif kind.startswith("run"):
+        if tag:
+            print(
+                "Unsupported argument '--tag' for listing runs. Perhaps you should use '--selector' instead"
+            )
+            return
+
         run_db = get_run_db()
         if name:
             run = run_db.read_run(name, project=project)

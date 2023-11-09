@@ -1086,11 +1086,6 @@ func (s *Server) getChunkSize(
 		return 0
 	}
 
-	// if we didn't read anything yet, assume read the initial offset
-	if totalLogsSize == 0 {
-		totalLogsSize += initialOffset
-	}
-
 	// if the size we need to read is bigger than the buffer, use the buffer size
 	leftToRead := endIndex - totalLogsSize - initialOffset
 

@@ -27,7 +27,7 @@ import mlrun.common.schemas
 import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 from server.api import main
 
 test_router = fastapi.APIRouter()
@@ -254,7 +254,7 @@ def test_get_internal_background_task_redirect_from_worker_to_chief_exists(
         return_value=expected_background_task
     )
     monkeypatch.setattr(
-        server.api.utils.clients.internal,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -274,7 +274,7 @@ def test_get_internal_background_task_from_worker_redirect_to_chief_doesnt_exist
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     monkeypatch.setattr(
-        server.api.utils.clients.internal,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -330,7 +330,7 @@ def test_trigger_migrations_from_worker_returns_same_response_as_chief(
             return_value=expected_response
         )
         monkeypatch.setattr(
-            server.api.utils.clients.internal,
+            server.api.utils.clients.chief,
             "Client",
             lambda *args, **kwargs: handler_mock,
         )

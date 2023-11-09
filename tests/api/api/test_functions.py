@@ -37,8 +37,8 @@ import server.api.api.utils
 import server.api.crud
 import server.api.main
 import server.api.utils.builder
+import server.api.utils.clients.chief
 import server.api.utils.clients.iguazio
-import server.api.utils.clients.internal
 import server.api.utils.singletons.db
 import server.api.utils.singletons.k8s
 import tests.api.api.utils
@@ -285,7 +285,7 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        server.api.utils.clients.internal,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )

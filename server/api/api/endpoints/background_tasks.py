@@ -21,7 +21,7 @@ import mlrun.common.schemas
 import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()

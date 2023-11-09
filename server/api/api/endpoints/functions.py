@@ -45,7 +45,7 @@ import server.api.db.session
 import server.api.launcher
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 import server.api.utils.singletons.k8s
 import server.api.utils.singletons.project_member
 from mlrun.common.helpers import parse_versioned_object_uri

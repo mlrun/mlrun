@@ -37,7 +37,7 @@ import server.api.crud
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 import server.api.utils.clients.log_collector
 from mlrun.config import config
 from mlrun.errors import err_to_str

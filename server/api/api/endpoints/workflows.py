@@ -29,7 +29,7 @@ import mlrun.projects.pipelines
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
 from mlrun.k8s_utils import sanitize_label_value

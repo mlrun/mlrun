@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import server.api.initial_data
 import server.api.utils.background_tasks
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 from mlrun.utils import logger
 
 router = fastapi.APIRouter()

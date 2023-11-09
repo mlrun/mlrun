@@ -16,7 +16,7 @@ import fastapi
 
 import mlrun.common.schemas
 import server.api.crud
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 
 router = fastapi.APIRouter()
 

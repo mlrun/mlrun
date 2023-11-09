@@ -66,7 +66,7 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         logger.debug("Updating run", project=project, uid=uid, iter=iter)
-        # TODO: Abort run moved to a separate endpoint, remove this section
+        # TODO: Abort run moved to a separate endpoint, remove this section once its safe
         if (
             data
             and data.get("status.state") == mlrun.runtimes.constants.RunStates.aborted

@@ -24,7 +24,7 @@ import mlrun.common.schemas
 import mlrun.utils.helpers
 import server.api.api.utils
 import server.api.utils.auth.verifier
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 from server.api.api import deps

@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import server.api.main
 import server.api.utils.auth.verifier
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 import server.api.utils.singletons.k8s
 import tests.api.api.utils
 from mlrun.common.schemas import AuthInfo
@@ -424,7 +424,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        server.api.utils.clients.internal,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )

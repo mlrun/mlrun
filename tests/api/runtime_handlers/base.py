@@ -27,7 +27,7 @@ import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.constants
 import server.api.crud
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
 from server.api.constants import LogSources

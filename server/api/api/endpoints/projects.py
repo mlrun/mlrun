@@ -23,7 +23,7 @@ import mlrun.common.schemas
 import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
-import server.api.utils.clients.internal
+import server.api.utils.clients.chief
 from mlrun.utils import logger
 from server.api.utils.singletons.project_member import get_project_member
 

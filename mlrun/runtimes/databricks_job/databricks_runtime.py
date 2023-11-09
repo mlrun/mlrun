@@ -175,13 +175,13 @@ mlrun_logger.setLevel(logging.DEBUG)
 
 def mlrun_log_artifact(name, path):
     if not name or not path:
-        mlrun_logger.error('name and path required for logging an artifact')
+        mlrun_logger.error('name and path required for logging an mlrun artifact - {{name}} : {{path}}')
         return
     if not isinstance(name, str) or not isinstance(path, str):
-        mlrun_logger.error('name and path must be in a string type for logging an artifact')
+        mlrun_logger.error('name and path must be in string type for logging an mlrun artifact - {{name}} : {{path}}')
         return
     if not path.startswith('/dbfs') and not path.startswith('dbfs:/'):
-        mlrun_logger.error('path for artifact must start with /dbfs or dbfs:/')
+        mlrun_logger.error('path for an mlrun artifact must start with /dbfs or dbfs:/ - {{name}} : {{path}}')
         return
     mlrun_artifacts_path = '{}'
     import json

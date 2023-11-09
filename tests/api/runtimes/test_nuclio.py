@@ -1636,7 +1636,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
-        assert not deploy_spec["disableDefaultHTTPTrigger"]
+        assert deploy_spec["disableDefaultHTTPTrigger"]
 
     def test_deploy_with_enabled_http_trigger_creation(
         self, db: Session, client: TestClient
@@ -1648,7 +1648,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         args, _ = nuclio.deploy.deploy_config.call_args
         deploy_spec = args[0]["spec"]
 
-        assert deploy_spec["disableDefaultHTTPTrigger"]
+        assert not deploy_spec["disableDefaultHTTPTrigger"]
 
 
 # Kind of "nuclio:mlrun" is a special case of nuclio functions. Run the same suite of tests here as well

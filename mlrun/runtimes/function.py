@@ -120,6 +120,7 @@ class NuclioSpec(KubeResourceSpec):
         "base_image_pull",
         "service_type",
         "add_templated_ingress_host_mode",
+        "disable_default_http_trigger",
     ]
 
     def __init__(

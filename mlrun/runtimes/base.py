@@ -24,6 +24,7 @@ import requests.exceptions
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.launcher.factory
@@ -201,6 +202,12 @@ class BaseRuntime(ModelObj):
 
     def is_deployed(self):
         return True
+
+    def is_model_monitoring_function(self):
+        return (
+            self.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY, "")
+            == mm_constants.ModelMonitoringAppLabel.VAL
+        )
 
     def _is_remote_api(self):
         db = self._get_db()

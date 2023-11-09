@@ -743,8 +743,8 @@ def _build_function(
                 auth_info,
             )
             monitoring_application = (
-                fn.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
-                == mm_constants.ModelMonitoringAppTag.VAL
+                fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+                == mm_constants.ModelMonitoringAppLabel.VAL
             )
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models

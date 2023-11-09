@@ -377,11 +377,13 @@ def handler(**kwargs):
             )
         with open(str(self.assets_path / "test_data.csv"), "rb") as csv_file:
             self.workspace.dbfs.upload(src=csv_file, path=csv_artifact_dbfs_path)
-
+        #  CSV has been tested as a Spark path, and an illegal path was
+        #  used for testing to avoid triggering an error in log_artifact.
         code = f"""\n
 def main():
     mlrun_log_artifact('my_test_artifact_parquet','/dbfs{parquet_artifact_dbfs_path}')
-    return {{'my_test_artifact_csv': '/dbfs{csv_artifact_dbfs_path}'}}
+    mlrun_log_artifact('illegal artifact',10)
+    return {{'my_test_artifact_csv': 'dbfs:{csv_artifact_dbfs_path}'}}
 """
         function_ref = FunctionReference(
             kind="databricks",

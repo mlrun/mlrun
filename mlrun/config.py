@@ -101,7 +101,7 @@ default_config = {
         # TODO: move runs_monitoring_interval and runs_monitoring_missing_runtime_resources_debouncing_interval to here
         "runs": {
             # max number of parallel abort run jobs in runs monitoring
-            "concurrent_abort_stale_runs_workers": 15,
+            "concurrent_abort_stale_runs_workers": 10,
         }
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)

@@ -600,30 +600,32 @@ async def _align_worker_state_with_chief_state(
 
 
 async def _monitor_runs():
+    stale_runs = await fastapi.concurrency.run_in_threadpool(
+        server.api.db.session.run_function_with_new_db_session,
+        _monitor_runs_with_runtime_handlers,
+    )
+    await fastapi.concurrency.run_in_threadpool(
+        server.api.db.session.run_function_with_new_db_session,
+        _push_terminal_run_notifications,
+    )
+    await _abort_stale_runs(stale_runs)
+
+
+def _monitor_runs_with_runtime_handlers(db_session):
     db = get_db()
-    db_session = create_session()
     stale_runs = []
-    try:
-        for kind in RuntimeKinds.runtime_with_handlers():
-            try:
-                runtime_handler = get_runtime_handler(kind)
-                runtime_stale_runs = runtime_handler.monitor_runs(db, db_session)
-                stale_runs.extend(runtime_stale_runs)
-            except Exception as exc:
-                logger.warning(
-                    "Failed monitoring runs. Ignoring",
-                    exc=err_to_str(exc),
-                    kind=kind,
-                )
-        await asyncio.gather(
-            fastapi.concurrency.run_in_threadpool(
-                server.api.db.session.run_function_with_new_db_session,
-                _push_terminal_run_notifications,
-            ),
-            _abort_stale_runs(stale_runs),
-        )
-    finally:
-        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
+    for kind in RuntimeKinds.runtime_with_handlers():
+        try:
+            runtime_handler = get_runtime_handler(kind)
+            runtime_stale_runs = runtime_handler.monitor_runs(db, db_session)
+            stale_runs.extend(runtime_stale_runs)
+        except Exception as exc:
+            logger.warning(
+                "Failed monitoring runs. Ignoring",
+                exc=err_to_str(exc),
+                kind=kind,
+            )
+    return stale_runs
 
 
 def _cleanup_runtimes():
@@ -691,7 +693,8 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
         int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
     )
 
-    async def _abort_run(stale_run):
+    async def abort_run(stale_run):
+        # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
@@ -699,7 +702,7 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
                 **stale_run,
             )
 
-    coroutines = [_abort_run(_stale_run) for _stale_run in stale_runs]
+    coroutines = [abort_run(_stale_run) for _stale_run in stale_runs]
     if coroutines:
         results = await asyncio.gather(*coroutines, return_exceptions=True)
         for result in results:

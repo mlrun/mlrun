@@ -623,7 +623,7 @@ async def _monitor_runs():
             _abort_stale_runs(stale_runs),
         )
     finally:
-        await fastapi.concurrency.run_in_threadpool(close_session(db_session))
+        await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
 def _cleanup_runtimes():

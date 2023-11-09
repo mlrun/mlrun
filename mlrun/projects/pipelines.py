@@ -595,15 +595,16 @@ class _KFPRunner(_PipelineRunner):
         # The user provided workflow code might have made changes to function specs that require cleanup
         for func in project.spec._function_objects.values():
             try:
-                func.spec.rollback_fields()
+                func.spec.discard_changes()
             except AttributeError:
                 logger.debug(
-                    f"Function of type {type(func)} doesn't require a spec field rollback"
+                    "Function does not require a field rollback", func_type=type(func)
                 )
             except Exception as exc:
                 logger.warning(
-                    f"Failed to rollback spec fields for function {func.metadata.name}",
+                    "Failed to rollback spec fields for function",
                     project=project,
+                    func_name=func.metadata.name,
                     exc_info=err_to_str(exc),
                 )
 

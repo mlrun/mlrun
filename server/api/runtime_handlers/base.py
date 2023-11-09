@@ -174,7 +174,7 @@ class BaseRuntimeHandler(ABC):
         )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
-    def monitor_runs(self, db: DBInterface, db_session: Session):
+    def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
         crd_group, crd_version, crd_plural = self._get_crd_info()
@@ -1167,6 +1167,10 @@ class BaseRuntimeHandler(ABC):
             run, runtime_resource, runtime_resource_is_crd, namespace, stale_runs
         )
 
+        # If threshold exceeded, an abort run job will be triggered.
+        if threshold_exceeded:
+            return
+
         _, updated_run_state, run = self._ensure_run_state(
             db,
             db_session,
@@ -1176,15 +1180,13 @@ class BaseRuntimeHandler(ABC):
             run_state,
             run,
             search_run=False,
-            force=threshold_exceeded,
         )
 
         # Update the UI URL after ensured run state because it also ensures that a run exists
         # (A runtime resource might exist before the run is created)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
-        # If threshold exceeded, the logs will be collected the abort run job
-        if not threshold_exceeded and updated_run_state in RunStates.terminal_states():
+        if updated_run_state in RunStates.terminal_states():
             self._ensure_run_logs_collected(db, db_session, project, uid)
 
     def _resolve_resource_state_and_apply_threshold(
@@ -1236,7 +1238,7 @@ class BaseRuntimeHandler(ABC):
             )
             if threshold_exceeded:
                 logger.warning(
-                    "Runtime resource exceeded state threshold. Aborting run",
+                    "Runtime resource exceeded state threshold. Run will be aborted.",
                     runtime_resource_name=runtime_resource["metadata"]["name"],
                     run_state=run_state,
                     pod_phase=pod_phase,
@@ -1439,7 +1441,6 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run=True,
-        force: bool = False,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1451,7 +1452,7 @@ class BaseRuntimeHandler(ABC):
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
-            if db_run_state in RunStates.terminal_states() and not force:
+            if db_run_state in RunStates.terminal_states():
 
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed

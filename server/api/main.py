@@ -608,7 +608,8 @@ async def _monitor_runs():
         for kind in RuntimeKinds.runtime_with_handlers():
             try:
                 runtime_handler = get_runtime_handler(kind)
-                stale_runs = runtime_handler.monitor_runs(db, db_session)
+                runtime_stale_runs = runtime_handler.monitor_runs(db, db_session)
+                stale_runs.extend(runtime_stale_runs)
             except Exception as exc:
                 logger.warning(
                     "Failed monitoring runs. Ignoring",

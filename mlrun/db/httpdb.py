@@ -583,7 +583,7 @@ class HTTPRunDB(RunDBInterface):
 
         response = self.api_call(
             "POST",
-            path=f"project/{project}/runs/{uid}/abort",
+            path=f"projects/{project}/runs/{uid}/abort",
             error="Failed run abortion",
             params=params,
             body=body,

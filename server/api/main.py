@@ -602,16 +602,12 @@ async def _align_worker_state_with_chief_state(
 async def _monitor_runs():
     stale_runs = await fastapi.concurrency.run_in_threadpool(
         server.api.db.session.run_function_with_new_db_session,
-        _monitor_runs_with_runtime_handlers,
-    )
-    await fastapi.concurrency.run_in_threadpool(
-        server.api.db.session.run_function_with_new_db_session,
-        _push_terminal_run_notifications,
+        _monitor_runs_and_push_terminal_notifications,
     )
     await _abort_stale_runs(stale_runs)
 
 
-def _monitor_runs_with_runtime_handlers(db_session):
+def _monitor_runs_and_push_terminal_notifications(db_session):
     db = get_db()
     stale_runs = []
     for kind in RuntimeKinds.runtime_with_handlers():
@@ -625,6 +621,15 @@ def _monitor_runs_with_runtime_handlers(db_session):
                 exc=err_to_str(exc),
                 kind=kind,
             )
+
+    try:
+        _push_terminal_run_notifications(db, db_session)
+    except Exception as exc:
+        logger.warning(
+            "Failed pushing terminal run notifications. Ignoring",
+            exc=err_to_str(exc),
+        )
+
     return stale_runs
 
 
@@ -645,7 +650,7 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db_session):
+def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_session):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -659,7 +664,6 @@ def _push_terminal_run_notifications(db_session):
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
-    db = get_db()
     runs = db.list_runs(
         db_session,
         project="*",

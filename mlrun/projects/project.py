@@ -2004,76 +2004,6 @@ class MlrunProject(ModelObj):
         self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
-    def create_function(
-        self,
-        func: str = None,
-        name: str = "",
-        kind: str = "",
-        image: str = None,
-        handler: str = None,
-        with_repo: bool = None,
-        tag: str = None,
-        requirements: typing.Union[str, typing.List[str]] = None,
-        requirements_file: str = "",
-    ):
-        """
-        Create a function object without setting it to the project
-
-        support url prefixes::
-
-            object (s3://, v3io://, ..)
-            MLRun DB e.g. db://project/func:ver
-            functions hub/market: e.g. hub://auto-trainer:master
-
-        examples::
-
-            proj.create_function(func_object)
-            proj.create_function('./src/mycode.py', 'ingest',
-                              image='myrepo/ing:latest', with_repo=True)
-            proj.create_function('http://.../mynb.ipynb', 'train')
-            proj.create_function('./func.yaml')
-            proj.create_function('hub://get_toy_data', 'getdata')
-
-            # set function requirements
-
-            # by providing a list of packages
-            proj.create_function('my.py', requirements=["requests", "pandas"])
-
-            # by providing a path to a pip requirements file
-            proj.create_function('my.py', requirements="requirements.txt")
-
-        :param func:                Code url, None refers to current Notebook
-        :param name:                Name of the function, can be specified with a tag to support
-                                    Versions (e.g. myfunc:v1). If the `tag` parameter is provided, the tag in the name
-                                    must match the tag parameter.
-                                    Specifying a tag in the name will update the project's tagged function (myfunc:v1)
-        :param kind:                Runtime kind e.g. job, nuclio, spark, dask, mpijob
-                                    Default: job
-        :param image:               Docker image to be used, can also be specified in the function object/yaml
-        :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:           Add (clone) the current repo to the build source
-        :param tag:                 Function version tag to set (none for current or 'latest')
-                                    Specifying a tag as a parameter will update the project's tagged function
-                                    (myfunc:v1) and the untagged function (myfunc)
-        :param requirements:        A list of python packages
-        :param requirements_file:   Path to a python requirements file
-
-        :returns: function object
-        """
-
-        _, _, function_object, _ = self._instantiate_function(
-            func,
-            name,
-            kind,
-            image,
-            handler,
-            with_repo,
-            tag,
-            requirements,
-            requirements_file,
-        )
-        return function_object
-
     def _instantiate_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
@@ -2193,7 +2123,6 @@ class MlrunProject(ModelObj):
         :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
-        mlrun.db.get_run_db().delete_function(name=name.lower())
 
     def remove_model_monitoring_function(self, name):
         """remove the specified model-monitoring-app function from the project

@@ -72,7 +72,6 @@ BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
 #      for which to push notifications
 _last_notification_push_time: typing.Optional[datetime.datetime] = None
 
-
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
 # that keep failing start logs requests.
@@ -616,10 +615,15 @@ async def _monitor_runs():
                     exc=err_to_str(exc),
                     kind=kind,
                 )
-        _push_terminal_run_notifications(db, db_session)
-        await _abort_stale_runs(db_session, stale_runs)
+        await asyncio.gather(
+            fastapi.concurrency.run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                _push_terminal_run_notifications,
+            ),
+            _abort_stale_runs(stale_runs),
+        )
     finally:
-        close_session(db_session)
+        await fastapi.concurrency.run_in_threadpool(close_session(db_session))
 
 
 def _cleanup_runtimes():
@@ -639,7 +643,7 @@ def _cleanup_runtimes():
         close_session(db_session)
 
 
-def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_session):
+def _push_terminal_run_notifications(db_session):
     """
     Get all runs with notification configs which became terminal since the last call to the function
     and push their notifications if they haven't been pushed yet.
@@ -653,6 +657,7 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
 
     now = datetime.datetime.now(datetime.timezone.utc)
 
+    db = get_db()
     runs = db.list_runs(
         db_session,
         project="*",
@@ -681,17 +686,20 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     _last_notification_push_time = now
 
 
-async def _abort_stale_runs(db_session, stale_runs: typing.List[dict]):
-    coroutines = []
-    for stale_run in stale_runs:
-        coroutine = fastapi.concurrency.run_in_threadpool(
-            server.api.crud.Runs().abort_run, db_session, **stale_run
-        )
-        coroutines.append(coroutine)
+async def _abort_stale_runs(stale_runs: typing.List[dict]):
+    semaphore = asyncio.Semaphore(10)
 
+    async def _abort_run(stale_run):
+        async with semaphore:
+            await fastapi.concurrency.run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Runs().abort_run,
+                **stale_run,
+            )
+
+    coroutines = [_abort_run(_stale_run) for _stale_run in stale_runs]
     if coroutines:
         results = await asyncio.gather(*coroutines, return_exceptions=True)
-
         for result in results:
             if isinstance(result, Exception):
                 logger.warning(

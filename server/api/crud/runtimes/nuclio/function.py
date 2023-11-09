@@ -485,8 +485,8 @@ def _set_source_code_and_handler(function, config):
 def _set_disable_http_trigger_creation(function, nuclio_spec):
     if function.spec.disable_default_http_trigger is not None:
         nuclio_spec.set_config(
-            "spec.disableDefaultHTTPTrigger",
-            function.spec.disable_default_http_trigger)
+            "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
+        )
 
 
 def _resolve_and_set_base_image(

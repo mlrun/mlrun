@@ -198,6 +198,9 @@ default_config = {
                 }
             },
         },
+        "databricks": {
+            "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
+        },
     },
     # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {

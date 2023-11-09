@@ -72,6 +72,8 @@ if result:
             mlrun_log_artifact(name=key, path=value)
     elif isinstance(result, str):
         mlrun_log_artifact(name=f'{default_key_template}1', path=result)
+    else:
+        mlrun_logger.warning('cannot log artifacts with the result of handler's function - result in unsupported type.')
 """
         code = b64encode(code.encode("utf-8")).decode("utf-8")
         updated_task_parameters = {
@@ -166,13 +168,20 @@ handler_arguments = json.loads(handler_arguments)
 """
 
 artifacts_code_template = """\n
+import logging
+mlrun_logger = logging.getLogger('mlrun_logger')
+mlrun_logger.setLevel(logging.DEBUG)
+
 def mlrun_log_artifact(name, path):
     if not name or not path:
-        raise ValueError('name and path required for logging an artifact')
+        mlrun_logger.error('name and path required for logging an artifact')
+        return
     if not isinstance(name, str) or not isinstance(path, str):
-        raise ValueError('name and path must be in a string type for logging an artifact')
+        mlrun_logger.error('name and path must be in a string type for logging an artifact')
+        return
     if not path.startswith('/dbfs') and not path.startswith('dbfs:/'):
-        raise ValueError('path for artifact must start with /dbfs or dbfs:/')
+        mlrun_logger.error('path for artifact must start with /dbfs or dbfs:/')
+        return
     mlrun_artifacts_path = '{}'
     import json
     import os
@@ -189,5 +198,6 @@ def mlrun_log_artifact(name, path):
             os.makedirs(parent_dir, exist_ok=True)
         with open(mlrun_artifacts_path, 'w') as json_file:
             json.dump(new_data, json_file)
+    mlrun_logger.info(f'successfully wrote artifact details to the artifact JSON file in DBFS - {name} : {path}')
 \n
 """

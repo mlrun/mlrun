@@ -74,7 +74,7 @@ if result:
         mlrun_log_artifact(name=f'{default_key_template}1', path=result)
     else:
         mlrun_logger.warning(f'cannot log artifacts with the result of handler function \
-- result in unsupported type. {type(result)'})
+- result in unsupported type. {type(result)}')
 """
         code = b64encode(code.encode("utf-8")).decode("utf-8")
         updated_task_parameters = {

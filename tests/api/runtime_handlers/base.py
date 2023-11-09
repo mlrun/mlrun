@@ -26,7 +26,6 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.constants
-import server.api.crud
 import server.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
@@ -487,10 +486,6 @@ class TestRuntimeHandlerBase:
             return_value=services_list
         )
         return services
-
-    @staticmethod
-    def _mock_internal_client_abort_run():
-        server.api.crud.Runs().abort_run = unittest.mock.AsyncMock()
 
     @staticmethod
     def _assert_list_namespaced_pods_calls(

@@ -683,9 +683,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             ],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
-        self._mock_internal_client_abort_run()
         stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
         assert len(stale_runs) == 3
+
         stale_run_uids = [run["uid"] for run in stale_runs]
         expected_stale_run_uids = [
             pending_scheduled_pod.metadata.labels["mlrun/uid"],
@@ -693,6 +693,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             image_pull_backoff_pod.metadata.labels["mlrun/uid"],
         ]
         assert stale_run_uids == expected_stale_run_uids
+
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
         for state in ["pending_scheduled", "running", "image_pull_backoff"]:

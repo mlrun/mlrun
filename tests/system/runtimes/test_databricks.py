@@ -388,7 +388,7 @@ def main():
         function_ref = FunctionReference(
             kind="databricks",
             code=code,
-            image="tomermamia855/mlrun-api:mlrun_databricks_artifacts",
+            image="mlrun/mlrun",
             name="databricks-test",
         )
 
@@ -406,5 +406,5 @@ def main():
             len(self.project.list_artifacts()) == 0
         )  # Make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
-        time.sleep(2)
+        time.sleep(3)
         self._check_artifacts_by_path(paths_dict=paths_dict)

@@ -16,4 +16,3 @@ def func(**kwargs):
     print(kwargs)
     if not kwargs:
         raise Exception("kwargs is empty")
-    return kwargs

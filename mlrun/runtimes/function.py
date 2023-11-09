@@ -163,6 +163,7 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
         state_thresholds=None,
+        disable_default_http_trigger=None,
     ):
 
         super().__init__(
@@ -209,6 +210,8 @@ class NuclioSpec(KubeResourceSpec):
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4
+
+        self.disable_default_http_trigger = disable_default_http_trigger
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
@@ -682,6 +685,22 @@ class RemoteRuntime(KubeResource):
         raise NotImplementedError(
             "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
         )
+
+    def disable_default_http_trigger(
+        self,
+    ):
+        """
+        Disables nuclio's default http trigger creation
+        """
+        self.spec.disable_default_http_trigger = True
+
+    def enable_default_http_trigger(
+        self,
+    ):
+        """
+        Enables nuclio's default http trigger creation
+        """
+        self.spec.disable_default_http_trigger = False
 
     def _get_state(
         self,

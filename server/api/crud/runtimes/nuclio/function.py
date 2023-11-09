@@ -204,6 +204,7 @@ def _compile_function_config(
     _set_function_scheduling_params(function, nuclio_spec)
     _set_function_replicas(function, nuclio_spec)
     _set_misc_specs(function, nuclio_spec)
+    _set_disable_http_trigger_creation(function, nuclio_spec)
 
     # if the user code is given explicitly or from a source, we need to set the handler and relevant attributes
     if (
@@ -479,6 +480,13 @@ def _set_source_code_and_handler(function, config):
             "spec.handler",
             "mlrun.serving.serving_wrapper:handler",
         )
+
+
+def _set_disable_http_trigger_creation(function, nuclio_spec):
+    if function.spec.disable_default_http_trigger is not None:
+        nuclio_spec.set_config(
+            "spec.disableDefaultHTTPTrigger",
+            function.spec.disable_default_http_trigger)
 
 
 def _resolve_and_set_base_image(

@@ -883,11 +883,15 @@ class RemoteRuntime(KubeResource):
 
         # here we check that if default http trigger is disabled, function contains a custom http trigger
         # Otherwise, the function is not invokable, so we raise an error
-        if "spec.triggers.http" not in self.spec.config and self.spec.disable_default_http_trigger:
+        if (
+            "spec.triggers.http" not in self.spec.config
+            and self.spec.disable_default_http_trigger
+        ):
             raise mlrun.errors.MLRunPreconditionFailedError(
                 "Default http trigger creation is disabled and there is no any other custom http trigger, "
                 "so function can not be invoked via http. Either enable default http trigger creation or create"
-                "custom http trigger")
+                "custom http trigger"
+            )
 
         if not method:
             method = "POST" if body else "GET"

@@ -575,6 +575,7 @@ class HTTPRunDB(RunDBInterface):
         Abort a running run - will remove the run's runtime resources and mark its state as aborted.
         :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
+        project = project or config.default_project
         params = {"iter": iter}
         updates = {}
         if status_text:

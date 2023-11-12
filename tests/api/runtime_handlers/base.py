@@ -151,7 +151,7 @@ class TestRuntimeHandlerBase:
 
     @staticmethod
     def _generate_job_labels(run_name, uid=None, job_labels=None):
-        labels = job_labels
+        labels = job_labels.copy() if job_labels else {}
         labels["mlrun/uid"] = uid or str(uuid.uuid4())
         labels["mlrun/name"] = run_name
         return labels

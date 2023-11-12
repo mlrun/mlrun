@@ -194,19 +194,20 @@ class StoreManager:
 
         if schema == "ds":
             profile_name = endpoint
-            datastore = TemporaryClientDatastoreProfiles().get(profile_name)
-            if not datastore:
+            datastore_profile = TemporaryClientDatastoreProfiles().get(profile_name)
+            if not datastore_profile:
                 project_name = urlparse(url).username or mlrun.mlconf.default_project
-                datastore = mlrun.db.get_run_db(
+                datastore_profile = mlrun.db.get_run_db(
                     secrets=self._secrets
                 ).get_datastore_profile(profile_name, project_name)
 
-            if secrets and datastore.secrets():
-                secrets = merge(secrets, datastore.secrets())
+            if secrets and datastore_profile.secrets():
+                secrets = merge(secrets, datastore_profile.secrets())
             else:
-                secrets = secrets or datastore.secrets()
-            url = datastore.url(subpath)
-            schema, endpoint, parsed_url = parse_url(url)
+                secrets = secrets or datastore_profile.secrets()
+            url = datastore_profile.url(subpath)
+            #  schema, endpoint, parsed_url = parse_url(url)  # TODO test if buggy if we use 2 different instances.
+            schema, _, parsed_url = parse_url(url)  # TODO test if buggy if we use 2 different instances.
             subpath = parsed_url.path
 
         if schema == "memory":
@@ -233,3 +234,6 @@ class StoreManager:
             self._stores[store_key] = store
         # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
         return store, url if store.kind == "file" else subpath
+
+    def reset_secrets(self):
+        self._secrets = {}

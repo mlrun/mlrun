@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import typing
-import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest

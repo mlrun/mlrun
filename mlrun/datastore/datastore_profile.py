@@ -40,11 +40,11 @@ class DatastoreProfile(pydantic.BaseModel):
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "."
         full_key = (
-            "datastore-profiles"
-            + secret_name_separator
-            + project
-            + secret_name_separator
-            + profile_name
+                "datastore-profiles"
+                + secret_name_separator
+                + project
+                + secret_name_separator
+                + profile_name
         )
         return full_key
 
@@ -182,6 +182,13 @@ class DatastoreProfileRedis(DatastoreProfile):
         return self.endpoint_url + subpath
 
 
+class DatastoreProfileDBFS(DatastoreProfile):
+    type: str = pydantic.Field("dbfs")
+    _private_attributes = ("token",)
+    endpoint_url: typing.Optional[str] = None  # host
+    token: typing.Optional[str] = None
+
+
 class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -238,6 +245,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "basic": DatastoreProfileBasic,
             "kafka_target": DatastoreProfileKafkaTarget,
             "kafka_source": DatastoreProfileKafkaSource,
+            "dbfs": DatastoreProfileDBFS,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

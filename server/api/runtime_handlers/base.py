@@ -1221,7 +1221,6 @@ class BaseRuntimeHandler(ABC):
                 label_selector=f"mlrun/uid={run['metadata']['uid']}",
             )
             for pod in pods:
-                logger.debug("bla", pod=pod)
                 _, threshold_exceeded = self._apply_state_threshold(
                     run, pod, namespace, stale_runs
                 )

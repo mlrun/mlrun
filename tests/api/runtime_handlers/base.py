@@ -14,6 +14,7 @@
 #
 import typing
 import unittest.mock
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -26,6 +27,7 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.schemas
 import mlrun.runtimes.constants
+import server.api.crud
 import server.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
@@ -146,6 +148,12 @@ class TestRuntimeHandlerBase:
         )
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
+
+    def _generate_job_labels(self, run_name, uid=None, job_labels=None):
+        labels = job_labels
+        labels["mlrun/uid"] = uid or str(uuid.uuid4())
+        labels["mlrun/name"] = run_name
+        return labels
 
     @staticmethod
     def _generate_config_map(name, labels, data=None):

@@ -77,12 +77,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
     def _get_class_name(self):
         return "job"
 
-    def _generate_job_labels(self, run_name):
-        labels = self.job_labels.copy()
-        labels["mlrun/uid"] = str(uuid.uuid4())
-        labels["mlrun/name"] = run_name
-        return labels
-
     def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
         self._assert_runtime_handler_list_resources(
@@ -579,7 +573,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         - running pod with old start time - should be deleted
         - pod in image pull backoff with old start time - should be deleted
         """
-        pending_scheduled_labels = self._generate_job_labels("pending_scheduled")
+        pending_scheduled_labels = self._generate_job_labels(
+            "pending_scheduled", job_labels=self.job_labels
+        )
         pending_scheduled_pod = self._generate_pod(
             pending_scheduled_labels["mlrun/name"],
             pending_scheduled_labels,
@@ -603,7 +599,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         pending_scheduled_new_labels = self._generate_job_labels(
-            "pending_scheduled_new"
+            "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
             pending_scheduled_new_labels["mlrun/name"],
@@ -620,7 +616,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
-        running_overtime_labels = self._generate_job_labels("running_overtime")
+        running_overtime_labels = self._generate_job_labels(
+            "running_overtime", job_labels=self.job_labels
+        )
         running_overtime_pod = self._generate_pod(
             running_overtime_labels["mlrun/name"],
             running_overtime_labels,
@@ -638,7 +636,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             start_time=running_overtime_pod.status.start_time,
         )
 
-        image_pull_backoff_labels = self._generate_job_labels("image_pull_backoff")
+        image_pull_backoff_labels = self._generate_job_labels(
+            "image_pull_backoff", job_labels=self.job_labels
+        )
         image_pull_backoff_pod = self._generate_pod(
             image_pull_backoff_labels["mlrun/name"],
             image_pull_backoff_labels,

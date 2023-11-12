@@ -1103,7 +1103,14 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             table=f"pipelines/{cls.project_name}/model-endpoints/events",
             start="now-5m",
         )
-        assert not df.empty
+        assert len(df) == 1, "Expected a single record in the TSDB"
+        assert {
+            "endpoint_id",
+            "record_type",
+            "hellinger_mean",
+            "kld_mean",
+            "tvd_mean",
+        } == set(df.columns), "Unexpected columns in the TSDB record"
 
     def test_record(self) -> None:
         model_uri = self._log_model()

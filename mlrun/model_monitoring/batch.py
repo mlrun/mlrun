@@ -601,7 +601,9 @@ class BatchProcessor:
             container=self.tsdb_container,
             token=self.v3io_access_key,
         )
-        logger.info("Creating table in TSDB", table=self.tsdb_path)
+        logger.info(
+            "Creating table in TSDB if it does not already exist", table=self.tsdb_path
+        )
         self.frames.create(
             backend="tsdb",
             table=self.tsdb_path,

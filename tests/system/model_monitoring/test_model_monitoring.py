@@ -1057,8 +1057,8 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
 @pytest.mark.enterprise
 class TestModelInferenceTSDBRecord(TestMLRunSystem):
     """
-    Test that batch inference without a model endpoint (serving) records the
-    results in V3IO TSDB.
+    Test that batch inference records results to V3IO TSDB when tracking is
+    enabled and the selected model does not have a serving endpoint.
     """
 
     project_name = "infer-model-tsdb"

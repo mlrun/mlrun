@@ -568,6 +568,117 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             )
         assert stale_run_updates == expected_run_updates
 
+    def test_state_thresholds_pending_states(self, db: Session, client: TestClient):
+        pending_uid = str(uuid.uuid4())
+        pending_scheduled_stale_uid = str(uuid.uuid4())
+        pending_scheduled_uid = str(uuid.uuid4())
+
+        # create the runs
+        for name, uid, start_time in [
+            ("pending", pending_uid, datetime.now(timezone.utc)),
+            (
+                "pending-scheduled-stale",
+                pending_scheduled_stale_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+                    )
+                ),
+            ),
+            (
+                "pending-scheduled",
+                pending_scheduled_uid,
+                datetime.now(timezone.utc),
+            ),
+        ]:
+            self._store_run(
+                db,
+                f"train={name}",
+                uid,
+                start_time=start_time,
+            )
+
+        # create crds job
+        list_namespaced_crds_calls = [[]]
+        for uid in [pending_scheduled_stale_uid, pending_scheduled_uid, pending_uid]:
+            list_namespaced_crds_calls[0].append(
+                self._generate_mpijob_crd(
+                    self.project,
+                    uid,
+                    self._get_active_crd_status(),
+                )
+            )
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+
+        # create scheduled pods
+        list_namespaced_pods_calls = []
+        for name, uid in [
+            ("pending-scheduled-stale", pending_scheduled_stale_uid),
+            ("pending-scheduled", pending_scheduled_uid),
+            ("pending", pending_uid),
+        ]:
+            worker_pod = self._generate_pod(
+                f"worker-{name}",
+                self._generate_job_labels(
+                    name,
+                    uid=uid,
+                    job_labels=self.worker_pod_labels,
+                ),
+                PodPhases.pending,
+            )
+            launcher_pod = self._generate_pod(
+                f"launcher-{name}",
+                self._generate_job_labels(
+                    name,
+                    uid=uid,
+                    job_labels=self.launcher_pod_labels,
+                ),
+                PodPhases.pending,
+            )
+            if "scheduled" in name:
+                worker_pod.status.conditions = [
+                    k8s_client.V1PodCondition(type="PodScheduled", status="True")
+                ]
+                launcher_pod.status.conditions = [
+                    k8s_client.V1PodCondition(type="PodScheduled", status="True")
+                ]
+
+            list_namespaced_pods_calls.append([launcher_pod, worker_pod])
+
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+
+        stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            # 1 call per threshold state verification
+            len(list_namespaced_pods_calls),
+            f"mlrun/uid={pending_scheduled_stale_uid}",
+        )
+        assert len(stale_runs) == 1
+
+        stale_run_uids = [run["uid"] for run in stale_runs]
+        expected_stale_run_uids = [
+            pending_scheduled_stale_uid,
+        ]
+        assert stale_run_uids == expected_stale_run_uids
+
+        stale_run_updates = [run["run_updates"] for run in stale_runs]
+        expected_run_updates = []
+        for state in ["pending_scheduled"]:
+            expected_run_updates.append(
+                {
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                }
+            )
+        assert stale_run_updates == expected_run_updates
+
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(
             [[self.launcher_pod, self.worker_pod]]

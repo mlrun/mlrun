@@ -90,7 +90,9 @@ source_suffix = {
 }
 
 # versionwarning configuration
-versionwarning_default_message = "This is not the latest documentation. See {stable} instead."
+versionwarning_default_message = (
+    "This is not the latest documentation. See {stable} instead."
+)
 
 # -- Options for HTML output -------------------------------------------------
 

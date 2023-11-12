@@ -28,6 +28,7 @@ import mlrun.api.utils.singletons.k8s
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
@@ -619,7 +620,7 @@ def build_runtime(
     client_version=None,
     client_python_version=None,
 ):
-    build = runtime.spec.build
+    build: mlrun.model.ImageBuilder = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
@@ -659,6 +660,9 @@ def build_runtime(
         return True
 
     build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
+    build.secret = mlrun.runtimes.utils.resolve_function_image_secret(
+        build.image, build.secret
+    )
     runtime.status.state = ""
 
     inline = None  # noqa: F841

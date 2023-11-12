@@ -272,6 +272,18 @@ def resolve_function_image_name(function, image: typing.Optional[str] = None) ->
     return generate_function_image_name(project, name, tag)
 
 
+def resolve_function_image_secret(
+    resolved_target_image: str, secret: typing.Optional[str] = None
+) -> str:
+
+    # secret is not give, take from config if target image prefix equals to the default one
+    if not secret:
+        parsed_registry, parsed_repository = helpers.get_parsed_docker_registry()
+        if resolved_target_image.startswith(parsed_registry):
+            secret = config.httpdb.builder.docker_registry_secret
+    return secret
+
+
 def generate_function_image_name(project: str, name: str, tag: str) -> str:
     _, repository = helpers.get_parsed_docker_registry()
     repository = helpers.get_docker_repository_or_default(repository)

@@ -149,7 +149,8 @@ class TestRuntimeHandlerBase:
         pod = client.V1Pod(metadata=metadata, status=status)
         return pod
 
-    def _generate_job_labels(self, run_name, uid=None, job_labels=None):
+    @staticmethod
+    def _generate_job_labels(run_name, uid=None, job_labels=None):
         labels = job_labels
         labels["mlrun/uid"] = uid or str(uuid.uuid4())
         labels["mlrun/name"] = run_name

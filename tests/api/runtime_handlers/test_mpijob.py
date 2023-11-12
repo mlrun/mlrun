@@ -402,60 +402,65 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         3. job in running state that should not be aborted
         4. job in succeeded state that should not be aborted
         """
-        # create image pull backoff job
         image_pull_backoff_job_uid = str(uuid.uuid4())
+        running_long_uid = str(uuid.uuid4())
+        running_short_uid = str(uuid.uuid4())
+        success_uid = str(uuid.uuid4())
+
+        # create the runs
+        for uid, start_time in [
+            (
+                image_pull_backoff_job_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
+                    )
+                ),
+            ),
+            (
+                running_long_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.running
+                    )
+                ),
+            ),
+            (running_short_uid, datetime.now(timezone.utc)),
+            (success_uid, datetime.now(timezone.utc)),
+        ]:
+            self._store_run(
+                db,
+                "train",
+                uid,
+                start_time=start_time,
+            )
+
+        # create image pull backoff job
         image_pull_backoff_job = self._generate_mpijob_crd(
             self.project,
             image_pull_backoff_job_uid,
             self._get_active_crd_status(),
         )
-        self._store_run(
-            db,
-            image_pull_backoff_job["metadata"]["labels"]["mlrun/name"],
-            image_pull_backoff_job_uid,
-            start_time=datetime.now(timezone.utc)
-            - timedelta(
-                seconds=mlrun.utils.helpers.time_string_to_seconds(
-                    mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
-                )
-            ),
-        )
 
         # create running long job
-        running_long_uid = str(uuid.uuid4())
         running_long_job = self._generate_mpijob_crd(
             self.project,
             running_long_uid,
             self._get_active_crd_status(),
         )
-        self._store_run(
-            db,
-            running_long_job["metadata"]["labels"]["mlrun/name"],
-            running_long_uid,
-            start_time=datetime.now(timezone.utc)
-            - timedelta(
-                seconds=mlrun.utils.helpers.time_string_to_seconds(
-                    mlrun.mlconf.function.spec.state_thresholds.default.running
-                )
-            ),
-        )
 
         # create running short job
-        running_short_uid = str(uuid.uuid4())
         running_short_job = self._generate_mpijob_crd(
             self.project,
             running_short_uid,
             self._get_active_crd_status(),
         )
-        self._store_run(
-            db,
-            running_long_job["metadata"]["labels"]["mlrun/name"],
-            running_long_uid,
-        )
 
         list_namespaced_crds_calls = [
             [image_pull_backoff_job, running_short_job],
-            [self.succeeded_crd_dict, running_long_job],
+            [running_long_job, self.succeeded_crd_dict],
         ]
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
 
@@ -486,38 +491,43 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         launcher_pod_image_pull_backoff = self._generate_pod(
             "launcher",
             self._generate_job_labels(
-                image_pull_backoff_job,
+                image_pull_backoff_job["metadata"]["labels"]["mlrun/name"],
                 uid=image_pull_backoff_job_uid,
-                job_labels=self.launcher_pod_labels,
-            ),
-            PodPhases.running,
-        )
-
-        # create running long pods
-        worker_pod_running_long = self._generate_pod(
-            "worker_in_running_long",
-            self._generate_job_labels(
-                running_long_job,
-                uid=running_long_uid,
-                job_labels=self.worker_pod_labels,
-            ),
-            PodPhases.running,
-        )
-        launcher_pod_running_long = self._generate_pod(
-            "launcher",
-            self._generate_job_labels(
-                running_long_job,
-                uid=running_long_uid,
                 job_labels=self.launcher_pod_labels,
             ),
             PodPhases.running,
         )
         list_namespaced_pods_calls = [
             [launcher_pod_image_pull_backoff, worker_pod_image_pull_backoff],
-            [],
-            [worker_pod_running_long, launcher_pod_running_long],
-            [],
         ]
+
+        # create running pods
+        for name, uid, job in [
+            ("running-long", running_long_uid, running_long_job),
+            ("running-short", running_short_uid, running_short_job),
+        ]:
+            worker_pod = self._generate_pod(
+                f"worker-{name}",
+                self._generate_job_labels(
+                    job["metadata"]["labels"]["mlrun/name"],
+                    uid=uid,
+                    job_labels=self.worker_pod_labels,
+                ),
+                PodPhases.running,
+            )
+            launcher_pod = self._generate_pod(
+                f"launcher-{name}",
+                self._generate_job_labels(
+                    job["metadata"]["labels"]["mlrun/name"],
+                    uid=uid,
+                    job_labels=self.launcher_pod_labels,
+                ),
+                PodPhases.running,
+            )
+            list_namespaced_pods_calls.append([launcher_pod, worker_pod])
+
+        # mock succeeded pods
+        list_namespaced_pods_calls.append([])
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
         self._mock_read_namespaced_pod_log()
         expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
@@ -536,7 +546,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
             # 1 call per threshold state verification or for logs collection (runs in terminal state)
-            3,
+            len(list_namespaced_pods_calls),
             self.pod_label_selector,
         )
         assert len(stale_runs) == 2

@@ -62,6 +62,7 @@ extensions = [
     "sphinx_togglebutton",
     "sphinx_design",
     "sphinx_reredirects",
+    "versionwarning.extension",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -88,6 +89,8 @@ source_suffix = {
     ".md": "myst-nb",
 }
 
+# versionwarning configuration
+versionwarning_default_message = "You are not reading the most up to date version of this documentation. See {stable} instead."
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -144,9 +147,10 @@ myst_url_schemes = ("http", "https", "mailto")
 myst_heading_anchors = 2
 myst_all_links_external = True
 
+# These substitutions point to the relevant mlrun docs for the currect CE version
 myst_substitutions = {
     "version": "version",
-    "ceversion": "v1.2.1",
+    "ceversion": "v1.4.0",
     "releasedocumentation": "docs.mlrun.org/en/v1.4.0/index.html",
 }
 

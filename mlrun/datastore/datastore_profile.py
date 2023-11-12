@@ -40,21 +40,21 @@ class DatastoreProfile(pydantic.BaseModel):
     def generate_secret_key(profile_name: str, project: str):
         secret_name_separator = "."
         full_key = (
-                "datastore-profiles"
-                + secret_name_separator
-                + project
-                + secret_name_separator
-                + profile_name
+            "datastore-profiles"
+            + secret_name_separator
+            + project
+            + secret_name_separator
+            + profile_name
         )
         return full_key
 
     @classmethod
-    def secrets(self) -> dict:
+    def secrets(cls) -> dict:
         return None
 
     @classmethod
-    def url(self, subpath) -> str:
-        return None
+    def url(cls, subpath) -> str:
+        return subpath
 
 
 class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
@@ -187,6 +187,10 @@ class DatastoreProfileDBFS(DatastoreProfile):
     _private_attributes = ("token",)
     endpoint_url: typing.Optional[str] = None  # host
     token: typing.Optional[str] = None
+
+    @classmethod
+    def url(cls, subpath) -> str:
+        return f"dbfs://{subpath}"
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):

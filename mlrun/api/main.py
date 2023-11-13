@@ -13,10 +13,10 @@
 # limitations under the License.
 #
 import asyncio
+import collections
 import concurrent.futures
 import datetime
 import traceback
-import collections
 import typing
 
 import fastapi

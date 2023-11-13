@@ -3228,13 +3228,13 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
+        labels = labels or []
         return self.list_functions(
             name=name,
             tag=tag,
             labels=[
                 f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ]
-            + labels,
+            ].extend(labels),
         )
 
     def list_runs(

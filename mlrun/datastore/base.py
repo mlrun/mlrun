@@ -96,10 +96,10 @@ class DataStore:
         """Whether the data store supports isdir"""
         return True
 
-    def _get_secret_or_env(self, key, default=None):
+    def _get_secret_or_env(self, key, default=None, prefix=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
         return mlrun.get_secret_or_env(
-            key, secret_provider=self._get_secret, default=default
+            key, secret_provider=self._get_secret, default=default, prefix=prefix
         )
 
     def get_storage_options(self):

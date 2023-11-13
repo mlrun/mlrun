@@ -26,6 +26,7 @@ from kubernetes import client
 import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
 import server.api.utils.singletons.k8s
@@ -618,7 +619,7 @@ def build_runtime(
     client_python_version=None,
     force_build=False,
 ):
-    build = runtime.spec.build
+    build: mlrun.model.ImageBuilder = runtime.spec.build
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
@@ -662,6 +663,9 @@ def build_runtime(
         return True
 
     build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
+    build.secret = mlrun.runtimes.utils.resolve_function_image_secret(
+        build.image, build.secret
+    )
     runtime.status.state = ""
 
     inline = None  # noqa: F841

@@ -158,9 +158,7 @@ class DatastoreProfileS3(DatastoreProfile):
         return res if res else None
 
     def url(self, subpath):
-        if not self.endpoint_url:
-            return f"s3://{subpath}"
-        return self.endpoint_url + subpath
+        return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):

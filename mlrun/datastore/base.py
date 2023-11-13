@@ -707,24 +707,16 @@ class HttpStore(DataStore):
 # As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
 # Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
 # method specifically to strip away the 'ds' schema as required.
-class DatastoreSchemaSanitizer:
-    def __init__(self, cls, *args, **kwargs):
-        if not issubclass(cls, fsspec.AbstractFileSystem):
-            raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
+def makeDatastoreSchemaSanitizer(cls, *args, **kwargs):
+    if not issubclass(cls, fsspec.AbstractFileSystem):
+        raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 
-        class DatastoreSchemaSanitizerTemp(cls):
-            @classmethod
-            def _strip_protocol(cls, url):
-                if url.startswith("ds://"):
-                    parsed_url = urlparse(url)
-                    url = parsed_url.path[1:]
-                return super()._strip_protocol(url)
+    class DatastoreSchemaSanitizer(cls):
+        @classmethod
+        def _strip_protocol(cls, url):
+            if url.startswith("ds://"):
+                parsed_url = urlparse(url)
+                url = parsed_url.path[1:]
+            return super()._strip_protocol(url)
 
-        self._obj = DatastoreSchemaSanitizerTemp(
-            *args, **kwargs
-        )  # Create an instance of the provided class with given args and kwargs
-        self._cls = cls
-
-    def __getattr__(self, name):
-        # Delegate attribute access to the encapsulated object
-        return getattr(self._obj, name)
+    return DatastoreSchemaSanitizer(*args, **kwargs)

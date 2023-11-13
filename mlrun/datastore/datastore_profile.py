@@ -48,13 +48,11 @@ class DatastoreProfile(pydantic.BaseModel):
         )
         return full_key
 
-    @classmethod
-    def secrets(cls) -> dict:
+    def secrets(self) -> dict:
         return None
 
-    @classmethod
-    def url(cls, subpath) -> str:
-        return subpath
+    def url(self, subpath) -> str:
+        return None
 
 
 class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
@@ -188,9 +186,16 @@ class DatastoreProfileDBFS(DatastoreProfile):
     endpoint_url: typing.Optional[str] = None  # host
     token: typing.Optional[str] = None
 
-    @classmethod
-    def url(cls, subpath) -> str:
+    def url(self, subpath) -> str:
         return f"dbfs://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.token:
+            res["DATABRICKS_TOKEN"] = self.token
+        if self.endpoint_url:
+            res["DATABRICKS_HOST"] = self.endpoint_url
+        return res if res else None
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):

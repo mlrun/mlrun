@@ -87,6 +87,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    _RemoteRunner,
     enrich_function_object,
     get_db_function,
     get_workflow_engine,
@@ -2617,7 +2618,14 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
-            run._engine.get_run_status(project=self, run=run, timeout=timeout)
+            # run's engine gets replaced with inner engine if engine is remote,
+            # so in that case we need to get the status from the remote engine manually
+            if engine == "remote":
+                status_engine = _RemoteRunner
+            else:
+                status_engine = run._engine
+
+            status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):

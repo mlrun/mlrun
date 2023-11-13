@@ -892,7 +892,7 @@ class _RemoteRunner(_PipelineRunner):
         notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
     ):
         # ignore notifiers, as they are handled by the remote pipeline notifications
-        return super().get_run_status(project, run, timeout, expected_statuses, False)
+        return _KFPRunner.get_run_status(project, run, timeout, expected_statuses, False)
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

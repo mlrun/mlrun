@@ -240,7 +240,7 @@ class NotificationPusher(_NotificationPusherBase):
         if "workflow" in run.metadata.labels:
             resource = "Workflow"
             custom_message = (
-                f"(workflow: {run.metadata.labels['workflow']}){custom_message}"
+                f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
             )
 
         message = (

@@ -106,6 +106,12 @@ class WorkflowRunners(
             "schedule": schedule,
         }
 
+        if workflow_request.notifications:
+            run_spec.spec.notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications
+            ]
+
         server.api.api.utils.get_scheduler().store_schedule(
             db_session=db_session,
             auth_info=auth_info,
@@ -154,6 +160,10 @@ class WorkflowRunners(
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
                     subpath=project.spec.subpath,
+                    # remote pipeline pod stays alive for the whole lifetime of the pipeline.
+                    # once the pipeline is done, the pod is finishes (either successfully or not) and notifications
+                    # can be sent.
+                    wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
@@ -204,10 +214,18 @@ class WorkflowRunners(
             load_only=load_only,
         )
 
+        notifications = None
+        if workflow_request.notifications:
+            notifications = [
+                mlrun.model.Notification.from_dict(notification.dict())
+                for notification in workflow_request.notifications
+            ]
+
         artifact_path = workflow_request.artifact_path if workflow_request else ""
         return runner.run(
             runspec=run_spec,
             artifact_path=artifact_path,
+            notifications=notifications,
             local=False,
             watch=False,
         )
@@ -279,6 +297,10 @@ class WorkflowRunners(
                     save=save,
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
+                    # remote pipeline pod stays alive for the whole lifetime of the pipeline.
+                    # once the pipeline is done, the pod is finishes (either successfully or not) and notifications
+                    # can be sent.
+                    wait_for_completion=True,
                 ),
                 handler="mlrun.projects.load_and_run",
             ),

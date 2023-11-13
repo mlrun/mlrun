@@ -2499,6 +2499,7 @@ class MlrunProject(ModelObj):
         timeout: int = None,
         source: str = None,
         cleanup_ttl: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2598,6 +2599,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             source=source,
+            notifications=notifications,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:
@@ -2711,6 +2713,7 @@ class MlrunProject(ModelObj):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
+        :param access_key:                Model Monitoring access key for managing user permissions
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream

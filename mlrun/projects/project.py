@@ -3213,7 +3213,12 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_model_monitoring_functions(self, name=None, tag=None, labels=None):
+    def list_model_monitoring_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[list[str]] = None,
+    ) -> Optional[list]:
         """Retrieve a list of all the model monitoring functions.
         example::
             functions = project.list_model_monitoring_functions()
@@ -3223,13 +3228,13 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
+        labels = labels or []
         return self.list_functions(
             name=name,
             tag=tag,
             labels=[
                 f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ]
-            + labels,
+            ].extend(labels),
         )
 
     def list_runs(

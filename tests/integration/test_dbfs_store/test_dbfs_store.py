@@ -377,3 +377,18 @@ class TestDBFSStore:
             .reset_index(drop=True)
         )
         assert dd.assert_eq(appended_df, response_df)
+
+    def test_multiple_dataitems(self, use_datastore_profile):
+        if not use_datastore_profile:
+            pytest.skip("test_multiple_dataitems relevant for profiles only.")
+        data_item, _ = self._get_data_item(use_profile=use_datastore_profile)
+        test_profile = DatastoreProfileDBFS(
+            name="test_profile",
+            endpoint_url="test_host",
+            token="test_token",
+        )
+        register_temporary_client_datastore_profile(test_profile)
+        test_data_item = mlrun.run.get_dataitem(
+            "ds://test_profile/test_directory/test_file.txt", secrets={}
+        )
+        assert data_item.store.to_dict() != test_data_item.store.to_dict()

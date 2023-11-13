@@ -532,7 +532,7 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
     ):
         pass
 
@@ -645,7 +645,7 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -675,8 +675,9 @@ class _KFPRunner(_PipelineRunner):
         if state:
             text += f", state={state}"
 
-        notifiers = notifiers or project.notifiers
-        notifiers.push(text, "info", runs)
+        if notifiers is not False:
+            notifiers = notifiers or project.notifiers
+            notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
@@ -767,7 +768,7 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
     ):
         pass
 
@@ -881,6 +882,17 @@ class _RemoteRunner(_PipelineRunner):
             state=state,
             exc=err,
         )
+
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
+    ):
+        # ignore notifiers, as they are handled by the remote pipeline notifications
+        return super().get_run_status(project, run, timeout, expected_statuses, False)
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

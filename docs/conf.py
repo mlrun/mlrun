@@ -91,7 +91,7 @@ source_suffix = {
 
 # versionwarning configuration
 versionwarning_default_message = (
-    "This is not the latest documentation. See {stable} instead."
+    "This is not the latest documentation. See {latest} instead."
 )
 
 

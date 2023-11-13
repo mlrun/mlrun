@@ -3213,7 +3213,12 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_model_monitoring_functions(self, name=None, tag=None, labels=None):
+    def list_model_monitoring_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[list[str]] = None,
+    ) -> Optional[list]:
         """Retrieve a list of all the model monitoring functions.
         example::
             functions = project.list_model_monitoring_functions()

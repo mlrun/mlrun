@@ -3251,6 +3251,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+import tempfile
 import uuid
 from pathlib import Path
 from typing import List
@@ -110,7 +111,9 @@ class TestDBFSStore:
         return mlrun.run.get_dataitem(object_url, secrets=secrets), object_url
 
     @pytest.mark.parametrize("use_secrets_as_parameters", [True, False])
-    def test_put_and_get(self, use_datastore_profile, use_secrets_as_parameters):
+    def test_put_get_and_download(
+        self, use_datastore_profile, use_secrets_as_parameters
+    ):
         secrets = {}
         token = self.config["env"].get("DATABRICKS_TOKEN", None)
         host = self.config["env"].get("DATABRICKS_HOST", None)
@@ -129,7 +132,6 @@ class TestDBFSStore:
         data_item.put(self.test_string)
         response = data_item.get()
         assert response.decode() == self.test_string
-
         response = data_item.get(offset=20)
         assert response.decode() == self.test_string[20:]
         response = data_item.get(size=20)
@@ -138,6 +140,11 @@ class TestDBFSStore:
         assert response.decode() == self.test_string[20:]
         response = data_item.get(offset=20, size=10)
         assert response.decode() == self.test_string[20:30]
+
+        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
+            data_item.download(temp_file.name)
+            content = temp_file.read()
+            assert content == self.test_string
 
     def test_stat(self, use_datastore_profile):
         data_item, _ = self._get_data_item(use_profile=use_datastore_profile)

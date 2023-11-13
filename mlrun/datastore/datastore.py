@@ -206,8 +206,7 @@ class StoreManager:
             else:
                 secrets = secrets or datastore_profile.secrets()
             url = datastore_profile.url(subpath)
-            #  schema, endpoint, parsed_url = parse_url(url)  # TODO test if buggy if we use 2 different instances.
-            schema, _, parsed_url = parse_url(url)  # TODO test if buggy if we use 2 different instances.
+            schema, endpoint, parsed_url = parse_url(url)
             subpath = parsed_url.path
 
         if schema == "memory":

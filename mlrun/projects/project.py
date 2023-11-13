@@ -2501,7 +2501,6 @@ class MlrunProject(ModelObj):
         source: str = None,
         cleanup_ttl: int = None,
         notifications: typing.List[mlrun.model.Notification] = None,
-        runner_image: str = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2593,9 +2592,6 @@ class MlrunProject(ModelObj):
         if not inner_engine and engine == "remote":
             inner_engine = get_workflow_engine(workflow_spec.engine, local).engine
         workflow_spec.engine = inner_engine or workflow_engine.engine
-
-        if runner_image:
-            workflow_spec.image = runner_image
 
         run = workflow_engine.run(
             self,

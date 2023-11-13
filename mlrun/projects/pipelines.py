@@ -532,7 +532,9 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
+        notifiers: typing.Union[
+            mlrun.utils.notifications.CustomNotificationPusher, bool
+        ] = None,
     ):
         pass
 
@@ -645,7 +647,9 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
+        notifiers: typing.Union[
+            mlrun.utils.notifications.CustomNotificationPusher, bool
+        ] = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -768,7 +772,9 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
+        notifiers: typing.Union[
+            mlrun.utils.notifications.CustomNotificationPusher, bool
+        ] = None,
     ):
         pass
 
@@ -889,10 +895,14 @@ class _RemoteRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[mlrun.utils.notifications.CustomNotificationPusher, bool] = None,
+        notifiers: typing.Union[
+            mlrun.utils.notifications.CustomNotificationPusher, bool
+        ] = None,
     ):
         # ignore notifiers, as they are handled by the remote pipeline notifications
-        return _KFPRunner.get_run_status(project, run, timeout, expected_statuses, False)
+        return _KFPRunner.get_run_status(
+            project, run, timeout, expected_statuses, notifiers=False
+        )
 
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):

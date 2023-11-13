@@ -241,7 +241,6 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
         """
-        # TODO: resolve if job is running from the CRD so that we won't need to get the pods for it
         launcher_status = (
             crd_object.get("status", {}).get("replicaStatuses", {}).get("Launcher", {})
         )

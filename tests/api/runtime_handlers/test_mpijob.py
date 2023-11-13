@@ -282,6 +282,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -298,7 +300,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            len(list_namespaced_pods_calls),
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            2,
             self.pod_label_selector,
         )
         self._assert_run_reached_state(
@@ -321,6 +324,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -396,7 +401,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
     def test_state_thresholds(self, db: Session, client: TestClient):
         """
         Test that the runtime handler aborts runs that are in a state for too long
-        Creates 2 CRDs:
+        Creates 4 CRDs:
         1. job in image pull backoff that should be aborted
         2. job in running state that should be aborted
         3. job in running state that should not be aborted

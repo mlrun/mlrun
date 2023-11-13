@@ -913,3 +913,18 @@ def test_retry_until_successful():
     test_run(0.02)
 
     test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))
+
+
+@pytest.mark.parametrize(
+    "iterable_list, chunk_size, expected_chunked_list",
+    [
+        (["a", "b", "c"], 1, [["a"], ["b"], ["c"]]),
+        (["a", "b", "c"], 2, [["a", "b"], ["c"]]),
+        (["a", "b", "c"], 3, [["a", "b", "c"]]),
+        (["a", "b", "c"], 4, [["a", "b", "c"]]),
+        (["a", "b", "c"], 0, [["a", "b", "c"]]),
+    ],
+)
+def test_iterate_list_by_chunks(iterable_list, chunk_size, expected_chunked_list):
+    chunked_list = mlrun.utils.iterate_list_by_chunks(iterable_list, chunk_size)
+    assert list(chunked_list) == expected_chunked_list

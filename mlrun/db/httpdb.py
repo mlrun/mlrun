@@ -2266,11 +2266,11 @@ class HTTPRunDB(RunDBInterface):
         """Delete a project.
 
         :param name: Name of the project to delete.
-        :param deletion_strategy: How to treat child objects of the project. Possible values are:
+        :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any child objects when deleted. If using this mode while
-              child objects exist, the operation will fail.
-            - ``cascade`` - Automatically delete all child objects when deleting the project.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using this mode while
+              related resources exist, the operation will fail.
+            - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
         path = f"projects/{name}?wait-for-completion=false"

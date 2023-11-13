@@ -2268,8 +2268,8 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the project to delete.
         :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any related resources when deleted. If using this mode while
-              related resources exist, the operation will fail.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using 
+              this mode while related resources exist, the operation will fail.
             - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 

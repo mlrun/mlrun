@@ -50,3 +50,7 @@ MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
 
 # sql db path string for test_sql_db - e.g. mysql+pymysql://<username>:<password>@<host>:<port>/<db_name>
 MLRUN_SQL__URL:
+
+AWS_BUCKET_NAME: 
+AWS_ACCESS_KEY_ID:
+AWS_SECRET_ACCESS_KEY:

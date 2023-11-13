@@ -23,15 +23,15 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.endpoints.functions
-import mlrun.api.utils.builder
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
+import server.api.utils.builder
 from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -552,7 +552,7 @@ def my_func(context):
 
     def test_with_requirements(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
-        runtime.with_requirements(self.requirements_file)
+        runtime.with_requirements(requirements_file=self.requirements_file)
         expected_requirements = ["faker", "python-dotenv", "chardet>=3.0.2, <4.0"]
         assert (
             deepdiff.DeepDiff(
@@ -749,14 +749,14 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
 
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
             if expected_to_upgrade:
@@ -776,7 +776,7 @@ def my_func(context):
                         "\nRUN python -m pip install -r /empty/requirements.txt"
                     )
                     kaniko_pod_requirements = (
-                        mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+                        server.api.utils.builder.make_kaniko_pod.call_args[1][
                             "requirements"
                         ]
                     )
@@ -869,7 +869,7 @@ def my_func(context):
     ):
         mlrun.mlconf.httpdb.builder.docker_registry = "localhost:5000"
         with unittest.mock.patch(
-            "mlrun.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
+            "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
@@ -882,7 +882,7 @@ def my_func(context):
             )
 
             self.deploy(db, runtime, with_mlrun=with_mlrun)
-            dockerfile = mlrun.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1][
                 "dockertext"
             ]
 
@@ -890,9 +890,9 @@ def my_func(context):
                 "\nRUN echo 'Installing /empty/requirements.txt...'; cat /empty/requirements.txt"
                 "\nRUN python -m pip install -r /empty/requirements.txt"
             )
-            kaniko_pod_requirements = mlrun.api.utils.builder.make_kaniko_pod.call_args[
-                1
-            ]["requirements"]
+            kaniko_pod_requirements = (
+                server.api.utils.builder.make_kaniko_pod.call_args[1]["requirements"]
+            )
             if with_mlrun:
                 expected_str = f"\nRUN python -m pip install --upgrade pip{mlrun.mlconf.httpdb.builder.pip_version}"
                 expected_str += install_requirements_commands
@@ -1006,6 +1006,66 @@ def my_func(context):
         container_spec = pod.spec.containers[0]
         assert container_spec.command == expected_command
         assert container_spec.args == expected_args
+
+    def test_state_thresholds_defaults(self, db: Session, k8s_secrets_mock):
+        runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert (
+            run["spec"]["state_thresholds"]
+            == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        )
+
+    def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
+        state_thresholds = {
+            "pending_not_scheduled": "10s",
+            "pending_scheduled": "1day 20m",
+            "running": "30h 19 min",
+            "image_pull_backoff": "-1",
+        }
+
+        runtime = self._generate_runtime()
+        runtime.set_state_thresholds(
+            state_thresholds=state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert run["spec"]["state_thresholds"] == state_thresholds
+
+        override_state_thresholds = {
+            "pending_not_scheduled": "20s",
+            "running": "40h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=override_state_thresholds,
+            patch=False,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = override_state_thresholds
+        expected_state_thresholds[
+            "image_pull_backoff"
+        ] = mlconf.function.spec.state_thresholds.default.image_pull_backoff
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
+        patch_state_thresholds = {
+            "pending_not_scheduled": "30s",
+            "image_pull_backoff": "50h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=patch_state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = patch_state_thresholds
+        expected_state_thresholds["running"] = override_state_thresholds["running"]
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

@@ -16,9 +16,14 @@ ARG MLRUN_GPU_BASE_IMAGE=quay.io/mlrun/prebaked-cuda:11.7.1-cudnn8-devel-ubuntu2
 
 FROM ${MLRUN_GPU_BASE_IMAGE}
 
+# Update OS packages:
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
+
+# Update existing requirements to remedy basic security vulnerabilities
+# e.g.: wheel, requests, etc.
+RUN conda update --all --use-local --yes && conda clean --all --quiet --yes
 
 WORKDIR /mlrun
 

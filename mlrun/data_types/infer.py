@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import numpy as np
+import packaging.version
 import pandas as pd
 import pyarrow
 from pandas.io.json._table_schema import convert_pandas_type_to_json_field
@@ -51,7 +52,7 @@ def infer_schema_from_df(
             entities[name] = {"name": name, "value_type": value_type}
 
     # remove index column if no name provided
-    if not df.index.name and df.index.is_numeric():
+    if not df.index.name and pd.api.types.is_numeric_dtype(df.index):
         df = df.reset_index().drop("index", axis=1)
 
     schema = pyarrow.Schema.from_pandas(df)
@@ -112,7 +113,15 @@ def get_df_stats(df, options, num_bins=None, sample_size=None):
     num_bins = num_bins or default_num_bins
     if InferOptions.get_common_options(options, InferOptions.Index) and df.index.names:
         df = df.reset_index()
-    for col, values in df.describe(include="all", datetime_is_numeric=True).items():
+    # pandas 2 removes datetime_is_numeric
+    # See https://github.com/mlflow/mlflow/pull/7898 for more information
+    kwargs = (
+        {}
+        if packaging.version.Version(pd.__version__)
+        >= packaging.version.Version("2.0.0rc0")
+        else {"datetime_is_numeric": True}
+    )
+    for col, values in df.describe(include="all", **kwargs).items():
         stats_dict = {}
         for stat, val in values.dropna().items():
             if isinstance(val, (float, np.floating, np.float64)):

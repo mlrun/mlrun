@@ -15,6 +15,7 @@
 import inspect
 import os
 import shutil
+import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -180,6 +181,26 @@ def mock_failed_get_func(status_code: int):
     return mock_get
 
 
+# Mock class used for tests involving native gitpython functionality
+class GitRepoMock:
+    def __init__(self, remotes: dict):
+        self.remotes = {}
+        for k in remotes:
+            mock = Mock()
+            mock.url = remotes[k]
+            self.remotes[k] = mock
+
+
+@pytest.fixture
+def mock_git_repo():
+    return GitRepoMock(
+        remotes={
+            "origin": "https://git.server/my-repo",
+            "organization": "https://another.git.server/my-repo",
+        }
+    )
+
+
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
 class RunDBMock:
     def __init__(self):
@@ -316,7 +337,7 @@ class RunDBMock:
             return self._project
 
         elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(name)
+            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
             self.store_project(name, project)
             return project
 
@@ -329,6 +350,7 @@ class RunDBMock:
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         function = func.to_dict()
         status = NuclioStatus(
@@ -407,7 +429,10 @@ class RunDBMock:
             {
                 "flexVolume": {
                     "driver": "v3io/fuse",
-                    "options": {"accessKey": v3io_access_key},
+                    "options": {
+                        "accessKey": v3io_access_key,
+                        "dirsToCreate": f'[{{"name": "users//{v3io_user}", "permissions": 488}}]',
+                    },
                 },
                 "name": "v3io",
             }
@@ -482,9 +507,6 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        pass
-
     def list_hub_sources(self, *args, **kwargs):
         return [self._create_dummy_indexed_hub_source()]
 
@@ -522,12 +544,13 @@ def rundb_mock() -> RunDBMock:
     config.dbpath = "http://localhost:12345"
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    mlrun.get_or_create_project("default")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mlrun.get_or_create_project("default", context=tmp_dir)
 
-    yield mock_object
+        yield mock_object
 
-    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-    mlrun.db.get_run_db = orig_get_run_db
-    mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._get_db = orig_get_db
-    config.dbpath = orig_db_path
+        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+        mlrun.db.get_run_db = orig_get_run_db
+        mlrun.get_run_db = orig_get_run_db
+        BaseRuntime._get_db = orig_get_db
+        config.dbpath = orig_db_path

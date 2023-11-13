@@ -16,6 +16,7 @@ import datetime
 import os
 from sys import executable
 
+import pandas as pd
 import pytest
 
 import mlrun
@@ -52,14 +53,14 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_function_with_requirements_file(self):
         # ML-3518
         code_path = str(self.assets_path / "kubejob_function_custom_requirements.py")
-        requirements_path = str(self.assets_path / "requirements.txt")
+        requirements_path = str(self.assets_path / "requirements-test.txt")
         function = mlrun.code_to_function(
             name="simple-function",
             kind="job",
             project=self.project_name,
             filename=code_path,
             image="mlrun/mlrun",
-            requirements=requirements_path,
+            requirements_file=requirements_path,
         )
         function.deploy()
         run = function.run(handler="mycls::do")
@@ -201,7 +202,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
         run = function.run()
         assert run.status.results["some-arg-by-handler"] == args[1]
         assert run.status.results["my-args"] == [
-            "/usr/local/bin/mlrun",
+            "/opt/conda/bin/mlrun",
             "run",
             "--name",
             "function-with-args-handler",
@@ -271,6 +272,30 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             "--some-arg",
             "val-with-artifact",
         ]
+
+    @pytest.mark.enterprise
+    @pytest.mark.parametrize("local", [True, False])
+    def test_log_artifact_with_run_function(self, local):
+        train_path = str(self.assets_path / "log_artifact.py")
+        function_parameter = 100
+        self.project.set_function(
+            train_path,
+            name="log-artifact",
+            image="mlrun/mlrun",
+            kind="job",
+            handler="train",
+        )
+        self.project.run_function(
+            "log-artifact", params={"i": function_parameter}, local=local
+        )
+        resource = self.project.get_store_resource(
+            f"store://datasets/{self.project_name}/log-artifact-train_df#0:latest"
+        ).to_dataitem()
+        expected_df = pd.DataFrame(
+            {f"col{function_parameter}": [function_parameter] * 10}
+        )
+        result_df = resource.as_df()
+        pd.testing.assert_frame_equal(result_df, expected_df)
 
     def test_function_with_kwargs(self):
         code_path = str(self.assets_path / "function_with_kwargs.py")

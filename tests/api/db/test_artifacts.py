@@ -18,14 +18,14 @@ import pandas
 import pytest
 from sqlalchemy.orm import Session
 
-import mlrun.api.initial_data
 import mlrun.common.schemas
 import mlrun.errors
-from mlrun.api.db.base import DBInterface
+import server.api.initial_data
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
 from mlrun.common.schemas.artifact import ArtifactCategories
+from server.api.db.base import DBInterface
 
 
 def test_list_artifact_name_filter(db: DBInterface, db_session: Session):
@@ -702,7 +702,7 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
 
 
 def test_data_migration_fix_legacy_datasets_large_previews(
-    data_migration_db: DBInterface,
+    db: DBInterface,
     db_session: Session,
 ):
     artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
@@ -713,7 +713,7 @@ def test_data_migration_fix_legacy_datasets_large_previews(
             [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
         ),
     )
-    data_migration_db._store_artifact(
+    db._store_artifact(
         db_session,
         artifact_with_valid_preview_key,
         artifact_with_valid_preview.to_dict(),
@@ -731,7 +731,7 @@ def test_data_migration_fix_legacy_datasets_large_previews(
         ),
         ignore_preview_limits=True,
     )
-    data_migration_db._store_artifact(
+    db._store_artifact(
         db_session,
         artifact_with_invalid_preview_key,
         artifact_with_invalid_preview.to_dict(),
@@ -739,9 +739,9 @@ def test_data_migration_fix_legacy_datasets_large_previews(
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
+    server.api.initial_data._fix_datasets_large_previews(db, db_session)
 
-    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
+    artifact_with_valid_preview_after_migration = db.read_artifact(
         db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
     )
     assert (
@@ -754,7 +754,7 @@ def test_data_migration_fix_legacy_datasets_large_previews(
         == {}
     )
 
-    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
+    artifact_with_invalid_preview_after_migration = db.read_artifact(
         db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
     )
     assert (
@@ -793,7 +793,7 @@ def test_data_migration_fix_legacy_datasets_large_previews(
 
 
 def test_data_migration_fix_datasets_large_previews(
-    data_migration_db: DBInterface,
+    db: DBInterface,
     db_session: Session,
 ):
     artifact_with_valid_preview_key = "artifact-with-valid-preview-key"
@@ -804,7 +804,7 @@ def test_data_migration_fix_datasets_large_previews(
             [{"A": 10, "B": 100}, {"A": 11, "B": 110}, {"A": 12, "B": 120}]
         ),
     )
-    data_migration_db._store_artifact(
+    db._store_artifact(
         db_session,
         artifact_with_valid_preview_key,
         artifact_with_valid_preview.to_dict(),
@@ -822,7 +822,7 @@ def test_data_migration_fix_datasets_large_previews(
         ),
         ignore_preview_limits=True,
     )
-    data_migration_db._store_artifact(
+    db._store_artifact(
         db_session,
         artifact_with_invalid_preview_key,
         artifact_with_invalid_preview.to_dict(),
@@ -830,9 +830,9 @@ def test_data_migration_fix_datasets_large_previews(
     )
 
     # perform the migration
-    mlrun.api.initial_data._fix_datasets_large_previews(data_migration_db, db_session)
+    server.api.initial_data._fix_datasets_large_previews(db, db_session)
 
-    artifact_with_valid_preview_after_migration = data_migration_db.read_artifact(
+    artifact_with_valid_preview_after_migration = db.read_artifact(
         db_session, artifact_with_valid_preview_key, artifact_with_valid_preview_uid
     )
     assert (
@@ -849,7 +849,7 @@ def test_data_migration_fix_datasets_large_previews(
         == {}
     )
 
-    artifact_with_invalid_preview_after_migration = data_migration_db.read_artifact(
+    artifact_with_invalid_preview_after_migration = db.read_artifact(
         db_session, artifact_with_invalid_preview_key, artifact_with_invalid_preview_uid
     )
     assert (

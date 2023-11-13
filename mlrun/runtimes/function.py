@@ -162,6 +162,7 @@ class NuclioSpec(KubeResourceSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
 
         super().__init__(
@@ -300,9 +301,6 @@ class RemoteRuntime(KubeResource):
             self.spec.base_spec["metadata"]["annotations"][key] = str(value)
 
         return self
-
-    def add_volume(self, local, remote, name="fs", access_key="", user=""):
-        raise Exception("deprecated, use .apply(mount_v3io())")
 
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
@@ -521,14 +519,6 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
-    def add_secrets_config_to_spec(self):
-        # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
-        # to decode the secrets and special env variable names in the function, we just use the same env variable as
-        # the key name (encode_key_names=False)
-        self._add_k8s_secrets_to_spec(
-            None, project=self.metadata.project, encode_key_names=False
-        )
-
     def deploy(
         self,
         dashboard="",
@@ -537,6 +527,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         auth_info: AuthInfo = None,
         builder_env: dict = None,
+        force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -546,6 +537,7 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build: set True for force building the image
         """
         # todo: verify that the function name is normalized
 
@@ -569,7 +561,9 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(self, False, builder_env=builder_env)
+        data = db.remote_builder(
+            self, False, builder_env=builder_env, force_build=force_build
+        )
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -679,6 +673,15 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.service_type = service_type
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+
+    def set_state_thresholds(
+        self,
+        state_thresholds: typing.Dict[str, int],
+        patch: bool = True,
+    ):
+        raise NotImplementedError(
+            "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
+        )
 
     def _get_state(
         self,
@@ -857,6 +860,10 @@ class RemoteRuntime(KubeResource):
         """
         if not method:
             method = "POST" if body else "GET"
+
+        # if no path was provided, use the default handler to be invoked
+        if not path and self.spec.default_handler:
+            path = self.spec.default_handler
 
         if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
             # if we deployed mock server or in simulated nuclio environment use mock
@@ -1151,12 +1158,6 @@ async def submit(session, url, run, semaphore, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
-
-
-def _fullname(project, name):
-    if project:
-        return f"{project}-{name}"
-    return name
 
 
 def get_fullname(name, project, tag):

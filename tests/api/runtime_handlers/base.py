@@ -24,15 +24,15 @@ from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.crud as crud
 import mlrun.common.schemas
 import mlrun.runtimes.constants
-from mlrun.api.constants import LogSources
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
+import server.api.utils.clients.chief
 from mlrun.runtimes.constants import PodPhases, RunStates
 from mlrun.utils import create_logger, now_date
+from server.api.constants import LogSources
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime-handlers")
 
@@ -57,6 +57,15 @@ class TestRuntimeHandlerBase:
 
     @pytest.fixture(autouse=True)
     def _store_run_fixture(self, db: Session):
+        self._store_run(db)
+
+    def _store_run(
+        self,
+        db: Session,
+        name: str = None,
+        uid: str = None,
+        start_time: datetime = None,
+    ):
         self.run = {
             "status": {
                 "state": RunStates.created,
@@ -64,15 +73,20 @@ class TestRuntimeHandlerBase:
             },
             "metadata": {
                 "project": self.project,
-                "name": "some-run-name",
-                "uid": self.run_uid,
+                "name": name or "some-run-name",
+                "uid": uid or self.run_uid,
                 "labels": {
                     "kind": self.kind,
                 },
             },
+            "spec": {
+                "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+            },
         }
-        mlrun.api.crud.Runs().store_run(
-            db, self.run, self.run_uid, project=self.project
+        if start_time:
+            self.run["status"]["start_time"] = start_time.isoformat()
+        server.api.crud.Runs().store_run(
+            db, self.run, self.run["metadata"]["uid"], project=self.project
         )
 
     @pytest.fixture(autouse=True)
@@ -122,7 +136,11 @@ class TestRuntimeHandlerBase:
             ready=True,
             restart_count=0,
         )
-        status = client.V1PodStatus(phase=phase, container_statuses=[container_status])
+        status = client.V1PodStatus(
+            phase=phase,
+            container_statuses=[container_status],
+            start_time=datetime.now(timezone.utc),
+        )
         metadata = client.V1ObjectMeta(
             name=name, labels=labels, namespace=get_k8s_helper().resolve_namespace()
         )
@@ -517,7 +535,7 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
             )
-        _, logs = await crud.Logs().get_logs(
+        _, logs = await server.api.crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY
         )
         async for log_line in logs:

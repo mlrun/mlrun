@@ -17,6 +17,7 @@ import json
 import pathlib
 import socket
 import traceback
+import warnings
 from ast import literal_eval
 from base64 import b64decode, b64encode
 from os import environ, path, remove
@@ -32,6 +33,7 @@ import yaml
 from tabulate import tabulate
 
 import mlrun
+import mlrun.common.schemas
 from mlrun.common.helpers import parse_versioned_object_uri
 
 from .config import config as mlconf
@@ -415,7 +417,12 @@ def run(
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
         resp = fn.run(
-            runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
+            runobj,
+            watch=watch,
+            schedule=schedule,
+            local=local,
+            auto_build=auto_build,
+            project=project,
         )
         if resp and dump:
             print(resp.to_yaml())
@@ -445,12 +452,12 @@ def run(
 @click.option("--archive", "-a", default="", help="destination archive for code (tar)")
 @click.option("--silent", is_flag=True, help="do not show build logs")
 @click.option("--with-mlrun", is_flag=True, help="add MLRun package")
-@click.option("--db", default="", help="save run results to path or DB url")
+@click.option("--db", default="", help="save run results to DB url")
 @click.option(
     "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
 )
 @click.option(
-    "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
+    "--kfp", is_flag=True, help="running inside Kubeflow Pipelines, do not use"
 )
 @click.option("--skip", is_flag=True, help="skip if already deployed")
 @click.option(
@@ -725,6 +732,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             print()
 
     elif kind.startswith("run"):
+        if tag:
+            print(
+                "Unsupported argument '--tag' for listing runs. Perhaps you should use '--selector' instead"
+            )
+            return
+
         run_db = get_run_db()
         if name:
             run = run_db.read_run(name, project=project)
@@ -811,7 +824,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
         )
 
 
-@main.command()
+@main.command(deprecated=True)
 @click.option("--port", "-p", help="port to listen on", type=int)
 @click.option("--dirpath", "-d", help="database directory (dirpath)")
 @click.option("--dsn", "-s", help="database dsn, e.g. sqlite:///db/mlrun.db")
@@ -839,6 +852,10 @@ def db(
     update_env,
 ):
     """Run HTTP api/database server"""
+    warnings.warn(
+        "The `mlrun db` command is deprecated in 1.5.0 and will be removed in 1.7.0, it is for internal use only.",
+        FutureWarning,
+    )
     env = environ.copy()
     # ignore client side .env file (so import mlrun in server will not try to connect to local/remote DB)
     env["MLRUN_IGNORE_ENV_FILE"] = "true"
@@ -875,7 +892,7 @@ def db(
         p = pathlib.Path(parsed.path[1:]).parent
         p.mkdir(parents=True, exist_ok=True)
 
-    cmd = [executable, "-m", "mlrun.api.main"]
+    cmd = [executable, "-m", "server.api.main"]
     pid = None
     if background:
         print("Starting MLRun API service in the background...")
@@ -917,7 +934,9 @@ def version():
 
 @main.command()
 @click.argument("uid", type=str)
-@click.option("--project", "-p", help="project name")
+@click.option(
+    "--project", "-p", help="project name (defaults to mlrun.mlconf.default_project)"
+)
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
 @click.option("--watch", "-w", is_flag=True, help="watch/follow log")
@@ -1444,13 +1463,13 @@ def add_notification_to_project(
 
 
 def send_workflow_error_notification(
-    run_id: str, project: mlrun.projects.MlrunProject, error: KeyError
+    run_id: str, mlproject: mlrun.projects.MlrunProject, error: Exception
 ):
     message = (
-        f":x: Failed to run scheduled workflow {run_id} in Project {project.name} !\n"
+        f":x: Failed to run scheduled workflow {run_id} in Project {mlproject.name} !\n"
         f"error: ```{err_to_str(error)}```"
     )
-    project.notifiers.push(
+    mlproject.notifiers.push(
         message=message, severity=mlrun.common.schemas.NotificationSeverity.ERROR
     )
 

@@ -15,11 +15,10 @@
 import time
 
 import boto3
-import fsspec
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range
+from .base import DataStore, DatastoreSchemaSanitizer, FileStats, get_range
 
 
 class S3Store(DataStore):
@@ -28,6 +27,8 @@ class S3Store(DataStore):
         # will be used in case user asks to assume a role and work through fsspec
         self._temp_credentials = None
         region = None
+
+        self.headers = None
 
         access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
         secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
@@ -97,28 +98,33 @@ class S3Store(DataStore):
         if self._filesystem:
             return self._filesystem
         try:
-            import s3fs  # noqa
+            # noqa
+            import s3fs
         except ImportError as exc:
             if not silent:
                 raise ImportError(
                     "AWS s3fs not installed, run pip install s3fs"
                 ) from exc
             return None
-        self._filesystem = fsspec.filesystem("s3", **self.get_storage_options())
+
+        self._filesystem = DatastoreSchemaSanitizer(
+            s3fs.S3FileSystem, **self.get_storage_options()
+        )
         return self._filesystem
 
     def get_storage_options(self):
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = self._get_secret_or_env("AWS_PROFILE")
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+
         if self._temp_credentials:
             key = self._temp_credentials["AccessKeyId"]
             secret = self._temp_credentials["SecretAccessKey"]
             token = self._temp_credentials["SessionToken"]
         else:
-            key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-            secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
             token = None
-
-        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
-        profile = self._get_secret_or_env("AWS_PROFILE")
 
         storage_options = dict(
             anon=not (force_non_anonymous or (key and secret)),
@@ -127,7 +133,6 @@ class S3Store(DataStore):
             token=token,
         )
 
-        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
         if endpoint_url:
             client_kwargs = {"endpoint_url": endpoint_url}
             storage_options["client_kwargs"] = client_kwargs
@@ -137,27 +142,34 @@ class S3Store(DataStore):
 
         return storage_options
 
+    def get_bucket_and_key(self, key):
+        path = self._join(key)[1:]
+        return self.endpoint, path
+
     def upload(self, key, src_path):
-        self.s3.Object(self.endpoint, self._join(key)[1:]).put(
-            Body=open(src_path, "rb")
-        )
+        bucket, key = self.get_bucket_and_key(key)
+        self.s3.Object(bucket, key).put(Body=open(src_path, "rb"))
 
     def get(self, key, size=None, offset=0):
-        obj = self.s3.Object(self.endpoint, self._join(key)[1:])
+        bucket, key = self.get_bucket_and_key(key)
+        obj = self.s3.Object(bucket, key)
         if size or offset:
             return obj.get(Range=get_range(size, offset))["Body"].read()
         return obj.get()["Body"].read()
 
     def put(self, key, data, append=False):
-        self.s3.Object(self.endpoint, self._join(key)[1:]).put(Body=data)
+        bucket, key = self.get_bucket_and_key(key)
+        self.s3.Object(bucket, key).put(Body=data)
 
     def stat(self, key):
-        obj = self.s3.Object(self.endpoint, self._join(key)[1:])
+        bucket, key = self.get_bucket_and_key(key)
+        obj = self.s3.Object(bucket, key)
         size = obj.content_length
         modified = obj.last_modified
         return FileStats(size, time.mktime(modified.timetuple()))
 
     def listdir(self, key):
+        bucket, key = self.get_bucket_and_key(key)
         if not key.endswith("/"):
             key += "/"
         # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
@@ -165,7 +177,7 @@ class S3Store(DataStore):
         if key.startswith("/"):
             key = key[1:]
         key_length = len(key)
-        bucket = self.s3.Bucket(self.endpoint)
+        bucket = self.s3.Bucket(bucket)
         return [obj.key[key_length:] for obj in bucket.objects.filter(Prefix=key)]
 
 

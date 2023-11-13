@@ -16,8 +16,8 @@ import urllib.parse
 from base64 import b64encode
 from os import path, remove
 from typing import Optional, Union
+from urllib.parse import urlparse
 
-import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
@@ -257,10 +257,22 @@ class DataStore:
                                 filename = filename.split("/")[-1]
                                 filenames.append(filename)
                         dfs = []
-                        for filename in filenames:
-                            updated_args = [f"{base_path}/{filename}"]
-                            updated_args.extend(args[1:])
-                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        if df_module is pd:
+                            kwargs.pop("filesystem", None)
+                            kwargs.pop("storage_options", None)
+                            for filename in filenames:
+                                fullpath = f"{base_path}/{filename}"
+                                with file_system.open(fullpath) as fhandle:
+                                    updated_args = [fhandle]
+                                    updated_args.extend(args[1:])
+                                    dfs.append(
+                                        df_module.read_csv(*updated_args, **kwargs)
+                                    )
+                        else:
+                            for filename in filenames:
+                                updated_args = [f"{base_path}/{filename}"]
+                                updated_args.extend(args[1:])
+                                dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return df_module.concat(dfs)
 
         elif (
@@ -280,12 +292,21 @@ class DataStore:
             reader = df_module.read_json
 
         else:
-            raise Exception(f"file type unhandled {url}")
+            raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
+            if (
+                self.supports_isdir()
+                and file_system.isdir(file_url)
+                or self._is_dd(df_module)
+            ):
                 storage_options = self.get_storage_options()
-                if storage_options:
+                if url.startswith("ds://"):
+                    parsed_url = urllib.parse.urlparse(url)
+                    url = parsed_url.path[1:]
+                    # Pass the underlying file system
+                    kwargs["filesystem"] = file_system
+                elif storage_options:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:
@@ -329,6 +350,15 @@ class DataStore:
 
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+    @staticmethod
+    def _is_dd(df_module):
+        try:
+            import dask.dataframe as dd
+
+            return df_module == dd
+        except ImportError:
+            return False
 
 
 class DataItem:
@@ -670,3 +700,31 @@ class HttpStore(DataStore):
                 f"A AUTH TOKEN should not be provided while using {self._schema} "
                 f"schema as it is not secure and is not recommended."
             )
+
+
+# This wrapper class is designed to extract the 'ds' schema and profile name from URL-formatted paths.
+# Within fsspec, the AbstractFileSystem::_strip_protocol() internal method is used to handle complete URL paths.
+# As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
+# Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
+# method specifically to strip away the 'ds' schema as required.
+class DatastoreSchemaSanitizer:
+    def __init__(self, cls, *args, **kwargs):
+        if not issubclass(cls, fsspec.AbstractFileSystem):
+            raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
+
+        class DatastoreSchemaSanitizerTemp(cls):
+            @classmethod
+            def _strip_protocol(cls, url):
+                if url.startswith("ds://"):
+                    parsed_url = urlparse(url)
+                    url = parsed_url.path[1:]
+                return super()._strip_protocol(url)
+
+        self._obj = DatastoreSchemaSanitizerTemp(
+            *args, **kwargs
+        )  # Create an instance of the provided class with given args and kwargs
+        self._cls = cls
+
+    def __getattr__(self, name):
+        # Delegate attribute access to the encapsulated object
+        return getattr(self._obj, name)

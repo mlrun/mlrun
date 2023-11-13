@@ -58,7 +58,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
 
     @pytest.mark.enterprise
-    def test_kfp_with_run_pipeline_and_run_function(self):
+    def test_kfp_with_pipeline_param_and_run_function(self):
         code_path = str(self.assets_path / "my_func.py")
         func = mlrun.code_to_function(
             name="func",
@@ -78,14 +78,19 @@ class TestKFP(tests.system.base.TestMLRunSystem):
                 outputs=["mymodel"],
             )
 
+            assert (
+                str(p1) == "{{pipelineparam:op=;name=p1}}"
+            ), f"p1 was expected to be a pipeline param but is {p1}"
+
         arguments = {"p1": 8}
-        run_id = mlrun._run_pipeline(
-            job_pipeline,
-            arguments,
-            experiment="my-job",
-            project=self.project_name,
+        run_id = self.project.run(
+            workflow_handler=job_pipeline,
+            arguments=arguments,
+            name="my-job",
+            watch=True,
         )
 
+        # double check that the pipeline completed successfully
         mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
 
     def test_kfp_without_image(self):

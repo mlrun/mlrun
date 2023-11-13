@@ -37,6 +37,7 @@ class ConsoleNotification(NotificationBase):
         runs: typing.Union[mlrun.lists.RunList, list] = None,
         custom_html: str = None,
     ):
+        severity = self._resolve_severity(severity)
         print(f"[{severity}] {message}")
 
         if not runs:
@@ -64,3 +65,16 @@ class ConsoleNotification(NotificationBase):
                 ]
             )
         print(tabulate.tabulate(table, headers=["status", "name", "uid", "results"]))
+
+    def _resolve_severity(
+        self, severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+    ):
+        if isinstance(severity, mlrun.common.schemas.NotificationSeverity):
+            return severity
+        elif isinstance(severity, str) and (
+            (severity_lowercase := severity.lower())
+            in set(mlrun.common.schemas.NotificationSeverity)
+        ):
+            return mlrun.common.schemas.NotificationSeverity(severity_lowercase)
+
+        return severity.lower()

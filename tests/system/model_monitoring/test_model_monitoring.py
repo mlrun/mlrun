@@ -14,11 +14,12 @@
 #
 import json
 import os
+import pickle
 import string
 from datetime import datetime, timedelta, timezone
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional
+from typing import Optional, Union
 
 import fsspec
 import numpy as np
@@ -26,6 +27,8 @@ import pandas as pd
 import pytest
 import v3iofs
 from sklearn.datasets import load_diabetes, load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 import mlrun.artifacts.model
 import mlrun.common.schemas.model_monitoring
@@ -34,6 +37,7 @@ import mlrun.model_monitoring.api
 import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -41,7 +45,6 @@ from tests.system.base import TestMLRunSystem
 
 # Marked as enterprise because of v3io mount and pipelines
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelEndpointsOperations(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
@@ -88,6 +91,16 @@ class TestModelEndpointsOperations(TestMLRunSystem):
         )
 
         assert endpoint_before_update.status.state == "null"
+
+        # Check default drift thresholds
+        assert endpoint_before_update.spec.monitor_configuration == {
+            mlrun.common.schemas.EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            mlrun.common.schemas.EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
 
         updated_state = "testing...testing...1 2 1 2"
         drift_status = "DRIFT_DETECTED"
@@ -288,13 +301,24 @@ class TestBasicModelMonitoring(TestMLRunSystem):
             sleep(choice([0.01, 0.04]))
 
         # Test metrics
+        mlrun.utils.helpers.retry_until_successful(
+            3,
+            10,
+            self._logger,
+            False,
+            self._assert_model_endpoint_metrics,
+        )
+
+    def _assert_model_endpoint_metrics(self):
         endpoints_list = mlrun.get_run_db().list_model_endpoints(
             self.project_name, metrics=["predictions_per_second"]
         )
         assert len(endpoints_list) == 1
 
         endpoint = endpoints_list[0]
+
         assert len(endpoint.status.metrics) > 0
+        self._logger.debug("Model endpoint metrics", endpoint.status.metrics)
 
         assert endpoint.status.metrics["generic"]["predictions_count_5m"] == 101
 
@@ -306,12 +330,13 @@ class TestBasicModelMonitoring(TestMLRunSystem):
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestModelMonitoringRegression(TestMLRunSystem):
     """Train, deploy and apply monitoring on a regression model"""
 
     project_name = "pr-regression-model-monitoring-v4"
 
+    # TODO: Temporary skip this test on open source until fixed
+    @pytest.mark.enterprise
     @pytest.mark.timeout(200)
     def test_model_monitoring_with_regression(self):
         # Main validations:
@@ -548,12 +573,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 
         # validate monitoring feature set features and target
         m_fs = fs_list[0]
-        assert list(m_fs.spec.features.keys()) == [
-            "sepal_length_cm",
-            "sepal_width_cm",
-            "petal_length_cm",
-            "petal_width_cm",
-        ]
+        assert list(m_fs.spec.features.keys()) == columns + ["label"]
         assert m_fs.status.to_dict()["targets"][0]["kind"] == "parquet"
 
         # checking that stream processing and batch monitoring were successfully deployed
@@ -570,7 +590,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
         mlrun.utils.helpers.retry_until_successful(
             2,
             20,
-            mlrun.utils.logger,
+            self._logger,
             False,
             self._check_monitoring_building_state,
             base_runtime=base_runtime,
@@ -748,7 +768,8 @@ class TestVotingModelMonitoring(TestMLRunSystem):
 @pytest.mark.enterprise
 class TestBatchDrift(TestMLRunSystem):
     """Record monitoring parquet results and trigger the monitoring batch drift job analysis. This flow tests
-    the monitoring process of the batch infer job function that can be imported from the functions hub."""
+    the monitoring process of the batch infer job function that can be imported from the functions hub.
+    """
 
     project_name = "pr-batch-drift"
 
@@ -830,6 +851,18 @@ class TestBatchDrift(TestMLRunSystem):
         artifacts = context.artifacts
         assert artifacts[0]["metadata"]["key"] == "drift_table_plot"
         assert artifacts[1]["metadata"]["key"] == "features_drift_results"
+
+        # Validate that model_uri is based on models prefix
+        assert (
+            model_endpoint.spec.model_uri
+            == f"store://models/{project.metadata.name}/{model_name}:latest"
+        )
+
+        # Validate that function_uri is based on project and function name
+        assert (
+            model_endpoint.spec.function_uri
+            == f"{project.metadata.name}/batch-drift-function"
+        )
 
 
 @TestMLRunSystem.skip_test_if_env_not_configured
@@ -932,3 +965,163 @@ class TestModelMonitoringKafka(TestMLRunSystem):
 
         assert model_endpoint.status.metrics["generic"]["latency_avg_5m"] > 0
         assert model_endpoint.status.metrics["generic"]["predictions_count_5m"] > 0
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestInferenceWithSpecialChars(TestMLRunSystem):
+    project_name = "pr-infer-special-chars"
+    name_prefix = "infer-monitoring"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        cls.classif = SVC()
+        cls.model_name = "classif_model"
+        cls.columns = ["feat 1", "b (C)", "Last   for df "]
+        cls.y_name = "class (0-4) "
+        cls.num_rows = 20
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 5
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        cls.infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+        cls.endpoint_id = "5d6ce0e704442c0ac59a933cb4d238baba83bb5d"
+        cls.function_name = f"{cls.name_prefix}-function"
+        cls._train()
+
+    @classmethod
+    def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
+        rng = np.random.default_rng(seed=23)
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
+        return train_test_split(x, y, train_size=0.6, random_state=4)
+
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+        )
+
+    def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
+        model_endpoint = mlrun.get_run_db().get_model_endpoint(
+            project=self.project_name,
+            endpoint_id=self.endpoint_id,
+        )
+        return mlrun.feature_store.get_feature_set(
+            model_endpoint.status.monitoring_feature_set_uri
+        )
+
+    def _test_feature_names(self) -> None:
+        feature_set = self._get_monitoring_feature_set()
+        features = feature_set.spec.features
+        feature_names = [feat.name for feat in features]
+        assert feature_names == [
+            mlrun.feature_store.api.norm_column_name(feat)
+            for feat in self.columns + [self.y_name]
+        ]
+
+    def test_inference_feature_set(self) -> None:
+        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            body=pickle.dumps(self.classif),
+            model_file="classif.pkl",
+            framework="sklearn",
+            training_set=self.training_set,
+            label_column=self.y_name,
+        )
+
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            model_path=self.project.get_artifact_uri(
+                key=self.model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name=f"{self.name_prefix}-test",
+            function_name=self.function_name,
+            endpoint_id=self.endpoint_id,
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
+            infer_results_df=self.infer_results_df,
+            trigger_monitoring_job=True,
+        )
+
+        self._test_feature_names()
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelInferenceTSDBRecord(TestMLRunSystem):
+    """
+    Test that batch inference records results to V3IO TSDB when tracking is
+    enabled and the selected model does not have a serving endpoint.
+    """
+
+    project_name = "infer-model-tsdb"
+    name_prefix = "infer-model-only"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        dataset = load_iris()
+        cls.train_set = pd.DataFrame(
+            dataset.data,  # pyright: ignore[reportGeneralTypeIssues]
+            columns=[
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ],
+        )
+        cls.model_name = "clf_model"
+
+        cls.infer_results_df = cls.train_set.copy()
+        cls.infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+
+    def _log_model(self) -> str:
+        model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=self.train_set,
+            artifact_path=f"v3io:///projects/{self.project_name}",
+        )
+        return model.uri
+
+    @classmethod
+    def _test_v3io_tsdb_record(cls) -> None:
+        frames = ModelMonitoringWriter._get_v3io_frames_client(
+            v3io_container="users",
+        )
+        df: pd.DataFrame = frames.read(
+            backend=_TSDB_BE,
+            table=f"pipelines/{cls.project_name}/model-endpoints/events",
+            start="now-5m",
+        )
+        assert len(df) == 1, "Expected a single record in the TSDB"
+        assert {
+            "endpoint_id",
+            "record_type",
+            "hellinger_mean",
+            "kld_mean",
+            "tvd_mean",
+        } == set(df.columns), "Unexpected columns in the TSDB record"
+
+    def test_record(self) -> None:
+        model_uri = self._log_model()
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            infer_results_df=self.infer_results_df,
+            model_path=model_uri,
+            trigger_monitoring_job=True,
+            model_endpoint_name=f"{self.name_prefix}-test",
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        self._test_v3io_tsdb_record()

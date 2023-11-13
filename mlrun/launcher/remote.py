@@ -56,8 +56,9 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
-        self.enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)
 
         run = self._enrich_run(
@@ -77,6 +78,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             artifact_path=artifact_path,
             workdir=workdir,
             notifications=notifications,
+            state_thresholds=state_thresholds,
         )
         self._validate_runtime(runtime, run)
 
@@ -89,7 +91,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
 
             else:
                 raise mlrun.errors.MLRunRuntimeError(
-                    "function image is not built/ready, set auto_build=True or use .deploy() method first"
+                    "Function image is not built/ready, set auto_build=True or use .deploy() method first"
                 )
 
         if runtime.verbose:
@@ -122,11 +124,11 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
             resp = db.submit_job(run, schedule=schedule)
             if schedule:
                 action = resp.pop("action", "created")
-                logger.info(f"task schedule {action}", **resp)
+                logger.info(f"Task schedule {action}", **resp)
                 return
 
         except (requests.HTTPError, Exception) as err:
-            logger.error(f"got remote run err, {mlrun.errors.err_to_str(err)}")
+            logger.error("Failed remote run", error=mlrun.errors.err_to_str(err))
 
             if isinstance(err, requests.HTTPError):
                 runtime._handle_submit_job_http_error(err)

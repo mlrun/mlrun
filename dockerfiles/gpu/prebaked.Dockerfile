@@ -35,14 +35,16 @@ RUN apt update -qqq --fix-missing \
     && rm -rf /var/lib/apt/lists/*
 
 # Install MiniConda (Python 3.9):
-ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="39"
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
+ARG MLRUN_ANACONDA_PYTHON_DISTRIBUTION="-py39"
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_PYTHON_DISTRIBUTION}_23.1.0-1-Linux-x86_64.sh -O ~/installconda.sh && \
     /bin/bash ~/installconda.sh -b -p /opt/conda && \
     rm ~/installconda.sh && \
-    /opt/conda/bin/conda clean -aqy && \
+    /opt/conda/bin/conda update --all --use-local --yes && \
+    /opt/conda/bin/conda clean --all --quiet --yes && \
     ln -s /opt/conda/etc/profile.d/conda.sh /etc/profile.d/conda.sh && \
     echo ". /opt/conda/etc/profile.d/conda.sh" >> ~/.bashrc && \
     echo "conda activate base" >> ~/.bashrc
+
 ENV PATH /opt/conda/bin:$PATH
 
 # Setup environment variables:
@@ -50,7 +52,7 @@ ENV PIP_NO_CACHE_DIR=1
 ENV LD_LIBRARY_PATH /usr/local/cuda-11.7/lib64:$LD_LIBRARY_PATH
 
 # Install Open-MPI:
-ARG OMPI_VERSION=4.1.4
+ARG OMPI_VERSION=4.1.5
 RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 ENV OMPI_ALLOW_RUN_AS_ROOT=1

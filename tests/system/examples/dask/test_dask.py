@@ -43,7 +43,7 @@ class TestDask(TestMLRunSystem):
             filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        self.dask_function.spec.image = "mlrun/ml-models"
+        self.dask_function.spec.image = "mlrun/ml-base"
         self.dask_function.spec.remote = True
         self.dask_function.spec.replicas = 1
         self.dask_function.spec.service_type = "NodePort"
@@ -163,7 +163,7 @@ class TestDask(TestMLRunSystem):
             client.list_datasets()
 
         # Cluster supposed to be decommissioned
-        with pytest.raises(RuntimeError):
+        with pytest.raises(AttributeError):
             client.restart()
 
     def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):

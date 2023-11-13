@@ -24,11 +24,8 @@ import pytest
 import mlrun
 from mlrun.artifacts import Artifact
 from mlrun.data_types.infer import DFDataInfer, default_num_bins
+from mlrun.model_monitoring.batch import VirtualDrift, calculate_inputs_statistics
 from mlrun.model_monitoring.features_drift_table import FeaturesDriftTablePlot
-from mlrun.model_monitoring.model_monitoring_batch import (
-    VirtualDrift,
-    calculate_inputs_statistics,
-)
 
 
 def generate_data(

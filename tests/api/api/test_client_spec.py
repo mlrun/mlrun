@@ -22,8 +22,6 @@ import kubernetes
 import sqlalchemy.orm
 
 import mlrun
-import mlrun.api.crud
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes
@@ -55,6 +53,9 @@ def test_client_spec(
     mlrun.mlconf.feature_store.data_prefixes.nosql = feature_store_data_prefix_nosql
     mlrun.mlconf.feature_store.data_prefixes.redisnosql = (
         feature_store_data_prefix_redisnosql
+    )
+    mlrun.mlconf.function.spec.security_context.enrichment_mode = (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override
     )
 
     tolerations = [
@@ -125,6 +126,9 @@ def test_client_spec(
     )
     assert response_body["ce_mode"] == response_body["ce"]["mode"] == ce_mode
     assert response_body["ce"]["release"] == ce_release
+    assert response_body["function"]["spec"]["security_context"]["enrichment_mode"] == (
+        mlrun.common.schemas.SecurityContextEnrichmentModes.override
+    )
 
 
 def test_client_spec_response_based_on_client_version(

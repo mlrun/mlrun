@@ -14,7 +14,6 @@
 
 import datetime
 import typing
-import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
@@ -50,7 +49,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
     @abstractmethod
@@ -122,13 +121,6 @@ class RunDBInterface(ABC):
     @abstractmethod
     def del_artifacts(self, name="", project="", tag="", labels=None):
         pass
-
-    # TODO: Make these abstract once filedb implements them
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        warnings.warn("store_metric not implemented yet")
-
-    def read_metric(self, keys, project="", query=""):
-        warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
     def store_function(self, function, name, project="", tag="", versioned=False):
@@ -257,7 +249,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:

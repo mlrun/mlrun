@@ -23,6 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
+    "Spark3Runtime",
     "DatabricksRuntime",
 ]
 
@@ -31,7 +32,7 @@ from mlrun.runtimes.utils import resolve_spark_operator_version
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
-from .databricks.databricks import DatabricksRuntime
+from .databricks_job.databricks_runtime import DatabricksRuntime
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
@@ -130,6 +131,10 @@ class RuntimeKinds(object):
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
+            "",
         ]
 
     @staticmethod

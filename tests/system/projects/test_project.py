@@ -702,7 +702,7 @@ class TestProject(TestMLRunSystem):
         self._logger.debug("executed project", out=out)
         assert (
             out.find(
-                "failed to execute command by the given deadline. "
+                "Failed to execute command by the given deadline. "
                 "last_exception: pipeline run has not completed yet, "
                 "function_name: _wait_for_pipeline_completion, timeout: 1, "
                 "caused by: pipeline run has not completed yet"
@@ -866,7 +866,7 @@ class TestProject(TestMLRunSystem):
         ]
         out = exec_project(args)
         warning_message = (
-            "[warning] timeout ({}) must be higher than backoff (10)."
+            "[warning] Timeout ({}) must be higher than backoff (10)."
             " Set timeout to be higher than backoff."
         )
         expected_warning_log = warning_message.format(bad_timeout)

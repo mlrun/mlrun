@@ -34,7 +34,7 @@ import mlrun.model_monitoring.api
 import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
-from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
+from mlrun.model_monitoring.writer import _TSDB_BE
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -1004,8 +1004,9 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
 
     @classmethod
     def _test_v3io_tsdb_record(cls) -> None:
-        frames = ModelMonitoringWriter._get_v3io_frames_client(
-            v3io_container="users",
+        frames = mlrun.utils.v3io_clients.get_frames_client(
+            address=mlrun.mlconf.v3io_framesd,
+            container="users",
         )
         df: pd.DataFrame = frames.read(
             backend=_TSDB_BE,

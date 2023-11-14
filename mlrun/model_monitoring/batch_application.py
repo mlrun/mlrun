@@ -124,7 +124,7 @@ class BatchApplicationProcessor:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             application = mlrun.get_or_create_project(
                 self.project
-            ).list_model_monitoring_applications()
+            ).list_model_monitoring_functions()
             if application:
                 applications_names = np.unique(
                     [app.metadata.name for app in application]

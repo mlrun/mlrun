@@ -804,16 +804,16 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "clone_target_dir,expected_workdir",
+    "clone_target_dir,expected_source_dir",
     [
-        (None, "WORKDIR /home/mlrun_code"),
-        ("", "WORKDIR /home/mlrun_code"),
-        ("./path/to/code", "WORKDIR /home/mlrun_code/path/to/code"),
-        ("rel_path", "WORKDIR /home/mlrun_code/rel_path"),
-        ("/some/workdir", "WORKDIR /some/workdir"),
+        (None, "ADD /path/some-source.tgz /home/mlrun_code/"),
+        ("", "ADD /path/some-source.tgz /home/mlrun_code/"),
+        ("./path/to/code", "ADD /path/some-source.tgz /home/mlrun_code/path/to/code"),
+        ("rel_path", "ADD /path/some-source.tgz /home/mlrun_code/rel_path"),
+        ("/some/workdir", "ADD /path/some-source.tgz /some/workdir"),
     ],
 )
-def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
+def test_builder_workdir(monkeypatch, clone_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
         "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
@@ -842,8 +842,8 @@ def test_builder_workdir(monkeypatch, clone_target_dir, expected_workdir):
             for line in list(dockerfile_lines)
             if not line.startswith(("ARG", "ENV"))
         ]
-        expected_workdir_re = re.compile(expected_workdir)
-        assert expected_workdir_re.match(dockerfile_lines[1])
+        expected_source_dir_re = re.compile(expected_source_dir)
+        assert expected_source_dir_re.match(dockerfile_lines[1])
 
 
 @pytest.mark.parametrize(
@@ -906,7 +906,7 @@ def test_builder_source(monkeypatch, source, expectation):
                 expected_output_re = re.compile(
                     rf"ADD {expected_source} /home/mlrun_code"
                 )
-                expected_line_index = 2
+                expected_line_index = 1
 
             assert expected_output_re.match(
                 dockerfile_lines[expected_line_index].strip()

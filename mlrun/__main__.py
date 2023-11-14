@@ -152,7 +152,7 @@ def main():
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
-@click.option("--image", default="", help="container image")
+@click.option("--image", default="mlrun/mlrun", help="container image")
 @click.option("--kind", default="", help="serverless runtime kind")
 @click.option("--source", default="", help="source code archive/git")
 @click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
@@ -281,7 +281,7 @@ def run(
             name=project,
             context="./",
         )
-    if func_url or kind or image:
+    if func_url or kind:
         if func_url:
             runtime = func_url_to_runtime(func_url, ensure_project)
             kind = get_in(runtime, "kind", kind or "job")

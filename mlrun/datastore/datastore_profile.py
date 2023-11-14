@@ -16,7 +16,7 @@ import ast
 import base64
 import json
 import typing
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import ParseResult, urlparse, urlunparse
 
 import pydantic
 from mergedeep import merge
@@ -158,9 +158,7 @@ class DatastoreProfileS3(DatastoreProfile):
         return res if res else None
 
     def url(self, subpath):
-        if not self.endpoint_url:
-            return f"s3://{subpath}"
-        return self.endpoint_url + subpath
+        return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -169,6 +167,30 @@ class DatastoreProfileRedis(DatastoreProfile):
     endpoint_url: str
     username: typing.Optional[str] = None
     password: typing.Optional[str] = None
+
+    def url_with_credentials(self):
+        parsed_url = urlparse(self.endpoint_url)
+        username = self.username
+        password = self.password
+        netloc = parsed_url.hostname
+        if username:
+            if password:
+                netloc = f"{username}:{password}@{parsed_url.hostname}"
+            else:
+                netloc = f"{username}@{parsed_url.hostname}"
+
+        if parsed_url.port:
+            netloc += f":{parsed_url.port}"
+
+        new_parsed_url = ParseResult(
+            scheme=parsed_url.scheme,
+            netloc=netloc,
+            path=parsed_url.path,
+            params=parsed_url.params,
+            query=parsed_url.query,
+            fragment=parsed_url.fragment,
+        )
+        return urlunparse(new_parsed_url)
 
     def secrets(self) -> dict:
         res = {}

@@ -92,14 +92,14 @@ default_config = {
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    # runs monitoring interval in seconds
-    "runs_monitoring_interval": "30",
-    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
-    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
-    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     "monitoring": {
-        # TODO: move runs_monitoring_interval and runs_monitoring_missing_runtime_resources_debouncing_interval to here
         "runs": {
+            # runs monitoring interval in seconds
+            "interval": "30",
+            # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding
+            # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
+            # default
+            "missing_runtime_resources_debouncing_interval": None,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
         }
@@ -940,9 +940,9 @@ class Config:
 
     def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
         return (
-            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
-            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
-            else float(config.runs_monitoring_interval) * 2.0
+            float(self.monitoring.runs.missing_runtime_resources_debouncing_interval)
+            if self.monitoring.runs.missing_runtime_resources_debouncing_interval
+            else float(config.monitoring.runs.interval) * 2.0
         )
 
     @staticmethod

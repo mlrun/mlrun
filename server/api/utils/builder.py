@@ -38,7 +38,7 @@ def make_dockerfile(
     commands: list = None,
     source: str = None,
     requirements_path: str = None,
-    workdir: str = "/mlrun",
+    target_dir: str = "/mlrun",
     extra: str = "",
     user_unix_id: int = None,
     enriched_group_id: int = None,
@@ -54,8 +54,7 @@ def make_dockerfile(
     :param source: The path to the source code directory to be included in the Docker image.
     :param requirements_path: The path to the requirements file (e.g., requirements.txt) containing
                               the Python dependencies to be installed in the Docker image.
-    :param workdir: The working directory inside the container where commands will be executed.
-                    Default is "/mlrun".
+    :param target_dir: The directory to which source code will be copied. Default is "/mlrun".
     :param extra: Additional content to be appended to the generated Dockerfile.
     :param user_unix_id: The Unix user ID to be used in the Docker image for running processes.
                          This is useful for matching the user ID with the host environment
@@ -103,10 +102,9 @@ def make_dockerfile(
 
     if source:
         args = args.rstrip("\n")
-        dock += f"WORKDIR {workdir}\n"
         # 'ADD' command does not extract zip files - add extraction stage to the dockerfile
         if source.endswith(".zip"):
-            source_dir = os.path.join(workdir, "source")
+            source_dir = os.path.join(target_dir, "source")
             stage_lines = [
                 f"FROM {base_image} AS extractor",
                 args,
@@ -118,14 +116,14 @@ def make_dockerfile(
             stage = textwrap.dedent("\n".join(stage_lines)).strip()
             dock = stage + "\n" + dock
 
-            dock += f"COPY --from=extractor {source_dir}/ {workdir}\n"
+            dock += f"COPY --from=extractor {source_dir}/ {target_dir}\n"
         else:
-            dock += f"ADD {source} {workdir}\n"
+            dock += f"ADD {source} {target_dir}\n"
 
         if user_unix_id is not None and enriched_group_id is not None:
-            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {workdir}\n"
+            dock += f"RUN chown -R {user_unix_id}:{enriched_group_id} {target_dir}\n"
 
-        dock += f"ENV PYTHONPATH {workdir}\n"
+        dock += f"ENV PYTHONPATH {target_dir}\n"
     if commands:
         dock += "".join([f"RUN {command}\n" for command in commands])
     if requirements_path:
@@ -507,7 +505,7 @@ def build_image(
         extra=extra,
         user_unix_id=user_unix_id,
         enriched_group_id=enriched_group_id,
-        workdir=runtime.spec.clone_target_dir,
+        target_dir=runtime.spec.clone_target_dir,
         builder_env=builder_env_list,
         project_secrets=project_secrets,
         extra_args=extra_args,

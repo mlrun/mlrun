@@ -3238,6 +3238,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3250,6 +3251,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -3281,6 +3283,11 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        if notifications:
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{workflow_name}/submit",

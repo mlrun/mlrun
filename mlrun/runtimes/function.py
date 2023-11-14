@@ -692,6 +692,7 @@ class RemoteRuntime(KubeResource):
             "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
         )
 
+    @min_nuclio_versions("1.12.8")
     def disable_default_http_trigger(
         self,
     ):

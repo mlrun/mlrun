@@ -659,12 +659,10 @@ def build_runtime(
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 
-    build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
+    build.image = _resolve_function_image_name(runtime, build.image)
 
     # config.httpdb.builder.docker_registry_secret
-    build.secret = mlrun.runtimes.utils.resolve_function_image_secret(
-        build.image, build.secret
-    )
+    build.secret = _resolve_function_image_secret(build.image, build.secret)
     runtime.status.state = ""
 
     inline = None  # noqa: F841
@@ -996,3 +994,56 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
                     merged_args.extend([flag, val])
 
     return merged_args
+
+
+def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
+    project = function.metadata.project or config.default_project
+    name = function.metadata.name
+    tag = function.metadata.tag or "latest"
+    if image:
+        image_name_prefix = (
+            mlrun.runtimes.utils.resolve_function_target_image_name_prefix(
+                project, name
+            )
+        )
+        registries_to_enforce_prefix = (
+            mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
+        )
+        for registry in registries_to_enforce_prefix:
+            if image.startswith(registry):
+                prefix_with_registry = f"{registry}{image_name_prefix}"
+                if not image.startswith(prefix_with_registry):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
+                    )
+        return image
+    return _generate_function_image_name(project, name, tag)
+
+
+def _generate_function_image_name(project: str, name: str, tag: str) -> str:
+    _, repository = mlrun.utils.get_parsed_docker_registry()
+    repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
+    return mlrun.runtimes.utils.fill_function_image_name_template(
+        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
+        repository,
+        project,
+        name,
+        tag,
+    )
+
+
+def _resolve_function_image_secret(
+    resolved_target_image: str, secret: typing.Optional[str] = None
+) -> str:
+
+    if not secret:
+        parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()
+
+        # populate default secret if target image prefix equals to either the implicit or explicit default registry
+        if (
+            parsed_registry and resolved_target_image.startswith(parsed_registry)
+        ) or resolved_target_image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
+            secret = config.httpdb.builder.docker_registry_secret
+    return secret

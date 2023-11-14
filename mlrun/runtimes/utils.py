@@ -15,7 +15,6 @@ import hashlib
 import json
 import os
 import re
-import typing
 from io import StringIO
 from sys import stderr
 
@@ -146,11 +145,6 @@ def add_code_metadata(path=""):
     return None
 
 
-def set_if_none(struct, key, value):
-    if not struct.get(key):
-        struct[key] = value
-
-
 def results_to_iter(results, runspec, execution):
     if not results:
         logger.error("got an empty results list in to_iter")
@@ -243,55 +237,6 @@ def log_iter_artifacts(execution, df, header):
         logger.warning(f"failed to log iter artifacts, {err_to_str(exc)}")
 
 
-def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
-    name = function.metadata.name
-    tag = function.metadata.tag or "latest"
-    if image:
-        image_name_prefix = resolve_function_target_image_name_prefix(project, name)
-        registries_to_enforce_prefix = (
-            resolve_function_target_image_registries_to_enforce_prefix()
-        )
-        for registry in registries_to_enforce_prefix:
-            if image.startswith(registry):
-                prefix_with_registry = f"{registry}{image_name_prefix}"
-                if not image.startswith(prefix_with_registry):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
-                    )
-        return image
-    return generate_function_image_name(project, name, tag)
-
-
-def resolve_function_image_secret(
-    resolved_target_image: str, secret: typing.Optional[str] = None
-) -> str:
-
-    if not secret:
-        parsed_registry, _ = helpers.get_parsed_docker_registry()
-
-        # populate default secret if target image prefix equals to either the implicit or explicit default registry
-        if (
-            parsed_registry and resolved_target_image.startswith(parsed_registry)
-        ) or resolved_target_image.startswith(
-            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
-        ):
-            secret = config.httpdb.builder.docker_registry_secret
-    return secret
-
-
-def generate_function_image_name(project: str, name: str, tag: str) -> str:
-    _, repository = helpers.get_parsed_docker_registry()
-    repository = helpers.get_docker_repository_or_default(repository)
-    return fill_function_image_name_template(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
-        repository,
-        project,
-        name,
-        tag,
-    )
-
-
 def fill_function_image_name_template(
     registry: str,
     repository: str,
@@ -323,13 +268,6 @@ def set_named_item(obj, item):
         obj[item["name"]] = item
     else:
         obj[item.name] = item
-
-
-def set_item_attribute(item, attribute, value):
-    if isinstance(item, dict):
-        item[attribute] = value
-    else:
-        setattr(item, attribute, value)
 
 
 def get_item_name(item, attr="name"):

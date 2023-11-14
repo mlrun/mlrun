@@ -332,9 +332,14 @@ def enrich_dask_cluster(
     scheduler_args = ["dask", "scheduler"]
     # before mlrun 1.6.0, mlrun required a dask version that was not compatible with the new dask CLI
     # this assumes that the dask client version matches the dask cluster version
-    is_legacy_dask = semver.VersionInfo.parse(
-        client_version
-    ) < semver.VersionInfo.parse("1.6.0-X")
+    is_legacy_dask = False
+    try:
+        is_legacy_dask = client_version and semver.VersionInfo.parse(
+            client_version
+        ) < semver.VersionInfo.parse("1.6.0-X")
+    except ValueError:
+        pass
+
     if is_legacy_dask:
         worker_args = ["dask-worker"]
         scheduler_args = ["dask-scheduler"]

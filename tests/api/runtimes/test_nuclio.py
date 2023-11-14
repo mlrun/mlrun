@@ -1658,6 +1658,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         self.execute_function(function)
         args, _ = nuclio.deploy.deploy_config.call_args
+
         with pytest.raises(mlrun.errors.MLRunPreconditionFailedError):
             function.invoke("/")
 

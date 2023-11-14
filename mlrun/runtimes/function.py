@@ -417,6 +417,11 @@ class RemoteRuntime(KubeResource):
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
         :return: function object (self)
         """
+        if self.disable_default_http_trigger:
+            logger.warning(
+                "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
+            )
+
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)

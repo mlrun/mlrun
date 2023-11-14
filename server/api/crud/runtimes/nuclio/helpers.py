@@ -95,7 +95,7 @@ def enrich_function_with_ingress(config, mode, service_type):
 
         # if there are no http triggers and default http trigger creation disabled,
         # function is not invokable
-        if config["spec"].get("disableDefaultHTTPTrigger"):
+        if config["spec"].get("disableDefaultHTTPTrigger", False):
             return
         # function has an HTTP trigger without an ingress
         # TODO: read from nuclio-api frontend-spec

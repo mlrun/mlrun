@@ -134,7 +134,9 @@ def test_build_runtime_insecure_registries(
 def test_build_runtime_target_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     registry = "registry.hub.docker.com/username"
+    docker_registry_secret = "whatever"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = docker_registry_secret
     mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
         "my-cool-prefix-{project}-{name}"
     )
@@ -161,16 +163,23 @@ def test_build_runtime_target_image(monkeypatch):
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == f"{registry}/{image_name_prefix}:{function.metadata.tag}"
 
+    # verify the secret is populated to function spec build
+    assert docker_registry_secret == function.spec.build.secret
+
     # assert we can override the target image as long as we stick to the prefix
     function.spec.build.image = (
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
+    function.spec.build.secret = docker_registry_secret + "-other"
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
+
+    # verify function spec build secret overrides the default mlrun config
+    assert docker_registry_secret + "-other" == function.spec.build.secret
 
     # assert the same with the registry enrich prefix
     # assert we can override the target image as long as we stick to the prefix
@@ -676,84 +685,8 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target, _ = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry
-    )
+    image_target = server.api.utils.builder.resolve_image_target(image_target, registry)
     assert image_target == expected_dest
-
-
-@pytest.mark.parametrize(
-    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
-    [
-        (
-            "test-image",
-            None,
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            "test-image",
-            "test-registry",
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            "test-registry",
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            "default-secret-name",
-            "default-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            None,
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            None,
-            None,
-        ),
-    ],
-)
-def test_resolve_registry_secret(
-    image_target, registry, secret_name, default_secret_name, expected_secret_name
-):
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
-    config.httpdb.builder.docker_registry_secret = default_secret_name
-
-    _, secret_name = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
-    )
-    assert secret_name == expected_secret_name
 
 
 def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):

@@ -409,10 +409,7 @@ def build_image(
     # no need to enrich extra args because we get them from the build anyway
     _validate_extra_args(extra_args)
 
-    image_target, secret_name = resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
-    )
-
+    image_target = resolve_image_target(image_target, registry)
     commands, requirements_list, requirements_path = _resolve_build_requirements(
         requirements, commands, with_mlrun, mlrun_version_specifier, client_version
     )
@@ -663,6 +660,8 @@ def build_runtime(
         return True
 
     build.image = mlrun.runtimes.utils.resolve_function_image_name(runtime, build.image)
+
+    # config.httpdb.builder.docker_registry_secret
     build.secret = mlrun.runtimes.utils.resolve_function_image_secret(
         build.image, build.secret
     )
@@ -741,11 +740,9 @@ def build_runtime(
     return True
 
 
-def resolve_image_target_and_registry_secret(
-    image_target: str, registry: str = None, secret_name: str = None
-) -> (str, str):
+def resolve_image_target(image_target: str, registry: str = None) -> str:
     if registry:
-        return "/".join([registry, image_target]), secret_name
+        return "/".join([registry, image_target])
 
     # if dest starts with a dot, we add the configured registry to the start of the dest
     if image_target.startswith(
@@ -758,7 +755,6 @@ def resolve_image_target_and_registry_secret(
         ]
 
         registry, repository = mlrun.utils.get_parsed_docker_registry()
-        secret_name = secret_name or config.httpdb.builder.docker_registry_secret
         if not registry:
             raise ValueError(
                 "Default docker registry is not defined, set "
@@ -768,11 +764,10 @@ def resolve_image_target_and_registry_secret(
         if repository and repository not in image_target:
             image_target_components = [registry, repository, image_target]
 
-        return "/".join(image_target_components), secret_name
+        return "/".join(image_target_components)
 
     image_target = remove_image_protocol_prefix(image_target)
-
-    return image_target, secret_name
+    return image_target
 
 
 def _generate_builder_env(

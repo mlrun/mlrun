@@ -267,10 +267,15 @@ def resolve_function_image_secret(
     resolved_target_image: str, secret: typing.Optional[str] = None
 ) -> str:
 
-    # secret is not give, take from config if target image prefix equals to the default one
     if not secret:
-        parsed_registry, parsed_repository = helpers.get_parsed_docker_registry()
-        if resolved_target_image.startswith(parsed_registry):
+        parsed_registry, _ = helpers.get_parsed_docker_registry()
+
+        # populate default secret if target image prefix equals to either the implicit or explicit default registry
+        if (
+            parsed_registry and resolved_target_image.startswith(parsed_registry)
+        ) or resolved_target_image.startswith(
+            mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
+        ):
             secret = config.httpdb.builder.docker_registry_secret
     return secret
 

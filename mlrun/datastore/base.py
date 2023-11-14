@@ -49,6 +49,8 @@ class FileStats:
 
 
 class DataStore:
+    using_bucket = False
+
     def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
@@ -303,7 +305,9 @@ class DataStore:
                 storage_options = self.get_storage_options()
                 if url.startswith("ds://"):
                     parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path[1:]
+                    url = parsed_url.path
+                    if self.using_bucket:
+                        url = url[1:]
                     # Pass the underlying file system
                     kwargs["filesystem"] = file_system
                 elif storage_options:
@@ -707,7 +711,7 @@ class HttpStore(DataStore):
 # As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
 # Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
 # method specifically to strip away the 'ds' schema as required.
-def makeDatastoreSchemaSanitizer(cls, *args, **kwargs):
+def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
     if not issubclass(cls, fsspec.AbstractFileSystem):
         raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
 
@@ -716,7 +720,9 @@ def makeDatastoreSchemaSanitizer(cls, *args, **kwargs):
         def _strip_protocol(cls, url):
             if url.startswith("ds://"):
                 parsed_url = urlparse(url)
-                url = parsed_url.path[1:]
+                url = parsed_url.path
+                if using_bucket:
+                    url = url[1:]
             return super()._strip_protocol(url)
 
     return DatastoreSchemaSanitizer(*args, **kwargs)

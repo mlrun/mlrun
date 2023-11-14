@@ -1629,6 +1629,8 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_with_disabled_http_trigger_creation(
         self, db: Session, client: TestClient
     ):
+        # TODO: delete version mocking as soon as we release it in nuclio
+        mlconf.nuclio_version = "1.12.8"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 
@@ -1641,6 +1643,8 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_deploy_with_enabled_http_trigger_creation(
         self, db: Session, client: TestClient
     ):
+        # TODO: delete version mocking as soon as we release it in nuclio
+        mlconf.nuclio_version = "1.12.8"
         function = self._generate_runtime(self.runtime_kind)
         function.enable_default_http_trigger()
 
@@ -1653,6 +1657,8 @@ class TestNuclioRuntime(TestRuntimeBase):
     def test_invoke_with_disabled_http_trigger_creation(
         self, db: Session, client: TestClient
     ):
+        # TODO: delete version mocking as soon as we release it in nuclio
+        mlconf.nuclio_version = "1.12.8"
         function = self._generate_runtime(self.runtime_kind)
         function.disable_default_http_trigger()
 

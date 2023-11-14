@@ -1065,7 +1065,7 @@ def load_and_run(
     if wait_for_completion:
         pipeline_state = run.wait_for_completion()
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state.lower() != "succeeded":
+        if pipeline_state != mlrun.run.RunStatuses.succeeded:
             raise RuntimeError(
                 f"Workflow {workflow_log_message} failed, state={pipeline_state}"
             )

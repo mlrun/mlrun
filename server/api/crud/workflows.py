@@ -161,7 +161,7 @@ class WorkflowRunners(
                     dirty=save,
                     subpath=project.spec.subpath,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
-                    # once the pipeline is done, the pod is finishes (either successfully or not) and notifications
+                    # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
                 ),
@@ -298,7 +298,7 @@ class WorkflowRunners(
                     # save=True modifies the project.yaml (by enrichment) so the local git repo is becoming dirty
                     dirty=save,
                     # remote pipeline pod stays alive for the whole lifetime of the pipeline.
-                    # once the pipeline is done, the pod is finishes (either successfully or not) and notifications
+                    # once the pipeline is done, the pod finishes (either successfully or not) and notifications
                     # can be sent.
                     wait_for_completion=True,
                 ),

@@ -41,7 +41,6 @@ import yaml
 from dateutil import parser
 from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
-from timelength import TimeLength
 from yaml.representer import RepresenterError
 
 import mlrun

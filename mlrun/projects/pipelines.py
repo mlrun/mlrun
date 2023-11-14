@@ -532,9 +532,7 @@ class _PipelineRunner(abc.ABC):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[
-            mlrun.utils.notifications.CustomNotificationPusher, bool
-        ] = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -647,9 +645,7 @@ class _KFPRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[
-            mlrun.utils.notifications.CustomNotificationPusher, bool
-        ] = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         if timeout is None:
             timeout = 60 * 60
@@ -679,9 +675,8 @@ class _KFPRunner(_PipelineRunner):
         if state:
             text += f", state={state}"
 
-        if notifiers is not False:
-            notifiers = notifiers or project.notifiers
-            notifiers.push(text, "info", runs)
+        notifiers = notifiers or project.notifiers
+        notifiers.push(text, "info", runs)
 
         if raise_error:
             raise raise_error
@@ -772,9 +767,7 @@ class _LocalRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[
-            mlrun.utils.notifications.CustomNotificationPusher, bool
-        ] = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
         pass
 
@@ -895,13 +888,16 @@ class _RemoteRunner(_PipelineRunner):
         run,
         timeout=None,
         expected_statuses=None,
-        notifiers: typing.Union[
-            mlrun.utils.notifications.CustomNotificationPusher, bool
-        ] = None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
     ):
-        # ignore notifiers, as they are handled by the remote pipeline notifications
+        # ignore notifiers, as they are handled by the remote pipeline notifications,
+        # so overriding with CustomNotificationPusher with empty list of notifiers
         return _KFPRunner.get_run_status(
-            project, run, timeout, expected_statuses, notifiers=False
+            project,
+            run,
+            timeout,
+            expected_statuses,
+            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
         )
 
 

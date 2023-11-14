@@ -17,7 +17,6 @@ import tempfile
 import git
 import pytest
 
-import mlrun.config as mlconfig
 import mlrun.runtimes.utils
 
 

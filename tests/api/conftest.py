@@ -121,7 +121,7 @@ def set_base_url_for_test_client(
 def client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
-        mlconf.runs_monitoring_interval = 0
+        mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 
@@ -135,7 +135,7 @@ def client(db) -> Generator:
 async def async_client(db) -> Generator:
     with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
         mlconf.httpdb.logs_path = log_dir
-        mlconf.runs_monitoring_interval = 0
+        mlconf.monitoring.runs.interval = 0
         mlconf.runtimes_cleanup_interval = 0
         mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
 

@@ -474,7 +474,7 @@ def _start_periodic_cleanup():
 
 
 def _start_periodic_runs_monitoring():
-    interval = int(config.runs_monitoring_interval)
+    interval = int(config.monitoring.runs.interval)
     if interval > 0:
         logger.info("Starting periodic runs monitoring", interval=interval)
         run_function_periodically(

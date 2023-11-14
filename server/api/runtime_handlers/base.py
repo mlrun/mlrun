@@ -1496,7 +1496,7 @@ class BaseRuntimeHandler(ABC):
                     last_update_str = run.get("status", {}).get("last_update")
                     if last_update_str is not None:
                         last_update = datetime.fromisoformat(last_update_str)
-                        debounce_period = config.runs_monitoring_interval
+                        debounce_period = config.monitoring.runs.interval
                         if last_update > now - timedelta(
                             seconds=float(debounce_period)
                         ):

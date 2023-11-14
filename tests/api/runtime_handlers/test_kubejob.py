@@ -256,11 +256,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             },
         ]:
             self._logger.info("running test case", test_case=test_case)
-            config.runs_monitoring_interval = test_case.get(
+            config.monitoring.runs.interval = test_case.get(
                 "runs_monitoring_interval", 0
             )
 
-            config.runs_monitoring_missing_runtime_resources_debouncing_interval = (
+            config.monitoring.runs.missing_runtime_resources_debouncing_interval = (
                 test_case.get("debouncing_interval", None)
             )
 
@@ -450,7 +450,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self, db: Session, client: TestClient
     ):
         # set monitoring interval so debouncing will be active
-        config.runs_monitoring_interval = 100
+        config.monitoring.runs.interval = 100
 
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
@@ -479,7 +479,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         # Mocking that update occurred before debounced period
-        debounce_period = config.runs_monitoring_interval
+        debounce_period = config.monitoring.runs.interval
         server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(
                 original_update_run_updated_time,

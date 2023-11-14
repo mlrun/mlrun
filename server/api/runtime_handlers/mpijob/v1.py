@@ -238,7 +238,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         self, crd_object: dict
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
-        https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1/types.go#L29
+        https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29
         https://github.com/kubeflow/common/blob/master/pkg/apis/common/v1/types.go#L55
         """
         launcher_status = (

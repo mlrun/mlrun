@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import inspect
 import os
+import re
 import typing
 from enum import Enum
 
@@ -184,6 +186,7 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        self.__fields_pending_discard = {}
 
     @property
     def volumes(self) -> list:
@@ -330,6 +333,22 @@ class KubeResourceSpec(FunctionSpec):
                         resource_value,
                     )
 
+    def discard_changes(self):
+        """
+        Certain pipeline engines might make temporary changes to a function spec to ensure expected behavior.
+        Kubeflow, for instance, can use pipeline parameters to change resource requests/limits on a function.
+        Affected fields will be scheduled for cleanup automatically. Direct user intervention is not required.
+        """
+        for k, v in self.__fields_pending_discard.items():
+            setattr(self, k, v)
+
+    def _add_field_to_pending_discard(self, field_name, field_value):
+        self.__fields_pending_discard.update(
+            {
+                field_name: copy.deepcopy(field_value),
+            }
+        )
+
     def _verify_and_set_requests(
         self,
         resources_field_name,
@@ -338,6 +357,11 @@ class KubeResourceSpec(FunctionSpec):
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
+        for pattern in mlrun.utils.regex.pipeline_param:
+            if re.match(pattern, str(cpu)) or re.match(pattern, str(mem)):
+                self._add_field_to_pending_discard(
+                    resources_field_name, getattr(self, resources_field_name)
+                )
         if not patch:
             update_in(
                 getattr(self, resources_field_name),

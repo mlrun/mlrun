@@ -55,7 +55,7 @@ cd mlrun
 
 Create a conda environment and activate it
 ```shell script
-conda create -n mlrun python=3.9
+conda create -n mlrun python=3.9 protobuf
 conda activate mlrun
 ``` 
 

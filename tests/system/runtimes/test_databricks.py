@@ -17,11 +17,9 @@ import os
 import time
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pandas as pd
 import pytest
-import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import RunLifeCycleState, RunResultState
 
@@ -30,16 +28,7 @@ import tests.system.base
 from mlrun.errors import MLRunRuntimeError
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import RunError
-from tests.datastore.databricks_utils import (
-    MLRUN_ROOT_DIR,
-    is_databricks_configured,
-    teardown_dbfs_dirs,
-)
-
-here = Path(__file__).absolute().parent
-config_file_path = here / "assets" / "test_databricks.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, teardown_dbfs_dirs
 
 print_kwargs_function = """
 
@@ -54,11 +43,15 @@ default_test_params = {
 }
 
 
-@pytest.mark.skipif(
-    not is_databricks_configured(config_file_path),
-    reason="databricks parameters not configured",
-)
-@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestDatabricksSystem(tests.system.base.TestMLRunSystem):
+    mandatory_env_vars = [
+        "DATABRICKS_TOKEN",
+        "DATABRICKS_HOST",
+        "DATABRICKS_CLUSTER_ID",
+    ] + tests.system.base.TestMLRunSystem.mandatory_env_vars
+
+
+@TestDatabricksSystem.skip_test_if_env_not_configured
 class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     project_name = "databricks-system-test"
 
@@ -132,9 +125,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def setup_class(self):
         super().setup_class()
-        for key, value in config["env"].items():
-            if value is not None:
-                os.environ[key] = value
         self.test_folder_name = "/databricks_system_test"
         self.dbfs_folder_path = f"{MLRUN_ROOT_DIR}{self.test_folder_name}"
         self.workspace = WorkspaceClient()

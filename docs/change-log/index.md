@@ -82,6 +82,9 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 ###  Closed issues
 | ID     |Description                                                                   |
 |---------|-------------------------------------------------------------------------------|
+|ML-1584|Cannot run `code_to_function` when filename contains special characters.|
+|ML-2199|Spark operator job fails with default requests args.                   |
+|ML-2380|Spark runtime should sustain naive user actions.                     |
 |ML-4188|Deleting a project failed in the backend but was successfully deleted in UI.  |
 |ML-4212|Pipeline filters that have no results now show the labels.                    |
 |ML-4214|Scheduled workflows with "-" in the name are no longer truncated.             |
@@ -719,12 +722,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | ID| Description|Workaround |Opened in |
 |--------|----------------------------------------------------------------|-----------------------------------------|-----------|
 |ML-1373|When attempting to ingest data with RemoteSpark using an incorrect service name, the pods get stuck during ContainerCreating. | Verify the correct service name. | v0.9.0 | 
-|ML-1584|Cannot run `code_to_function` when filename contains special characters.|Do not use special characters in filenames| v1.0.0    |
 |ML-1835|The index record is duplicated in the datasets metadata. | NA | v1.0.0 |
 |ML-2030|Need means of moving artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
-|ML-2199|Spark operator job fails with default requests args.                   |NA|v1.0.0    |
 |ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
-|ML-2380|Spark runtime should sustain naive user actions.                     |NA                                                                                                                                                                                                                                                                                                                                                                               |1.0.4     |
 |ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |

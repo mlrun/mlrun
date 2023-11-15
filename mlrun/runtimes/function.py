@@ -918,9 +918,7 @@ class RemoteRuntime(KubeResource):
                 if state not in ["ready", "scaledToZero"]:
                     logger.warning(f"Function is in the {state} state")
                 if not self.status.address:
-                    raise ValueError(
-                        "no function address first run .deploy()"
-                    )
+                    raise ValueError("no function address first run .deploy()")
 
             path = self._resolve_invocation_url(path, force_external_address)
 

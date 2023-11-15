@@ -22,6 +22,10 @@ import yaml
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileGCS,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.utils import logger
 
 here = Path(__file__).absolute().parent
@@ -49,18 +53,38 @@ def google_cloud_storage_configured():
     not google_cloud_storage_configured(),
     reason="Google cloud storage parameters not configured",
 )
+@pytest.mark.parametrize(
+    "use_datastore_profile_by", [None, "credentials_json_file", "gcp_credentials"]
+)
 class TestGoogleCloudStorage:
-    def setup_method(self, method):
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self, use_datastore_profile_by):
         self._bucket_name = config["env"].get("bucket_name")
-
         object_dir = "test_mlrun_gcs_objects"
         object_file = f"file_{random.randint(0, 1000)}.txt"
-
-        self._bucket_path = "gcs://" + self._bucket_name
         self._object_path = object_dir + "/" + object_file
+        self.profile_name = "gcs_profile"
+        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        os.environ.pop("GCP_CREDENTIALS", None)
+        if use_datastore_profile_by:
+            if use_datastore_profile_by == "credentials_json_file":
+                kwargs = {
+                    "credentials_path": config["env"].get("credentials_json_file")
+                }
+            else:
+                with open(config["env"].get("credentials_json_file"), "r") as f:
+                    credentials = f.read()
+                kwargs = {"gcp_credentials": credentials}
+            profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
+            register_temporary_client_datastore_profile(profile)
+
+        self._bucket_path = (
+            f"ds://{self.profile_name}/{self._bucket_name}"
+            if use_datastore_profile_by
+            else "gcs://" + self._bucket_name
+        )
         self._object_url = self._bucket_path + "/" + self._object_path
         self._blob_url = self._object_url + ".blob"
-
         logger.info(f"Object URL: {self._object_url}")
 
     def _perform_google_cloud_storage_tests(self):
@@ -78,6 +102,12 @@ class TestGoogleCloudStorage:
 
         dir_list = mlrun.run.get_dataitem(self._bucket_path).listdir()
         assert self._object_path in dir_list, "File not in container dir-list"
+        listdir_parent = mlrun.run.get_dataitem(
+            os.path.dirname(self._object_url)
+        ).listdir()
+        assert (
+            os.path.basename(self._object_path) in listdir_parent
+        ), "File not in parent dir-list"
 
         upload_data_item = mlrun.run.get_dataitem(self._blob_url)
         upload_data_item.upload(test_filename)
@@ -96,15 +126,20 @@ class TestGoogleCloudStorage:
         response = upload_csv_data_item.as_df()
         assert pd.read_csv(test_csv).equals(response)
 
-    def test_using_google_env_variable(self):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["env"].get(
-            "credentials_json_file"
-        )
+    def test_using_google_env_variable(self, use_datastore_profile_by):
+        if use_datastore_profile_by:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
+        else:
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = config["env"].get(
+                "credentials_json_file"
+            )
         self._perform_google_cloud_storage_tests()
 
-    def test_using_serialized_json_content(self):
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        with open(config["env"].get("credentials_json_file"), "r") as f:
-            credentials = f.read()
-        os.environ["GCP_CREDENTIALS"] = credentials
+    def test_using_serialized_json_content(self, use_datastore_profile_by):
+        if use_datastore_profile_by:
+            os.environ["GCP_CREDENTIALS"] = "wrong credentials"
+        else:
+            with open(config["env"].get("credentials_json_file"), "r") as f:
+                credentials = f.read()
+            os.environ["GCP_CREDENTIALS"] = credentials
         self._perform_google_cloud_storage_tests()

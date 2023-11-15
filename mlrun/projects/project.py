@@ -3463,7 +3463,13 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        if not image and not project.default_image and kind != "local":
+        # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
+        if (
+            not image
+            and not project.default_image
+            and kind != "local"
+            and not project.spec.load_source_on_run
+        ):
             raise ValueError(
                 "image must be provided with py code files which do not "
                 "run on 'local' engine kind"

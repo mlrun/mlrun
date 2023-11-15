@@ -4,9 +4,9 @@
 
 The `project_setup.py` script in MLRun automates project initialization and configuration, facilitating seamless setup of MLRun projects by registering functions, workflows, Git sources, Docker images, and more. It ensures consistency by registering and updating all functions and workflows within the project.
 
-Upon loading an MLRun project via via {py:meth}`~mlrun.projects.get_or_create_project` or {py:meth}`~mlrun.projects.load_project`, the system automatically invokes the `project_setup.py` script.
+Upon loading an MLRun project via {py:meth}`~mlrun.projects.get_or_create_project` or {py:meth}`~mlrun.projects.load_project`, the system automatically invokes the `project_setup.py` script.
 
-***Note:** Ensure the script resides in the root of the project context.*
+**Note:** Ensure the script resides in the root of the project context.
 
 ```python
 import mlrun
@@ -68,7 +68,7 @@ def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
     if default_image:
         project.set_default_image(default_image)
 
-    # MLRun Functions - note paths are relative to project context (./src)
+    # MLRun Functions - note that paths are relative to the project context (./src)
     project.set_function(
         name="get-data",
         func="functions/data.py",
@@ -83,7 +83,7 @@ def setup(project: mlrun.projects.MlrunProject) -> mlrun.projects.MlrunProject:
         handler="train_model",
     )
 
-    # MLRun Workflows - note paths are relative to project context (./src)
+    # MLRun Workflows - note that paths are relative to the project context (./src)
     project.set_workflow("main", "workflows/main_workflow.py")
 
     # Save and return the project:
@@ -120,9 +120,9 @@ project.set_source(source, pull_at_runtime=True)
 ```
 
 ### Export Project to Zip File Archive
-Export local project directory contents to a zip file archive. Use this in conjunction with setting the project source for rapid iteration without requiring a Git commit for each change. See {py:meth}`~mlrun.projects.MlrunProject.set_source` and {py:meth}`~mlrun.projects.MlrunProject.export` for more info.
+Export the local project directory contents to a zip file archive. Use this in conjunction with setting the project source for rapid iteration without requiring a Git commit for each change. See {py:meth}`~mlrun.projects.MlrunProject.set_source` and {py:meth}`~mlrun.projects.MlrunProject.export` for more info.
 
-***Note:** This requires using the Iguazio `v3io` data layer or some `s3` compliant object storage such as `minio`.*
+**Note:** This requires using the Iguazio `v3io` data layer or some `s3` compliant object storage such as `minio`.
 
 ```python
 source = project.get_param("source") # v3io:///bigdata/my_project.zip

@@ -82,10 +82,10 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 ###  Closed issues
 | ID     |Description                                                                   |
 |---------|-------------------------------------------------------------------------------|
-|ML-1584|Cannot run `code_to_function` when filename contains special characters.|
-|ML-2199|Spark operator job fails with default requests args.                   |
-|ML-2380|Spark runtime should sustain naive user actions.                     |
-|ML-4188|Deleting a project failed in the backend but was successfully deleted in UI.  |
+|ML-1584|Can now run `code_to_function` when filename contains special characters.|
+|ML-2199|Spark operator job doe not fail with default requests args.                   |
+|ML-2380|Spark runtime sustains naive user actions.                     |
+|ML-4188|Projects are deleted simultaneouly in the backend and the UI.  |
 |ML-4212|Pipeline filters that have no results now show the labels.                    |
 |ML-4214|Scheduled workflows with "-" in the name are no longer truncated.             |
 |ML-4232|User attempts to create a consumer group with "-" now throws an error.        |
@@ -200,8 +200,8 @@ See [Deprecations and removed code](#deprecations-and-removed-code).
 |ML-3470|Changes in secrets are now recorded in the  audit log of the platform. [View in Git](https://github.com/mlrun/mlrun/pull/3711).                                                                                                                                                                        |
 |ML-3508|Improved description of list_runs. See {py:class}`~mlrun.projects.MlrunProject.list_runs` [View in Git](https://github.com/mlrun/mlrun/pull/3686).                                                                                                                                                     |
 |ML-3621|`clear_context()` now does not delete content if the path is relative; and if a subpath exists, only the sub dir is deleted/cleared. [View in Git](https://github.com/mlrun/mlrun/pull/3689).                                                                                                          |
-|ML-3631 |MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927).                                                                                                                                                        |
-|ML-3633|Fail to import a context from dict. [View in Git](https://github.com/mlrun/mlrun/pull/3308).                                                                                                |
+|ML-3631|MLRun now successfully pulls the source code from gitlab with a personal access token. [View in Git](https://github.com/mlrun/mlrun/pull/3927).                                                                                                                                                        |
+|ML-3633|Can now import a context from dict. [View in Git](https://github.com/mlrun/mlrun/pull/3308).                                                                                                |
 |ML-3652|V3IO_API is now inferred from the DBPATH. [View in Git](https://github.com/mlrun/mlrun/pull/3422).                                                                                                                                                                                                     |
 |ML-3703|`project.set_secrets()` now throws a `file not found` exception if the file does not exist. [View in Git](https://github.com/mlrun/mlrun/pull/3549).                                                                                                                                                   |
 |ML-3713|Users can now use pipeline parameters in the spec of jobs created within the workflow py file without causing run failure. [View in Git](https://github.com/mlrun/mlrun/pull/3812).                                                                                                                    |
@@ -737,7 +737,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3633|Fail to import a context from dict                                     |When loading a context from dict (e.g.: mlrun.MLClientCtx.from_dict(context)), make sure to provide datetime objects and not string. Do this by executing `context['status']['start_time'] = parser.parse(context['status']['start_time'])<br> context['status']['last_update'] = parser.parse(context['status']['last_update'])` prior to `mlrun.MLClientCtx.from_dict(context)`|v1.3.0    |
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3714|It can happen that an MLrun pod succeeds but there's an error in Kubeflow. | NA | v1.3.0 |
-|ML-3804|                                                                         |Create a class to forward the parameters. | v1.3.1 |
+|ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. | v1.3.1 |
 |ML-4153|When creating a passthrough features-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4370|The same artifact was generated by 2 runs: one with multiple iterations (using hyper-params) and one with a single iteration. | Do not generate the same artifact name across hyper-param runs and single runs. For example, add a timestamp or other unique id to the name of the artifact.| v1.3.2 |
 |ML-4442|After a model is deployed without applying monitoring (`set_tracking()` was not set on the serving function), monitoring cannot be added.|Delete the existing model endpoint (`mlrun.get_run_db().delete_model_endpoint()`), then redeploy the model.| v1.5.0 |
@@ -746,7 +746,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
 |ML-4767|Torch 2.1.0 is not compatible with mlrun-gpu image.              | NA | v1.5.0 |
-|ML-4907|MLRun Client does not support Win OS.                                                 | NA | v1.3.0 | 
+|ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4992|When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|Set target dir, and change workdir back: 
    ```sj.with_source_archive(
@@ -757,9 +757,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 
 ## Limitations
-| ID     |Desc
+| ID     |Desc                                                                                                                                |Workaround |Opened in|
 |---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
-|ML-1278|A user's permission to store data on the underlying storage depends on its V3IO permissions, not on project membership.                                                               |When setting permissions to the project, the right permissions to the data storage need to be set in order to allow access to the data.                                                               | v0.8.0   |
+|ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
 |ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
 |ML-3206|When get_or_create_project is called, and there is project.yaml in the dir, no new project is created (even of the project name is new). The existing project.yaml is loaded instead.|v1.2.1                                                                                                                                                                                                                                                                                                                           |
 |ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |

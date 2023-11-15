@@ -915,9 +915,11 @@ class RemoteRuntime(KubeResource):
                         "custom http trigger"
                     )
                 state, _, _ = self._get_state(dashboard, auth_info=auth_info)
-                if state != "ready" or not self.status.address:
+                if state not in ["ready", "scaledToZero"]:
+                    logger.warning(f"Function is in the {state} state")
+                if not self.status.address:
                     raise ValueError(
-                        "no function address or not ready, first run .deploy()"
+                        "no function address first run .deploy()"
                     )
 
             path = self._resolve_invocation_url(path, force_external_address)

@@ -461,6 +461,10 @@ def _set_misc_specs(function, nuclio_spec):
                 function.spec, "security_context"
             ),
         )
+    if function.spec.disable_default_http_trigger is not None:
+        nuclio_spec.set_config(
+            "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
+        )
 
 
 def _set_source_code_and_handler(function, config):

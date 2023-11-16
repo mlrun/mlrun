@@ -487,7 +487,8 @@ def mask_function_sensitive_data(function, auth_info: mlrun.common.schemas.AuthI
 
 
 def _mask_v3io_volume_credentials(
-    function: mlrun.runtimes.pod.KubeResource, auth_info: mlrun.common.schemas.AuthInfo = None
+    function: mlrun.runtimes.pod.KubeResource,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """
     Go over all of the flex volumes with v3io/fuse driver of the function and try mask their access key to a secret
@@ -625,7 +626,6 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
         v3io_username = function.get_env("V3IO_USERNAME")
         if not v3io_username and auth_info:
             v3io_username = auth_info.username
-            logger.warning("XXX - Got username from the v3io auth info!!!!!", username=v3io_username)
 
         if not v3io_username or not isinstance(v3io_username, str):
             logger.warning(

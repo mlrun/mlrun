@@ -781,7 +781,17 @@ def test_mask_v3io_volume_credentials(
     no_access_key_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
         "no-access-key-v3io-volume-name", "", ""
     )
+
     no_name_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol("", "", access_key)
+
+    no_username_volume = mlrun.platforms.iguazio.v3io_to_vol(
+        "no-user-vol", "/bigdata/someone", access_key=access_key
+    )
+    no_username_volume_mount = kubernetes.client.V1VolumeMount(
+        name="",
+        mount_path="/mnt/some-path",
+    )
+
     k8s_api_client = kubernetes.client.ApiClient()
     if not use_structs:
         v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
@@ -903,6 +913,33 @@ def test_mask_v3io_volume_credentials(
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+
+    # When creating a function without a user-name, the access-key will not be masked due to no user (ML-5068).
+    k8s_secrets_mock.reset_mock()
+    _, _, _, function_without_username = _generate_original_function(
+        volumes=[no_username_volume], volume_mounts=[no_username_volume_mount]
+    )
+
+    original_function = mlrun.new_function(runtime=function_without_username)
+    function = mlrun.new_function(runtime=function_without_username)
+    _mask_v3io_volume_credentials(function)
+    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # mask while passing auth info with a username, verify masking happens
+    _mask_v3io_volume_credentials(
+        function, auth_info=mlrun.common.schemas.AuthInfo(username=username)
+    )
+    assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
+    assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
 
 
 def test_ensure_function_security_context_no_enrichment(

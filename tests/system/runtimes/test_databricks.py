@@ -93,8 +93,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 f"Too many active runs related to project {self.project_name} were found"
             )
         mlrun_run = mlrun_runs.to_objects()[0]
-        db = mlrun.get_run_db()
-        db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
+        self._run_db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
 
     def _check_artifacts_by_path(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()

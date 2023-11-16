@@ -1594,7 +1594,7 @@ class MlrunProject(ModelObj):
         :param parameters:      key/value dict of model parameters
         :param inputs:          ordered list of model input features (name, type, ..)
         :param outputs:         ordered list of model output/result elements (name, type, ..)
-        :param upload:          upload to datastore (default is True)
+        :param upload:          upload to datastore (if not specified, defaults to True (uploads artifact))
         :param labels:          a set of key/value labels to tag the artifact with
         :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: list of feature weights, one per input column

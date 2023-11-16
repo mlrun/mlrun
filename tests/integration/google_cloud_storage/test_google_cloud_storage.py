@@ -14,11 +14,14 @@
 #
 import os
 import random
+import tempfile
+import uuid
 from pathlib import Path
 
 import pandas as pd
 import pytest
 import yaml
+from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
@@ -165,3 +168,48 @@ class TestGoogleCloudStorage:
             else:
                 os.environ["GCP_CREDENTIALS"] = self.credentials
         self._perform_google_cloud_storage_tests(secrets=secrets)
+
+    @pytest.mark.parametrize(
+        "file_format, write_method",
+        [("parquet", pd.DataFrame.to_parquet), ("csv", pd.DataFrame.to_csv)],
+    )
+    def test_directory(self, use_datastore_profile, file_format, write_method):
+        secrets = {}
+        if use_datastore_profile:
+            self._setup_profile(profile_auth_by="credentials_json_file")
+        else:
+            secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
+        dataframes_dir = f"/{file_format}{uuid.uuid4()}"
+        dataframes_url = f"{self._bucket_path}/{self.object_dir}{dataframes_dir}"
+        # generate dfs
+        # Define data for the first DataFrame
+        data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
+        # Define data for the second DataFrame
+        data2 = {"Column1": [4, 5, 6], "Column2": ["X", "Y", "Z"]}
+
+        # Create the DataFrames
+        df1 = pd.DataFrame(data1)
+        df2 = pd.DataFrame(data2)
+        with tempfile.NamedTemporaryFile(
+            suffix=f".{file_format}", delete=True
+        ) as temp_file1, tempfile.NamedTemporaryFile(
+            suffix=f".{file_format}", delete=True
+        ) as temp_file2:
+            # Save DataFrames as files
+            write_method(df1, temp_file1.name, index=False)
+            write_method(df2, temp_file2.name, index=False)
+            #  upload
+            dt1 = mlrun.run.get_dataitem(
+                dataframes_url + f"/df1.{file_format}", secrets=secrets
+            )
+            dt2 = mlrun.run.get_dataitem(
+                dataframes_url + f"/df2.{file_format}", secrets=secrets
+            )
+            dt1.upload(src_path=temp_file1.name)
+            dt2.upload(src_path=temp_file2.name)
+            dt_dir = mlrun.run.get_dataitem(dataframes_url, secrets=secrets)
+            tested_df = dt_dir.as_df(format=f"{file_format}")
+            expected_df = pd.concat([df1, df2], ignore_index=True)
+            assert_frame_equal(
+                tested_df.reset_index(drop=True), expected_df, check_like=True
+            )

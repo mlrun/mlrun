@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -187,7 +187,7 @@ class BatchApplicationProcessor:
     @staticmethod
     def model_endpoint_process(
         endpoint: dict,
-        applications_names: List[str],
+        applications_names: list[str],
         bath_dict: dict,
         project: str,
         parquet_directory: str,

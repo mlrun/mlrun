@@ -54,39 +54,38 @@ def google_cloud_storage_configured():
     not google_cloud_storage_configured(),
     reason="Google cloud storage parameters not configured",
 )
-@pytest.mark.parametrize(
-    "use_datastore_profile_by", [None, "credentials_json_file", "gcp_credentials"]
-)
+@pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
-    @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile_by):
-        store_manager.reset_secrets()
+    def setup_class(self):
         self._bucket_name = config["env"].get("bucket_name")
-        object_dir = "test_mlrun_gcs_objects"
-        object_file = f"file_{random.randint(0, 1000)}.txt"
-        self._object_path = object_dir + "/" + object_file
+        self.object_dir = "test_mlrun_gcs_objects"
         self.profile_name = "gcs_profile"
-        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-        os.environ.pop("GCP_CREDENTIALS", None)
-        if use_datastore_profile_by:
-            if use_datastore_profile_by == "credentials_json_file":
-                kwargs = {
-                    "credentials_path": config["env"].get("credentials_json_file")
-                }
+        self.credentials_path = config["env"].get("credentials_json_file")
+        with open(self.credentials_path, "r") as gcs_credentials_path:
+            self.credentials = gcs_credentials_path.read()
+
+    def _setup_profile(self, profile_auth_by):
+        if profile_auth_by:
+            if profile_auth_by == "credentials_json_file":
+                kwargs = {"credentials_path": self.credentials_path}
             else:
-                with open(config["env"].get("credentials_json_file"), "r") as f:
-                    credentials = f.read()
-                kwargs = {"gcp_credentials": credentials}
+                kwargs = {"gcp_credentials": self.credentials}
             profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
             register_temporary_client_datastore_profile(profile)
 
+    @pytest.fixture(autouse=True)
+    def setup_before_each_test(self, use_datastore_profile):
+        store_manager.reset_secrets()
+        object_file = f"file_{random.randint(0, 1000)}.txt"
+        self._object_path = self.object_dir + "/" + object_file
+        os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+        os.environ.pop("GCP_CREDENTIALS", None)
         self._bucket_path = (
             f"ds://{self.profile_name}/{self._bucket_name}"
-            if use_datastore_profile_by
+            if use_datastore_profile
             else "gcs://" + self._bucket_name
         )
         self._object_url = self._bucket_path + "/" + self._object_path
-        self._blob_url = self._object_url + ".blob"
         logger.info(f"Object URL: {self._object_url}")
 
     def _perform_google_cloud_storage_tests(self, secrets={}):
@@ -111,11 +110,11 @@ class TestGoogleCloudStorage:
             os.path.basename(self._object_path) in listdir_parent
         ), "File not in parent dir-list"
 
-        upload_data_item = mlrun.run.get_dataitem(self._blob_url, secrets=secrets)
+        upload_data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
-        upload_parquet_file_path = f"{os.path.dirname(self._blob_url)}/file.parquet"
+        upload_parquet_file_path = f"{os.path.dirname(self._object_url)}/file.parquet"
         upload_parquet_data_item = mlrun.run.get_dataitem(
             upload_parquet_file_path, secrets=secrets
         )
@@ -123,7 +122,7 @@ class TestGoogleCloudStorage:
         upload_parquet_data_item.upload(str(test_parquet))
         response = upload_parquet_data_item.as_df()
         assert pd.read_parquet(test_parquet).equals(response)
-        upload_csv_file_path = f"{os.path.dirname(self._blob_url)}/file.csv"
+        upload_csv_file_path = f"{os.path.dirname(self._object_url)}/file.csv"
         upload_csv_data_item = mlrun.run.get_dataitem(
             upload_csv_file_path, secrets=secrets
         )
@@ -133,37 +132,36 @@ class TestGoogleCloudStorage:
         assert pd.read_csv(test_csv).equals(response)
 
     @pytest.mark.parametrize("use_secrets", (True, False))
-    def test_using_google_credentials_file(self, use_datastore_profile_by, use_secrets):
+    def test_using_google_credentials_file(self, use_datastore_profile, use_secrets):
         # We give priority to profiles, then to secrets, and finally to environment variables.
         secrets = {}
-        credentials_json_file = config["env"].get("credentials_json_file")
-        if use_datastore_profile_by:
+        if use_datastore_profile:
+            self._setup_profile(profile_auth_by="credentials_json_file")
             if use_secrets:
                 secrets = {"GOOGLE_APPLICATION_CREDENTIALS": "wrong path"}
             else:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
         else:
             if use_secrets:
-                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": credentials_json_file}
+                secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "wrong path"
             else:
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_json_file
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
         self._perform_google_cloud_storage_tests(secrets=secrets)
 
     @pytest.mark.parametrize("use_secrets", (True, False))
-    def test_using_serialized_json_content(self, use_datastore_profile_by, use_secrets):
+    def test_using_serialized_json_content(self, use_datastore_profile, use_secrets):
         secrets = {}
-        with open(config["env"].get("credentials_json_file"), "r") as f:
-            credentials = f.read()
-        if use_datastore_profile_by:
+        if use_datastore_profile:
+            self._setup_profile(profile_auth_by="gcp_credentials")
             if use_secrets:
                 secrets = {"GCP_CREDENTIALS": "wrong credentials"}
             else:
                 os.environ["GCP_CREDENTIALS"] = "wrong credentials"
         else:
             if use_secrets:
-                secrets = {"GCP_CREDENTIALS": credentials}
+                secrets = {"GCP_CREDENTIALS": self.credentials}
                 os.environ["GCP_CREDENTIALS"] = "wrong credentials"
             else:
-                os.environ["GCP_CREDENTIALS"] = credentials
+                os.environ["GCP_CREDENTIALS"] = self.credentials
         self._perform_google_cloud_storage_tests(secrets=secrets)

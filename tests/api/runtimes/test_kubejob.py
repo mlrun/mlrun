@@ -1018,7 +1018,7 @@ def my_func(context):
 
     def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
         state_thresholds = {
-            "pending_not_scheduled": "10s",
+            "pending_not_scheduled": "1000s",
             "pending_scheduled": "1day 20m",
             "running": "30h 19 min",
             "image_pull_backoff": "-1",
@@ -1033,7 +1033,7 @@ def my_func(context):
         assert run["spec"]["state_thresholds"] == state_thresholds
 
         override_state_thresholds = {
-            "pending_not_scheduled": "20s",
+            "pending_not_scheduled": "250s",
             "running": "40h 19 min",
         }
         runtime.set_state_thresholds(
@@ -1052,7 +1052,7 @@ def my_func(context):
         assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
         patch_state_thresholds = {
-            "pending_not_scheduled": "30s",
+            "pending_not_scheduled": "370s",
             "image_pull_backoff": "50h 19 min",
         }
         runtime.set_state_thresholds(

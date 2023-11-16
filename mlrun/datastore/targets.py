@@ -296,7 +296,7 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
-            features=features if not target.after_step else None,
+            features=features,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
             featureset_status=resource.status,
@@ -436,8 +436,14 @@ class BaseStoreTarget(DataTargetBase):
         )
 
     def _get_store(self):
+        credentials_prefix_secrets = (
+            {"CREDENTIALS_PREFIX": self.credentials_prefix}
+            if self.credentials_prefix
+            else None
+        )
         store, _ = mlrun.store_manager.get_or_create_store(
-            self.get_target_path_with_credentials()
+            self.get_target_path(),
+            credentials_prefix_secrets,
         )
         return store
 
@@ -611,9 +617,6 @@ class BaseStoreTarget(DataTargetBase):
             if path_object
             else None
         )
-
-    def get_target_path_with_credentials(self):
-        return self.get_target_path()
 
     def get_target_templated_path(self):
         path_object = self._target_path_object
@@ -1281,10 +1284,6 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "user": parsed_endpoint.username if parsed_endpoint.username else None,
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
-
-    def get_target_path_with_credentials(self):
-        endpoint, uri = self._get_server_endpoint()
-        return endpoint
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         from pyspark.sql.functions import col

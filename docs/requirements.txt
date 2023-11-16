@@ -11,6 +11,7 @@ jinja2~=3.1
 linkify-it-py~=2.0
 sphinx_design~=0.4.1
 sphinx-reredirects~=0.1.2
+sphinx-version-warning~=1.1
 # protobuf must be downgraded to avoid a bug -
 # https://stackoverflow.com/questions/72441758/typeerror-descriptors-cannot-not-be-created-directly
 # which is not generating the API by module pages (using PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python does not work)

@@ -412,8 +412,9 @@ class TestCollectRunSLogs:
         )
 
         # create a mock runs list
-        num_of_runs, num_of_projects = 3, 2
+        num_of_runs, num_of_projects = 1000, 2
         runs, run_uids = [], []
+        stop_logs_run_uids_chunk_size = 200
 
         for i in range(num_of_projects):
             project_name = f"some-project-{i}"
@@ -430,19 +431,25 @@ class TestCollectRunSLogs:
                 if run_uid not in run_uids:
                     run_uids.append(run_uid)
 
-        await server.api.main._stop_logs_for_runs(runs)
+        await server.api.main._stop_logs_for_runs(
+            runs, chunk_size=stop_logs_run_uids_chunk_size
+        )
 
-        assert log_collector._call.call_count == num_of_projects
+        # every time we stop <stop_logs_run_uids_chunk_size> amoutn of runs
+        assert log_collector._call.call_count == num_of_projects * (
+            num_of_runs / stop_logs_run_uids_chunk_size
+        )
 
-        stop_log_request = log_collector._call.call_args[0][1]
+        stop_log_request = log_collector._call.call_args_list[0].args[1]
 
-        # verify that the stop log request is correct, with the last project name
-        assert stop_log_request.project == f"some-project-{num_of_projects-1}"
-        assert len(stop_log_request.runUIDs) == num_of_runs
+        # verify that the stop log request is correct, with the first project name
+        assert stop_log_request.project == "some-project-0"
+        assert len(stop_log_request.runUIDs) == stop_logs_run_uids_chunk_size
         assert (
             deepdiff.DeepDiff(
                 list(stop_log_request.runUIDs),
-                run_uids,
+                # takes the first <stop_logs_run_uids_chunk_size> runs
+                run_uids[:stop_logs_run_uids_chunk_size],
                 ignore_order=True,
             )
             == {}

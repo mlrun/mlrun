@@ -310,6 +310,17 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle" : "non-preempt
 ### Serving/Nuclio triggers
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/development/nuclio/triggers.py)
+
+By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
+However, we provide a way to disable the default HTTP trigger using:
+`function.disable_default_http_trigger()`
+
+Also, you can explicitly enable the default HTTP trigger creation with:
+`function.enable_default_http_trigger()`
+
+If you didn't set this parameter explicitly, the value is taken from [Nuclio platform configuration](https://github.com/nuclio/nuclio/blob/development/docs/tasks/configuring-a-platform.md). 
+ Therefore, if you haven't disabled the default HTTP trigger, don't have a custom one, and are unable to invoke the function, we recommend checking the Nuclio platform configuration.
+
 ```python
 import nuclio
 serve = mlrun.import_function('hub://v2_model_server')

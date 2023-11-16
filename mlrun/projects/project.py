@@ -87,6 +87,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    _RemoteRunner,
     enrich_function_object,
     get_db_function,
     get_workflow_engine,
@@ -2499,6 +2500,7 @@ class MlrunProject(ModelObj):
         timeout: int = None,
         source: str = None,
         cleanup_ttl: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2531,6 +2533,8 @@ class MlrunProject(ModelObj):
         :param cleanup_ttl:
                           pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
+        :param notifications:
+                          list of notifications to send for workflow completion
         :returns: run id
         """
 
@@ -2598,6 +2602,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             source=source,
+            notifications=notifications,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:
@@ -2609,7 +2614,14 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
-            run._engine.get_run_status(project=self, run=run, timeout=timeout)
+            # run's engine gets replaced with inner engine if engine is remote,
+            # so in that case we need to get the status from the remote engine manually
+            if engine == "remote":
+                status_engine = _RemoteRunner
+            else:
+                status_engine = run._engine
+
+            status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2711,6 +2723,7 @@ class MlrunProject(ModelObj):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
+        :param access_key:                Model Monitoring access key for managing user permissions
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream
@@ -3213,7 +3226,12 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_model_monitoring_functions(self, name=None, tag=None, labels=None):
+    def list_model_monitoring_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[list[str]] = None,
+    ) -> Optional[list]:
         """Retrieve a list of all the model monitoring functions.
         example::
             functions = project.list_model_monitoring_functions()
@@ -3223,13 +3241,13 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
+        labels = labels or []
         return self.list_functions(
             name=name,
             tag=tag,
             labels=[
                 f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ]
-            + labels,
+            ].extend(labels),
         )
 
     def list_runs(

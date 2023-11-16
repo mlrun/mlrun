@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import typing
-import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -23,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
+import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
 from mlrun.config import config
@@ -76,12 +76,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     def _get_class_name(self):
         return "job"
-
-    def _generate_job_labels(self, run_name):
-        labels = self.job_labels.copy()
-        labels["mlrun/uid"] = str(uuid.uuid4())
-        labels["mlrun/name"] = run_name
-        return labels
 
     def test_list_resources(self, db: Session, client: TestClient):
         pods = self._mock_list_resources_pods()
@@ -263,11 +257,11 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             },
         ]:
             self._logger.info("running test case", test_case=test_case)
-            config.runs_monitoring_interval = test_case.get(
+            config.monitoring.runs.interval = test_case.get(
                 "runs_monitoring_interval", 0
             )
 
-            config.runs_monitoring_missing_runtime_resources_debouncing_interval = (
+            config.monitoring.runs.missing_runtime_resources_debouncing_interval = (
                 test_case.get("debouncing_interval", None)
             )
 
@@ -457,7 +451,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         self, db: Session, client: TestClient
     ):
         # set monitoring interval so debouncing will be active
-        config.runs_monitoring_interval = 100
+        config.monitoring.runs.interval = 100
 
         # Mocking the SDK updating the Run's state to terminal state
         self.run["status"]["state"] = RunStates.completed
@@ -486,7 +480,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         # Mocking that update occurred before debounced period
-        debounce_period = config.runs_monitoring_interval
+        debounce_period = config.monitoring.runs.interval
         server.api.utils.singletons.db.get_db()._update_run_updated_time = (
             tests.conftest.freeze(
                 original_update_run_updated_time,
@@ -579,7 +573,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         - running pod with old start time - should be deleted
         - pod in image pull backoff with old start time - should be deleted
         """
-        pending_scheduled_labels = self._generate_job_labels("pending_scheduled")
+        pending_scheduled_labels = self._generate_job_labels(
+            "pending_scheduled", job_labels=self.job_labels
+        )
         pending_scheduled_pod = self._generate_pod(
             pending_scheduled_labels["mlrun/name"],
             pending_scheduled_labels,
@@ -591,7 +587,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
         )
@@ -603,7 +599,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
 
         pending_scheduled_new_labels = self._generate_job_labels(
-            "pending_scheduled_new"
+            "pending_scheduled_new", job_labels=self.job_labels
         )
         pending_scheduled_pod_new = self._generate_pod(
             pending_scheduled_new_labels["mlrun/name"],
@@ -620,14 +616,16 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             start_time=pending_scheduled_pod_new.status.start_time,
         )
 
-        running_overtime_labels = self._generate_job_labels("running_overtime")
+        running_overtime_labels = self._generate_job_labels(
+            "running_overtime", job_labels=self.job_labels
+        )
         running_overtime_pod = self._generate_pod(
             running_overtime_labels["mlrun/name"],
             running_overtime_labels,
             PodPhases.running,
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.running
             )
         )
@@ -638,7 +636,9 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             start_time=running_overtime_pod.status.start_time,
         )
 
-        image_pull_backoff_labels = self._generate_job_labels("image_pull_backoff")
+        image_pull_backoff_labels = self._generate_job_labels(
+            "image_pull_backoff", job_labels=self.job_labels
+        )
         image_pull_backoff_pod = self._generate_pod(
             image_pull_backoff_labels["mlrun/name"],
             image_pull_backoff_labels,
@@ -661,7 +661,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         image_pull_backoff_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )
         )

@@ -134,7 +134,9 @@ def test_build_runtime_insecure_registries(
 def test_build_runtime_target_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     registry = "registry.hub.docker.com/username"
+    docker_registry_secret = "whatever"
     mlrun.mlconf.httpdb.builder.docker_registry = registry
+    mlrun.mlconf.httpdb.builder.docker_registry_secret = docker_registry_secret
     mlrun.mlconf.httpdb.builder.function_target_image_name_prefix_template = (
         "my-cool-prefix-{project}-{name}"
     )
@@ -161,16 +163,23 @@ def test_build_runtime_target_image(monkeypatch):
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == f"{registry}/{image_name_prefix}:{function.metadata.tag}"
 
+    # verify the secret is populated to function spec build
+    assert docker_registry_secret == function.spec.build.secret
+
     # assert we can override the target image as long as we stick to the prefix
     function.spec.build.image = (
         f"{registry}/{image_name_prefix}-some-addition:{function.metadata.tag}"
     )
+    function.spec.build.secret = docker_registry_secret + "-other"
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
     )
     target_image = _get_target_image_from_create_pod_mock()
     assert target_image == function.spec.build.image
+
+    # verify function spec build secret overrides the default mlrun config
+    assert docker_registry_secret + "-other" == function.spec.build.secret
 
     # assert the same with the registry enrich prefix
     # assert we can override the target image as long as we stick to the prefix
@@ -676,84 +685,8 @@ def test_resolve_image_dest(image_target, registry, default_repository, expected
     config.httpdb.builder.docker_registry = default_repository
     config.httpdb.builder.docker_registry_secret = docker_registry_secret
 
-    image_target, _ = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry
-    )
+    image_target = server.api.utils.builder.resolve_image_target(image_target, registry)
     assert image_target == expected_dest
-
-
-@pytest.mark.parametrize(
-    "image_target,registry,secret_name,default_secret_name,expected_secret_name",
-    [
-        (
-            "test-image",
-            None,
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            "test-image",
-            "test-registry",
-            None,
-            "default-secret-name",
-            None,
-        ),
-        (
-            "test-image",
-            "test-registry",
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            "default-secret-name",
-            "default-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            "default-secret-name",
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            "test-secret-name",
-            None,
-            "test-secret-name",
-        ),
-        (
-            ".test-image",
-            None,
-            None,
-            None,
-            None,
-        ),
-    ],
-)
-def test_resolve_registry_secret(
-    image_target, registry, secret_name, default_secret_name, expected_secret_name
-):
-    docker_registry = "default.docker.registry/default-repository"
-    config.httpdb.builder.docker_registry = docker_registry
-    config.httpdb.builder.docker_registry_secret = default_secret_name
-
-    _, secret_name = server.api.utils.builder.resolve_image_target_and_registry_secret(
-        image_target, registry, secret_name
-    )
-    assert secret_name == expected_secret_name
 
 
 def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
@@ -1407,3 +1340,74 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
     for arg in kpod_build_args:
         arg_key, arg_val = arg.split("=")
         assert f"ARG {arg_key}" in dock_arg_lines
+
+
+@pytest.mark.parametrize(
+    "default_registry,resolved_image_target,secret_name,default_secret_name,expected_secret_name",
+    [
+        # no secret name is given and image is not auto-enrich-able or known as default registry
+        # do not enrich secret
+        (
+            None,
+            "test-image",
+            None,
+            "default-secret-name",
+            None,
+        ),
+        # secret name is given, so it should be used
+        (
+            None,
+            "test-image",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        # auto-enrich registry name is given without secret name, use default secret name
+        (
+            None,
+            ".test-image",
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        # auto-enrich registry name is given without secret name, use default secret name
+        (
+            "test-registry",
+            "test-registry/test-image",
+            None,
+            "default-secret-name",
+            "default-secret-name",
+        ),
+        # auto enrich registry name is given with secret name, use given secret name
+        (
+            None,
+            ".test-image",
+            "test-secret-name",
+            "default-secret-name",
+            "test-secret-name",
+        ),
+        # auto enrich registry is given but not secret name and no default secret name, leave as default
+        (
+            None,
+            ".test-image",
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_function_image_secret(
+    default_registry,
+    resolved_image_target,
+    secret_name,
+    default_secret_name,
+    expected_secret_name,
+):
+    config.httpdb.builder.docker_registry = default_registry
+    config.httpdb.builder.docker_registry_secret = default_secret_name
+    assert (
+        expected_secret_name
+        == server.api.utils.builder._resolve_function_image_secret(
+            resolved_image_target, secret_name
+        )
+    )

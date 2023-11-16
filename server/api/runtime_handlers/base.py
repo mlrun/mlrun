@@ -1201,79 +1201,117 @@ class BaseRuntimeHandler(ABC):
 
         if runtime_resource_is_crd:
             (
-                _,
+                in_terminal_state,
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            # TODO: add threshold for crd resources
-
-        else:
-            pod_phase = runtime_resource["status"]["phase"]
-            run_state = PodPhases.pod_phase_to_run_state(pod_phase)
-
-            run_start_time = run.get("status", {}).get("start_time")
-            if run_start_time:
-                start_time = datetime.fromisoformat(run_start_time)
-            else:
-                start_time = runtime_resource["status"].get("start_time")
-
-            if not start_time:
-                logger.warning(
-                    "Could not resolve start time from run and runtime resource. Continuing",
-                    runtime_resource_name=runtime_resource["metadata"]["name"],
-                    run_uid=run.get("metadata", {}).get("uid"),
-                    run_state=run_state,
-                )
+            if in_terminal_state:
                 return run_state, False
 
-            now = datetime.now(timezone.utc)
-            delta = now - start_time
-
-            # Resolve the state threshold from the run
-            threshold, threshold_state = self._resolve_run_threshold(
-                run, pod_phase, runtime_resource=runtime_resource
+            run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
+            is_state_threshold_set = any(
+                value != "-1" for value in run_state_thresholds.values()
             )
-            threshold_exceeded = (
-                threshold is not None and 0 <= threshold < delta.total_seconds()
-            )
-            if threshold_exceeded:
-                logger.warning(
-                    "Runtime resource exceeded state threshold. Run will be aborted.",
-                    runtime_resource_name=runtime_resource["metadata"]["name"],
-                    run_state=run_state,
-                    pod_phase=pod_phase,
-                    threshold=threshold,
-                    start_time=str(start_time),
-                    namespace=namespace,
-                )
-                run_updates = {
-                    "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
-                }
+            if not is_state_threshold_set:
+                return run_state, False
 
-                stale_runs.append(
-                    {
-                        "project": run["metadata"]["project"],
-                        "uid": run["metadata"]["uid"],
-                        "iter": run["metadata"].get("iteration", 0),
-                        "run_updates": run_updates,
-                        "run": run,
-                    }
+            # If the run state thresholds are set, we need to check the pods
+            pods = self._list_pods(
+                namespace,
+                label_selector=f"mlrun/uid={run['metadata']['uid']}",
+            )
+            for pod in pods:
+                _, threshold_exceeded = self._apply_state_threshold(
+                    run, pod, namespace, stale_runs
                 )
+                if threshold_exceeded:
+                    break
+
+        else:
+            run_state, threshold_exceeded = self._apply_state_threshold(
+                run, runtime_resource, namespace, stale_runs
+            )
 
         return run_state, threshold_exceeded
 
+    def _apply_state_threshold(
+        self,
+        run: Dict,
+        pod: Dict,
+        namespace: str,
+        stale_runs: List[dict] = None,
+    ) -> Tuple[str, bool]:
+        pod_phase = pod["status"]["phase"]
+        run_state = PodPhases.pod_phase_to_run_state(pod_phase)
+
+        run_start_time = run.get("status", {}).get("start_time")
+        if run_start_time:
+            start_time = datetime.fromisoformat(run_start_time)
+        else:
+            start_time = pod["status"].get("start_time")
+
+        if not start_time:
+            logger.warning(
+                "Could not resolve start time from run and runtime resource. Continuing",
+                runtime_resource_name=pod["metadata"]["name"],
+                run_uid=run.get("metadata", {}).get("uid"),
+                run_state=run_state,
+            )
+            return run_state, False
+
+        now = datetime.now(timezone.utc)
+        delta = now - start_time
+
+        # Resolve the state threshold from the run
+        threshold, threshold_state = self._resolve_run_threshold(
+            run, pod_phase, pod=pod
+        )
+        threshold_exceeded = (
+            threshold is not None and 0 <= threshold < delta.total_seconds()
+        )
+        if not threshold_exceeded:
+            return run_state, False
+
+        # Threshold exceeded, add run to stale runs list
+        logger.warning(
+            "Runtime resource exceeded state threshold. Run will be aborted.",
+            runtime_resource_name=pod["metadata"]["name"],
+            run_state=run_state,
+            pod_phase=pod_phase,
+            threshold=threshold,
+            start_time=str(start_time),
+            namespace=namespace,
+        )
+        run_updates = {
+            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+        }
+
+        stale_runs.append(
+            {
+                "project": run["metadata"]["project"],
+                "uid": run["metadata"]["uid"],
+                "iter": run["metadata"].get("iteration", 0),
+                "run_updates": run_updates,
+                "run": run,
+            }
+        )
+        return run_state, True
+
     @staticmethod
     def _resolve_run_threshold(
-        run: Dict, pod_phase: str, runtime_resource: Dict
+        run: Dict, pod_phase: str, pod: Dict
     ) -> Tuple[Optional[int], Optional[str]]:
-        threshold_state = ThresholdStates.from_pod_phase(pod_phase, runtime_resource)
+        threshold_state = ThresholdStates.from_pod_phase(pod_phase, pod)
         if not threshold_state or not run:
             return None, None
 
         threshold = (
             run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
-        return mlrun.utils.helpers.time_string_to_seconds(threshold), threshold_state
+        return (
+            server.api.utils.helpers.time_string_to_seconds(threshold),
+            threshold_state,
+        )
 
     def _build_list_resources_response(
         self,
@@ -1461,7 +1499,7 @@ class BaseRuntimeHandler(ABC):
                     last_update_str = run.get("status", {}).get("last_update")
                     if last_update_str is not None:
                         last_update = datetime.fromisoformat(last_update_str)
-                        debounce_period = config.runs_monitoring_interval
+                        debounce_period = config.monitoring.runs.interval
                         if last_update > now - timedelta(
                             seconds=float(debounce_period)
                         ):

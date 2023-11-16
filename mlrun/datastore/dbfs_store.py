@@ -14,12 +14,11 @@
 
 import pathlib
 
-import fsspec
 from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
 
 import mlrun.errors
 
-from .base import DataStore, FileStats
+from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 
 class DatabricksFileBugFixed(DatabricksFile):
@@ -91,7 +90,11 @@ class DBFSStore(DataStore):
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
         if not self._filesystem:
-            self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
+            self._filesystem = makeDatastoreSchemaSanitizer(
+                cls=DatabricksFileSystemDisableCache,
+                using_bucket=False,
+                **self.get_storage_options(),
+            )
         return self._filesystem
 
     def get_storage_options(self):

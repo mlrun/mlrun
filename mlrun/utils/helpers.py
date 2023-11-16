@@ -16,6 +16,7 @@ import enum
 import functools
 import hashlib
 import inspect
+import itertools
 import json
 import os
 import pathlib
@@ -40,7 +41,6 @@ import yaml
 from dateutil import parser
 from deprecated import deprecated
 from pandas._libs.tslibs.timestamps import Timedelta, Timestamp
-from timelength import TimeLength
 from yaml.representer import RepresenterError
 
 import mlrun
@@ -897,7 +897,7 @@ def get_docker_repository_or_default(repository: str) -> str:
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
-    docker_registry = config.httpdb.builder.docker_registry
+    docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
     # this is exception to the rules from the link above, since the config value is called docker_registry we assume
     # that if someone gave just one component without any slash they gave a registry and not a repository
@@ -1507,16 +1507,16 @@ def line_terminator_kwargs():
     return {line_terminator_parameter: "\n"}
 
 
-def time_string_to_seconds(time_str: str) -> Optional[int]:
-    if not time_str:
-        return None
-
-    if time_str == "-1":
-        return -1
-
-    parsed_length = TimeLength(time_str, strict=True)
-    total_seconds = parsed_length.to_seconds()
-    if total_seconds < 1:
-        raise ValueError(f"Invalid time string {time_str}, must be at least 1 second")
-
-    return total_seconds
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
+    """
+    Iterate over a list and yield chunks of the list in the given chunk size
+    e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
+    """
+    if chunk_size <= 0 or not iterable_list:
+        yield iterable_list
+        return
+    iterator = iter(iterable_list)
+    while chunk := list(itertools.islice(iterator, chunk_size)):
+        yield chunk

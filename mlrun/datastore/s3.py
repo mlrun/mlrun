@@ -18,10 +18,12 @@ import boto3
 
 import mlrun.errors
 
-from .base import DataStore, DatastoreSchemaSanitizer, FileStats, get_range
+from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
 
 
 class S3Store(DataStore):
+    using_bucket = True
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
@@ -107,8 +109,10 @@ class S3Store(DataStore):
                 ) from exc
             return None
 
-        self._filesystem = DatastoreSchemaSanitizer(
-            s3fs.S3FileSystem, **self.get_storage_options()
+        self._filesystem = makeDatastoreSchemaSanitizer(
+            s3fs.S3FileSystem,
+            using_bucket=self.using_bucket,
+            **self.get_storage_options(),
         )
         return self._filesystem
 
@@ -173,7 +177,7 @@ class S3Store(DataStore):
         if not key.endswith("/"):
             key += "/"
         # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
-        # "absolute paths". Therefore, we are are removing leading / from path filter.
+        # "absolute paths". Therefore, we are removing leading / from path filter.
         if key.startswith("/"):
             key = key[1:]
         key_length = len(key)

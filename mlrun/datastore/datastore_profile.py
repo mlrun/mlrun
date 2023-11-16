@@ -48,11 +48,9 @@ class DatastoreProfile(pydantic.BaseModel):
         )
         return full_key
 
-    @classmethod
     def secrets(self) -> dict:
         return None
 
-    @classmethod
     def url(self, subpath) -> str:
         return None
 
@@ -158,9 +156,7 @@ class DatastoreProfileS3(DatastoreProfile):
         return res if res else None
 
     def url(self, subpath):
-        if not self.endpoint_url:
-            return f"s3://{subpath}"
-        return self.endpoint_url + subpath
+        return f"s3:/{subpath}"
 
 
 class DatastoreProfileRedis(DatastoreProfile):
@@ -204,6 +200,24 @@ class DatastoreProfileRedis(DatastoreProfile):
 
     def url(self, subpath):
         return self.endpoint_url + subpath
+
+
+class DatastoreProfileDBFS(DatastoreProfile):
+    type: str = pydantic.Field("dbfs")
+    _private_attributes = ("token",)
+    endpoint_url: typing.Optional[str] = None  # host
+    token: typing.Optional[str] = None
+
+    def url(self, subpath) -> str:
+        return f"dbfs://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.token:
+            res["DATABRICKS_TOKEN"] = self.token
+        if self.endpoint_url:
+            res["DATABRICKS_HOST"] = self.endpoint_url
+        return res if res else None
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -262,6 +276,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "basic": DatastoreProfileBasic,
             "kafka_target": DatastoreProfileKafkaTarget,
             "kafka_source": DatastoreProfileKafkaSource,
+            "dbfs": DatastoreProfileDBFS,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 import asyncio
+from typing import Optional
+
+from timelength import TimeLength
 
 import mlrun
 import mlrun.common.schemas
@@ -71,3 +74,18 @@ def minimize_project_schema(
     project.spec.workflows = None
     project.spec.artifacts = None
     return project
+
+
+def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int]:
+    if not time_str:
+        return None
+
+    if time_str == "-1":
+        return -1
+
+    parsed_length = TimeLength(time_str, strict=True)
+    total_seconds = parsed_length.to_seconds()
+    if total_seconds < min_seconds:
+        raise ValueError(f"Invalid time string {time_str}, must be at least 1 minute")
+
+    return total_seconds

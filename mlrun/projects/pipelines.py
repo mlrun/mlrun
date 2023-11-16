@@ -496,6 +496,7 @@ class _PipelineRunner(abc.ABC):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pass
 
@@ -573,6 +574,7 @@ class _KFPRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
@@ -582,6 +584,19 @@ class _KFPRunner(_PipelineRunner):
             project.set_source(source=source)
 
         namespace = namespace or config.namespace
+
+        # fallback to old notification behavior
+        if notifications:
+            logger.warning(
+                "Setting notifications on kfp pipeline runner uses old notification behavior. "
+                "Notifications will only be sent if you wait for pipeline completion. "
+                "To use the new notification behavior, use the remote pipeline runner."
+            )
+            for notification in notifications:
+                project.notifiers.add_notification(
+                    notification.kind, notification.params
+                )
+
         run_id = _run_pipeline(
             workflow_handler,
             project=project.metadata.name,
@@ -591,6 +606,23 @@ class _KFPRunner(_PipelineRunner):
             artifact_path=artifact_path,
             cleanup_ttl=workflow_spec.cleanup_ttl,
         )
+
+        # The user provided workflow code might have made changes to function specs that require cleanup
+        for func in project.spec._function_objects.values():
+            try:
+                func.spec.discard_changes()
+            except AttributeError:
+                logger.debug(
+                    "Function does not require a field rollback", func_type=type(func)
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to rollback spec fields for function",
+                    project=project,
+                    func_name=func.metadata.name,
+                    exc_info=err_to_str(exc),
+                )
+
         project.notifiers.push_pipeline_start_message(
             project.metadata.name,
             project.get_param("commit_id", None),
@@ -684,11 +716,16 @@ class _LocalRunner(_PipelineRunner):
         artifact_path=None,
         namespace=None,
         source=None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         pipeline_context.set(project, workflow_spec)
         workflow_handler = _PipelineRunner._get_handler(
             workflow_handler, workflow_spec, project, secrets
         )
+
+        # fallback to old notification behavior
+        for notification in notifications or []:
+            project.notifiers.add_notification(notification.kind, notification.params)
 
         workflow_id = uuid.uuid4().hex
         pipeline_context.workflow_id = workflow_id
@@ -768,9 +805,14 @@ class _RemoteRunner(_PipelineRunner):
         artifact_path: str = None,
         namespace: str = None,
         source: str = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> typing.Optional[_PipelineRunStatus]:
         workflow_name = normalize_workflow_name(name=name, project_name=project.name)
         workflow_id = None
+
+        # for start message, fallback to old notification behavior
+        for notification in notifications or []:
+            project.notifiers.add_notification(notification.kind, notification.params)
 
         # The returned engine for this runner is the engine of the workflow.
         # In this way wait_for_completion/get_run_status would be executed by the correct pipeline runner.
@@ -810,6 +852,7 @@ class _RemoteRunner(_PipelineRunner):
                     workflow_name
                 ),
                 namespace=namespace,
+                notifications=notifications,
             )
             if workflow_spec.schedule:
                 logger.info(
@@ -854,6 +897,24 @@ class _RemoteRunner(_PipelineRunner):
             workflow=workflow_spec,
             state=state,
             exc=err,
+        )
+
+    @staticmethod
+    def get_run_status(
+        project,
+        run,
+        timeout=None,
+        expected_statuses=None,
+        notifiers: mlrun.utils.notifications.CustomNotificationPusher = None,
+    ):
+        # ignore notifiers, as they are handled by the remote pipeline notifications,
+        # so overriding with CustomNotificationPusher with empty list of notifiers
+        return _KFPRunner.get_run_status(
+            project,
+            run,
+            timeout,
+            expected_statuses,
+            notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
         )
 
 
@@ -921,6 +982,7 @@ def load_and_run(
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
     cleanup_ttl: int = None,
     load_only: bool = False,
+    wait_for_completion: bool = False,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -950,6 +1012,7 @@ def load_and_run(
     :param cleanup_ttl:         pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                                 workflow and all its resources are deleted)
     :param load_only:           for just loading the project, inner use.
+    :param wait_for_completion: wait for workflow completion before returning
     """
     try:
         project = mlrun.load_project(
@@ -1011,3 +1074,11 @@ def load_and_run(
 
     if run.state == mlrun.run.RunStatuses.failed:
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
+
+    if wait_for_completion:
+        pipeline_state = run.wait_for_completion()
+        context.log_result(key="workflow_state", value=pipeline_state, commit=True)
+        if pipeline_state != mlrun.run.RunStatuses.succeeded:
+            raise RuntimeError(
+                f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+            )

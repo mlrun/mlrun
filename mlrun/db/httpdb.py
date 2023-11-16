@@ -2266,11 +2266,11 @@ class HTTPRunDB(RunDBInterface):
         """Delete a project.
 
         :param name: Name of the project to delete.
-        :param deletion_strategy: How to treat child objects of the project. Possible values are:
+        :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any child objects when deleted. If using this mode while
-              child objects exist, the operation will fail.
-            - ``cascade`` - Automatically delete all child objects when deleting the project.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using
+              this mode while related resources exist, the operation will fail.
+            - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
         path = f"projects/{name}?wait-for-completion=false"
@@ -3238,6 +3238,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3250,6 +3251,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -3281,6 +3283,11 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        if notifications:
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{workflow_name}/submit",

@@ -33,7 +33,7 @@ Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
 - Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
-  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently see [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines) for more detailes)
+  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See Configuring Notifications For Pipelines for more details.)
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
 > **Disclaimer:** Local notifications aren't persisted in mlrun API
@@ -92,7 +92,7 @@ function.run(handler=handler, notifications=[notification])
 ```
 
 ## Configuring Notifications For Pipelines
-To set notifications on pipelines, supply the notifications in the `run` method of either the project or pipeline.
+To set notifications on pipelines, supply the notifications in the run method of either the project or the pipeline.
 For example:
 ```python
 notification = mlrun.model.Notification(
@@ -113,7 +113,7 @@ The pipeline start notification is still sent from the SDK when triggering the p
 
 ### Local and KFP Engine Pipeline Notifications
 In these engines, the notifications are sent locally from the SDK. This means you need to watch the pipeline in order for its notifications to be sent.
-This is a fallback to the old notification behaviour and so not all the new notification features are supported. Only the notification kind and params are taken into account.
+This is a fallback to the old notification behavior, therefore not all of the new notification features are supported. Only the notification kind and params are taken into account.
 In these engines the old way of setting project notifiers is still supported:
 
 ```python

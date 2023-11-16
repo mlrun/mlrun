@@ -318,3 +318,12 @@ class TestAutoMount:
                 for requirement in requirements:
                     f.write(requirement + "\n")
             return temp_file.name
+
+    def test_runtime_set_categories(self, rundb_mock):
+        expected_categories = ["aaa", "bbb"]
+
+        runtime = self._generate_runtime()
+        runtime.set_categories(expected_categories)
+        self._execute_run(runtime)
+
+        rundb_mock.assert_runtime_categories(expected_categories)

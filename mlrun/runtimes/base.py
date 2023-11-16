@@ -196,6 +196,9 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    def set_categories(self, categories: List[str]):
+        self.metadata.categories = mlrun.utils.helpers.as_list(categories)
+
     @property
     def uri(self):
         return self._function_uri()

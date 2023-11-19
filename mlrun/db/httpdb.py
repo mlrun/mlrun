@@ -791,13 +791,6 @@ class HTTPRunDB(RunDBInterface):
             params["tree"] = tree
 
         body = _as_json(artifact)
-
-        logger.info(
-            "TOMER - Sending store artifact request",
-            endpoint_path=endpoint_path,
-            body=body,
-        )
-
         self.api_call(
             "PUT", endpoint_path, error, body=body, params=params, version="v2"
         )

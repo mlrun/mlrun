@@ -745,7 +745,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
 |ML-4767|Torch 2.1.0 is not compatible with mlrun-gpu image.              | NA | v1.5.0 |
-|ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
 |ML-4992|When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|Set target dir, and change workdir back: 
    ```sj.with_source_archive(
@@ -766,6 +765,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | NA |                 v1.5.0|   
 |ML-4855|MLRun supports TensorFlow up to 2.13.1.
+|ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
 |ML-4960|Under some conditions, due to caching done in the browser, the **Members** tab is not presented for projects.            | NA |                 v1.5.0| 
 
 

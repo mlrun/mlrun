@@ -90,7 +90,7 @@ all:
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
 	python -m pip install --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
-	python -m pip install \
+	python -m pip install --upgrade \
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r requirements.txt \
 		-r extras-requirements.txt \

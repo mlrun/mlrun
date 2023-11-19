@@ -13,11 +13,11 @@
 # limitations under the License.
 #
 import os
-import random
 import tempfile
 import uuid
 from pathlib import Path
 
+import fsspec
 import pandas as pd
 import pytest
 import yaml
@@ -59,6 +59,15 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
+
+    #  must be static, in order to get access from setup_class or teardown_class.
+    @staticmethod
+    def clean_test_directory(bucket_name, object_dir, gcs_fs):
+        test_dir = f"{bucket_name}/{object_dir}/"
+        if gcs_fs.exists(test_dir):
+            gcs_fs.delete(test_dir, recursive=True)
+        gcs_fs.mkdirs(test_dir)
+
     def setup_class(self):
         self._bucket_name = config["env"].get("bucket_name")
         self.object_dir = "test_mlrun_gcs_objects"
@@ -66,6 +75,12 @@ class TestGoogleCloudStorage:
         self.credentials_path = config["env"].get("credentials_json_file")
         with open(self.credentials_path, "r") as gcs_credentials_path:
             self.credentials = gcs_credentials_path.read()
+        self._gcs_fs = fsspec.filesystem("gcs", token=self.credentials_path)
+        self.clean_test_directory(
+            bucket_name=self._bucket_name,
+            object_dir=self.object_dir,
+            gcs_fs=self._gcs_fs,
+        )
 
     def _setup_profile(self, profile_auth_by):
         if profile_auth_by:
@@ -79,7 +94,7 @@ class TestGoogleCloudStorage:
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         store_manager.reset_secrets()
-        object_file = f"file_{random.randint(0, 1000)}.txt"
+        object_file = f"file_{uuid.uuid4()}.txt"
         self._object_path = self.object_dir + "/" + object_file
         os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
         os.environ.pop("GCP_CREDENTIALS", None)
@@ -90,6 +105,13 @@ class TestGoogleCloudStorage:
         )
         self._object_url = self._bucket_path + "/" + self._object_path
         logger.info(f"Object URL: {self._object_url}")
+
+    def teardown_class(self):
+        self.clean_test_directory(
+            bucket_name=self._bucket_name,
+            object_dir=self.object_dir,
+            gcs_fs=self._gcs_fs,
+        )
 
     def _perform_google_cloud_storage_tests(self, secrets={}):
         data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
@@ -201,7 +223,7 @@ class TestGoogleCloudStorage:
             self._setup_profile(profile_auth_by="credentials_json_file")
         else:
             secrets = {"GOOGLE_APPLICATION_CREDENTIALS": self.credentials_path}
-        dataframes_dir = f"/{file_format}{uuid.uuid4()}"
+        dataframes_dir = f"/{file_format}_{uuid.uuid4()}"
         dataframes_url = f"{self._bucket_path}/{self.object_dir}{dataframes_dir}"
         # generate dfs
         # Define data for the first DataFrame

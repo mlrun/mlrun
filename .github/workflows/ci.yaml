@@ -83,8 +83,6 @@ jobs:
   tests:
     name: Run Dockerized Tests
     runs-on: ubuntu-latest
-    env:
-      NO_COLOR: 1
     steps:
     - uses: actions/checkout@v3
     # TODO: re-use the next 2 actions instead of duplicating

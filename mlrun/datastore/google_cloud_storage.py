@@ -158,3 +158,7 @@ class GoogleCloudStorageStore(DataStore):
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
         ]
         return files
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        path = self._prepare_path_and_verify_filesystem(path)
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)

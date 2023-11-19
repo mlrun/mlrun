@@ -21,6 +21,7 @@ from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
+import server.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from server.api.runtime_handlers import get_runtime_handler
@@ -389,7 +390,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
                 stale_run_name,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
                         getattr(
                             mlrun.mlconf.function.spec.state_thresholds.default,
                             threshold_state,

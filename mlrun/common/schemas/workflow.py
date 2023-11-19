@@ -16,6 +16,7 @@ import typing
 
 import pydantic
 
+from .notification import Notification
 from .schedule import ScheduleCronTrigger
 
 
@@ -40,6 +41,7 @@ class WorkflowRequest(pydantic.BaseModel):
     source: typing.Optional[str] = None
     run_name: typing.Optional[str] = None
     namespace: typing.Optional[str] = None
+    notifications: typing.Optional[typing.List[Notification]] = None
 
 
 class WorkflowResponse(pydantic.BaseModel):

@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.runtime_handlers.mpijob
+import server.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
 from server.api.runtime_handlers import get_runtime_handler
@@ -418,7 +419,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 image_pull_backoff_job_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
                     )
                 ),
@@ -427,7 +428,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 running_long_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.running
                     )
                 ),
@@ -586,7 +587,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 pending_scheduled_stale_uid,
                 datetime.now(timezone.utc)
                 - timedelta(
-                    seconds=mlrun.utils.helpers.time_string_to_seconds(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
                         mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
                     )
                 ),

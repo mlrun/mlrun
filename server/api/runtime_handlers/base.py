@@ -1308,7 +1308,10 @@ class BaseRuntimeHandler(ABC):
         threshold = (
             run.get("spec", {}).get("state_thresholds", {}).get(threshold_state, None)
         )
-        return mlrun.utils.helpers.time_string_to_seconds(threshold), threshold_state
+        return (
+            server.api.utils.helpers.time_string_to_seconds(threshold),
+            threshold_state,
+        )
 
     def _build_list_resources_response(
         self,

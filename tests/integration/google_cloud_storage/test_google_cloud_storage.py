@@ -104,19 +104,31 @@ class TestGoogleCloudStorage:
         stat = data_item.stat()
         assert stat.size == len(test_string), "Stat size different than expected"
 
+        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
+            data_item.download(temp_file.name)
+            content = temp_file.read()
+            assert content == test_string
+
         dir_list = mlrun.run.get_dataitem(self._bucket_path, secrets=secrets).listdir()
         assert self._object_path in dir_list, "File not in container dir-list"
-        listdir_parent = mlrun.run.get_dataitem(
+        listdir_dataitem_parent = mlrun.run.get_dataitem(
             os.path.dirname(self._object_url), secrets=secrets
-        ).listdir()
+        )
+        listdir_parent = listdir_dataitem_parent.listdir()
         assert (
             os.path.basename(self._object_path) in listdir_parent
         ), "File not in parent dir-list"
+
+        data_item.delete()
+        listdir_parent = listdir_dataitem_parent.listdir()
+        assert os.path.basename(self._object_path) not in listdir_parent
 
         upload_data_item = mlrun.run.get_dataitem(self._object_url, secrets=secrets)
         upload_data_item.upload(test_filename)
         response = upload_data_item.get()
         assert response.decode() == test_string, "Result differs from original test"
+
+        #  as_df tests
         upload_parquet_file_path = f"{os.path.dirname(self._object_url)}/file.parquet"
         upload_parquet_data_item = mlrun.run.get_dataitem(
             upload_parquet_file_path, secrets=secrets
@@ -125,6 +137,7 @@ class TestGoogleCloudStorage:
         upload_parquet_data_item.upload(str(test_parquet))
         response = upload_parquet_data_item.as_df()
         assert pd.read_parquet(test_parquet).equals(response)
+
         upload_csv_file_path = f"{os.path.dirname(self._object_url)}/file.csv"
         upload_csv_data_item = mlrun.run.get_dataitem(
             upload_csv_file_path, secrets=secrets
@@ -133,6 +146,15 @@ class TestGoogleCloudStorage:
         upload_csv_data_item.upload(str(test_csv))
         response = upload_csv_data_item.as_df()
         assert pd.read_csv(test_csv).equals(response)
+
+        upload_json_file_path = f"{os.path.dirname(self._object_url)}/file.json"
+        upload_json_data_item = mlrun.run.get_dataitem(
+            upload_json_file_path, secrets=secrets
+        )
+        test_json = here / "test_data.json"
+        upload_json_data_item.upload(str(test_json))
+        response = upload_json_data_item.as_df()
+        assert pd.read_json(test_json).equals(response)
 
     @pytest.mark.parametrize("use_secrets", (True, False))
     def test_using_google_credentials_file(self, use_datastore_profile, use_secrets):

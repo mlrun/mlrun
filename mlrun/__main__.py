@@ -366,7 +366,7 @@ def run(
     if run_args:
         update_in(runtime, "spec.args", list(run_args))
     if image:
-        update_in(runtime, "spec.image", image)
+        update_in(runtime, "spec.image", image, replace=False)
     set_item(runobj.spec, handler, "handler")
     set_item(runobj.spec, param, "parameters", fill_params(param))
 

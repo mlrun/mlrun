@@ -3008,7 +3008,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build:
+        :param force_build: set True for force building the image
         """
 
         if skip_deployed:

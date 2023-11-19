@@ -1402,6 +1402,13 @@ class MlrunProject(ModelObj):
                 )
             else:
                 artifact = dict_to_artifact(artifact_dict)
+
+                logger.info(
+                    "TOMER - registering artifact",
+                    artifact=artifact,
+                    artifact_dict=artifact_dict,
+                )
+
                 if is_relative_path(artifact.src_path):
                     # source path should be relative to the project context
                     artifact.src_path = path.join(

@@ -66,7 +66,6 @@ class TestGoogleCloudStorage:
         test_dir = f"{bucket_name}/{object_dir}/"
         if gcs_fs.exists(test_dir):
             gcs_fs.delete(test_dir, recursive=True)
-        gcs_fs.mkdirs(test_dir)
 
     def setup_class(self):
         self._bucket_name = config["env"].get("bucket_name")

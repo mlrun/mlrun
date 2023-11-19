@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
+from mergedeep import merge
 
 import mlrun
 import mlrun.utils.helpers
@@ -296,7 +297,7 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
-            features=features if not target.after_step else None,
+            features=features,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
             featureset_status=resource.status,
@@ -441,11 +442,11 @@ class BaseStoreTarget(DataTargetBase):
             if self.credentials_prefix
             else None
         )
-        store, _ = mlrun.store_manager.get_or_create_store(
+        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        return store
+        return store, store.url + resolved_store_path
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -494,17 +495,18 @@ class BaseStoreTarget(DataTargetBase):
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            storage_options = self._get_store().get_storage_options()
+            store, target_path = self._get_store()
+            storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
                 if dask_options["format"] == "parquet":
                     df.to_parquet(
-                        generate_path_with_chunk(self, chunk_id),
+                        generate_path_with_chunk(self, chunk_id, target_path),
                         storage_options=storage_options,
                     )
                 elif dask_options["format"] == "csv":
                     df.to_csv(
-                        generate_path_with_chunk(self, chunk_id),
+                        generate_path_with_chunk(self, chunk_id, target_path),
                         storage_options=storage_options,
                     )
                 else:
@@ -514,8 +516,9 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            target_path = generate_path_with_chunk(self, chunk_id)
-            file_system = self._get_store().get_filesystem(False)
+            store, target_path = self._get_store()
+            target_path = generate_path_with_chunk(self, chunk_id, target_path)
+            file_system = store.get_filesystem(False)
             if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
@@ -551,10 +554,16 @@ class BaseStoreTarget(DataTargetBase):
                 # Partitioning will be performed on timestamp_key and then on self.partition_cols
                 # (We might want to give the user control on this order as additional functionality)
                 partition_cols += self.partition_cols or []
-            storage_options = self._get_store().get_storage_options()
+
+            storage_options = store.get_storage_options()
+            if storage_options and self.storage_options:
+                storage_options = merge(storage_options, self.storage_options)
+            else:
+                storage_options = storage_options or self.storage_options
+
             self._write_dataframe(
                 target_df,
-                self.storage_options or storage_options,
+                storage_options,
                 target_path,
                 partition_cols=partition_cols,
                 **kwargs,
@@ -673,7 +682,8 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        self._get_store().rm(self.get_target_path(), recursive=True)
+        store, target_path = self._get_store()
+        store.rm(target_path, recursive=True)
 
     def as_df(
         self,
@@ -860,18 +870,25 @@ class ParquetTarget(BaseStoreTarget):
                 "update_last_written": featureset_status.update_last_written_for_target
             }
 
+        store, target_path = self._get_store()
+
+        storage_options = store.get_storage_options()
+        if storage_options and self.storage_options:
+            storage_options = merge(storage_options, self.storage_options)
+        else:
+            storage_options = storage_options or self.storage_options
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.ParquetTarget",
-            path=self.get_target_path(),
+            path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=self.storage_options
-            or self._get_store().get_storage_options(),
+            storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
@@ -1009,17 +1026,17 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
+        store, target_path = self._get_store()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.CSVTarget",
-            path=self.get_target_path(),
+            path=target_path,
             columns=column_list,
             header=True,
             index_cols=key_columns,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=store.get_storage_options(),
             **self.attributes,
         )
 
@@ -1923,8 +1940,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 
-def generate_path_with_chunk(target, chunk_id):
-    prefix, suffix = os.path.splitext(target.get_target_path())
+def generate_path_with_chunk(target, chunk_id, path):
+    prefix, suffix = os.path.splitext(path)
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"
-    return target.get_target_path()
+    return path

@@ -87,6 +87,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    _RemoteRunner,
     enrich_function_object,
     get_db_function,
     get_workflow_engine,
@@ -1593,7 +1594,7 @@ class MlrunProject(ModelObj):
         :param parameters:      key/value dict of model parameters
         :param inputs:          ordered list of model input features (name, type, ..)
         :param outputs:         ordered list of model output/result elements (name, type, ..)
-        :param upload:          upload to datastore (default is True)
+        :param upload:          upload to datastore (if not specified, defaults to True (uploads artifact))
         :param labels:          a set of key/value labels to tag the artifact with
         :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: list of feature weights, one per input column
@@ -2499,6 +2500,7 @@ class MlrunProject(ModelObj):
         timeout: int = None,
         source: str = None,
         cleanup_ttl: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2531,6 +2533,8 @@ class MlrunProject(ModelObj):
         :param cleanup_ttl:
                           pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
+        :param notifications:
+                          list of notifications to send for workflow completion
         :returns: run id
         """
 
@@ -2598,6 +2602,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             source=source,
+            notifications=notifications,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:
@@ -2609,7 +2614,14 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
-            run._engine.get_run_status(project=self, run=run, timeout=timeout)
+            # run's engine gets replaced with inner engine if engine is remote,
+            # so in that case we need to get the status from the remote engine manually
+            if engine == "remote":
+                status_engine = _RemoteRunner
+            else:
+                status_engine = run._engine
+
+            status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2711,6 +2723,7 @@ class MlrunProject(ModelObj):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
+        :param access_key:                Model Monitoring access key for managing user permissions
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream

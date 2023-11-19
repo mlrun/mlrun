@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
+import server.api.utils.helpers
 import server.api.utils.runtimes
 import tests.conftest
 from mlrun.config import config
@@ -586,7 +587,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pending_scheduled_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
             )
         )
@@ -624,7 +625,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             PodPhases.running,
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.running
             )
         )
@@ -660,7 +661,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         image_pull_backoff_pod.status.start_time = datetime.now(
             timezone.utc
         ) - timedelta(
-            seconds=mlrun.utils.helpers.time_string_to_seconds(
+            seconds=server.api.utils.helpers.time_string_to_seconds(
                 mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
             )
         )

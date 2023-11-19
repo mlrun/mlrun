@@ -36,7 +36,7 @@ These cases are:
   notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent.
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
-> **Disclaimer:** Local notifications aren't persisted in mlrun API
+> **Disclaimer:** Notifications of local runs aren't persisted.
 
 ## Notification Params and Secrets
 The notification parameters often contain sensitive information, such as Slack webhooks Git tokens, etc.

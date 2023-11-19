@@ -531,11 +531,8 @@ def test_build_function_force_build(
             return_value=server.api.utils.singletons.k8s.BasePod(),
         ):
             with unittest.mock.patch(
-                "server.api.utils.builder.resolve_image_target_and_registry_secret",
-                return_value=(
-                    ".test/my-beautiful-image",
-                    "default-docker-registry-secret",
-                ),
+                "server.api.utils.builder.resolve_image_target",
+                return_value=(".test/my-beautiful-image",),
             ):
                 with unittest.mock.patch(
                     "server.api.utils.builder._resolve_build_requirements",

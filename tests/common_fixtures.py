@@ -528,6 +528,12 @@ class RunDBMock:
             ),
         )
 
+    def assert_runtime_categories(self, expected_categories, function_name=None):
+        function = self._get_function_internal(function_name)
+        categories = function["metadata"]["categories"]
+
+        assert categories == expected_categories
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:

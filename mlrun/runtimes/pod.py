@@ -1067,7 +1067,7 @@ class KubeResource(BaseRuntime):
         Set the threshold for a specific state of the runtime.
         The threshold is the amount of time that the runtime will wait before aborting the run if the job is in the
         matching state.
-        The threshold time string must conform to timelength python package standards and be at least 1 second
+        The threshold time string must conform to timelength python package standards and be at least 1 minute
         (e.g. 1000s, 1 hour 30m, 1h etc. or -1 for infinite).
         If the threshold is not set for a state, the default threshold will be used.
 

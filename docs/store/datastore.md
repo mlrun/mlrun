@@ -224,8 +224,6 @@ target = KafkaSource(path="ds://test_profile")
 
 
 See also:
-
-/api/mlrun.projects.html#mlrun.projects.MlrunProject.list_datastore_profiles
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.register_temporary_client_datastore_profile`

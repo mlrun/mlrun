@@ -3008,7 +3008,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build:
+        :param force_build: set True for force building the image
         """
 
         if skip_deployed:
@@ -3241,13 +3241,16 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
-        labels = labels or []
+
+        model_monitoring_labels_list = [
+            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+        ]
+        if labels:
+            model_monitoring_labels_list += labels
         return self.list_functions(
             name=name,
             tag=tag,
-            labels=[
-                f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ].extend(labels),
+            labels=model_monitoring_labels_list,
         )
 
     def list_runs(

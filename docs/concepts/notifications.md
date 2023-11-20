@@ -32,8 +32,8 @@ Notifications can be sent either locally from the SDK, or remotely from the MLRu
 Usually, a local run sends locally, and a remote run sends remotely.
 However, there are several special cases where the notification is sent locally either way.
 These cases are:
-- Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
-  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent.
+- Local or KFP Engine Pipelines: To conserve backwards compatibility, the SDK sends the notifications as it did before adding the run
+  notifications mechanism. This means you need to watch the pipeline in order for its notifications to be sent. (Remote pipelines act differently. See [Configuring Notifications For Pipelines](#configuring-notifications-for-pipelines For Pipelines for more details.)
 - Dask: Dask runs are always local (against a remote dask cluster), so the notifications are sent locally as well.
 
 > **Disclaimer:** Notifications of local runs aren't persisted.
@@ -92,7 +92,29 @@ function.run(handler=handler, notifications=[notification])
 ```
 
 ## Configuring Notifications For Pipelines
-For pipelines, you configure the notifications on the project notifiers. For example:
+To set notifications on pipelines, supply the notifications in the run method of either the project or the pipeline.
+For example:
+```python
+notification = mlrun.model.Notification(
+    kind="webhook",
+    when=["completed","error"],
+    name="notification-1",
+    message="completed",
+    severity="info",
+    secret_params={"url": "<webhook url>"},
+    params={"method": "GET", "verify_ssl": True},
+)
+project.run(..., notifications=[notification])
+```
+
+### Remote Pipeline Notifications
+In remote pipelines, the pipeline end notifications are sent from the MLRun API. This means you don't need to watch the pipeline in order for its notifications to be sent.
+The pipeline start notification is still sent from the SDK when triggering the pipeline.
+
+### Local and KFP Engine Pipeline Notifications
+In these engines, the notifications are sent locally from the SDK. This means you need to watch the pipeline in order for its notifications to be sent.
+This is a fallback to the old notification behavior, therefore not all of the new notification features are supported. Only the notification kind and params are taken into account.
+In these engines the old way of setting project notifiers is still supported:
 
 ```python
 project.notifiers.add_notification(notification_type="slack",params={"webhook":"<slack webhook url>"})

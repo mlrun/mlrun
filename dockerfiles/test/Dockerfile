@@ -74,3 +74,5 @@ RUN python -m pip install \
 COPY . .
 
 RUN pip install -e .[complete]
+
+ENV NO_COLOR=1

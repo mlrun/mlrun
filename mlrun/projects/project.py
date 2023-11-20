@@ -1594,7 +1594,7 @@ class MlrunProject(ModelObj):
         :param parameters:      key/value dict of model parameters
         :param inputs:          ordered list of model input features (name, type, ..)
         :param outputs:         ordered list of model output/result elements (name, type, ..)
-        :param upload:          upload to datastore (default is True)
+        :param upload:          upload to datastore (if not specified, defaults to True (uploads artifact))
         :param labels:          a set of key/value labels to tag the artifact with
         :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: list of feature weights, one per input column
@@ -3008,7 +3008,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build:
+        :param force_build: set True for force building the image
         """
 
         if skip_deployed:
@@ -3241,13 +3241,16 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
-        labels = labels or []
+
+        model_monitoring_labels_list = [
+            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+        ]
+        if labels:
+            model_monitoring_labels_list += labels
         return self.list_functions(
             name=name,
             tag=tag,
-            labels=[
-                f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ].extend(labels),
+            labels=model_monitoring_labels_list,
         )
 
     def list_runs(

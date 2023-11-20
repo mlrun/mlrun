@@ -296,7 +296,7 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
-            features=features,
+            features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
             featureset_status=resource.status,

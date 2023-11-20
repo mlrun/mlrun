@@ -3326,15 +3326,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
-                    "new_alias_for_total_ask": 0.0,
-                    "bids_min_1h": math.inf,
-                    "bids_max_1h": -math.inf,
+                    "new_alias_for_total_ask": math.nan,
+                    "bids_min_1h": math.nan,
+                    "bids_max_1h": math.nan,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
             resp = service.get([{"ticker": "AAPL"}], as_list=True)
-            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
+            assert resp == [[math.nan, math.nan, math.nan, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 
@@ -4450,11 +4450,12 @@ def verify_purge(fset, targets):
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert filesystem.exists(driver.get_target_path())
+                assert filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
@@ -4462,11 +4463,12 @@ def verify_purge(fset, targets):
     for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert not filesystem.exists(driver.get_target_path())
+                assert not filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) == 0
 
     fset.reload(update_spec=False)

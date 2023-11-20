@@ -380,7 +380,8 @@ class BatchApplicationProcessor:
             kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
         )
         target = ParquetTarget(path=base_directory)
-        fs = target._get_store().get_filesystem()
+        store, _ = target._get_store_and_path()
+        fs = store.get_filesystem()
 
         try:
             # List all subdirectories in the base directory

@@ -144,6 +144,7 @@ def test_requirement_specifiers_convention():
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
         "azure-storage-blob": {">=12.13, !=12.18.0"},
+        "aiohttp": {"~=3.8, <3.8.4"},
     }
 
     for (

@@ -83,9 +83,8 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
 
     def test_ingest_single_parquet_file(self, use_datastore_profile):
-        target_path = self._target_url
         df = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
-        targets = [ParquetTarget(path=target_path)]
+        targets = [ParquetTarget(path=self._target_url)]
 
         fset = fstore.FeatureSet(
             name="gcs_system_test", entities=[fstore.Entity("name")]

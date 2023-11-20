@@ -53,7 +53,7 @@ class TestDBFS(TestMLRunSystem):
             workspace=cls.workspace, specific_test_class_dir=cls.test_dir
         )
 
-    def _get_target_path(self, target_filename):
+    def _get_target_path(self, local_filename):
         target_generated_dirs = list(
             self.workspace.dbfs.list(f"dbfs://{self._object_dir_path}")
         )
@@ -62,12 +62,10 @@ class TestDBFS(TestMLRunSystem):
         )  # directory should have source file and target dir.
         target_generated_dir_path = (
             target_generated_dirs[0].path
-            if not target_generated_dirs[0].path.endswith(f"source_{target_filename}")
+            if not target_generated_dirs[0].path.endswith(f"source_{local_filename}")
             else target_generated_dirs[1].path
         )
-        target_file_path = (
-            f"dbfs://{target_generated_dir_path}/target_{target_filename}"
-        )
+        target_file_path = f"dbfs://{target_generated_dir_path}/target_{local_filename}"
         return target_file_path
 
     @pytest.fixture(autouse=True)
@@ -147,7 +145,7 @@ class TestDBFS(TestMLRunSystem):
             f.write(source_content)
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
         fstore.ingest(measurements, source=source, targets=[target])
-        target_file_path = self._get_target_path(target_filename=local_filename)
+        target_file_path = self._get_target_path(local_filename=local_filename)
         result = reader(
             target_file_path,
             storage_options={

@@ -150,11 +150,23 @@ async def get_artifact(
         server.api.crud.Artifacts().get_artifact,
         db_session,
         key,
-        tag,
-        iter,
-        project,
-        format_,
+        tag=tag,
+        iter=iter,
+        project=project,
+        format_=format_,
     )
+    if not data:
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we try to get the artifact with the given tag as the producer_id before returning an empty response
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            iter=iter,
+            project=project,
+            format_=format_,
+            producer_id=tag,
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,

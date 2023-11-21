@@ -30,7 +30,7 @@ def disable_unsupported_external_features():
     """
     Disables functionality external to MLRun that is known to cause problems during workflow parsing
     This function operates on a best-effort basis and lets errors pass mostly silently
-    Only features based on classes are supported, since this patches their __init__
+    Only features based on classes are supported since this patches their __init__
     """
     try:
         originals = []

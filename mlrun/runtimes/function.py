@@ -906,7 +906,7 @@ class RemoteRuntime(KubeResource):
                 # here we check that if default http trigger is disabled, function contains a custom http trigger
                 # Otherwise, the function is not invokable, so we raise an error
                 if (
-                    "spec.triggers.http" not in self.spec.config
+                    not self._trigger_of_kind_exists(kind="http")
                     and self.spec.disable_default_http_trigger
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
@@ -951,6 +951,17 @@ class RemoteRuntime(KubeResource):
         if resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
+
+    def _trigger_of_kind_exists(self, kind: str) -> bool:
+        if not self.spec.config:
+            return False
+
+        for name, spec in self.spec.config.items():
+            if isinstance(spec, dict):
+                if spec.get("kind") == kind:
+                    return True
+
+        return False
 
     def _pre_run_validations(self):
         if self.spec.function_kind != "mlrun":

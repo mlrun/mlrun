@@ -737,7 +737,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.)    |
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3714|It can happen that an MLrun pod succeeds but there's an error in Kubeflow. | NA | v1.3.0 |
-|ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. | v1.3.1 |
+|ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
 |ML-4107| On scheduled ingestion (storey engine) from CSV source, ingests all the source on each schedule iteration. | NA | v1.4.0 |	
 |ML-4153|When creating a passthrough features-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA | v1.4.0  |
 |ML-4166|Project yaml file that is vrey large cannot be stored.    |Do not embed the artifact object in the project yaml. | v1.4.0 |

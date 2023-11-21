@@ -12,10 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import os
 import random
+import tempfile
+import uuid
 
+import fsspec
 import pandas as pd
 import pytest
+from pandas.testing import assert_frame_equal
 
 import mlrun
 import mlrun.errors
@@ -24,6 +29,7 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileS3,
     register_temporary_client_datastore_profile,
 )
+from mlrun.datastore.sources import ParquetSource
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.utils import logger
 from tests.system.base import TestMLRunSystem
@@ -71,8 +77,8 @@ class TestAwsS3(TestMLRunSystem):
         self._secret_access_key = test_environment["AWS_SECRET_ACCESS_KEY"]
 
         object_dir = "test_mlrun_s3_objects"
-        object_file = f"file_{random.randint(0, 1000)}.txt"
-        csv_file = f"file_{random.randint(0,1000)}.csv"
+        object_file = f"file_{random.randint(0, 1000)}"
+        csv_file = f"file_{random.randint(0, 1000)}.csv"
 
         self.s3 = {
             "s3": self._make_target_names(
@@ -108,3 +114,41 @@ class TestAwsS3(TestMLRunSystem):
             name="overwrite-pq-spec-path", entities=[fstore.Entity("name")]
         )
         fstore.ingest(fset, df1, targets=targets)
+
+    def test_ingest_with_parquet_source(self, use_datastore_profile):
+        #  create source
+        s3_fs = fsspec.filesystem(
+            "s3", key=self._access_key_id, secret=self._secret_access_key
+        )
+        param = self.s3["ds"] if use_datastore_profile else self.s3["s3"]
+        data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
+        df = pd.DataFrame(data)
+        source_path = (
+            f"{os.path.dirname(param['parquet_url'])}/source_{uuid.uuid4()}.parquet"
+        )
+        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
+            df.to_parquet(temp_file.name)
+            path_only = source_path.replace("ds://s3ds_profile/", "").replace(
+                "s3://", ""
+            )
+            s3_fs.put_file(temp_file.name, path_only)
+        parquet_source = ParquetSource(name="test", path=source_path)
+
+        # ingest
+        targets = [
+            ParquetTarget(
+                path=f"{os.path.dirname(param['parquet_url'])}/target_{uuid.uuid4()}"
+            )
+        ]
+        fset = fstore.FeatureSet(
+            name="test_fs",
+            entities=[fstore.Entity("Column1")],
+        )
+
+        fstore.ingest(fset, source=parquet_source, targets=targets)
+        result = targets[0].as_df()
+        result.reset_index(inplace=True, drop=False)
+
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )

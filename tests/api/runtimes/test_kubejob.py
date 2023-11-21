@@ -31,6 +31,7 @@ from mlrun.common.schemas import SecurityContextEnrichmentModes
 from mlrun.config import config as mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
+from server.api.utils.singletons.db import get_db
 from tests.api.conftest import K8sSecretsMock
 from tests.api.runtimes.base import TestRuntimeBase
 
@@ -1005,6 +1006,66 @@ def my_func(context):
         container_spec = pod.spec.containers[0]
         assert container_spec.command == expected_command
         assert container_spec.args == expected_args
+
+    def test_state_thresholds_defaults(self, db: Session, k8s_secrets_mock):
+        runtime = self._generate_runtime()
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert (
+            run["spec"]["state_thresholds"]
+            == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        )
+
+    def test_set_state_thresholds_success(self, db: Session, k8s_secrets_mock):
+        state_thresholds = {
+            "pending_not_scheduled": "1000s",
+            "pending_scheduled": "1day 20m",
+            "running": "30h 19 min",
+            "image_pull_backoff": "-1",
+        }
+
+        runtime = self._generate_runtime()
+        runtime.set_state_thresholds(
+            state_thresholds=state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        assert run["spec"]["state_thresholds"] == state_thresholds
+
+        override_state_thresholds = {
+            "pending_not_scheduled": "250s",
+            "running": "40h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=override_state_thresholds,
+            patch=False,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = override_state_thresholds
+        expected_state_thresholds[
+            "image_pull_backoff"
+        ] = mlconf.function.spec.state_thresholds.default.image_pull_backoff
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
+
+        patch_state_thresholds = {
+            "pending_not_scheduled": "370s",
+            "image_pull_backoff": "50h 19 min",
+        }
+        runtime.set_state_thresholds(
+            state_thresholds=patch_state_thresholds,
+        )
+        self.execute_function(runtime)
+        run = get_db().list_runs(db, project=self.project)[0]
+        expected_state_thresholds = patch_state_thresholds
+        expected_state_thresholds["running"] = override_state_thresholds["running"]
+        expected_state_thresholds[
+            "pending_scheduled"
+        ] = mlconf.function.spec.state_thresholds.default.pending_scheduled
+        assert run["spec"]["state_thresholds"] == expected_state_thresholds
 
     @staticmethod
     def _assert_build_commands(expected_commands, runtime):

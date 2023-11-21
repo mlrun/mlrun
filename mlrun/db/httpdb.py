@@ -570,17 +570,32 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         """
-        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        self.update_run(
-            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
-            uid,
-            project,
-            iter,
-            timeout,
+        project = project or config.default_project
+        params = {"iter": iter}
+        updates = {}
+        if status_text:
+            updates["status.status_text"] = status_text
+        body = _as_json(updates)
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/abort",
+            error="Failed run abortion",
+            params=params,
+            body=body,
+            timeout=timeout,
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
 
     def read_run(self, uid, project="", iter=0):
         """Read the details of a stored run from the DB.
@@ -2251,11 +2266,11 @@ class HTTPRunDB(RunDBInterface):
         """Delete a project.
 
         :param name: Name of the project to delete.
-        :param deletion_strategy: How to treat child objects of the project. Possible values are:
+        :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any child objects when deleted. If using this mode while
-              child objects exist, the operation will fail.
-            - ``cascade`` - Automatically delete all child objects when deleting the project.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using
+              this mode while related resources exist, the operation will fail.
+            - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
         path = f"projects/{name}?wait-for-completion=false"
@@ -2363,10 +2378,13 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _wait_for_background_task_to_reach_terminal_state(
-        self, name: str
+        self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
-            background_task = self.get_background_task(name)
+            if project:
+                background_task = self.get_project_background_task(project, name)
+            else:
+                background_task = self.get_background_task(name)
             state = background_task.status.state
             if state not in mlrun.common.schemas.BackgroundTaskState.terminal_states():
                 raise Exception(
@@ -3220,6 +3238,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3232,6 +3251,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -3263,6 +3283,11 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        if notifications:
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+
         response = self.api_call(
             "POST",
             f"projects/{project}/workflows/{workflow_name}/submit",

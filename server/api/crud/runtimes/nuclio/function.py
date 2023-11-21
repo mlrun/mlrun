@@ -461,6 +461,10 @@ def _set_misc_specs(function, nuclio_spec):
                 function.spec, "security_context"
             ),
         )
+    if function.spec.disable_default_http_trigger is not None:
+        nuclio_spec.set_config(
+            "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
+        )
 
 
 def _set_source_code_and_handler(function, config):
@@ -490,14 +494,7 @@ def _resolve_and_set_base_image(
         or function.spec.build.base_image
     )
     if base_image:
-        # we ignore the returned registry secret as nuclio uses the image pull secret, which is resolved in the
-        # build params
-        (
-            base_image,
-            _,
-        ) = server.api.utils.builder.resolve_image_target_and_registry_secret(
-            base_image, secret_name=function.spec.build.secret
-        )
+        base_image = server.api.utils.builder.resolve_image_target(base_image)
         mlrun.utils.update_in(
             config,
             "spec.build.baseImage",

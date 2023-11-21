@@ -507,9 +507,6 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        pass
-
     def list_hub_sources(self, *args, **kwargs):
         return [self._create_dummy_indexed_hub_source()]
 
@@ -530,6 +527,12 @@ class RunDBMock:
                 ),
             ),
         )
+
+    def assert_runtime_categories(self, expected_categories, function_name=None):
+        function = self._get_function_internal(function_name)
+        categories = function["metadata"]["categories"]
+
+        assert categories == expected_categories
 
 
 @pytest.fixture()

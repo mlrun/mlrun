@@ -13,7 +13,6 @@
 # limitations under the License.
 import datetime
 import typing
-import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -187,15 +186,6 @@ class DBInterface(ABC):
     @abstractmethod
     def del_artifacts(self, session, name="", project="", tag="", labels=None):
         pass
-
-    # TODO: Make these abstract once filedb implements them
-    def store_metric(
-        self, session, uid, project="", keyvals=None, timestamp=None, labels=None
-    ):
-        warnings.warn("store_metric not implemented yet")
-
-    def read_metric(self, session, keys, project="", query=""):
-        warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
     def store_function(
@@ -594,6 +584,7 @@ class DBInterface(ABC):
         project: str,
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
+        error: str = None,
     ):
         pass
 

@@ -16,6 +16,7 @@ import importlib
 import inspect
 from typing import List, Union
 
+import mlrun.errors
 from mlrun.config import config as mlconf
 from mlrun.execution import MLClientCtx
 from mlrun.track.tracker import Tracker
@@ -98,7 +99,7 @@ class TrackerManager(metaclass=Singleton):
             except Exception as e:
                 logger.warn(
                     f"Tracker {tracker.__class__.__name__} failed in post run with the following exception",
-                    exception=str(e),
+                    exception=mlrun.errors.err_to_str(e),
                 )
 
         # Commit changes:

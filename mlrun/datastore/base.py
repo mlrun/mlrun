@@ -16,6 +16,7 @@ import urllib.parse
 from base64 import b64encode
 from os import path, remove
 from typing import Optional, Union
+from urllib.parse import urlparse
 
 import fsspec
 import orjson
@@ -48,6 +49,8 @@ class FileStats:
 
 
 class DataStore:
+    using_bucket = False
+
     def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
@@ -95,10 +98,10 @@ class DataStore:
         """Whether the data store supports isdir"""
         return True
 
-    def _get_secret_or_env(self, key, default=None):
+    def _get_secret_or_env(self, key, default=None, prefix=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
         return mlrun.get_secret_or_env(
-            key, secret_provider=self._get_secret, default=default
+            key, secret_provider=self._get_secret, default=default, prefix=prefix
         )
 
     def get_storage_options(self):
@@ -302,7 +305,9 @@ class DataStore:
                 storage_options = self.get_storage_options()
                 if url.startswith("ds://"):
                     parsed_url = urllib.parse.urlparse(url)
-                    url = parsed_url.path[1:]
+                    url = parsed_url.path
+                    if self.using_bucket:
+                        url = url[1:]
                     # Pass the underlying file system
                     kwargs["filesystem"] = file_system
                 elif storage_options:
@@ -699,3 +704,25 @@ class HttpStore(DataStore):
                 f"A AUTH TOKEN should not be provided while using {self._schema} "
                 f"schema as it is not secure and is not recommended."
             )
+
+
+# This wrapper class is designed to extract the 'ds' schema and profile name from URL-formatted paths.
+# Within fsspec, the AbstractFileSystem::_strip_protocol() internal method is used to handle complete URL paths.
+# As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
+# Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
+# method specifically to strip away the 'ds' schema as required.
+def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
+    if not issubclass(cls, fsspec.AbstractFileSystem):
+        raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
+
+    class DatastoreSchemaSanitizer(cls):
+        @classmethod
+        def _strip_protocol(cls, url):
+            if url.startswith("ds://"):
+                parsed_url = urlparse(url)
+                url = parsed_url.path
+                if using_bucket:
+                    url = url[1:]
+            return super()._strip_protocol(url)
+
+    return DatastoreSchemaSanitizer(*args, **kwargs)

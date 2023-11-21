@@ -126,6 +126,7 @@ class Spark3JobSpec(KubeResourceSpec):
         executor_cores=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
 
         super().__init__(
@@ -156,6 +157,7 @@ class Spark3JobSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
 
         self._driver_resources = self.enrich_resources_with_default_pod_resources(
@@ -854,6 +856,7 @@ class Spark3Runtime(KubejobRuntime):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ):
         """deploy function, build container with dependencies
 
@@ -865,8 +868,9 @@ class Spark3Runtime(KubejobRuntime):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             set True for force building the image, even when no changes were made
 
-        :return True if the function is ready (deployed)
+        :return: True if the function is ready (deployed)
         """
         # connect will populate the config from the server config
         mlrun.db.get_run_db()
@@ -880,6 +884,7 @@ class Spark3Runtime(KubejobRuntime):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             show_on_failure=show_on_failure,
+            force_build=force_build,
         )
 
     @staticmethod

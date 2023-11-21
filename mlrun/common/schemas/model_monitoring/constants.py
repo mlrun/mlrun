@@ -273,6 +273,6 @@ class ResultStatusApp(enum.IntEnum):
     detected = 2
 
 
-class ModelMonitoringAppTag:
-    KEY = "type"
-    VAL = "model-monitoring-application"
+class ModelMonitoringAppLabel:
+    KEY = "mlrun__type"
+    VAL = "mlrun__model-monitoring-application"

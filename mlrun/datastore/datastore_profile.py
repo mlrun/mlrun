@@ -48,6 +48,12 @@ class DatastoreProfile(pydantic.BaseModel):
         )
         return full_key
 
+    def secrets(self) -> dict:
+        return None
+
+    def url(self, subpath) -> str:
+        return None
+
 
 class TemporaryClientDatastoreProfiles(metaclass=mlrun.utils.singleton.Singleton):
     def __init__(self):
@@ -133,6 +139,25 @@ class DatastoreProfileS3(DatastoreProfile):
     access_key: typing.Optional[str] = None
     secret_key: typing.Optional[str] = None
 
+    def secrets(self) -> dict:
+        res = {}
+        if self.access_key:
+            res["AWS_ACCESS_KEY_ID"] = self.access_key
+        if self.secret_key:
+            res["AWS_SECRET_ACCESS_KEY"] = self.secret_key
+        if self.endpoint_url:
+            res["S3_ENDPOINT_URL"] = self.endpoint_url
+        if self.force_non_anonymous:
+            res["S3_NON_ANONYMOUS"] = self.force_non_anonymous
+        if self.profile_name:
+            res["AWS_PROFILE"] = self.profile_name
+        if self.assume_role_arn:
+            res["MLRUN_AWS_ROLE_ARN"] = self.assume_role_arn
+        return res if res else None
+
+    def url(self, subpath):
+        return f"s3:/{subpath}"
+
 
 class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.Field("redis")
@@ -140,9 +165,6 @@ class DatastoreProfileRedis(DatastoreProfile):
     endpoint_url: str
     username: typing.Optional[str] = None
     password: typing.Optional[str] = None
-
-    def is_secured(self):
-        return self.endpoint_url.startswith("rediss://")
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
@@ -167,6 +189,35 @@ class DatastoreProfileRedis(DatastoreProfile):
             fragment=parsed_url.fragment,
         )
         return urlunparse(new_parsed_url)
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.username:
+            res["REDIS_USER"] = self.username
+        if self.password:
+            res["REDIS_PASSWORD"] = self.password
+        return res if res else None
+
+    def url(self, subpath):
+        return self.endpoint_url + subpath
+
+
+class DatastoreProfileDBFS(DatastoreProfile):
+    type: str = pydantic.Field("dbfs")
+    _private_attributes = ("token",)
+    endpoint_url: typing.Optional[str] = None  # host
+    token: typing.Optional[str] = None
+
+    def url(self, subpath) -> str:
+        return f"dbfs://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.token:
+            res["DATABRICKS_TOKEN"] = self.token
+        if self.endpoint_url:
+            res["DATABRICKS_HOST"] = self.endpoint_url
+        return res if res else None
 
 
 class DatastoreProfile2Json(pydantic.BaseModel):
@@ -225,6 +276,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "basic": DatastoreProfileBasic,
             "kafka_target": DatastoreProfileKafkaTarget,
             "kafka_source": DatastoreProfileKafkaSource,
+            "dbfs": DatastoreProfileDBFS,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

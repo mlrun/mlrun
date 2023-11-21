@@ -52,7 +52,7 @@ def infer_schema_from_df(
             entities[name] = {"name": name, "value_type": value_type}
 
     # remove index column if no name provided
-    if not df.index.name and pd.api.types.is_numeric_dtype(df):
+    if not df.index.name and pd.api.types.is_numeric_dtype(df.index):
         df = df.reset_index().drop("index", axis=1)
 
     schema = pyarrow.Schema.from_pandas(df)

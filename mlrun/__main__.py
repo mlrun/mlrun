@@ -152,7 +152,7 @@ def main():
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
-@click.option("--image", default="", help="container image")
+@click.option("--image", default="", help="container image (defaults to mlrun/mlrun)")
 @click.option("--kind", default="", help="serverless runtime kind")
 @click.option("--source", default="", help="source code archive/git")
 @click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
@@ -281,7 +281,7 @@ def run(
             name=project,
             context="./",
         )
-    if func_url or kind or image:
+    if func_url or kind:
         if func_url:
             runtime = func_url_to_runtime(func_url, ensure_project)
             kind = get_in(runtime, "kind", kind or "job")
@@ -289,7 +289,7 @@ def run(
                 exit(1)
         else:
             kind = kind or "job"
-            runtime = {"kind": kind, "spec": {"image": image}}
+            runtime = {"kind": kind, "spec": {"image": image or "mlrun/mlrun"}}
 
         if kind not in ["", "local", "dask"] and url:
             if url_file and path.isfile(url_file):
@@ -365,8 +365,9 @@ def run(
 
     if run_args:
         update_in(runtime, "spec.args", list(run_args))
-    if image:
-        update_in(runtime, "spec.image", image)
+
+    update_in(runtime, "spec.image", image or "mlrun/mlrun", replace=bool(image))
+
     set_item(runobj.spec, handler, "handler")
     set_item(runobj.spec, param, "parameters", fill_params(param))
 
@@ -417,7 +418,12 @@ def run(
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
         resp = fn.run(
-            runobj, watch=watch, schedule=schedule, local=local, auto_build=auto_build
+            runobj,
+            watch=watch,
+            schedule=schedule,
+            local=local,
+            auto_build=auto_build,
+            project=project,
         )
         if resp and dump:
             print(resp.to_yaml())
@@ -452,7 +458,7 @@ def run(
     "--runtime", "-r", default="", help="function spec dict, for pipeline usage"
 )
 @click.option(
-    "--kfp", is_flag=True, help="running inside Kubeflow Piplines, do not use"
+    "--kfp", is_flag=True, help="running inside Kubeflow Pipelines, do not use"
 )
 @click.option("--skip", is_flag=True, help="skip if already deployed")
 @click.option(
@@ -727,6 +733,12 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
             print()
 
     elif kind.startswith("run"):
+        if tag:
+            print(
+                "Unsupported argument '--tag' for listing runs. Perhaps you should use '--selector' instead"
+            )
+            return
+
         run_db = get_run_db()
         if name:
             run = run_db.read_run(name, project=project)

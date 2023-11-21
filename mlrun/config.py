@@ -92,11 +92,18 @@ default_config = {
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    # runs monitoring interval in seconds
-    "runs_monitoring_interval": "30",
-    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
-    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
-    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
+    "monitoring": {
+        "runs": {
+            # runs monitoring interval in seconds
+            "interval": "30",
+            # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding
+            # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
+            # default
+            "missing_runtime_resources_debouncing_interval": None,
+            # max number of parallel abort run jobs in runs monitoring
+            "concurrent_abort_stale_runs_workers": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -167,7 +174,11 @@ default_config = {
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600", "load_project": "60"},
+            "operations": {
+                "migrations": "3600",
+                "load_project": "60",
+                "run_abortion": "600",
+            },
             "runtimes": {"dask": "600"},
         },
     },
@@ -189,6 +200,17 @@ default_config = {
                 },
             },
             "service_account": {"default": None},
+            "state_thresholds": {
+                "default": {
+                    "pending_scheduled": "1h",
+                    "pending_not_scheduled": "-1",  # infinite
+                    "image_pull_backoff": "1h",
+                    "running": "24h",
+                }
+            },
+        },
+        "databricks": {
+            "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -440,7 +462,7 @@ default_config = {
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
+        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
@@ -917,9 +939,9 @@ class Config:
 
     def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
         return (
-            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
-            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
-            else float(config.runs_monitoring_interval) * 2.0
+            float(self.monitoring.runs.missing_runtime_resources_debouncing_interval)
+            if self.monitoring.runs.missing_runtime_resources_debouncing_interval
+            else float(config.monitoring.runs.interval) * 2.0
         )
 
     @staticmethod

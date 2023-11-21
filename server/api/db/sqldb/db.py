@@ -75,10 +75,8 @@ from server.api.db.sqldb.models import (
     Run,
     Schedule,
     User,
-    _labeled,
-    _tagged,
-    _with_notifications,
 )
+from server.api.db.sqldb.models.common import _labeled, _tagged, _with_notifications
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
 unversioned_tagged_object_uid_prefix = "unversioned-"
@@ -3661,7 +3659,9 @@ class SQLDB(DBInterface):
         project: str,
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
         timeout: int = None,
+        error: str = None,
     ):
+        error = server.api.db.sqldb.helpers.ensure_max_length(error)
         background_task_record = self._query(
             session,
             BackgroundTask,
@@ -3683,6 +3683,7 @@ class SQLDB(DBInterface):
             if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
                 background_task_record.timeout = int(timeout)
             background_task_record.state = state
+            background_task_record.error = error
             background_task_record.updated = now
         else:
             if mlrun.mlconf.background_tasks.timeout_mode == "disabled":
@@ -3695,6 +3696,7 @@ class SQLDB(DBInterface):
                 created=now,
                 updated=now,
                 timeout=int(timeout) if timeout else None,
+                error=error,
             )
         self._upsert(session, [background_task_record])
 
@@ -3734,6 +3736,7 @@ class SQLDB(DBInterface):
             spec=mlrun.common.schemas.BackgroundTaskSpec(),
             status=mlrun.common.schemas.BackgroundTaskStatus(
                 state=background_task_record.state,
+                error=background_task_record.error,
             ),
         )
 

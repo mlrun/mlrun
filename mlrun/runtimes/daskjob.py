@@ -15,6 +15,7 @@ import datetime
 import inspect
 import socket
 import time
+import typing
 from os import environ
 
 import mlrun.common.schemas
@@ -230,7 +231,7 @@ class DaskCluster(KubejobRuntime):
             if db_func and "status" in db_func:
                 self.status = db_func["status"]
                 if self.kfp:
-                    logger.info(f"dask status: {db_func['status']}")
+                    logger.info(f"Dask status: {db_func['status']}")
                 return "scheduler_address" in db_func["status"]
 
         return False
@@ -311,7 +312,7 @@ class DaskCluster(KubejobRuntime):
             if self.spec.service_type == "NodePort":
                 dash = f"{config.remote_host}:{self.status.node_ports.get('dashboard')}"
             else:
-                logger.info("to get a dashboard link, use NodePort service_type")
+                logger.info("To get a dashboard link, use NodePort service_type")
 
         return addr, dash
 
@@ -325,12 +326,12 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
-            logger.info(f"trying dask client at: {addr}")
+            logger.info(f"Trying dask client at: {addr}")
             try:
                 client = Client(addr)
             except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
+                    f"Remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
                 )
 
                 status = self.get_status()
@@ -340,7 +341,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
 
             logger.info(
-                f"using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
+                f"Using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
             )
             if dash:
                 ipython_display(
@@ -456,6 +457,15 @@ class DaskCluster(KubejobRuntime):
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec._verify_and_set_requests("worker_resources", mem, cpu, patch=patch)
+
+    def set_state_thresholds(
+        self,
+        state_thresholds: typing.Dict[str, str],
+        patch: bool = True,
+    ):
+        raise NotImplementedError(
+            "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead.",
+        )
 
     def _run(self, runobj: RunObject, execution):
 

@@ -46,6 +46,7 @@ from ..utils import (
     logger,
     new_pipe_metadata,
     normalize_name,
+    unsupported,
     version,
 )
 from .base import RunDBError, RunDBInterface
@@ -1461,9 +1462,10 @@ class HTTPRunDB(RunDBInterface):
                 cleanup_ttl=cleanup_ttl,
                 op_transformers=ops,
             )
-            kfp.compiler.Compiler().compile(
-                pipeline, pipe_file, type_check=False, pipeline_conf=conf
-            )
+            with unsupported.disable_unsupported_external_features():
+                kfp.compiler.Compiler().compile(
+                    pipeline, pipe_file, type_check=False, pipeline_conf=conf
+                )
 
         if pipe_file.endswith(".yaml"):
             headers = {"content-type": "application/yaml"}

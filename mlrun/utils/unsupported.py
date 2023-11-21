@@ -34,14 +34,14 @@ def disable_unsupported_external_features():
     """
     try:
         originals = []
-        for d in dependencies:
-            module_name, _, callable_name = d.rpartition(".")
+        for dependency in dependencies:
+            module_name, _, callable_name = dependency.rpartition(".")
             try:
                 curr = getattr(import_module(module_name), callable_name)
             except (ImportError, KeyError) as exc:
                 logger.debug(
                     "Module import for dependency patching failed",
-                    dependency=d,
+                    dependency=dependency,
                     exc_info=err_to_str(exc),
                 )
                 continue
@@ -49,7 +49,7 @@ def disable_unsupported_external_features():
             if not isclass(curr):
                 logger.debug(
                     "MLRun only supports patching of features based on classes",
-                    dependency=d,
+                    dependency=dependency,
                 )
                 continue
 
@@ -60,7 +60,7 @@ def disable_unsupported_external_features():
                 }
             )
             curr.__init__ = mock.MagicMock(
-                side_effect=NotImplementedError(f"MLRun does not support {d}")
+                side_effect=NotImplementedError(f"MLRun does not support {dependency}")
             )
         # Signal the caller that the context is ready
         yield
@@ -73,9 +73,9 @@ def disable_unsupported_external_features():
         yield
     finally:
         # When caller signals for the closure of the context, we revert all patches
-        for o in originals:
+        for original in originals:
             try:
-                o["class"].__init__ = o["original_method"]
+                original["class"].__init__ = original["original_method"]
             except Exception as exc:
                 logger.warning(
                     "Error while trying to re-enable an external feature not supported by MLRun",

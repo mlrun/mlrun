@@ -50,7 +50,6 @@ def disable_unsupported_external_features():
                 logger.debug(
                     "MLRun only supports patching of features based on classes",
                     dependency=d,
-                    exc_info=err_to_str(exc),
                 )
                 continue
 

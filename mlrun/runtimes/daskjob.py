@@ -15,8 +15,8 @@ import datetime
 import inspect
 import socket
 import time
-import typing
 from os import environ
+from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -460,11 +460,69 @@ class DaskCluster(KubejobRuntime):
 
     def set_state_thresholds(
         self,
-        state_thresholds: typing.Dict[str, str],
+        state_thresholds: Dict[str, str],
         patch: bool = True,
     ):
         raise NotImplementedError(
             "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead.",
+        )
+
+    def run(
+        self,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
+        **launcher_kwargs,
+    ) -> RunObject:
+        if state_thresholds:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead."
+            )
+        return super().run(
+            runspec=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+            state_thresholds=state_thresholds,
+            **launcher_kwargs,
         )
 
     def _run(self, runobj: RunObject, execution):

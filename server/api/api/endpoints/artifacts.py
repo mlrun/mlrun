@@ -146,16 +146,17 @@ async def get_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = await run_in_threadpool(
-        server.api.crud.Artifacts().get_artifact,
-        db_session,
-        key,
-        tag=tag,
-        iter=iter,
-        project=project,
-        format_=format_,
-    )
-    if not data:
+    try:
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            format_=format_,
+        )
+    except mlrun.errors.MLRunNotFoundError:
         # in earlier versions, producer_id and tag got confused with each other,
         # so we try to get the artifact with the given tag as the producer_id before returning an empty response
         data = await run_in_threadpool(

@@ -98,7 +98,16 @@ async def store_artifact(
         auth_info=auth_info,
     )
 
-    logger.debug("Storing artifact", project=project, key=key, tag=tag, iter=iter)
+    producer_id = tree
+    logger.debug(
+        "Storing artifact",
+        project=project,
+        key=key,
+        tag=tag,
+        producer_id=producer_id,
+        iter=iter,
+    )
+
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -106,7 +115,6 @@ async def store_artifact(
         mlrun.common.schemas.AuthorizationAction.store,
         auth_info,
     )
-    producer_id = tree
     artifact_uid = await run_in_threadpool(
         server.api.crud.Artifacts().store_artifact,
         db_session,

@@ -96,15 +96,9 @@ class BatchApplicationProcessor:
         elif self.parquet_directory.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
-    def _initialize_v3io_configurations(
-        self,
-        v3io_framesd: str = None,
-        v3io_api: str = None,
-    ) -> None:
-        # Get the V3IO configurations
-        self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
-        self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
-
+    def _initialize_v3io_configurations(self) -> None:
+        self.v3io_framesd = mlrun.mlconf.v3io_framesd
+        self.v3io_api = mlrun.mlconf.v3io_api
         self.storage_options = dict(
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )

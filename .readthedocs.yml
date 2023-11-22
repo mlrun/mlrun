@@ -37,3 +37,9 @@ search:
   ignore:
     # https://github.com/readthedocs/readthedocs.org/issues/10911
     - '*/01-mlrun-basics-colab.html'
+
+    # Defaults
+    - search.html
+    - search/index.html
+    - 404.html
+    - 404/index.html

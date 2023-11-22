@@ -35,4 +35,5 @@ python:
 
 search:
   ignore:
+    # https://github.com/readthedocs/readthedocs.org/issues/10911
     - docs/tutorials/colab/01-mlrun-basics-colab.ipynb

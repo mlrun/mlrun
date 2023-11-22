@@ -400,3 +400,31 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
                 ignore_order=True,
             )
         ) == {}
+
+
+def test_legacy_get_artifact_with_tree_as_tag_fallback(
+    db: Session, client: TestClient
+) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+
+    # store artifact with tree as tag, which was referred to as uid in the legacy API
+    tree = "my-tree"
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=tree, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # get the artifact with the tree as tag, and expect it to be returned properly,
+    # due to the fallback in the legacy API
+    artifact_path = LEGACY_API_GET_ARTIFACT_PATH.format(
+        project=PROJECT, key=KEY, tag=tree
+    )
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    artifact = resp.json()
+    assert not is_legacy_artifact(artifact["data"])
+    assert artifact["data"]["metadata"]["key"] == KEY
+    assert artifact["data"]["metadata"]["tree"] == tree

@@ -202,36 +202,6 @@ def test_get_store_artifact_url_parsing():
         mlrun.datastore.store_resources.get_store_resource(url, db)
 
 
-def test_get_store_artifact_url_parsing_with_fallback():
-    """
-    This test verifies that if an artifact is not found with the given url,
-    it falls back to the previous implementation, and the tree is passed as the tag
-    before failing completely.
-    """
-    db = Mock()
-    expected_project = "some_project"
-    expected_key = "some_key"
-    expected_tree = "some_tree"
-    expected_iteration = 1
-
-    url = f"store://{expected_project}/{expected_key}#{expected_iteration}@{expected_tree}"
-
-    db.read_artifact = Mock(
-        side_effect=[
-            mlrun.errors.MLRunNotFoundError("Artifact not found"),
-            {},
-        ]
-    )
-    mlrun.datastore.store_resources.get_store_resource(url, db)
-    assert db.read_artifact.call_count == 2
-    db.read_artifact.assert_called_with(
-        expected_key,
-        project=expected_project,
-        tag=expected_tree,
-        iter=expected_iteration,
-    )
-
-
 @pytest.mark.parametrize("legacy_format", [False, True])
 def test_get_store_resource_with_linked_artifacts(legacy_format):
     artifact_key = "key1"

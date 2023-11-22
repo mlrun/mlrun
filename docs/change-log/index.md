@@ -15,6 +15,7 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
+|ML-3840|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
 |ML-4839/4844|Running `project.build_image` now always reads the requirements.txt file. |
 |ML-4860  |Fixed creating and running functions with no parameters from the UI.      |
 |ML-4872 |Fixed synchronizing functions from project yaml.                          |
@@ -725,16 +726,15 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-1835|The index record is duplicated in the datasets metadata. | NA | v1.0.0 |
 |ML-2030|Need means of moving artifacts from test to production Spark.           |To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`| v1.0.0    |
 |ML-2223|Cannot deploy a function when notebook names contain "." (ModuleNotFoundError)| Do not use "." in notebook name|v1.0.0 |
-|ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set and then the ingestion service accepts new records.|v1.1.0    |
+|ML-2407|Kafka ingestion service on an empty feature set returns an error.      |Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.|v1.1.0    |
 |ML-2489|Cannot pickle a class inside an mlrun function.                       |Use cloudpickle instead of pickle.|v1.2.0    |
 |[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error|Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                                    |v1.1.0    |
 |ML-3294|Dask coredump during project deletion.|Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 |NA |v1.2.1    |
 |ML-3386|Documentation is missing full details on the feature store sources and targets.| NA|v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
-|ML-3480|Documentation: request details on label parameter of feature set definition.| NA | v1.2.1    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
-|ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.)    |
+|ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
 |ML-3640|When running a remote function/workflow, the `context` global parameter is not automatically injected.| Use `get_or_create_ctx`| v1.3.0    |
 |ML-3714|It can happen that an MLrun pod succeeds but there's an error in Kubeflow. | NA | v1.3.0 |
 |ML-3804|A serving step with no class does not inherit parameters from the function spec. |Create a class to forward the parameters. See [Create a single step](../serving/writing-custom-steps.html#create-a-single-step). | v1.3.1 |
@@ -747,30 +747,24 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4613|UI: The Batch Inference Parameters has an incorrect hint on map type. The correct hint is "The 'dict' values should be in JSON key:value format, e.g. {"hello":"world"}" | NA | v1.5.0 |
 |ML-4617|Incorrect error message when using a feature vector as an input to a job without first calling `get_offline_features` on the vector. |Apply `get_offline_features()` on the feature vector and provide a target.| v1.5.0 |
 |ML-4642|The UI can get stuck when query results are too large to display. |Add a filter (or narrow it) to retrieve fewer results.|                 v1.5.0|   
-|ML-4678|When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|Use the UI instead. | v1.5.0 |
+|ML-4678|When tagging a specific version of a model using the SDK, it clears the tags from the rest of the versions.|First add a tag, (`replace=False`), then delete the old tag: `mlrun.get_run_db().tag_artifacts(project=project.name,artifacts=model1, tag_name="newtag", replace=False)`,`mlrun.get_run_db().delete_artifacts_tags(project=project.name, artifacts=[model1], tag_name=model1.metadata.tag)`  | v1.5.0 |
 |ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.| NA, external Kubeflow limitation. | v1.5.0 |
 |ML-4714|Logs got truncated in the MLRun UI logs page for jobs that have a high number of logs or run for over day.  | NA | v1.5.0 |
 |ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.|Prepare suitable Data-item and provide it to the batch-rerun UI.| v1.5.0    |
-|ML-4753|When rebuilding a new image with a name that has already been used, the dependencies of the new image are not updated.  | NA | v1.5.0 |
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.| Delete again.| v1.5.0    |
 |ML-4767|Torch 2.1.0 is not compatible with mlrun-gpu image.              | NA | v1.5.0 |
 |ML-4821|Sometimes very big project deletions fail with a timeout due to deletion of project resources taking too long.|Delete the project again  | NA | v1.5.0 | 
 |ML-4858|After aborting a job/run from the UI, the logs are empty.              | NA | v1.5.0 |
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. |Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster. | v1.5.0 |
-|ML-4953|Cannot build image through the UI on external registry, as no creds are passed.| NA | v1.5.0 |
-|ML-4967| The **Deploy** button in the **Project > Models** page does create a new endpoint/serving function, or add a model to any function, even though it responds "Model deployment initiated successfully". | NA | v1.5.1 |
+|ML-4953|Cannot build image through the UI on external registry, as no credentials are passed.| NA | v1.5.0 |
+|ML-4967|The **Deploy** button in the **Project > Models** page does create a new endpoint/serving function, or add a model to any function, even though it responds "Model deployment initiated successfully". | NA | v1.5.1 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy** | v1.5.1 |
+|ML-4992|When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|Set target dir, and change workdir back:    `sj.with_source_archive(`, `source=project.source, pull_at_runtime=False, target_dir="/igz/mlrun_code"`,    `)`, ` sj.spec.build.extra = "WORKDIR /igz"`| v1.5.0 |  
 |ML-5001|The list of workflows in the **Monitoring workflows** page includes only workflows that have already been run. | NA | v1.5.1 |
-|ML-5042|After creating and deleting a project, a new project cannot be ceated in the same folder with the same context. | NA | v1.5.1 |
+|ML-5042|After creating and deleting a project, a new project cannot be created in the same folder with the same context. | NA | v1.5.1 |
 |ML-5048|UI Edit function dialog: After selecting **Use an existing image**, when pressing **Deploy**, a new image is created.| NA | v1.5.1 |
-|ML-4992|When a source archive is specified, the docker image's working directory is no longer automatically set to the target directory of that source archive.|Set target dir, and change workdir back: 
-   ```sj.with_source_archive(
-       source=project.source, pull_at_runtime=False, target_dir="/igz/mlrun_code"
-   )
-   sj.spec.build.extra = "WORKDIR /igz"
-   ```
-
-
+|ML-5078|Cannot only use `project.create_remote()` if `init_git=True` was set on project creation. | Set `init_git=True` on project creation.| v1.5.1 |
+|ML-5079|Cannot update git remote with `project.create_remote()`| NA | v1.5.1 |
 
 ## Limitations
 | ID     |Description                                                                                                                                 |Workaround |Opened in|

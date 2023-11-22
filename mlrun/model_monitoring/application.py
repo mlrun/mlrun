@@ -134,7 +134,6 @@ class ModelMonitoringApplication(StepToDict):
             self._lazy_init(app_name=resolved_event[0])
         # Run application and get the result in the required `ModelMonitoringApplicationResult` format
         result = self.run_application(*resolved_event)
-        print("[EYAL]: result in application.py: ", result)
         # Add current stats to the result as provided in the event
         result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
         return result
@@ -209,7 +208,6 @@ class ModelMonitoringApplication(StepToDict):
             event[mm_constant.ApplicationEvent.START_PROCESSING_TIME]
         )
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_PROCESSING_TIME])
-        print("[EYAL] resolved event: ", event)
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
             ModelMonitoringApplication._dict_to_histogram(

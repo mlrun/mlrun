@@ -157,6 +157,13 @@ async def get_artifact(
             format_=format_,
         )
     except mlrun.errors.MLRunNotFoundError:
+        logger.debug(
+            "Artifact not found, trying to get it with producer_id=tag to support older versions",
+            project=project,
+            key=key,
+            tag=tag,
+        )
+
         # in earlier versions, producer_id and tag got confused with each other,
         # so we try to get the artifact with the given tag as the producer_id before returning an empty response
         data = await run_in_threadpool(

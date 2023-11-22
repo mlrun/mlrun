@@ -932,7 +932,7 @@ def test_resolve_build_requirements(
             None,
             "mlrun/mlrun",
             "1.4.0",
-            "1.4.0",
+            "==1.4.0",
         ),
         (
             "mlrun~=1.5.0",
@@ -944,37 +944,43 @@ def test_resolve_build_requirements(
             None,
             "mlrun/mlrun:1.5.2",
             "1.4.0",
-            "1.5.2",
+            "==1.5.2",
         ),
         (
             None,
             "mlrun/mlrun:1.5.2-rc10",
             None,
-            "1.5.2-rc10",
+            "==1.5.2-rc10",
         ),
         (
             None,
             "mlrun/ml-base:1.5.1",
             "1.4.0",
-            "1.5.1",
+            "==1.5.1",
         ),
         (
             None,
             "somewhere/mlrun/ml-base:1.5.1",
             "1.4.0",
-            "1.5.1",
+            "==1.5.1",
         ),
         (
             None,
             "not-an-mlrun/image:1.5.1",
             "1.4.0",
-            "1.4.0",
+            "==1.4.0",
         ),
         (
             "mlrun[complete]==1.6.0",
             "not-an-mlrun/image:1.5.1",
             "1.4.0",
             "",
+        ),
+        (
+            None,
+            "mlrun/mlrun:unstable",
+            "1.4.0",
+            " @ git+https://github.com/mlrun/mlrun@development",
         ),
     ],
 )
@@ -1022,7 +1028,7 @@ def test_mlrun_base_image_with_requirements(
             ]
         else:
             assert requirements == [
-                f"mlrun[complete]=={expected_mlrun_version}",
+                f"mlrun[complete]{expected_mlrun_version}",
                 "some-package",
             ]
 

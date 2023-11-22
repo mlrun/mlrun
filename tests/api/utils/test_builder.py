@@ -925,6 +925,132 @@ def test_resolve_build_requirements(
     assert requirements_path == expected_requirements_path
 
 
+@pytest.mark.parametrize(
+    "mlrun_version_specifier, base_image, client_version, expected_mlrun_version",
+    [
+        (
+            None,
+            "mlrun/mlrun",
+            "1.4.0",
+            "1.4.0",
+        ),
+        (
+            "mlrun~=1.5.0",
+            "mlrun/mlrun:1.6.0",
+            "1.4.0",
+            "",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2",
+            "1.4.0",
+            "1.5.2",
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.5.2-rc10",
+            None,
+            "1.5.2-rc10",
+        ),
+        (
+            None,
+            "mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "1.5.1",
+        ),
+        (
+            None,
+            "somewhere/mlrun/ml-base:1.5.1",
+            "1.4.0",
+            "1.5.1",
+        ),
+        (
+            None,
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "1.4.0",
+        ),
+        (
+            "mlrun[complete]==1.6.0",
+            "not-an-mlrun/image:1.5.1",
+            "1.4.0",
+            "",
+        ),
+    ],
+)
+def test_mlrun_base_image_with_requirements(
+    monkeypatch,
+    mlrun_version_specifier,
+    base_image,
+    client_version,
+    expected_mlrun_version,
+):
+    docker_registry = "default.docker.registry/default-repository"
+    config.httpdb.builder.docker_registry = docker_registry
+    _patch_k8s_helper(monkeypatch)
+
+    with unittest.mock.patch(
+        "server.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            requirements=["some-package"],
+        )
+        function.spec.build.base_image = base_image
+
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+            client_version=client_version,
+            mlrun_version_specifier=mlrun_version_specifier,
+        )
+
+        requirements = server.api.utils.builder.make_kaniko_pod.call_args[1][
+            "requirements"
+        ]
+        if expected_mlrun_version is None:
+            assert requirements == [
+                "some-package",
+            ]
+        elif mlrun_version_specifier:
+            assert requirements == [
+                mlrun_version_specifier,
+                "some-package",
+            ]
+        else:
+            assert requirements == [
+                f"mlrun[complete]=={expected_mlrun_version}",
+                "some-package",
+            ]
+
+
+def test_mlrun_base_image_no_requirements():
+    with unittest.mock.patch(
+        "server.api.utils.builder.build_image", new=unittest.mock.MagicMock()
+    ):
+        function = mlrun.new_function(
+            "some-function",
+            "some-project",
+            "some-tag",
+            kind="job",
+            source="some-source.zip",
+        )
+        function.spec.build.base_image = "mlrun/mlrun:1.6.0"
+
+        server.api.utils.builder.build_runtime(
+            mlrun.common.schemas.AuthInfo(),
+            function,
+        )
+
+        requirements = server.api.utils.builder.build_image.call_args[1]["requirements"]
+        with_mlrun = server.api.utils.builder.build_image.call_args[1]["with_mlrun"]
+        assert requirements == []
+        assert with_mlrun is False
+
+
 def _get_target_image_from_create_pod_mock():
     return _create_pod_mock_pod_spec().containers[0].args[5]
 

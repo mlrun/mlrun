@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import asyncio
+import re
 from typing import Optional
 
 from timelength import TimeLength
@@ -89,3 +90,14 @@ def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int
         raise ValueError(f"Invalid time string {time_str}, must be at least 1 minute")
 
     return total_seconds
+
+
+def extract_image_tag(image_reference):
+    # Define a regular expression pattern for extracting the image tag
+    pattern = r"(?<=:)[\w.-]+"  # This matches any word character,dots,hyphens after a colon (:)
+
+    # Use re.search to find the first match in the string
+    match = re.search(pattern, image_reference)
+
+    # Check if a match is found and return the result
+    return match.group() if match else None

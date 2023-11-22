@@ -1242,7 +1242,7 @@ class MlrunProject(ModelObj):
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
         # engine could be "remote" or "remote:local"
-        if image and ((engine and "remote" in engine) or schedule):
+        if image and ((engine and "remote" not in engine) and not schedule):
             logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:

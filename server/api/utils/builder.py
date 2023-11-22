@@ -29,6 +29,7 @@ import mlrun.errors
 import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
+import server.api.utils.helpers
 import server.api.utils.singletons.k8s
 from mlrun.config import config
 from mlrun.utils.helpers import remove_image_protocol_prefix
@@ -46,6 +47,7 @@ def make_dockerfile(
     builder_env: typing.List[client.V1EnvVar] = None,
     extra_args: str = "",
     project_secrets: typing.List[client.V1EnvVar] = None,
+    constraints_path: str = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.
@@ -67,6 +69,8 @@ def make_dockerfile(
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
     :param project_secrets: A list of Kubernetes V1EnvVar objects representing the project secrets,
             which will be used as build-time arguments in the Dockerfile.
+    :param constraints_path: The path to the constraints file (e.g., constraints.txt) containing
+            the Python dependencies constraints.
     :return: The content of the Dockerfile as a string.
     """
     dock = f"FROM {base_image}\n"
@@ -131,7 +135,10 @@ def make_dockerfile(
         dock += (
             f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
         )
-        dock += f"RUN python -m pip install -r {requirements_path}\n"
+        constraints_flag = ""
+        if constraints_path:
+            constraints_flag = f" -c {constraints_path}"
+        dock += f"RUN python -m pip install -r {requirements_path}{constraints_flag}\n"
     if extra:
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)
@@ -415,9 +422,9 @@ def build_image(
     )
 
     if force_build:
-        mlrun.utils.logger.info("forcefully building image")
+        mlrun.utils.logger.info("Forcefully building image")
     elif not inline_code and not source and not commands and not requirements:
-        mlrun.utils.logger.info("skipping build, nothing to add")
+        mlrun.utils.logger.info("Skipping build, nothing to add")
         return "skipped"
 
     context = "/context"
@@ -622,6 +629,8 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed():
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
+
+    is_mlrun_image = False
     if build.base_image:
         # TODO: ml-models was removed in 1.5.0. remove it from here in 1.7.0.
         mlrun_images = [
@@ -630,12 +639,13 @@ def build_runtime(
             "mlrun/ml-base",
             "mlrun/ml-models",
         ]
-        # if the base is one of mlrun images - no need to install mlrun
         if any([image in build.base_image for image in mlrun_images]):
+            # If the base is one of mlrun images - set with_mlrun to False, so it won't be added later
             with_mlrun = False
+            is_mlrun_image = True
 
     if force_build:
-        mlrun.utils.logger.info("forcefully building image")
+        mlrun.utils.logger.info("Forcefully building image")
     elif (
         not build.source
         and not build.commands
@@ -670,7 +680,7 @@ def build_runtime(
         inline = b64decode(build.functionSourceCode).decode("utf-8")  # noqa: F841
     if not build.image:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "build spec must have a target image, set build.image = <target image>"
+            "Build spec must have a target image, set build.image = <target image>"
         )
     name = mlrun.utils.normalize_name(f"mlrun-build-{runtime.metadata.name}")
 
@@ -680,6 +690,18 @@ def build_runtime(
     enriched_base_image = runtime.full_image_path(
         base_image, client_version, client_python_version
     )
+
+    # Add mlrun to the requirements even though it is already installed because
+    # we want pip to include mlrun constraints when installing other packages
+    # TODO: don't add if feature branch
+    if is_mlrun_image and build.requirements:
+        image_tag = server.api.utils.helpers.extract_image_tag(enriched_base_image)
+        if image_tag:
+            installed_mlrun_version_command = resolve_mlrun_install_command_version(
+                mlrun_version_specifier, client_version=image_tag
+            )
+            build.requirements.insert(0, installed_mlrun_version_command)
+
     mlrun.utils.logger.info(
         "Building runtime image",
         base_image=enriched_base_image,
@@ -727,7 +749,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    mlrun.utils.logger.info(f"build completed with {status}")
+    mlrun.utils.logger.info(f"Build completed", status=status)
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False

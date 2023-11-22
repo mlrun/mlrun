@@ -47,7 +47,6 @@ def make_dockerfile(
     builder_env: typing.List[client.V1EnvVar] = None,
     extra_args: str = "",
     project_secrets: typing.List[client.V1EnvVar] = None,
-    constraints_path: str = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.
@@ -69,8 +68,6 @@ def make_dockerfile(
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
     :param project_secrets: A list of Kubernetes V1EnvVar objects representing the project secrets,
             which will be used as build-time arguments in the Dockerfile.
-    :param constraints_path: The path to the constraints file (e.g., constraints.txt) containing
-            the Python dependencies constraints.
     :return: The content of the Dockerfile as a string.
     """
     dock = f"FROM {base_image}\n"
@@ -135,10 +132,7 @@ def make_dockerfile(
         dock += (
             f"RUN echo 'Installing {requirements_path}...'; cat {requirements_path}\n"
         )
-        constraints_flag = ""
-        if constraints_path:
-            constraints_flag = f" -c {constraints_path}"
-        dock += f"RUN python -m pip install -r {requirements_path}{constraints_flag}\n"
+        dock += f"RUN python -m pip install -r {requirements_path}\n"
     if extra:
         dock += extra
     mlrun.utils.logger.debug("Resolved dockerfile", dockfile_contents=dock)

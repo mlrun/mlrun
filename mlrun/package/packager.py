@@ -14,7 +14,7 @@
 #
 import pathlib
 import tempfile
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Union
 
@@ -24,51 +24,7 @@ from mlrun.datastore import DataItem
 from .utils import TypeHintUtils
 
 
-# TODO: When 3.7 is no longer supported, add "Packager" as reference type hint to cls (cls: Type["Packager"]) and other.
-class _PackagerMeta(ABCMeta):
-    """
-    Metaclass for `Packager` to override type class methods.
-    """
-
-    def __lt__(cls, other) -> bool:
-        """
-        A less than implementation to compare by priority in order to be able to sort the packagers by it.
-
-        :param other: The compared packager.
-
-        :return: True if priority is lower (means better) and False otherwise.
-        """
-        return cls.PRIORITY < other.PRIORITY
-
-    def __repr__(cls) -> str:
-        """
-        Get the string representation of a packager in the following format:
-        <packager name>(type=<handled type>, artifact_types=[<all supported artifact types>], priority=<priority>)
-
-        :return: The string representation of e packager.
-        """
-        # Get the packager info into variables:
-        packager_name = cls.__name__
-        handled_type = (
-            (
-                # Types have __name__ attribute but typing's types do not.
-                cls.PACKABLE_OBJECT_TYPE.__name__
-                if hasattr(cls.PACKABLE_OBJECT_TYPE, "__name__")
-                else str(cls.PACKABLE_OBJECT_TYPE)
-            )
-            if cls.PACKABLE_OBJECT_TYPE is not ...
-            else "Any"
-        )
-        supported_artifact_types = cls.get_supported_artifact_types()
-
-        # Return the string representation in the format noted above:
-        return (
-            f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types}, "
-            f"priority={cls.PRIORITY})"
-        )
-
-
-class Packager(ABC, metaclass=_PackagerMeta):
+class Packager(ABC):
     """
     The abstract base class for a packager. A packager is a static class that has two main duties:
 
@@ -134,7 +90,7 @@ class Packager(ABC, metaclass=_PackagerMeta):
         with open("./some_file.txt", "w") as file:
             file.write("Pack me")
         artifact = Artifact(key="my_artifact")
-        cls.add_future_clearing_path(path="./some_file.txt")
+        self.add_future_clearing_path(path="./some_file.txt")
         return artifact, None
     """
 
@@ -144,12 +100,16 @@ class Packager(ABC, metaclass=_PackagerMeta):
     #: The priority of this packager in the packagers collection of the manager (lower is better).
     PRIORITY: int = ...
 
-    # List of all paths to be deleted by the manager of this packager after logging the packages:
-    _CLEARING_PATH_LIST: List[str] = []
+    def __init__(self):
+        # Assign the packager's priority (notice that if it is equal to `...` then it will bbe overriden by the packager
+        # manager when collected):
+        self._priority = Packager.PRIORITY
 
-    @classmethod
+        # List of all paths to be deleted by the manager of this packager after logging the packages:
+        self._future_clearing_path_list: List[str] = []
+
     @abstractmethod
-    def get_default_packing_artifact_type(cls, obj: Any) -> str:
+    def get_default_packing_artifact_type(self, obj: Any) -> str:
         """
         Get the default artifact type used for packing. The method is used when an object is sent for packing
         without an artifact type noted by the user.
@@ -160,9 +120,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         pass
 
-    @classmethod
     @abstractmethod
-    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+    def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking a data item holding an object of this packager. The method
         is used when a data item is sent for unpacking without it being a package, but is a simple url or an old
@@ -174,9 +133,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         pass
 
-    @classmethod
     @abstractmethod
-    def get_supported_artifact_types(cls) -> List[str]:
+    def get_supported_artifact_types(self) -> List[str]:
         """
         Get all the supported artifact types on this packager.
 
@@ -184,10 +142,9 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         pass
 
-    @classmethod
     @abstractmethod
     def pack(
-        cls,
+        self,
         obj: Any,
         key: str = None,
         artifact_type: str = None,
@@ -206,10 +163,9 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         pass
 
-    @classmethod
     @abstractmethod
     def unpack(
-        cls,
+        self,
         data_item: DataItem,
         artifact_type: str = None,
         instructions: dict = None,
@@ -225,9 +181,8 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         pass
 
-    @classmethod
     def is_packable(
-        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
@@ -247,20 +202,19 @@ class Packager(ABC, metaclass=_PackagerMeta):
 
         # Validate the object type (ellipses means any type):
         if (
-            cls.PACKABLE_OBJECT_TYPE is not ...
-            and object_type != cls.PACKABLE_OBJECT_TYPE
+            self.PACKABLE_OBJECT_TYPE is not ...
+            and object_type != self.PACKABLE_OBJECT_TYPE
         ):
             return False
 
         # Validate the artifact type (if given):
-        if artifact_type and artifact_type not in cls.get_supported_artifact_types():
+        if artifact_type and artifact_type not in self.get_supported_artifact_types():
             return False
 
         return True
 
-    @classmethod
     def is_unpackable(
-        cls, data_item: DataItem, type_hint: Type, artifact_type: str = None
+        self, data_item: DataItem, type_hint: Type, artifact_type: str = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
@@ -275,24 +229,23 @@ class Packager(ABC, metaclass=_PackagerMeta):
         :return: True if unpackable and False otherwise.
         """
         # Check type (ellipses means any type):
-        if cls.PACKABLE_OBJECT_TYPE is not ...:
+        if self.PACKABLE_OBJECT_TYPE is not ...:
             if not TypeHintUtils.is_matching(
                 object_type=type_hint,  # The type hint is the expected object type the MLRun function wants.
-                type_hint=cls.PACKABLE_OBJECT_TYPE,
+                type_hint=self.PACKABLE_OBJECT_TYPE,
                 reduce_type_hint=False,
             ):
                 return False
 
         # Check the artifact type:
-        if artifact_type and artifact_type not in cls.get_supported_artifact_types():
+        if artifact_type and artifact_type not in self.get_supported_artifact_types():
             return False
 
         # Unpackable:
         return True
 
-    @classmethod
     def add_future_clearing_path(
-        cls, path: Union[str, Path], add_temp_paths_only: bool = True
+        self, path: Union[str, Path], add_temp_paths_only: bool = True
     ):
         """
         Mark a path to be cleared by this packager's manager after logging the packaged artifacts.
@@ -304,15 +257,70 @@ class Packager(ABC, metaclass=_PackagerMeta):
         """
         if add_temp_paths_only:
             if pathlib.Path(path).is_relative_to(tempfile.gettempdir()):
-                cls._CLEARING_PATH_LIST.append(str(path))
+                self._future_clearing_path_list.append(str(path))
             return
-        cls._CLEARING_PATH_LIST.append(str(path))
+        self._future_clearing_path_list.append(str(path))
 
-    @classmethod
-    def get_future_clearing_path_list(cls) -> List[str]:
+    @property
+    def priority(self) -> int:
+        """
+        Get the packager's priority.
+
+        :return: The packager's priority.
+        """
+        return self._priority
+
+    @priority.setter
+    def priority(self, priority: int):
+        """
+        Set the packager's priority.
+
+        :param priority: The priority to set.
+        """
+        self._priority = priority
+
+    @property
+    def future_clearing_path_list(self) -> List[str]:
         """
         Get the packager's future clearing path list.
 
         :return: The clearing path list.
         """
-        return cls._CLEARING_PATH_LIST
+        return self._future_clearing_path_list
+
+    def __lt__(self, other: "Packager") -> bool:
+        """
+        A less than implementation to compare by priority in order to be able to sort the packagers by it.
+
+        :param other: The compared packager.
+
+        :return: True if priority is lower (means better) and False otherwise.
+        """
+        return self.priority < other.priority
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of a packager in the following format:
+        <packager name>(type=<handled type>, artifact_types=[<all supported artifact types>], priority=<priority>)
+
+        :return: The string representation of e packager.
+        """
+        # Get the packager info into variables:
+        packager_name = self.__class__.__name__
+        handled_type = (
+            (
+                # Types have __name__ attribute but typing's types do not.
+                self.PACKABLE_OBJECT_TYPE.__name__
+                if hasattr(self.PACKABLE_OBJECT_TYPE, "__name__")
+                else str(self.PACKABLE_OBJECT_TYPE)
+            )
+            if self.PACKABLE_OBJECT_TYPE is not ...
+            else "Any"
+        )
+        supported_artifact_types = self.get_supported_artifact_types()
+
+        # Return the string representation in the format noted above:
+        return (
+            f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types}, "
+            f"priority={self.priority})"
+        )

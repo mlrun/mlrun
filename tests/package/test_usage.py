@@ -273,9 +273,8 @@ class BaseClassPackager(DefaultPackager):
     PACKABLE_OBJECT_TYPE = BaseClass
     PACK_SUBCLASSES = True
 
-    @classmethod
     def unpack_object(
-        cls,
+        self,
         data_item: DataItem,
         pickle_module_name: str = "cloudpickle",
         object_module_name: str = None,

@@ -70,7 +70,7 @@ class NumPyNDArrayPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayPackager
+    PACKAGER_IN_TEST = NumPyNDArrayPackager()
 
     TESTS = [
         PackTest(
@@ -140,7 +140,7 @@ class NumPyNumberPackagerTester(PackagerTester):
     A tester for the `NumPyNumberPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNumberPackager
+    PACKAGER_IN_TEST = NumPyNumberPackager()
 
     TESTS = [
         PackTest(
@@ -200,7 +200,7 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayDictPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayDictPackager
+    PACKAGER_IN_TEST = NumPyNDArrayDictPackager()
 
     TESTS = [
         PackTest(
@@ -280,7 +280,7 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
     A tester for the `NumPyNDArrayListPackager`.
     """
 
-    PACKAGER_IN_TEST = NumPyNDArrayListPackager
+    PACKAGER_IN_TEST = NumPyNDArrayListPackager()
 
     TESTS = [
         PackTest(

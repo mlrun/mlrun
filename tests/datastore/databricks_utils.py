@@ -48,6 +48,8 @@ def setup_dbfs_dirs(
 
 def teardown_dbfs_dirs(workspace: WorkspaceClient, specific_test_class_dir: str):
     specific_test_class_path = f"{MLRUN_ROOT_DIR}{specific_test_class_dir}"
+    if not workspace.dbfs.exists(specific_test_class_path):
+        return
     all_paths_under_class_path = [
         file_info.path for file_info in workspace.dbfs.list(specific_test_class_path)
     ]

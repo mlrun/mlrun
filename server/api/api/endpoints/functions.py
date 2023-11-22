@@ -640,7 +640,7 @@ def _handle_nuclio_deploy_status(
         verbose=verbose,
         auth_info=auth_info,
     )
-    if state == "ready":
+    if state in ["ready", "scaledToZero"]:
         logger.info("Nuclio function deployed successfully", name=name)
     if state in ["error", "unhealthy"]:
         logger.error(f"Nuclio deploy error, {text}", name=name)
@@ -743,8 +743,8 @@ def _build_function(
                 auth_info,
             )
             monitoring_application = (
-                fn.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
-                == mm_constants.ModelMonitoringAppTag.VAL
+                fn.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+                == mm_constants.ModelMonitoringAppLabel.VAL
             )
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models

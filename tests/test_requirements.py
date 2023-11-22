@@ -98,11 +98,10 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.4.2,<2.6"},
-        "storey": {"~=1.6.1"},
+        "storey": {"~=1.6.6"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
-        "protobuf": {"~=3.20.3"},
         "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
@@ -127,7 +126,7 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.23.0"},
         "boto3": {">=1.24.59,<1.27"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10.0, <12"},
+        "pyarrow": {">=10.0, <13"},
         "nbclassic": {">=0.2.8"},
         "pandas": {">=1.2, <3"},
         "gitpython": {"~=3.1, >= 3.1.30"},
@@ -143,6 +142,9 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
+        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "pyyaml": {">=5.4.1, <6"},
+        # other requirements
         "azure-storage-blob": {">=12.13, !=12.18.0"},
         "aiohttp": {"~=3.8, <3.8.4"},
     }
@@ -178,6 +180,8 @@ def test_requirement_specifiers_inconsistencies():
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
         "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
+        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "pyyaml": {"~=5.1", ">=5.4.1, <6"},
     }
 
     for (

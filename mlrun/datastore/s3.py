@@ -18,11 +18,12 @@ import boto3
 
 import mlrun.errors
 
-from .base import DataStore, FileStats, get_range
-from .datastore_profile import datastore_profile_read
+from .base import DataStore, FileStats, get_range, makeDatastoreSchemaSanitizer
 
 
 class S3Store(DataStore):
+    using_bucket = True
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
@@ -31,22 +32,12 @@ class S3Store(DataStore):
 
         self.headers = None
 
-        if schema == "ds":
-            datastore_profile = datastore_profile_read(name)
-            access_key = datastore_profile.access_key
-            secret_key = datastore_profile.secret_key
-            endpoint_url = datastore_profile.endpoint_url
-            force_non_anonymous = datastore_profile.force_non_anonymous
-            profile_name = datastore_profile.profile_name
-            assume_role_arn = datastore_profile.assume_role_arn
-            self.endpoint = ""
-        else:
-            access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-            secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
-            endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
-            force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
-            profile_name = self._get_secret_or_env("AWS_PROFILE")
-            assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
+        access_key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret_key = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile_name = self._get_secret_or_env("AWS_PROFILE")
+        assume_role_arn = self._get_secret_or_env("MLRUN_AWS_ROLE_ARN")
 
         # If user asks to assume a role, this needs to go through the STS client and retrieve temporary creds
         if assume_role_arn:
@@ -110,7 +101,7 @@ class S3Store(DataStore):
             return self._filesystem
         try:
             # noqa
-            from mlrun.datastore.s3fs_store import S3FileSystemWithDS
+            import s3fs
         except ImportError as exc:
             if not silent:
                 raise ImportError(
@@ -118,27 +109,19 @@ class S3Store(DataStore):
                 ) from exc
             return None
 
-        self._filesystem = S3FileSystemWithDS(**self.get_storage_options())
+        self._filesystem = makeDatastoreSchemaSanitizer(
+            s3fs.S3FileSystem,
+            using_bucket=self.using_bucket,
+            **self.get_storage_options(),
+        )
         return self._filesystem
 
     def get_storage_options(self):
-        if self.kind == "ds":
-            # If it's a datastore profile, 'self.name' holds the URL path to the item, e.g.,
-            # 'ds://some_profile/s3bucket/path/to/object'
-            # The function 'datastore_profile_read()' derives the profile name from this URL,
-            # reads the profile, and fetches the credentials.
-            datastore_profile = datastore_profile_read(self.name)
-            endpoint_url = datastore_profile.endpoint_url
-            force_non_anonymous = datastore_profile.force_non_anonymous
-            profile = datastore_profile.profile_name
-            key = datastore_profile.access_key
-            secret = datastore_profile.secret_key
-        else:
-            force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
-            profile = self._get_secret_or_env("AWS_PROFILE")
-            endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
-            key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
-            secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
+        force_non_anonymous = self._get_secret_or_env("S3_NON_ANONYMOUS")
+        profile = self._get_secret_or_env("AWS_PROFILE")
+        endpoint_url = self._get_secret_or_env("S3_ENDPOINT_URL")
+        key = self._get_secret_or_env("AWS_ACCESS_KEY_ID")
+        secret = self._get_secret_or_env("AWS_SECRET_ACCESS_KEY")
 
         if self._temp_credentials:
             key = self._temp_credentials["AccessKeyId"]
@@ -165,11 +148,7 @@ class S3Store(DataStore):
 
     def get_bucket_and_key(self, key):
         path = self._join(key)[1:]
-        if self.endpoint:
-            return self.endpoint, path
-        directories = path.split("/")
-        bucket = directories[0]
-        return bucket, path[len(bucket) + 1 :]
+        return self.endpoint, path
 
     def upload(self, key, src_path):
         bucket, key = self.get_bucket_and_key(key)
@@ -198,7 +177,7 @@ class S3Store(DataStore):
         if not key.endswith("/"):
             key += "/"
         # Object names is S3 are not fully following filesystem semantics - they do not start with /, even for
-        # "absolute paths". Therefore, we are are removing leading / from path filter.
+        # "absolute paths". Therefore, we are removing leading / from path filter.
         if key.startswith("/"):
             key = key[1:]
         key_length = len(key)

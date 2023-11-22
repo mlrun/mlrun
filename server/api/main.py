@@ -33,6 +33,7 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.crud
 import server.api.db.base
 import server.api.initial_data
 import server.api.runtime_handlers
@@ -42,7 +43,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
-from server.api.api.api import api_router, api_v2_router
+from server.api.api.api import api_router
 from server.api.db.session import close_session, create_session
 from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
@@ -62,7 +63,6 @@ from server.api.utils.singletons.scheduler import get_scheduler, initialize_sche
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
-V2_API_PREFIX = f"{API_PREFIX}/v2"
 
 # When pushing notifications, push notifications only for runs that entered a terminal state
 # since the last time we pushed notifications.
@@ -71,7 +71,6 @@ V2_API_PREFIX = f"{API_PREFIX}/v2"
 # TODO: find better solution than a global variable for chunking the list of runs
 #      for which to push notifications
 _last_notification_push_time: typing.Optional[datetime.datetime] = None
-
 
 # This is a dictionary which holds the number of consecutive start log requests for each run uid.
 # We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
@@ -90,12 +89,6 @@ async def lifespan(app_: fastapi.FastAPI):
     await teardown_api()
 
 
-# This is a dictionary which holds the number of consecutive start log requests for each run uid.
-# We use this dictionary to make sure that we don't get stuck in an endless loop of trying to collect logs for a runs
-# that keep failing start logs requests.
-_run_uid_start_log_request_counters: collections.Counter = collections.Counter()
-
-
 app = fastapi.FastAPI(
     title="MLRun",
     description="Machine Learning automation and tracking",
@@ -109,7 +102,6 @@ app = fastapi.FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
-app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api.
 # /api points to /api/v1 since it is used externally, and we don't want to break it.
@@ -482,7 +474,7 @@ def _start_periodic_cleanup():
 
 
 def _start_periodic_runs_monitoring():
-    interval = int(config.runs_monitoring_interval)
+    interval = int(config.monitoring.runs.interval)
     if interval > 0:
         logger.info("Starting periodic runs monitoring", interval=interval)
         run_function_periodically(
@@ -607,23 +599,38 @@ async def _align_worker_state_with_chief_state(
     cancel_periodic_function(_synchronize_with_chief_clusterization_spec.__name__)
 
 
-def _monitor_runs():
+async def _monitor_runs():
+    stale_runs = await fastapi.concurrency.run_in_threadpool(
+        server.api.db.session.run_function_with_new_db_session,
+        _monitor_runs_and_push_terminal_notifications,
+    )
+    await _abort_stale_runs(stale_runs)
+
+
+def _monitor_runs_and_push_terminal_notifications(db_session):
     db = get_db()
-    db_session = create_session()
+    stale_runs = []
+    for kind in RuntimeKinds.runtime_with_handlers():
+        try:
+            runtime_handler = get_runtime_handler(kind)
+            runtime_stale_runs = runtime_handler.monitor_runs(db, db_session)
+            stale_runs.extend(runtime_stale_runs)
+        except Exception as exc:
+            logger.warning(
+                "Failed monitoring runs. Ignoring",
+                exc=err_to_str(exc),
+                kind=kind,
+            )
+
     try:
-        for kind in RuntimeKinds.runtime_with_handlers():
-            try:
-                runtime_handler = get_runtime_handler(kind)
-                runtime_handler.monitor_runs(db, db_session)
-            except Exception as exc:
-                logger.warning(
-                    "Failed monitoring runs. Ignoring",
-                    exc=err_to_str(exc),
-                    kind=kind,
-                )
         _push_terminal_run_notifications(db, db_session)
-    finally:
-        close_session(db_session)
+    except Exception as exc:
+        logger.warning(
+            "Failed pushing terminal run notifications. Ignoring",
+            exc=err_to_str(exc),
+        )
+
+    return stale_runs
 
 
 def _cleanup_runtimes():
@@ -685,6 +692,31 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     _last_notification_push_time = now
 
 
+async def _abort_stale_runs(stale_runs: typing.List[dict]):
+    semaphore = asyncio.Semaphore(
+        int(mlrun.mlconf.monitoring.runs.concurrent_abort_stale_runs_workers)
+    )
+
+    async def abort_run(stale_run):
+        # Using semaphore to limit the chunk we get from the thread pool for run aborting
+        async with semaphore:
+            await fastapi.concurrency.run_in_threadpool(
+                server.api.db.session.run_function_with_new_db_session,
+                server.api.crud.Runs().abort_run,
+                **stale_run,
+            )
+
+    coroutines = [abort_run(_stale_run) for _stale_run in stale_runs]
+    if coroutines:
+        results = await asyncio.gather(*coroutines, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning(
+                    "Failed aborting stale run. Ignoring",
+                    exc=err_to_str(result),
+                )
+
+
 async def _stop_logs():
     """
     Stop logs for runs that are in terminal state and last updated in the previous interval
@@ -715,25 +747,34 @@ async def _stop_logs():
         await fastapi.concurrency.run_in_threadpool(close_session, db_session)
 
 
-async def _stop_logs_for_runs(runs: list):
-    project_to_run_uids = {}
+async def _stop_logs_for_runs(runs: list, chunk_size: int = 10):
+    project_to_run_uids = collections.defaultdict(list)
     for run in runs:
         project_name = run.get("metadata", {}).get("project", None)
         run_uid = run.get("metadata", {}).get("uid", None)
-        project_to_run_uids.setdefault(project_name, []).append(run_uid)
+        project_to_run_uids[project_name].append(run_uid)
 
     for project_name, run_uids in project_to_run_uids.items():
-        try:
-            await server.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
-                project_name, run_uids
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed stopping logs for runs. Ignoring",
-                exc=err_to_str(exc),
-                project=project_name,
-                run_uids=run_uids,
-            )
+        if not run_uids:
+            logger.debug("No runs to stop logs for", project=project_name)
+            continue
+
+        # if we wont chunk the run uids, the grpc message might include many uids which will overflow the max message
+        # size.
+        for chunked_run_uids in mlrun.utils.helpers.iterate_list_by_chunks(
+            run_uids, chunk_size
+        ):
+            try:
+                await server.api.utils.clients.log_collector.LogCollectorClient().stop_logs(
+                    project_name, chunked_run_uids
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed stopping logs for runs. Ignoring",
+                    exc=err_to_str(exc),
+                    project=project_name,
+                    chunked_run_uids=chunked_run_uids,
+                )
 
 
 def main():

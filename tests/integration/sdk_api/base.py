@@ -35,7 +35,7 @@ class TestMLRunIntegration:
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
 
-    db_liveness_timeout = 30
+    db_liveness_timeout = 40
     db_host_internal = "host.docker.internal"
     db_host_external = "localhost"
     db_user = "root"

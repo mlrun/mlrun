@@ -18,7 +18,6 @@ import pathlib
 import re
 import time
 import typing
-import warnings
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
@@ -49,7 +48,7 @@ class ModelObj:
     @staticmethod
     def _verify_list(param, name):
         if not isinstance(param, list):
-            raise ValueError(f"parameter {name} must be a list")
+            raise ValueError(f"Parameter {name} must be a list")
 
     @staticmethod
     def _verify_dict(param, name, new_type=None):
@@ -58,7 +57,7 @@ class ModelObj:
             and not isinstance(param, dict)
             and not hasattr(param, "to_dict")
         ):
-            raise ValueError(f"parameter {name} must be a dict or object")
+            raise ValueError(f"Parameter {name} must be a dict or object")
         if new_type and (isinstance(param, dict) or param is None):
             return new_type.from_dict(param)
         return param
@@ -423,7 +422,7 @@ class ImageBuilder(ModelObj):
             self.base_image = base_image
         if commands:
             self.with_commands(commands, overwrite=overwrite)
-        if requirements:
+        if requirements or requirements_file:
             self.with_requirements(requirements, requirements_file, overwrite=overwrite)
         if extra:
             self.extra = extra
@@ -471,7 +470,7 @@ class ImageBuilder(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[List[str]] = None,
         requirements_file: str = "",
         overwrite: bool = False,
     ):
@@ -483,14 +482,8 @@ class ImageBuilder(ModelObj):
                                     when False (default) will append to existing requirements
         :return: function object
         """
-        if isinstance(requirements, str) and mlrun.utils.is_file_path(requirements):
-            # TODO: remove in 1.6.0
-            warnings.warn(
-                "Passing a requirements file path as a string in the 'requirements' argument is deprecated "
-                "and will be removed in 1.6.0, use 'requirements_file' instead",
-                FutureWarning,
-            )
-
+        requirements = requirements or []
+        self._verify_list(requirements, "requirements")
         resolved_requirements = self._resolve_requirements(
             requirements, requirements_file
         )
@@ -504,9 +497,8 @@ class ImageBuilder(ModelObj):
         self.requirements = requirements
 
     @staticmethod
-    def _resolve_requirements(
-        requirements: typing.Union[str, list], requirements_file: str = ""
-    ) -> list:
+    def _resolve_requirements(requirements: list, requirements_file: str = "") -> list:
+        requirements = requirements or []
         requirements_to_resolve = []
 
         # handle the requirements_file argument
@@ -515,18 +507,7 @@ class ImageBuilder(ModelObj):
                 requirements_to_resolve.extend(fp.read().splitlines())
 
         # handle the requirements argument
-        # TODO: remove in 1.6.0, when requirements can only be a list
-        if isinstance(requirements, str):
-            # if it's a file path, read the file and add its content to the list
-            if mlrun.utils.is_file_path(requirements):
-                with open(requirements, "r") as fp:
-                    requirements_to_resolve.extend(fp.read().splitlines())
-            else:
-                # it's a string but not a file path, split it by lines and add it to the list
-                requirements_to_resolve.append(requirements)
-        else:
-            # it's a list, add it to the list
-            requirements_to_resolve.extend(requirements)
+        requirements_to_resolve.extend(requirements)
 
         requirements = []
         for requirement in requirements_to_resolve:
@@ -727,6 +708,7 @@ class RunSpec(ModelObj):
         inputs_type_hints=None,
         returns=None,
         notifications=None,
+        state_thresholds=None,
     ):
         # A dictionary of parsing configurations that will be read from the inputs the user set. The keys are the inputs
         # keys (parameter names) and the values are the type hint given in the input keys after the colon.
@@ -762,6 +744,7 @@ class RunSpec(ModelObj):
         self.scrape_metrics = scrape_metrics
         self.allow_empty_resources = allow_empty_resources
         self._notifications = notifications or []
+        self.state_thresholds = state_thresholds or {}
 
     def to_dict(self, fields=None, exclude=None):
         struct = super().to_dict(fields, exclude=["handler"])
@@ -929,6 +912,27 @@ class RunSpec(ModelObj):
             self._notifications = notifications
         else:
             raise ValueError("Notifications must be a list")
+
+    @property
+    def state_thresholds(self):
+        return self._state_thresholds
+
+    @state_thresholds.setter
+    def state_thresholds(self, state_thresholds: Dict[str, str]):
+        """
+        Set the dictionary of k8s states (pod phase) to thresholds time strings.
+        The state will be matched against the pod's status. The threshold should be a time string that conforms
+        to timelength python package standards and is at least 1 minute (-1 for infinite). If the phase is active
+        for longer than the threshold, the run will be marked as aborted and the pod will be deleted.
+        See mlconf.function.spec.state_thresholds for the state options and default values.
+
+        example:
+            {"image_pull_backoff": "1h", "running": "1d 2 hours"}
+
+        :param state_thresholds: The state-thresholds dictionary.
+        """
+        self._verify_dict(state_thresholds, "state_thresholds")
+        self._state_thresholds = state_thresholds
 
     def extract_type_hints_from_inputs(self):
         """

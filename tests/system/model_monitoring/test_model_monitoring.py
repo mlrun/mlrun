@@ -37,6 +37,7 @@ import mlrun.model_monitoring.api
 import mlrun.serving.routers
 from mlrun.errors import MLRunNotFoundError
 from mlrun.model import BaseMetadata
+from mlrun.model_monitoring.writer import _TSDB_BE, ModelMonitoringWriter
 from mlrun.runtimes import BaseRuntime
 from mlrun.utils.v3io_clients import get_frames_client
 from tests.system.base import TestMLRunSystem
@@ -1025,7 +1026,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
         ]
 
     def test_inference_feature_set(self) -> None:
-        self.project.log_model(
+        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
             self.model_name,
             body=pickle.dumps(self.classif),
             model_file="classif.pkl",
@@ -1042,9 +1043,85 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
         )
 
         self._test_feature_names()
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestModelInferenceTSDBRecord(TestMLRunSystem):
+    """
+    Test that batch inference records results to V3IO TSDB when tracking is
+    enabled and the selected model does not have a serving endpoint.
+    """
+
+    project_name = "infer-model-tsdb"
+    name_prefix = "infer-model-only"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        dataset = load_iris()
+        cls.train_set = pd.DataFrame(
+            dataset.data,  # pyright: ignore[reportGeneralTypeIssues]
+            columns=[
+                "sepal_length_cm",
+                "sepal_width_cm",
+                "petal_length_cm",
+                "petal_width_cm",
+            ],
+        )
+        cls.model_name = "clf_model"
+
+        cls.infer_results_df = cls.train_set.copy()
+        cls.infer_results_df[
+            mlrun.common.schemas.EventFieldType.TIMESTAMP
+        ] = datetime.utcnow()
+
+    def _log_model(self) -> str:
+        model = self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            model_dir=os.path.relpath(self.assets_path),
+            model_file="model.pkl",
+            training_set=self.train_set,
+            artifact_path=f"v3io:///projects/{self.project_name}",
+        )
+        return model.uri
+
+    @classmethod
+    def _test_v3io_tsdb_record(cls) -> None:
+        frames = ModelMonitoringWriter._get_v3io_frames_client(
+            v3io_container="users",
+        )
+        df: pd.DataFrame = frames.read(
+            backend=_TSDB_BE,
+            table=f"pipelines/{cls.project_name}/model-endpoints/events",
+            start="now-5m",
+        )
+        assert len(df) == 1, "Expected a single record in the TSDB"
+        assert {
+            "endpoint_id",
+            "record_type",
+            "hellinger_mean",
+            "kld_mean",
+            "tvd_mean",
+        } == set(df.columns), "Unexpected columns in the TSDB record"
+
+    def test_record(self) -> None:
+        model_uri = self._log_model()
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            infer_results_df=self.infer_results_df,
+            model_path=model_uri,
+            trigger_monitoring_job=True,
+            model_endpoint_name=f"{self.name_prefix}-test",
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
+        )
+        self._test_v3io_tsdb_record()

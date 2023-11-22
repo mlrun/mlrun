@@ -16,16 +16,15 @@ import getpass
 import http
 import re
 import typing
-import warnings
 from base64 import b64encode
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
 import requests.exceptions
-from deprecated import deprecated
 from nuclio.build import mlrun_footer
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.launcher.factory
@@ -121,7 +120,6 @@ class FunctionSpec(ModelObj):
         self._build = None
         self.build = build
         self.default_handler = default_handler
-        # TODO: type verification (FunctionEntrypoint dict)
         self.entry_points = entry_points or {}
         self.disable_auto_mount = disable_auto_mount
         self.allow_empty_resources = None
@@ -198,12 +196,21 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    def set_categories(self, categories: List[str]):
+        self.metadata.categories = mlrun.utils.helpers.as_list(categories)
+
     @property
     def uri(self):
         return self._function_uri()
 
     def is_deployed(self):
         return True
+
+    def is_model_monitoring_function(self):
+        return (
+            self.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY, "")
+            == mm_constants.ModelMonitoringAppLabel.VAL
+        )
 
     def _is_remote_api(self):
         db = self._get_db()
@@ -300,6 +307,7 @@ class BaseRuntime(ModelObj):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -349,6 +357,11 @@ class BaseRuntime(ModelObj):
                           artifact type is specified, the object's default artifact type will be used.
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+        :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the
+                pod's status. The threshold should be a time string that conforms to timelength python package
+                standards and is at least 1 minute (-1 for infinite).
+                If the phase is active for longer than the threshold, the run will be aborted.
+                See mlconf.function.spec.state_thresholds for the state options and default values.
         :return: Run context object (RunObject) with run metadata, results and status
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -376,6 +389,7 @@ class BaseRuntime(ModelObj):
             param_file_secrets=param_file_secrets,
             notifications=notifications,
             returns=returns,
+            state_thresholds=state_thresholds,
         )
 
     def _get_db_run(self, task: RunObject = None):
@@ -737,9 +751,8 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Union[str, List[str]],
+        requirements: Optional[List[str]] = None,
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
         requirements_file: str = "",
     ):
@@ -748,21 +761,12 @@ class BaseRuntime(ModelObj):
         :param requirements:                a list of python packages
         :param requirements_file:           a local python requirements file path
         :param overwrite:                   overwrite existing requirements
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :return: function object
         """
         self.spec.build.with_requirements(requirements, requirements_file, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
 
         return self
@@ -771,30 +775,19 @@ class BaseRuntime(ModelObj):
         self,
         commands: List[str],
         overwrite: bool = False,
-        verify_base_image: bool = False,
         prepare_image_for_deploy: bool = True,
     ):
         """add commands to build spec.
 
         :param commands:                    list of commands to run during build
         :param overwrite:                   overwrite existing commands
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
 
         :return: function object
         """
         self.spec.build.with_commands(commands, overwrite)
 
-        if verify_base_image or prepare_image_for_deploy:
-            # TODO: remove verify_base_image in 1.6.0
-            if verify_base_image:
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
-
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
         return self
 
@@ -806,15 +799,6 @@ class BaseRuntime(ModelObj):
 
         self.spec.build = {}
         return self
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'verify_base_image' will be removed in 1.6.0, use 'prepare_image_for_deploy' instead",
-        category=FutureWarning,
-    )
-    def verify_base_image(self):
-        self.prepare_image_for_deploy()
 
     def prepare_image_for_deploy(self):
         """

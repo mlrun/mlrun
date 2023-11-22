@@ -35,7 +35,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
         ] = mlrun.common.schemas.schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
-        application_batch: bool = False,
+        application_batch: bool = True,
     ):
         """
         Initialize TrackingPolicy object.

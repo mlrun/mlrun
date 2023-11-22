@@ -16,6 +16,7 @@ import enum
 import functools
 import hashlib
 import inspect
+import itertools
 import json
 import os
 import pathlib
@@ -120,7 +121,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}@{tree}"
+            target = f"{target}:{tree}"
         return target
 
     return (
@@ -690,14 +691,12 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
+def generate_artifact_uri(project, key, tag=None, iter=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
-    if tree is not None:
-        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -898,7 +897,7 @@ def get_docker_repository_or_default(repository: str) -> str:
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
-    docker_registry = config.httpdb.builder.docker_registry
+    docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
     # this is exception to the rules from the link above, since the config value is called docker_registry we assume
     # that if someone gave just one component without any slash they gave a registry and not a repository
@@ -940,42 +939,6 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
-    return uid
-
-
-def fill_artifact_object_hash(
-    object_dict, uid_property_name, iteration=None, producer_id=None
-):
-    # remove status, tag, date and old uid from calculation
-    object_dict.setdefault("metadata", {})
-    tag = object_dict["metadata"].get("tag", None)
-    status = object_dict.setdefault("status", {})
-    object_dict["metadata"]["tag"] = ""
-    object_dict["metadata"][uid_property_name] = ""
-    object_dict["status"] = None
-    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
-    object_created_timestamp = object_dict["metadata"].pop("created", None)
-
-    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
-    if not object_dict["metadata"].get("key"):
-        raise ValueError("artifact key is not set")
-    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
-    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
-
-    # calc hash and fill
-    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
-    h = hashlib.sha1()
-    h.update(data)
-    uid = h.hexdigest()
-
-    # restore original values
-    object_dict["metadata"]["tag"] = tag
-    object_dict["metadata"][uid_property_name] = uid
-    object_dict["status"] = status
-    if object_created_timestamp:
-        object_dict["metadata"]["created"] = object_created_timestamp
-    if object_updated_timestamp:
-        object_dict["metadata"]["updated"] = object_updated_timestamp
     return uid
 
 
@@ -1068,7 +1031,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 
@@ -1103,7 +1066,7 @@ def retry_until_successful(
         )
 
     raise Exception(
-        f"failed to execute command by the given deadline."
+        f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
@@ -1369,15 +1332,6 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
-def is_link_artifact(artifact):
-    if isinstance(artifact, dict):
-        return (
-            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
-        )
-    else:
-        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
-
-
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
@@ -1551,3 +1505,18 @@ def line_terminator_kwargs():
         else "line_terminator"
     )
     return {line_terminator_parameter: "\n"}
+
+
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
+    """
+    Iterate over a list and yield chunks of the list in the given chunk size
+    e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
+    """
+    if chunk_size <= 0 or not iterable_list:
+        yield iterable_list
+        return
+    iterator = iter(iterable_list)
+    while chunk := list(itertools.islice(iterator, chunk_size)):
+        yield chunk

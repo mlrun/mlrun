@@ -53,7 +53,7 @@ class ModelMonitoringApplicationResult:
     result_value: float
     result_kind: mlrun.common.schemas.model_monitoring.constants.ResultKindApp
     result_status: mlrun.common.schemas.model_monitoring.constants.ResultStatusApp
-    result_extra_data: dict
+    result_extra_data: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
         """

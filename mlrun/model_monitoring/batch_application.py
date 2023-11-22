@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import List, Tuple
+from typing import Callable, Tuple
 
 import numpy as np
 import pandas as pd
@@ -124,7 +124,7 @@ class BatchApplicationProcessor:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             application = mlrun.get_or_create_project(
                 self.project
-            ).list_model_monitoring_applications()
+            ).list_model_monitoring_functions()
             if application:
                 applications_names = np.unique(
                     [app.metadata.name for app in application]
@@ -187,7 +187,7 @@ class BatchApplicationProcessor:
     @staticmethod
     def model_endpoint_process(
         endpoint: dict,
-        applications_names: List[str],
+        applications_names: list[str],
         bath_dict: dict,
         project: str,
         parquet_directory: str,
@@ -249,10 +249,8 @@ class BatchApplicationProcessor:
                             mlrun.common.schemas.model_monitoring.EventFieldType.UID
                         ],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                        start_time=str(
-                            datetime.datetime.now() - datetime.timedelta(hours=1)
-                        ),
-                        end_time=str(datetime.datetime.now()),
+                        start_time=start_time,
+                        end_time=end_time,
                     )
                     return
 
@@ -319,17 +317,22 @@ class BatchApplicationProcessor:
             return endpoint_id, e
 
     @staticmethod
-    def _get_interval_range(batch_dict) -> Tuple[datetime.datetime, datetime.datetime]:
+    def _get_interval_range(
+        batch_dict: dict[str, int],
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
+    ) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES],
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
         )
-        start_time = datetime.datetime.now() - datetime.timedelta(
+        end_time = now_func() - datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        )
+        start_time = end_time - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
         )
-        end_time = datetime.datetime.now()
         return start_time, end_time
 
     def _parse_batch_dict_str(self):
@@ -377,7 +380,8 @@ class BatchApplicationProcessor:
             kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
         )
         target = ParquetTarget(path=base_directory)
-        fs = target._get_store().get_filesystem()
+        store, _ = target._get_store_and_path()
+        fs = store.get_filesystem()
 
         try:
             # List all subdirectories in the base directory

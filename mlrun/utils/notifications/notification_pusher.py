@@ -90,9 +90,9 @@ class _NotificationPusherBase(object):
 class NotificationPusher(_NotificationPusherBase):
 
     messages = {
-        "completed": "Run completed",
-        "error": "Run failed",
-        "aborted": "Run aborted",
+        "completed": "{resource} completed",
+        "error": "{resource} failed",
+        "aborted": "{resource} aborted",
     }
 
     def __init__(self, runs: typing.Union[mlrun.lists.RunList, list]):
@@ -236,13 +236,34 @@ class NotificationPusher(_NotificationPusherBase):
         custom_message = (
             f": {notification_object.message}" if notification_object.message else ""
         )
-        message = self.messages.get(run.state(), "") + custom_message
+        resource = "Run"
+        runs = [run.to_dict()]
+
+        if "workflow" in run.metadata.labels:
+            resource = "Workflow"
+            custom_message = (
+                f" (workflow: {run.metadata.labels['workflow']}){custom_message}"
+            )
+            db = mlrun.get_run_db()
+
+            workflow_id = run.status.results.get("workflow_id", None)
+            if workflow_id:
+                workflow_runs = db.list_runs(
+                    project=run.metadata.project,
+                    labels=f"workflow={workflow_id}",
+                )
+                runs.extend(workflow_runs)
+
+        message = (
+            self.messages.get(run.state(), "").format(resource=resource)
+            + custom_message
+        )
 
         severity = (
             notification_object.severity
             or mlrun.common.schemas.NotificationSeverity.INFO
         )
-        return message, severity, [run.to_dict()]
+        return message, severity, runs
 
     def _push_notification_sync(
         self,

@@ -16,13 +16,14 @@ import datetime
 from http import HTTPStatus
 from typing import List
 
-from fastapi import APIRouter, Body, Depends, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import server.api.crud
 import server.api.utils.auth.verifier
+import server.api.utils.background_tasks
 import server.api.utils.singletons.project_member
 from mlrun.utils.helpers import datetime_from_iso
 from server.api.api import deps
@@ -385,3 +386,51 @@ async def set_run_notifications(
         mlrun.common.schemas.RunIdentifier(uid=uid),
     )
     return Response(status_code=HTTPStatus.OK.value)
+
+
+@router.post(
+    "/projects/{project}/runs/{uid}/abort",
+    response_model=mlrun.common.schemas.BackgroundTask,
+    status_code=HTTPStatus.ACCEPTED.value,
+)
+async def abort_run(
+    request: Request,
+    project: str,
+    uid: str,
+    background_tasks: BackgroundTasks,
+    iter: int = 0,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+    db_session: Session = Depends(deps.get_db_session),
+):
+
+    # check permission per object type
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.run,
+        project,
+        resource_name=uid,
+        action=mlrun.common.schemas.AuthorizationAction.update,
+        auth_info=auth_info,
+    )
+
+    data = None
+    try:
+        data = await request.json()
+    except ValueError:
+        log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
+
+    background_task = await run_in_threadpool(
+        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+        db_session,
+        project,
+        background_tasks,
+        server.api.crud.Runs().abort_run,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
+        # args for abort_run
+        db_session,
+        project,
+        uid,
+        iter,
+        run_updates=data,
+    )
+
+    return background_task

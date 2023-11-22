@@ -54,3 +54,10 @@ MLRUN_SQL__URL:
 AWS_BUCKET_NAME: 
 AWS_ACCESS_KEY_ID:
 AWS_SECRET_ACCESS_KEY:
+
+# databricks authentication token
+DATABRICKS_TOKEN:
+# databricks endpoint - for example abc-d1e2345f-a6b2.cloud.databricks.com (this example is from docs.databricks.com
+# - it is not for use)
+DATABRICKS_HOST:
+DATABRICKS_CLUSTER_ID:

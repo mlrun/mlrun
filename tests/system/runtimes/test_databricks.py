@@ -17,10 +17,9 @@ import os
 import time
 import uuid
 from datetime import datetime, timedelta
-from pathlib import Path
 
+import pandas as pd
 import pytest
-import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import RunLifeCycleState, RunResultState
 
@@ -29,12 +28,7 @@ import tests.system.base
 from mlrun.errors import MLRunRuntimeError
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import RunError
-from tests.datastore.databricks_utils import is_databricks_configured
-
-here = Path(__file__).absolute().parent
-config_file_path = here / "assets" / "test_databricks.yml"
-with config_file_path.open() as fp:
-    config = yaml.safe_load(fp)
+from tests.datastore.databricks_utils import MLRUN_ROOT_DIR, teardown_dbfs_dirs
 
 print_kwargs_function = """
 
@@ -49,11 +43,15 @@ default_test_params = {
 }
 
 
-@pytest.mark.skipif(
-    not is_databricks_configured(config_file_path),
-    reason="databricks parameters not configured",
-)
-@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+class TestDatabricksSystem(tests.system.base.TestMLRunSystem):
+    mandatory_env_vars = [
+        "DATABRICKS_TOKEN",
+        "DATABRICKS_HOST",
+        "DATABRICKS_CLUSTER_ID",
+    ] + tests.system.base.TestMLRunSystem.mandatory_env_vars
+
+
+@TestDatabricksSystem.skip_test_if_env_not_configured
 class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
     project_name = "databricks-system-test"
 
@@ -67,10 +65,11 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 active_only=True, start_time_from=previous_day_utc_time_in_ms
             )
         )
+        # We use startswith because we append a timestamp at the end of the run name.
         runs_by_run_name = [
             databricks_run
             for databricks_run in runs
-            if databricks_run.run_name == run_name
+            if databricks_run.run_name.startswith(run_name)
         ]
         if len(runs_by_run_name) == 0:
             raise MLRunRuntimeError(
@@ -94,13 +93,45 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 f"Too many active runs related to project {self.project_name} were found"
             )
         mlrun_run = mlrun_runs.to_objects()[0]
-        db = mlrun.get_run_db()
-        db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
+        self._run_db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
+
+    def _check_artifacts_by_path(self, paths_dict):
+        artifacts = self.project.list_artifacts().to_objects()
+        assert len(artifacts) == len(paths_dict)
+        #  TODO change to get_artifact by key in the future if it will be user-defined.
+        for local_path, expected_dbfs_path in paths_dict.items():
+            artifacts_by_path = [
+                artifact
+                for artifact in artifacts
+                if artifact.spec.src_path == f"dbfs://{expected_dbfs_path}"
+            ]
+            assert len(artifacts_by_path) == 1
+            artifact = artifacts_by_path[0]
+            artifact_df = artifact.to_dataitem().as_df()
+            if local_path.endswith(".parquet"):
+                expected_df = pd.read_parquet(local_path)
+            elif local_path.endswith(".csv"):
+                expected_df = pd.read_csv(local_path)
+            else:
+                raise ValueError(
+                    "The test does not support files that are not in the Parquet or CSV format."
+                )
+            pd.testing.assert_frame_equal(expected_df, artifact_df)
+
+    def setup_method(self, method):
+        time.sleep(2)  # For project handling...
+        super().setup_method(method)
 
     def setup_class(self):
-        for key, value in config["env"].items():
-            if value is not None:
-                os.environ[key] = value
+        super().setup_class()
+        self.test_folder_name = "/databricks_system_test"
+        self.dbfs_folder_path = f"{MLRUN_ROOT_DIR}{self.test_folder_name}"
+        self.workspace = WorkspaceClient()
+
+    def teardown_class(self):
+        teardown_dbfs_dirs(
+            workspace=self.workspace, specific_test_class_dir=self.test_folder_name
+        )
 
     @staticmethod
     def assert_print_kwargs(print_kwargs_run):
@@ -110,16 +141,12 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
         )
 
-    @classmethod
-    def _add_databricks_env(cls, function, is_cluster_id_required=True):
+    def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:
             raise KeyError(
                 "The environment variable 'DATABRICKS_CLUSTER_ID' is not set, and it is required for this test."
             )
-        project = mlrun.get_or_create_project(
-            cls.project_name, context="./", user_project=False
-        )
 
         job_env = {
             "DATABRICKS_HOST": os.environ["DATABRICKS_HOST"],
@@ -129,7 +156,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
         secrets = {"DATABRICKS_TOKEN": os.environ["DATABRICKS_TOKEN"]}
 
-        project.set_secrets(secrets)
+        self.project.set_secrets(secrets)
 
         for name, val in job_env.items():
             function.spec.env.append({"name": name, "value": val})
@@ -316,3 +343,57 @@ def handler(**kwargs):
             RunLifeCycleState.TERMINATED,
         )
         assert run.state.result_state == RunResultState.CANCELED
+
+    def test_log_artifact(self):
+        self._run_db.del_artifacts(project=self.project_name)
+        artifact_key_parquet = f"my_artifact_test_{uuid.uuid4()}.parquet"
+        artifact_key_csv = f"my_artifact_test_{uuid.uuid4()}.csv"
+        parquet_artifact_dbfs_path = (
+            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_parquet}"
+        )
+        csv_artifact_dbfs_path = (
+            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_csv}"
+        )
+        src_parquet_path = str(self.assets_path / "test_data.parquet")
+        src_csv_path = str(self.assets_path / "test_data.csv")
+        paths_dict = {
+            src_parquet_path: parquet_artifact_dbfs_path,
+            src_csv_path: csv_artifact_dbfs_path,
+        }
+        with open(str(self.assets_path / "test_data.parquet"), "rb") as parquet_file:
+            self.workspace.dbfs.upload(
+                src=parquet_file, path=parquet_artifact_dbfs_path
+            )
+        with open(str(self.assets_path / "test_data.csv"), "rb") as csv_file:
+            self.workspace.dbfs.upload(src=csv_file, path=csv_artifact_dbfs_path)
+        #  CSV has been tested as a Spark path, and an illegal path was
+        #  used for testing to avoid triggering an error in log_artifact.
+        code = f"""\n
+def main():
+    mlrun_log_artifact('my_test_artifact_parquet','/dbfs{parquet_artifact_dbfs_path}')
+    mlrun_log_artifact('illegal artifact',10)
+    return {{'my_test_artifact_csv': 'dbfs:{csv_artifact_dbfs_path}'}}
+"""
+        function_ref = FunctionReference(
+            kind="databricks",
+            code=code,
+            image="mlrun/mlrun",
+            name="databricks-test",
+        )
+
+        function = function_ref.to_function()
+
+        self._add_databricks_env(function=function, is_cluster_id_required=True)
+        run = function.run(
+            handler="main",
+            project=self.project_name,
+        )
+        time.sleep(2)
+        self._check_artifacts_by_path(paths_dict=paths_dict)
+        self._run_db.del_artifacts(project=self.project_name)
+        assert (
+            len(self.project.list_artifacts()) == 0
+        )  # Make sure all artifacts have been deleted.
+        function.run(runspec=run, project=self.project_name)  # test rerun.
+        time.sleep(3)
+        self._check_artifacts_by_path(paths_dict=paths_dict)

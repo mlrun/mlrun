@@ -617,6 +617,7 @@ class BaseStoreTarget(DataTargetBase):
 
         driver._resource = resource
         driver.run_id = spec.run_id
+        driver.after_step = spec.after_step
         return driver
 
     def get_table_object(self):

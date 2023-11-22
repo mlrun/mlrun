@@ -184,8 +184,9 @@ class BatchApplicationProcessor:
 
             self._delete_old_parquet()
 
-    @staticmethod
+    @classmethod
     def model_endpoint_process(
+        cls,
         endpoint: dict,
         applications_names: list[str],
         bath_dict: dict,
@@ -210,9 +211,7 @@ class BatchApplicationProcessor:
         endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
         try:
             # Getting batch interval start time and end time
-            start_time, end_time = BatchApplicationProcessor._get_interval_range(
-                bath_dict
-            )
+            start_time, end_time = cls._get_interval_range(bath_dict)
             m_fs = fstore.get_feature_set(
                 endpoint[
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
@@ -232,7 +231,7 @@ class BatchApplicationProcessor:
 
             try:
                 # get sample data
-                df = BatchApplicationProcessor._get_sample_df(
+                df = cls._get_sample_df(
                     m_fs,
                     endpoint_id,
                     end_time,
@@ -298,7 +297,7 @@ class BatchApplicationProcessor:
             )
 
             # create and push data to all applications
-            BatchApplicationProcessor._push_to_applications(
+            cls._push_to_applications(
                 current_stats,
                 feature_stats,
                 parquet_directory,

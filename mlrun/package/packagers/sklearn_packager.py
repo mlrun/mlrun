@@ -1,14 +1,15 @@
 import os
 from typing import Tuple, Type
-from mlrun import ArtifactType
-from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem
-from mlrun.package import DefaultPackager
+
 import sklearn
 from sklearn.pipeline import Pipeline
-from mlrun.artifacts import ModelArtifact, get_model
-from mlrun.package.utils import TypeHintUtils, Pickler
+
+from mlrun import ArtifactType
+from mlrun.artifacts import Artifact, ModelArtifact, get_model
+from mlrun.datastore import DataItem
 from mlrun.frameworks.auto_mlrun import AutoMLRun
+from mlrun.package import DefaultPackager
+from mlrun.package.utils import Pickler, TypeHintUtils
 
 
 class SklearnModelPack(DefaultPackager):
@@ -25,7 +26,9 @@ class SklearnModelPack(DefaultPackager):
 
     @classmethod
     def pack_model(
-            cls, obj: str, key: str,
+        cls,
+        obj: str,
+        key: str,
     ) -> Tuple[Artifact, dict]:
         """
         Pack a sklearn model/pipeline (any subclass of sklearn.base.BaseEstimator)
@@ -54,37 +57,42 @@ class SklearnModelPack(DefaultPackager):
 
         art_obj, art_dict = cls.pack_object(obj=obj, key=key)
 
-        artifact = ModelArtifact(key=art_obj.key, model_dir=os.path.dirname(art_obj.src_path),
-                                 model_file=os.path.basename(art_obj.src_path))
+        artifact = ModelArtifact(
+            key=art_obj.key,
+            model_dir=os.path.dirname(art_obj.src_path),
+            model_file=os.path.basename(art_obj.src_path),
+        )
 
         return artifact, art_dict
 
     @classmethod
     def unpack_model(
-            cls, data_item: DataItem, pickle_module_name: str = DEFAULT_PICKLE_MODULE,
-            object_module_name: str = None,
-            python_version: str = None,
-            pickle_module_version: str = None,
-            object_module_version: str = None,
+        cls,
+        data_item: DataItem,
+        pickle_module_name: str = DEFAULT_PICKLE_MODULE,
+        object_module_name: str = None,
+        python_version: str = None,
+        pickle_module_version: str = None,
+        object_module_version: str = None,
     ) -> str:
         """
-            Unpack the data item's object, unpickle it using the instructions, and return.
+        Unpack the data item's object, unpickle it using the instructions, and return.
 
-            :Warnings of mismatching python and module versions between the original pickling interpreter and this one may be
-            raised.
+        :Warnings of mismatching python and module versions between the original pickling interpreter and this one may
+        be raised.
 
-            :param data_item:             The data item holding the pkl file.
-            :param pickle_module_name:    Module to use for unpickling the object.
-            :param object_module_name:    The original object's module. Used to verify that the current interpreter object
-                                          module version matches the pickled object version before unpickling the object.
-            :param python_version:        The python version in which the original object was pickled. Used to verify that
-                                          the current interpreter python version matches the pickled object version before
-                                          unpickling the object.
-            :param pickle_module_version: The pickle module version. Used to verify that the current interpreter module
-                                          version matches the one that pickled the object before unpickling it.
-            :param object_module_version: The original object's module version to match to the interpreter's module version.
+        :param data_item:             The data item holding the pkl file.
+        :param pickle_module_name:    Module to use for unpickling the object.
+        :param object_module_name:    The original object's module. Used to verify that the current interpreter object
+                                      module version matches the pickled object version before unpickling the object.
+        :param python_version:        The python version in which the original object was pickled. Used to verify that
+                                      the current interpreter python version matches the pickled object version before
+                                      unpickling the object.
+        :param pickle_module_version: The pickle module version. Used to verify that the current interpreter module
+                                      version matches the one that pickled the object before unpickling it.
+        :param object_module_version: The original object's module version to match to the interpreter's module version.
 
-            :return: The un-pickled python object.
+        :return: The un-pickled python object.
         """
 
         # First we get the model file path
@@ -105,7 +113,7 @@ class SklearnModelPack(DefaultPackager):
 
     @classmethod
     def is_unpackable(
-            cls, data_item: DataItem, type_hint: Type, artifact_type: str = None
+        cls, data_item: DataItem, type_hint: Type, artifact_type: str = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user given type hint and the provided artifact type.
@@ -122,9 +130,9 @@ class SklearnModelPack(DefaultPackager):
         # Check type (ellipses means any type):
         if cls.PACKABLE_OBJECT_TYPE is not ...:
             if not TypeHintUtils.is_matching(
-                    object_type=type_hint,
-                    type_hint=cls.PACKABLE_OBJECT_TYPE,
-                    reduce_type_hint=False,
+                object_type=type_hint,
+                type_hint=cls.PACKABLE_OBJECT_TYPE,
+                reduce_type_hint=False,
             ):
                 return False
 

@@ -3,12 +3,15 @@ import tempfile
 from typing import Tuple
 
 import sklearn
+import xgboost
 from sklearn.base import BaseEstimator
+
+# import mlrun.frameworks.sklearn as sklearn_imp
+from mlrun.frameworks.auto_mlrun import AutoMLRun
+from mlrun.package.packagers.sklearn_packager import SklearnModelPack
+
 # from sklearn.linear_model import LinearRegression
 from mlrun.package.utils import Pickler
-
-from mlrun.package.packagers.sklearn_packager import SklearnModelPack
-import xgboost
 from tests.package.packager_tester import (
     COMMON_OBJECT_INSTRUCTIONS,
     PackagerTester,
@@ -17,14 +20,12 @@ from tests.package.packager_tester import (
     UnpackTest,
 )
 
-# import mlrun.frameworks.sklearn as sklearn_imp
-from mlrun.frameworks.auto_mlrun import AutoMLRun
-
-
 _MODEL_SAMPLE = BaseEstimator()
 _XGBOOST_MODEL_SAMPLE = xgboost.XGBClassifier()
-_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(steps=[('model', _MODEL_SAMPLE)])
-_MIX_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(steps=[('model', _XGBOOST_MODEL_SAMPLE)])
+_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(steps=[("model", _MODEL_SAMPLE)])
+_MIX_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(
+    steps=[("model", _XGBOOST_MODEL_SAMPLE)]
+)
 
 
 def pack_model(do_apply_mlrun=False) -> BaseEstimator:
@@ -34,7 +35,9 @@ def pack_model(do_apply_mlrun=False) -> BaseEstimator:
     return model
 
 
-def pack_pipeline(do_apply_mlrun=False, do_apply_mlrun_steps=False) -> sklearn.pipeline.Pipeline:
+def pack_pipeline(
+    do_apply_mlrun=False, do_apply_mlrun_steps=False
+) -> sklearn.pipeline.Pipeline:
     pipeline = _PIPELINE_SAMPLE
 
     # Does apply_mlrun to all the steps inside the Pipeline
@@ -58,19 +61,31 @@ def unpack_pipeline(obj: sklearn.pipeline.Pipeline):
 
 
 def validate_model_packing(model: dict) -> bool:
-    return (isinstance(model, dict) and model['kind'] == 'model' and model['metadata']['key'] == 'my_model'
-            and model['spec']['unpackaging_instructions']['packager_name'] == 'SklearnModelPack')
+    return (
+        isinstance(model, dict)
+        and model["kind"] == "model"
+        and model["metadata"]["key"] == "my_model"
+        and model["spec"]["unpackaging_instructions"]["packager_name"]
+        == "SklearnModelPack"
+    )
 
 
 def validate_pipeline_packing(model: dict) -> bool:
-    return (isinstance(model, dict) and model['kind'] == 'model' and model['metadata']['key'] == 'my_pipeline'
-            and model['spec']['unpackaging_instructions']['packager_name'] == 'SklearnModelPack')
+    return (
+        isinstance(model, dict)
+        and model["kind"] == "model"
+        and model["metadata"]["key"] == "my_pipeline"
+        and model["spec"]["unpackaging_instructions"]["packager_name"]
+        == "SklearnModelPack"
+    )
 
 
-def prepare_model_file(file_format: str, obj: sklearn.base.BaseEstimator) -> Tuple[str, str]:
+def prepare_model_file(
+    file_format: str, obj: sklearn.base.BaseEstimator
+) -> Tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
-    Pickler.pickle(obj=obj, pickle_module_name='cloudpickle', output_path=file_path)
+    Pickler.pickle(obj=obj, pickle_module_name="cloudpickle", output_path=file_path)
     return file_path, temp_directory
 
 
@@ -87,13 +102,13 @@ class SklearnPackagerTester(PackagerTester):
             pack_handler="pack_model",
             log_hint={"key": "my_model", "artifact_type": "model"},
             validation_function=validate_model_packing,
-            pack_parameters={"do_apply_mlrun": False}
+            pack_parameters={"do_apply_mlrun": False},
         ),
         PackTest(
             pack_handler="pack_model",
             log_hint={"key": "my_model", "artifact_type": "model"},
             validation_function=validate_model_packing,
-            pack_parameters={"do_apply_mlrun": True}
+            pack_parameters={"do_apply_mlrun": True},
         ),
         UnpackTest(
             prepare_input_function=prepare_model_file,
@@ -104,17 +119,25 @@ class SklearnPackagerTester(PackagerTester):
             pack_handler="pack_model",
             pack_parameters={"do_apply_mlrun": False},
             log_hint={"key": "my_model", "artifact_type": "model"},
-            expected_instructions={'object_module_name': 'sklearn', 'pickle_module_name': 'cloudpickle',
-                                   'pickle_module_version': '2.2.1', 'python_version': '3.9.16'},
-            unpack_handler="unpack_model"
+            expected_instructions={
+                "object_module_name": "sklearn",
+                "pickle_module_name": "cloudpickle",
+                "pickle_module_version": "2.2.1",
+                "python_version": "3.9.16",
+            },
+            unpack_handler="unpack_model",
         ),
         PackToUnpackTest(
             pack_handler="pack_model",
             pack_parameters={"do_apply_mlrun": True},
             log_hint={"key": "my_model", "artifact_type": "model"},
-            expected_instructions={'object_module_name': 'sklearn', 'pickle_module_name': 'cloudpickle',
-                                   'pickle_module_version': '2.2.1', 'python_version': '3.9.16'},
-            unpack_handler="unpack_model"
+            expected_instructions={
+                "object_module_name": "sklearn",
+                "pickle_module_name": "cloudpickle",
+                "pickle_module_version": "2.2.1",
+                "python_version": "3.9.16",
+            },
+            unpack_handler="unpack_model",
         ),
         # TODO: not sure what is this test and how different is it from the previous 2
         PackToUnpackTest(
@@ -122,19 +145,27 @@ class SklearnPackagerTester(PackagerTester):
             log_hint="my_model: model",
             expected_instructions={
                 **COMMON_OBJECT_INSTRUCTIONS,
-                "object_module_name": 'sklearn',
+                "object_module_name": "sklearn",
             },
             unpack_handler="unpack_model",
         ),
-
         # Pipeline
-        *[PackTest(
-            pack_handler="pack_pipeline",
-            pack_parameters={"do_apply_mlrun": do_apply_mlrun, "do_apply_mlrun_steps": do_apply_mlrun_steps},
-            log_hint={"key": "my_pipeline", "artifact_type": "model"},
-            validation_function=validate_pipeline_packing,
-        )
-            for do_apply_mlrun, do_apply_mlrun_steps in [(False, False), (False, True), (True, False), (True, True)]
+        *[
+            PackTest(
+                pack_handler="pack_pipeline",
+                pack_parameters={
+                    "do_apply_mlrun": do_apply_mlrun,
+                    "do_apply_mlrun_steps": do_apply_mlrun_steps,
+                },
+                log_hint={"key": "my_pipeline", "artifact_type": "model"},
+                validation_function=validate_pipeline_packing,
+            )
+            for do_apply_mlrun, do_apply_mlrun_steps in [
+                (False, False),
+                (False, True),
+                (True, False),
+                (True, True),
+            ]
         ],
         UnpackTest(
             prepare_input_function=prepare_model_file,
@@ -146,15 +177,28 @@ class SklearnPackagerTester(PackagerTester):
             unpack_handler="unpack_pipeline",
             prepare_parameters={"file_format": "json", "obj": _MIX_PIPELINE_SAMPLE},
         ),
-        *[PackToUnpackTest(
-            pack_handler="pack_pipeline",
-            pack_parameters={"do_apply_mlrun": do_apply_mlrun, "do_apply_mlrun_steps": do_apply_mlrun_steps},
-            log_hint={"key": "my_model", "artifact_type": "model"},
-            expected_instructions={'object_module_name': 'sklearn', 'pickle_module_name': 'cloudpickle',
-                                   'pickle_module_version': '2.2.1', 'python_version': '3.9.16'},
-            unpack_handler="unpack_model",
-        )
-            for do_apply_mlrun, do_apply_mlrun_steps in [(False, False), (False, True), (True, False), (True, True)]
+        *[
+            PackToUnpackTest(
+                pack_handler="pack_pipeline",
+                pack_parameters={
+                    "do_apply_mlrun": do_apply_mlrun,
+                    "do_apply_mlrun_steps": do_apply_mlrun_steps,
+                },
+                log_hint={"key": "my_model", "artifact_type": "model"},
+                expected_instructions={
+                    "object_module_name": "sklearn",
+                    "pickle_module_name": "cloudpickle",
+                    "pickle_module_version": "2.2.1",
+                    "python_version": "3.9.16",
+                },
+                unpack_handler="unpack_model",
+            )
+            for do_apply_mlrun, do_apply_mlrun_steps in [
+                (False, False),
+                (False, True),
+                (True, False),
+                (True, True),
+            ]
         ],
         # TODO: not sure what is this test and how different is it from the previous one
         PackToUnpackTest(
@@ -162,8 +206,8 @@ class SklearnPackagerTester(PackagerTester):
             log_hint="my_model: model",
             expected_instructions={
                 **COMMON_OBJECT_INSTRUCTIONS,
-                "object_module_name": 'sklearn',
+                "object_module_name": "sklearn",
             },
             unpack_handler="unpack_model",
-        )
+        ),
     ]

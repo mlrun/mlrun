@@ -18,7 +18,7 @@ from typing import Callable, Dict, List, Tuple, Type, Union
 import mlrun
 from mlrun.artifacts import get_model
 
-from .._common import CommonTypes, ModelHandler, MLRunInterface
+from .._common import CommonTypes, MLRunInterface, ModelHandler
 
 
 def get_framework_by_instance(model: CommonTypes.ModelType) -> str:
@@ -564,8 +564,7 @@ class AutoMLRun:
         )
 
     @staticmethod
-    def get_interface(
-            model: CommonTypes.ModelType = None) -> Type[MLRunInterface]:
+    def get_interface(model: CommonTypes.ModelType = None) -> Type[MLRunInterface]:
         """
         Get the framework's mlrun interface from the model provided.
 

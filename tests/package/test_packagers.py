@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import inspect
-import os
 import shutil
 import tempfile
 import typing
@@ -34,7 +33,6 @@ from .packagers_testers.numpy_packagers_testers import (
     NumPyNDArrayPackagerTester,
     NumPyNumberPackagerTester,
 )
-from .packagers_testers.sklearn_packager_tester import SklearnPackagerTester
 from .packagers_testers.pandas_packagers_testers import (
     PandasDataFramePackagerTester,
     PandasSeriesPackagerTester,
@@ -54,6 +52,7 @@ from .packagers_testers.python_standard_library_packagers_testers import (
     StrPackagerTester,
     TuplePackagerTester,
 )
+from .packagers_testers.sklearn_packager_tester import SklearnPackagerTester
 
 # All the testers to be included in the tests:
 _PACKAGERS_TESTERS = [
@@ -77,7 +76,7 @@ _PACKAGERS_TESTERS = [
     NumPyNDArrayListPackagerTester,
     PandasDataFramePackagerTester,
     PandasSeriesPackagerTester,
-    SklearnPackagerTester
+    SklearnPackagerTester,
 ]
 
 
@@ -104,7 +103,9 @@ def _setup_test(
     # Create a project for this tester:
     project = mlrun.get_or_create_project(name="default", context=test_directory)
 
-    project.add_custom_packager("mlrun.package.packagers.sklearn_packager.SklearnModelPack", is_mandatory=True)
+    project.add_custom_packager(
+        "mlrun.package.packagers.sklearn_packager.SklearnModelPack", is_mandatory=True
+    )
     # Create a MLRun function using the tester source file (all the functions must be located in it):
     return project.set_function(
         func=inspect.getfile(tester),

@@ -15,10 +15,10 @@
 import enum
 import hashlib
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional
 
 import mlrun.common.helpers
+import mlrun.common.types
 
 
 class EventFieldType:
@@ -75,7 +75,6 @@ class EventFieldType:
     VALUE = "value"
     DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
     POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
-
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
@@ -84,21 +83,28 @@ class ApplicationEvent:
     CURRENT_STATS = "current_stats"
     FEATURE_STATS = "feature_stats"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
-    SCHEDULE_TIME = "schedule_time"
+    START_PROCESSING_TIME = "start_processing_time"
+    END_PROCESSING_TIME = "end_processing_time"
     LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent:
+class WriterEvent(mlrun.common.types.StrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
-    SCHEDULE_TIME = "schedule_time"
+    START_PROCESSING_TIME = "start_processing_time"
+    END_PROCESSING_TIME = "end_processing_time"
     RESULT_NAME = "result_name"
     RESULT_VALUE = "result_value"
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
+    CURRENT_STATS = "current_stats"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -144,7 +150,7 @@ class FileTargetKind:
     EVENTS = "events"
     STREAM = "stream"
     PARQUET = "parquet"
-    BATCH_CONTROLLER_PARQUET = "batch_controller_parquet"
+    APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
 
 
@@ -241,7 +247,7 @@ class EndpointUID:
         return self.uid
 
 
-class DriftStatus(Enum):
+class DriftStatus(enum.Enum):
     """
     Enum for the drift status values.
     """

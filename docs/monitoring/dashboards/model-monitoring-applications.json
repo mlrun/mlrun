@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 11,
+  "id": 14,
   "links": [
     {
       "asDropdown": true,
@@ -46,7 +46,7 @@
       "type": "link",
       "url": "d/AohIXhAMk/model-monitoring-details"
     },
-      {
+    {
       "icon": "external link",
       "includeVars": true,
       "keepTime": true,
@@ -120,7 +120,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter=application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -265,7 +265,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -456,7 +456,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -467,6 +467,8 @@
           "options": {
             "excludeByName": {
               "application_name": true,
+              "current_stats": true,
+              "end_processing_time": true,
               "endpoint_id": true,
               "result_kind": false,
               "result_name": false,
@@ -614,6 +616,7 @@
           ],
           "show": false
         },
+        "frameIndex": 0,
         "showHeader": true
       },
       "pluginVersion": "9.2.15",
@@ -622,7 +625,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -633,6 +636,8 @@
           "options": {
             "excludeByName": {
               "application_name": true,
+              "current_stats": true,
+              "end_processing_time": true,
               "endpoint_id": true,
               "result_extra_data": true,
               "schedule_time": false
@@ -742,7 +747,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],
@@ -900,7 +905,7 @@
           "datasource": "iguazio",
           "rawQuery": true,
           "refId": "A",
-          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter= application_name ==\"$APPLICATION\";",
+          "target": "backend=tsdb;container=users;table=pipelines/$PROJECT/monitoring-apps/app-results;;filter=  endpoint_id=='$MODELENDPOINT' AND application_name ==\"$APPLICATION\";",
           "type": "table"
         }
       ],

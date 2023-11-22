@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, NewType
 
 import pandas as pd
@@ -74,7 +75,7 @@ class _Notifier:
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
 of kind `{self._event[WriterEvent.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
-at time `{self._event[WriterEvent.SCHEDULE_TIME]}`.
+at time `{self._event[WriterEvent.START_PROCESSING_TIME]}`.
 
 Result data:
 Name: `{self._event[WriterEvent.RESULT_NAME]}`
@@ -154,12 +155,41 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_kv_schema(self, endpoint_id: str):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
-            {"name": WriterEvent.APPLICATION_NAME, "type": "string", "nullable": False},
-            {"name": WriterEvent.SCHEDULE_TIME, "type": "string", "nullable": False},
-            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False},
-            {"name": WriterEvent.RESULT_KIND, "type": "double", "nullable": False},
-            {"name": WriterEvent.RESULT_VALUE, "type": "double", "nullable": False},
-            {"name": WriterEvent.RESULT_STATUS, "type": "double", "nullable": False},
+            {
+                "name": WriterEvent.APPLICATION_NAME,
+                "type": "string",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.START_PROCESSING_TIME,
+                "type": "string",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.END_PROCESSING_TIME,
+                "type": "string",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.RESULT_NAME,
+                "type": "string",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.RESULT_KIND,
+                "type": "double",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.RESULT_VALUE,
+                "type": "double",
+                "nullable": False,
+            },
+            {
+                "name": WriterEvent.RESULT_STATUS,
+                "type": "double",
+                "nullable": False,
+            },
             {
                 "name": WriterEvent.RESULT_EXTRA_DATA,
                 "type": "string",
@@ -184,8 +214,8 @@ class ModelMonitoringWriter(StepToDict):
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())
-        event[WriterEvent.SCHEDULE_TIME] = pd.to_datetime(
-            event[WriterEvent.SCHEDULE_TIME],
+        event[WriterEvent.END_PROCESSING_TIME] = pd.to_datetime(
+            event[WriterEvent.END_PROCESSING_TIME],
             format=EventFieldType.TIME_FORMAT,
         )
         del event[WriterEvent.RESULT_EXTRA_DATA]
@@ -195,7 +225,7 @@ class ModelMonitoringWriter(StepToDict):
                 table=_TSDB_TABLE,
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
-                    WriterEvent.SCHEDULE_TIME,
+                    WriterEvent.END_PROCESSING_TIME,
                     WriterEvent.ENDPOINT_ID,
                     WriterEvent.APPLICATION_NAME,
                 ],
@@ -216,21 +246,13 @@ class ModelMonitoringWriter(StepToDict):
         schema as defined in `mlrun.common.schemas.model_monitoring.constants.WriterEvent`
         """
         try:
-            return _AppResultEvent(
-                {
-                    key: event[key]
-                    for key in (
-                        WriterEvent.ENDPOINT_ID,
-                        WriterEvent.SCHEDULE_TIME,
-                        WriterEvent.APPLICATION_NAME,
-                        WriterEvent.RESULT_NAME,
-                        WriterEvent.RESULT_KIND,
-                        WriterEvent.RESULT_VALUE,
-                        WriterEvent.RESULT_STATUS,
-                        WriterEvent.RESULT_EXTRA_DATA,
-                    )
-                }
+            result_event = _AppResultEvent(
+                {key: event[key] for key in WriterEvent.list()}
             )
+            result_event[WriterEvent.CURRENT_STATS] = json.loads(
+                event[WriterEvent.CURRENT_STATS]
+            )
+            return result_event
         except KeyError as err:
             raise _WriterEventValueError(
                 "The received event misses some keys compared to the expected "

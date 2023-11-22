@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import pandas as pd
 
@@ -82,10 +82,7 @@ class BatchApplicationProcessor:
         self.model_endpoints = context.parameters.get(
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
         )
-        self.model_monitoring_access_key = os.getenv(
-            mm_constants.ProjectSecretKeys.ACCESS_KEY,
-            mlrun.mlconf.get_v3io_access_key(),
-        )
+        self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,
             kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
@@ -95,6 +92,14 @@ class BatchApplicationProcessor:
             self._initialize_v3io_configurations()
         elif self.parquet_directory.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
+
+    @staticmethod
+    def _get_model_monitoring_access_key() -> Optional[str]:
+        access_key = os.getenv(mm_constants.ProjectSecretKeys.ACCESS_KEY)
+        # allow access key to be empty and don't fetch v3io access key if not needed
+        if access_key is None:
+            access_key = mlrun.mlconf.get_v3io_access_key()
+        return access_key
 
     def _initialize_v3io_configurations(self) -> None:
         self.v3io_framesd = mlrun.mlconf.v3io_framesd

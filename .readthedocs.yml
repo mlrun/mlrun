@@ -32,3 +32,7 @@ python:
     - requirements: dev-requirements.txt
     - requirements: dockerfiles/mlrun-api/requirements.txt
     - requirements: docs/requirements.txt
+
+search:
+  ignore:
+    - docs/tutorials/colab/01-mlrun-basics-colab.ipynb

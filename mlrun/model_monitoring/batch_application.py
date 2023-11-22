@@ -24,7 +24,6 @@ import pandas as pd
 import mlrun
 import mlrun.common.helpers
 import mlrun.common.model_monitoring.helpers
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
@@ -71,7 +70,7 @@ class BatchApplicationProcessor:
 
         # Get the batch interval range
         self.batch_dict = context.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
         ]
 
         # TODO: This will be removed once the job params can be parsed with different types
@@ -80,12 +79,12 @@ class BatchApplicationProcessor:
             self._parse_batch_dict_str()
         # If provided, only model endpoints in that that list will be analyzed
         self.model_endpoints = context.parameters.get(
-            mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
+            mm_constants.EventFieldType.MODEL_ENDPOINTS, None
         )
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+            kind=mm_constants.FileTargetKind.BATCH_CONTROLLER_PARQUET,
         )
         self.storage_options = None
         if not mlrun.mlconf.is_ce_mode():
@@ -134,26 +133,18 @@ class BatchApplicationProcessor:
             futures = []
             for endpoint in endpoints:
                 if (
-                    endpoint[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.ACTIVE
-                    ]
-                    and endpoint[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.MONITORING_MODE
-                    ]
-                    == mlrun.common.schemas.model_monitoring.ModelMonitoringMode.enabled.value
+                    endpoint[mm_constants.EventFieldType.ACTIVE]
+                    and endpoint[mm_constants.EventFieldType.MONITORING_MODE]
+                    == mm_constants.ModelMonitoringMode.enabled.value
                 ):
                     # Skip router endpoint:
                     if (
-                        int(
-                            endpoint[
-                                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_TYPE
-                            ]
-                        )
-                        == mlrun.common.schemas.model_monitoring.EndpointType.ROUTER
+                        int(endpoint[mm_constants.EventFieldType.ENDPOINT_TYPE])
+                        == mm_constants.EndpointType.ROUTER
                     ):
                         # Router endpoint has no feature stats
                         logger.info(
-                            f"{endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]} is router skipping"
+                            f"{endpoint[mm_constants.EventFieldType.UID]} is router skipping"
                         )
                         continue
                     future = pool.submit(
@@ -198,18 +189,14 @@ class BatchApplicationProcessor:
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
 
         """
-        endpoint_id = endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]
+        endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
             # Getting batch interval start time and end time
             start_time, end_time = cls._get_interval_range(bath_dict)
             m_fs = fstore.get_feature_set(
-                endpoint[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_SET_URI
-                ]
+                endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
-            labels = endpoint[
-                mlrun.common.schemas.model_monitoring.EventFieldType.LABEL_NAMES
-            ]
+            labels = endpoint[mm_constants.EventFieldType.LABEL_NAMES]
             if labels:
                 if isinstance(labels, str):
                     labels = json.loads(labels)
@@ -234,9 +221,7 @@ class BatchApplicationProcessor:
                     logger.warn(
                         "Not enough model events since the beginning of the batch interval",
                         featureset_name=m_fs.metadata.name,
-                        endpoint=endpoint[
-                            mlrun.common.schemas.model_monitoring.EventFieldType.UID
-                        ],
+                        endpoint=endpoint[mm_constants.EventFieldType.UID],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         start_time=start_time,
                         end_time=end_time,
@@ -251,9 +236,7 @@ class BatchApplicationProcessor:
                 logger.warn(
                     "Parquet not found, probably due to not enough model events",
                     # parquet_target=m_fs.status.targets[0].path, TODO:
-                    endpoint=endpoint[
-                        mlrun.common.schemas.model_monitoring.EventFieldType.UID
-                    ],
+                    endpoint=endpoint[mm_constants.EventFieldType.UID],
                     min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                 )
                 return
@@ -269,15 +252,11 @@ class BatchApplicationProcessor:
             m_fs.save()
 
             # Get the timestamp of the latest request:
-            latest_request = df[
-                mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP
-            ].iloc[-1]
+            latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
 
             # Get the feature stats from the model endpoint for reference data
             feature_stats = json.loads(
-                endpoint[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
-                ]
+                endpoint[mm_constants.EventFieldType.FEATURE_STATS]
             )
 
             # Get the current stats:
@@ -301,7 +280,7 @@ class BatchApplicationProcessor:
 
         except FileNotFoundError as e:
             logger.error(
-                f"Exception for endpoint {endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
+                f"Exception for endpoint {endpoint[mm_constants.EventFieldType.UID]}"
             )
             return endpoint_id, e
 
@@ -312,9 +291,9 @@ class BatchApplicationProcessor:
     ) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
-            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.MINUTES],
-            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
-            batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
+            batch_dict[mm_constants.EventFieldType.MINUTES],
+            batch_dict[mm_constants.EventFieldType.HOURS],
+            batch_dict[mm_constants.EventFieldType.DAYS],
         )
         end_time = now_func() - datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
@@ -349,7 +328,7 @@ class BatchApplicationProcessor:
             ("minute", "%M"),
         ]:
             schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
-        endpoint_str = f"{mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID}={endpoint_id}"
+        endpoint_str = f"{mm_constants.EventFieldType.ENDPOINT_ID}={endpoint_id}"
 
         return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
 
@@ -366,7 +345,7 @@ class BatchApplicationProcessor:
 
         base_directory = get_monitoring_parquet_path(
             project=self.project,
-            kind=mlrun.common.schemas.model_monitoring.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+            kind=mm_constants.FileTargetKind.BATCH_CONTROLLER_PARQUET,
         )
         target = ParquetTarget(path=base_directory)
         store, _ = target._get_store_and_path()
@@ -445,7 +424,7 @@ class BatchApplicationProcessor:
             mm_constants.ApplicationEvent.ENDPOINT_ID: endpoint_id,
             mm_constants.ApplicationEvent.OUTPUT_STREAM_URI: get_stream_path(
                 project=project,
-                application_name=mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.WRITER,
+                application_name=mm_constants.MonitoringFunctionNames.WRITER,
             ),
         }
         for app_name in applications_names:
@@ -493,9 +472,7 @@ class BatchApplicationProcessor:
         }  # to avoid exception when the taf is not latest
         entity_rows = pd.DataFrame(
             {
-                mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID: [
-                    endpoint_id
-                ],
+                mm_constants.EventFieldType.ENDPOINT_ID: [endpoint_id],
                 "scheduled_time": [end_time],
             }
         )
@@ -505,12 +482,12 @@ class BatchApplicationProcessor:
             entity_timestamp_column="scheduled_time",
             start_time=start_time,
             end_time=end_time,
-            timestamp_for_filtering=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
+            timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
                 path=parquet_directory,
                 time_partitioning_granularity="minute",
                 partition_cols=[
-                    mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
+                    mm_constants.EventFieldType.ENDPOINT_ID,
                 ],
                 storage_options=storage_options,
             ),

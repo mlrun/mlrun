@@ -74,7 +74,7 @@ class BatchApplicationProcessor:
             mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
         ]
 
-        # TODO: This will be removed in 1.5.0 once the job params can be parsed with different types
+        # TODO: This will be removed once the job params can be parsed with different types
         # Convert batch dict string into a dictionary
         if isinstance(self.batch_dict, str):
             self._parse_batch_dict_str()

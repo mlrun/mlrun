@@ -535,27 +535,6 @@ class RunDBMock:
 
         assert categories == expected_categories
 
-    def list_hub_sources(self, *args, **kwargs):
-        return [self._create_dummy_indexed_hub_source()]
-
-    def get_hub_source(self, *args, **kwargs):
-        return self._create_dummy_indexed_hub_source()
-
-    def _create_dummy_indexed_hub_source(self):
-        return mlrun.common.schemas.IndexedHubSource(
-            index=1,
-            source=mlrun.common.schemas.HubSource(
-                metadata=mlrun.common.schemas.HubObjectMetadata(
-                    name="default", description="some description"
-                ),
-                spec=mlrun.common.schemas.HubSourceSpec(
-                    path=mlrun.mlconf.hub.default_source.url,
-                    channel="master",
-                    object_type="functions",
-                ),
-            ),
-        )
-
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:

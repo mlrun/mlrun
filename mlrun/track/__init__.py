@@ -11,22 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-<<<<<<<< HEAD:mlrun/common/schemas/datastore_profile.py
-#
-
-import typing
-
-from pydantic import BaseModel
-
-
-class DatastoreProfile(BaseModel):
-    name: str
-    type: str
-    object: str
-    private: typing.Optional[str]
-    project: str
-========
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 from mlrun.track.tracker import Tracker
 from mlrun.track.tracker_manager import TrackerManager
->>>>>>>> c92ca752bda4d351cb2faac47522dded0be0f0df:mlrun/track/__init__.py

@@ -36,4 +36,4 @@ python:
 search:
   ignore:
     # https://github.com/readthedocs/readthedocs.org/issues/10911
-    - 01-mlrun-basics-colab.html
+    - '*/01-mlrun-basics-colab.html'

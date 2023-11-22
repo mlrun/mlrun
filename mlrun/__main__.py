@@ -152,7 +152,7 @@ def main():
 @click.option("--schedule", help="cron schedule")
 @click.option("--from-env", is_flag=True, help="read the spec from the env var")
 @click.option("--dump", is_flag=True, help="dump run results as YAML")
-@click.option("--image", default="", help="container image (defaults to mlrun/mlrun)")
+@click.option("--image", default="", help="container image")
 @click.option("--kind", default="", help="serverless runtime kind")
 @click.option("--source", default="", help="source code archive/git")
 @click.option("--local", is_flag=True, help="run the task locally (ignore runtime)")
@@ -289,7 +289,7 @@ def run(
                 exit(1)
         else:
             kind = kind or "job"
-            runtime = {"kind": kind, "spec": {"image": image or "mlrun/mlrun"}}
+            runtime = {"kind": kind, "spec": {"image": image}}
 
         if kind not in ["", "local", "dask"] and url:
             if url_file and path.isfile(url_file):
@@ -365,9 +365,8 @@ def run(
 
     if run_args:
         update_in(runtime, "spec.args", list(run_args))
-
-    update_in(runtime, "spec.image", image or "mlrun/mlrun", replace=bool(image))
-
+    if image:
+        update_in(runtime, "spec.image", image)
     set_item(runobj.spec, handler, "handler")
     set_item(runobj.spec, param, "parameters", fill_params(param))
 

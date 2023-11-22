@@ -53,13 +53,9 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3${MLRUN_ANACONDA_
 
 ENV PATH /opt/conda/bin:$PATH
 
-RUN conda install -y -n base conda-libmamba-solver && \
-    conda config --set solver libmamba && \
-    conda clean -aqy
-
 # Install Open-MPI:
 ARG OMPI_VERSION=4.1.5
-RUN conda install -y -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
+RUN conda install -c conda-forge openmpi-mpicc=${OMPI_VERSION} && \
     conda clean -aqy
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
@@ -67,7 +63,7 @@ ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 # Install Python:
 ARG MLRUN_PIP_VERSION=23.2.1
 RUN conda config --add channels conda-forge && \
-    conda install -y python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
+    conda install python=${MLRUN_PYTHON_VERSION} pip~=${MLRUN_PIP_VERSION} && \
     conda clean -aqy
 
 # Install MLRun:

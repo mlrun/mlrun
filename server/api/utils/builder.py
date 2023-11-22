@@ -743,7 +743,7 @@ def build_runtime(
         runtime.spec.build.base_image = base_image
         return False
 
-    mlrun.utils.logger.info(f"Build completed", status=status)
+    mlrun.utils.logger.info("Build completed", status=status)
     if status in ["failed", "error"]:
         runtime.status.state = mlrun.common.schemas.FunctionState.error
         return False

@@ -121,7 +121,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -691,12 +691,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 

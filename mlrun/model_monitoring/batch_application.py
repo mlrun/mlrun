@@ -19,7 +19,6 @@ import os
 import re
 from typing import Callable, Tuple
 
-import numpy as np
 import pandas as pd
 
 import mlrun
@@ -113,9 +112,7 @@ class BatchApplicationProcessor:
                 self.project
             ).list_model_monitoring_functions()
             if application:
-                applications_names = np.unique(
-                    [app.metadata.name for app in application]
-                ).tolist()
+                applications_names = list({app.metadata.name for app in application})
             else:
                 logger.info("There are no monitoring application found in this project")
                 applications_names = []

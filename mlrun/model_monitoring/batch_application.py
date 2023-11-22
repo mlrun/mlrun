@@ -83,7 +83,8 @@ class BatchApplicationProcessor:
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
         )
         self.model_monitoring_access_key = os.getenv(
-            "MODEL_MONITORING_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
+            mm_constants.ProjectSecretKeys.ACCESS_KEY,
+            mlrun.mlconf.get_v3io_access_key(),
         )
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,

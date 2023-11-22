@@ -83,9 +83,8 @@ class BatchApplicationProcessor:
         self.model_endpoints = context.parameters.get(
             mlrun.common.schemas.model_monitoring.EventFieldType.MODEL_ENDPOINTS, None
         )
-        self.v3io_access_key = os.environ.get("V3IO_ACCESS_KEY")
-        self.model_monitoring_access_key = (
-            os.environ.get("MODEL_MONITORING_ACCESS_KEY") or self.v3io_access_key
+        self.model_monitoring_access_key = os.getenv(
+            "MODEL_MONITORING_ACCESS_KEY", os.getenv("V3IO_ACCESS_KEY")
         )
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,
@@ -93,25 +92,19 @@ class BatchApplicationProcessor:
         )
         self.storage_options = None
         if not mlrun.mlconf.is_ce_mode():
-            self._initialize_v3io_configurations(
-                model_monitoring_access_key=self.model_monitoring_access_key
-            )
+            self._initialize_v3io_configurations()
         elif self.parquet_directory.startswith("s3://"):
             self.storage_options = mlrun.mlconf.get_s3_storage_options()
 
     def _initialize_v3io_configurations(
         self,
-        v3io_access_key: str = None,
         v3io_framesd: str = None,
         v3io_api: str = None,
-        model_monitoring_access_key: str = None,
-    ):
+    ) -> None:
         # Get the V3IO configurations
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self.v3io_api = v3io_api or mlrun.mlconf.v3io_api
 
-        self.v3io_access_key = v3io_access_key or os.environ.get("V3IO_ACCESS_KEY")
-        self.model_monitoring_access_key = model_monitoring_access_key
         self.storage_options = dict(
             v3io_access_key=self.model_monitoring_access_key, v3io_api=self.v3io_api
         )

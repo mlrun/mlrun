@@ -294,6 +294,8 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
+        if target.after_step:
+            target.attributes["infer_columns_from_data"] = True
         driver.add_writer_step(
             graph,
             target.after_step or final_step,

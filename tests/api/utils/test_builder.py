@@ -982,6 +982,12 @@ def test_resolve_build_requirements(
             "1.4.0",
             " @ git+https://github.com/mlrun/mlrun@development",
         ),
+        (
+            None,
+            "mlrun/mlrun",
+            "0.0.0+unstable",
+            " @ git+https://github.com/mlrun/mlrun@development",
+        ),
     ],
 )
 def test_mlrun_base_image_with_requirements(

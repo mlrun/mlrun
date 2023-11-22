@@ -10,7 +10,7 @@ from sklearn.base import BaseEstimator
 from mlrun.frameworks.auto_mlrun import AutoMLRun
 from mlrun.package.packagers.sklearn_packager import SklearnModelPack
 
-# from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression
 from mlrun.package.utils import Pickler
 from tests.package.packager_tester import (
     COMMON_OBJECT_INSTRUCTIONS,
@@ -20,25 +20,36 @@ from tests.package.packager_tester import (
     UnpackTest,
 )
 
-_MODEL_SAMPLE = BaseEstimator()
+_BASE_MODEL_SAMPLE = BaseEstimator()
+_LINEAR_MODEL_SAMPLE = LinearRegression()
 _XGBOOST_MODEL_SAMPLE = xgboost.XGBClassifier()
-_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(steps=[("model", _MODEL_SAMPLE)])
-_MIX_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(
+
+_BASE_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(
+    steps=[("model", _BASE_MODEL_SAMPLE)]
+)
+_LINEAR_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(
+    steps=[("model", _LINEAR_MODEL_SAMPLE)]
+)
+_XGBOOST_PIPELINE_SAMPLE = sklearn.pipeline.Pipeline(
     steps=[("model", _XGBOOST_MODEL_SAMPLE)]
 )
 
 
 def pack_model(do_apply_mlrun=False) -> BaseEstimator:
-    model = _MODEL_SAMPLE
+    model = _BASE_MODEL_SAMPLE
+
+    # apply_mlrun changes 'fit' method which doesn't exist in BaseEstimator
     if do_apply_mlrun:
+        model = _LINEAR_MODEL_SAMPLE
         AutoMLRun.apply_mlrun(model)
     return model
 
 
-def pack_pipeline(
-    do_apply_mlrun=False, do_apply_mlrun_steps=False
-) -> sklearn.pipeline.Pipeline:
-    pipeline = _PIPELINE_SAMPLE
+def pack_pipeline(do_apply_mlrun=False, do_apply_mlrun_steps=False) -> sklearn.pipeline.Pipeline:
+    pipeline = _BASE_PIPELINE_SAMPLE
+
+    if do_apply_mlrun or do_apply_mlrun_steps:
+        pipeline = _LINEAR_PIPELINE_SAMPLE  # apply_mlrun changes 'fit' method which doesn't exist in BaseEstimator
 
     # Does apply_mlrun to all the steps inside the Pipeline
     if do_apply_mlrun_steps:
@@ -62,26 +73,26 @@ def unpack_pipeline(obj: sklearn.pipeline.Pipeline):
 
 def validate_model_packing(model: dict) -> bool:
     return (
-        isinstance(model, dict)
-        and model["kind"] == "model"
-        and model["metadata"]["key"] == "my_model"
-        and model["spec"]["unpackaging_instructions"]["packager_name"]
-        == "SklearnModelPack"
+            isinstance(model, dict)
+            and model["kind"] == "model"
+            and model["metadata"]["key"] == "my_model"
+            and model["spec"]["unpackaging_instructions"]["packager_name"]
+            == "SklearnModelPack"
     )
 
 
 def validate_pipeline_packing(model: dict) -> bool:
     return (
-        isinstance(model, dict)
-        and model["kind"] == "model"
-        and model["metadata"]["key"] == "my_pipeline"
-        and model["spec"]["unpackaging_instructions"]["packager_name"]
-        == "SklearnModelPack"
+            isinstance(model, dict)
+            and model["kind"] == "model"
+            and model["metadata"]["key"] == "my_pipeline"
+            and model["spec"]["unpackaging_instructions"]["packager_name"]
+            == "SklearnModelPack"
     )
 
 
 def prepare_model_file(
-    file_format: str, obj: sklearn.base.BaseEstimator
+        file_format: str, obj: sklearn.base.BaseEstimator
 ) -> Tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     file_path = os.path.join(temp_directory, f"my_file.{file_format}")
@@ -113,7 +124,7 @@ class SklearnPackagerTester(PackagerTester):
         UnpackTest(
             prepare_input_function=prepare_model_file,
             unpack_handler="unpack_model",
-            prepare_parameters={"file_format": "json", "obj": _MODEL_SAMPLE},
+            prepare_parameters={"file_format": "json", "obj": _BASE_MODEL_SAMPLE},
         ),
         PackToUnpackTest(
             pack_handler="pack_model",
@@ -170,12 +181,12 @@ class SklearnPackagerTester(PackagerTester):
         UnpackTest(
             prepare_input_function=prepare_model_file,
             unpack_handler="unpack_pipeline",
-            prepare_parameters={"file_format": "json", "obj": _PIPELINE_SAMPLE},
+            prepare_parameters={"file_format": "json", "obj": _BASE_PIPELINE_SAMPLE},
         ),
         UnpackTest(
             prepare_input_function=prepare_model_file,
             unpack_handler="unpack_pipeline",
-            prepare_parameters={"file_format": "json", "obj": _MIX_PIPELINE_SAMPLE},
+            prepare_parameters={"file_format": "json", "obj": _XGBOOST_PIPELINE_SAMPLE},
         ),
         *[
             PackToUnpackTest(

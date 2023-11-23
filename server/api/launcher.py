@@ -21,6 +21,7 @@ import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
+import mlrun.projects.operations
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -208,9 +209,22 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if project:
             project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
-            mlrun.projects.pipelines.enrich_function_object(
+            mlrun.projects.operations.enrich_function_object(
                 project, runtime, copy_function=False, try_auto_mount=False
             )
+
+    @staticmethod
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
+
+        # we allow users to not set an image, in that case we'll use the default
+        if (
+            not runtime.spec.image
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
 
     def _enrich_full_spec(
         self,
@@ -268,6 +282,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
 
         self._validate_state_thresholds(run.spec.state_thresholds)
+
+        if (
+            not mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            and not runtime.spec.image
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Remote runtime must have a valid image"
+            )
+
         super()._validate_runtime(runtime, run)
 
     @staticmethod

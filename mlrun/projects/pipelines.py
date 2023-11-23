@@ -25,7 +25,6 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.runtimes
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (

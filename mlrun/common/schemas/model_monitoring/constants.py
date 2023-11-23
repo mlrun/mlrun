@@ -177,7 +177,7 @@ class PrometheusMetric:
 class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
     BATCH = "model-monitoring-batch"
-    BATCH_APPLICATION = "model-monitoring-batch-application"
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
     STREAM = None
 
     @staticmethod
@@ -186,7 +186,7 @@ class MonitoringFunctionNames:
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
             MonitoringFunctionNames.BATCH,
-            MonitoringFunctionNames.BATCH_APPLICATION,
+            MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
 
 

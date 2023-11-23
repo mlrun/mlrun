@@ -18,7 +18,7 @@ import json
 import os
 import re
 import typing
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 
@@ -37,11 +37,11 @@ from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stre
 from mlrun.utils import logger
 
 
-class BatchApplicationProcessor:
+class MonitoringApplicationProcessor:
     """
-    The main object to handle the batch processing job. This object is used to get the required configurations and
+    The main object to handle the monitoring processing job. This object is used to get the required configurations and
     to manage the main monitoring drift detection process based on the current batch.
-    Note that the BatchProcessor object requires access keys along with valid project configurations.
+    Note that the MonitoringApplicationProcessor object requires access keys along with valid project configurations.
     """
 
     def __init__(
@@ -50,7 +50,7 @@ class BatchApplicationProcessor:
         project: str,
     ):
         """
-        Initialize Batch Processor object.
+        Initialize Monitoring Application Processor object.
 
         :param context:                     An MLRun context.
         :param project:                     Project name.
@@ -59,7 +59,7 @@ class BatchApplicationProcessor:
         self.project = project
 
         logger.info(
-            "Initializing BatchProcessor",
+            "Initializing MonitoringApplicationProcessor",
             project=project,
         )
 
@@ -167,7 +167,7 @@ class BatchApplicationProcessor:
                         )
                         continue
                     future = pool.submit(
-                        BatchApplicationProcessor.model_endpoint_process,
+                        MonitoringApplicationProcessor.model_endpoint_process,
                         endpoint=endpoint,
                         applications_names=applications_names,
                         batch_interval_dict=self.batch_dict,
@@ -230,13 +230,13 @@ class BatchApplicationProcessor:
 
             # Getting batch interval start time and end time
             # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_time, end_time = BatchApplicationProcessor._get_interval_range(
+            start_time, end_time = MonitoringApplicationProcessor._get_interval_range(
                 batch_interval_dict
             )
             for application in applications_names:
                 try:
                     # Get application sample data
-                    offline_response = BatchApplicationProcessor._get_sample_df(
+                    offline_response = MonitoringApplicationProcessor._get_sample_df(
                         feature_set=m_fs,
                         endpoint_id=endpoint_id,
                         end_time=end_time,
@@ -268,7 +268,6 @@ class BatchApplicationProcessor:
                 except FileNotFoundError:
                     logger.warn(
                         "Parquet not found, probably due to not enough model events",
-                        # parquet_target=m_fs.status.targets[0].path,
                         endpoint=endpoint[
                             mlrun.common.schemas.model_monitoring.EventFieldType.UID
                         ],
@@ -295,7 +294,7 @@ class BatchApplicationProcessor:
                 )
 
                 # create and push data to all applications
-                BatchApplicationProcessor._push_to_applications(
+                MonitoringApplicationProcessor._push_to_applications(
                     current_stats=current_stats,
                     feature_stats=feature_stats,
                     start_time=start_time,
@@ -315,7 +314,8 @@ class BatchApplicationProcessor:
 
     @staticmethod
     def _get_interval_range(
-        batch_dict: dict[str, int]
+        batch_dict: dict[str, int],
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
     ) -> Tuple[datetime.datetime, datetime.datetime]:
         """Getting batch interval time range"""
         minutes, hours, days = (
@@ -323,10 +323,12 @@ class BatchApplicationProcessor:
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.HOURS],
             batch_dict[mlrun.common.schemas.model_monitoring.EventFieldType.DAYS],
         )
-        start_time = datetime.datetime.now() - datetime.timedelta(
+        end_time = now_func() - datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        )
+        start_time = end_time - datetime.timedelta(
             minutes=minutes, hours=hours, days=days
         )
-        end_time = datetime.datetime.now()
         return start_time, end_time
 
     def _parse_batch_dict_str(self):

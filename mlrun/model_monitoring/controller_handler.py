@@ -14,19 +14,19 @@
 #
 
 import mlrun
-from mlrun.model_monitoring.batch_application import BatchApplicationProcessor
+from mlrun.model_monitoring.controller import MonitoringApplicationProcessor
 
 
 def handler(context: mlrun.run.MLClientCtx):
     """
-    RunS model monitoring batch application
+    Run model monitoring application processor
 
     :param context: the MLRun context
     """
-    batch_processor = BatchApplicationProcessor(
+    monitor_app_processor = MonitoringApplicationProcessor(
         context=context,
         project=context.project,
     )
-    batch_processor.run()
-    if batch_processor.endpoints_exceptions:
-        print(batch_processor.endpoints_exceptions)
+    monitor_app_processor.run()
+    if monitor_app_processor.endpoints_exceptions:
+        print(monitor_app_processor.endpoints_exceptions)

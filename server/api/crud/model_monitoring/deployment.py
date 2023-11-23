@@ -41,8 +41,8 @@ _STREAM_PROCESSING_FUNCTION_PATH = (
 )
 _MONITORING_ORIGINAL_BATCH_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "batch.py"
 
-_MONITORING_APPLICATION_BATCH_FUNCTION_PATH = (
-    _MODEL_MONITORING_COMMON_PATH / "batch_application_handler.py"
+_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH = (
+    _MODEL_MONITORING_COMMON_PATH / "controller_handler.py"
 )
 
 _MONITORING_WRITER_FUNCTION_PATH = _MODEL_MONITORING_COMMON_PATH / "writer.py"
@@ -111,7 +111,7 @@ class MonitoringDeployment:
                 auth_info=auth_info,
                 tracking_policy=tracking_policy,
                 tracking_offset=Seconds(self._max_parquet_save_interval),
-                function_name=mm_constants.MonitoringFunctionNames.BATCH_APPLICATION,
+                function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
             )
             self.deploy_model_monitoring_writer_application(
                 project=project,
@@ -214,14 +214,14 @@ class MonitoringDeployment:
         :param with_schedule:               If true, submit a scheduled batch drift job.
         :param overwrite:                   If true, overwrite the existing model monitoring batch job.
         :param tracking_offset:             Offset for the tracking policy (for synchronization with the stream)
-        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+        :param function_name:               model-monitoring-batch or model-monitoring-controller
                                             indicates witch one to deploy.
 
         :return: Model monitoring batch job as a runtime function.
         """
         job_valid_names = [
             mm_constants.MonitoringFunctionNames.BATCH,
-            mm_constants.MonitoringFunctionNames.BATCH_APPLICATION,
+            mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
         if function_name not in job_valid_names:
             raise mlrun.errors.MLRunRuntimeError(
@@ -436,7 +436,7 @@ class MonitoringDeployment:
         :param db_session:                  A session that manages the current dialog with the database.
         :param auth_info:                   The auth info of the request.
         :param tracking_policy:             Model monitoring configurations.
-        :param function_name:               model-monitoring-batch or model-monitoring-application-batch
+        :param function_name:               model-monitoring-batch or model-monitoring-controller
                                             indicates witch one to create.
         :return:                            A function object from a mlrun runtime class
 
@@ -444,7 +444,7 @@ class MonitoringDeployment:
         filename = (
             str(_MONITORING_ORIGINAL_BATCH_FUNCTION_PATH)
             if function_name == "model-monitoring-batch"
-            else str(_MONITORING_APPLICATION_BATCH_FUNCTION_PATH)
+            else str(_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH)
         )
         # Create job function runtime for the model monitoring batch
         function: mlrun.runtimes.KubejobRuntime = mlrun.code_to_function(

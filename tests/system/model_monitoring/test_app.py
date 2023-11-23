@@ -26,6 +26,7 @@ import pytest
 from sklearn.datasets import load_iris
 
 import mlrun
+from mlrun.common.schemas.function import FunctionState
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplication
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
@@ -177,6 +178,12 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls._test_kv_record(ep_id)
         cls._test_tsdb_record(ep_id)
 
+    def _test_monitoring_stream_is_ready(self) -> None:
+        fn = self.project.get_function("model-monitoring-stream")
+        assert (
+            fn.status.state == FunctionState.ready
+        ), "The monitoring stream is not up. Please check the deployment."
+
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         self._log_model()
@@ -191,4 +198,5 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         self.serving_fn.invoke(self.infer_path, self.infer_input)
         time.sleep(2 * timedelta(minutes=self.app_interval).total_seconds())
 
+        self._test_monitoring_stream_is_ready()
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

@@ -1433,7 +1433,7 @@ class RunObject(RunTemplate):
             self.logs(watch=False)
         if raise_on_failure and state != mlrun.runtimes.constants.RunStates.completed:
             raise mlrun.errors.MLRunRuntimeError(
-                f"task {self.metadata.name} did not complete (state={state})"
+                f"Task {self.metadata.name} did not complete (state={state})"
             )
 
         return state

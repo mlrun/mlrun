@@ -367,7 +367,7 @@ def load_project(
         project = _load_project_dir(context, name, subpath)
 
     if not project.metadata.name:
-        raise ValueError("project name must be specified")
+        raise ValueError("Project name must be specified")
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup

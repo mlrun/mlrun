@@ -24,7 +24,7 @@ from .utils import TypeHintUtils
 
 class Packager(ABC):
     """
-    The abstract base class for a packager. A packager is a static class that has two main duties:
+    The abstract base class for a packager. Packager has two main duties:
 
     1. **Packing** - get an object that was returned from a function and log it to MLRun. The user can specify packing
        configurations to the packager using log hints. The packed object can be an artifact or a result.

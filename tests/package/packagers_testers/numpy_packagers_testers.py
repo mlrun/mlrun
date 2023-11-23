@@ -84,7 +84,8 @@ class NumPyNDArrayPackagerTester(PackagerTester):
                 pack_parameters={"i": i},
                 validation_parameters={"i": i},
                 default_artifact_type_object=np.ones(1),
-            ) for i in range(len(_ARRAY_SAMPLES))
+            )
+            for i in range(len(_ARRAY_SAMPLES))
         ],
         *[
             UnpackTest(
@@ -100,7 +101,8 @@ class NumPyNDArrayPackagerTester(PackagerTester):
                 pack_handler="pack_array",
                 log_hint="my_result: result",
                 pack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_SAMPLES))
+            )
+            for i in range(len(_ARRAY_SAMPLES))
         ],
         *[
             PackToUnpackTest(
@@ -110,7 +112,8 @@ class NumPyNDArrayPackagerTester(PackagerTester):
                 unpack_handler="unpack_array",
                 pack_parameters={"i": i},
                 unpack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_SAMPLES))
+            )
+            for i in range(len(_ARRAY_SAMPLES))
         ],
         PackToUnpackTest(
             pack_handler="pack_array",
@@ -141,11 +144,14 @@ class NumPyNDArrayPackagerTester(PackagerTester):
                 "artifact_type": "file",
                 "file_format": NumPySupportedFormat.NPY,
             },
-            expected_instructions={"file_format": NumPySupportedFormat.NPY, "allow_pickle": True},
+            expected_instructions={
+                "file_format": NumPySupportedFormat.NPY,
+                "allow_pickle": True,
+            },
             unpack_handler="unpack_array",
             pack_parameters={"i": 1},
             unpack_parameters={"i": 1},
-        )
+        ),
     ]
 
 
@@ -243,7 +249,8 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
                 validation_function=validate_array_dict,
                 pack_parameters={"i": i},
                 validation_parameters={"i": i},
-            ) for i in range(len(_ARRAY_DICT_SAMPLES))
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
         ],
         *[
             UnpackTest(
@@ -259,7 +266,8 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
                 pack_handler="pack_array_dict",
                 log_hint="my_array: result",
                 pack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_DICT_SAMPLES))
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
         ],
         *[
             PackToUnpackTest(
@@ -272,7 +280,8 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
                 unpack_handler="unpack_array_dict",
                 pack_parameters={"i": i},
                 unpack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_DICT_SAMPLES))
+            )
+            for i in range(len(_ARRAY_DICT_SAMPLES))
         ],
         *[
             PackToUnpackTest(
@@ -303,13 +312,11 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
             unpack_handler="unpack_array_dict",
             pack_parameters={"i": 1},
             unpack_parameters={"i": 1},
-        )
+        ),
     ]
 
 
-_ARRAY_LIST_SAMPLES = [
-    list(array_dict.values()) for array_dict in _ARRAY_DICT_SAMPLES
-]
+_ARRAY_LIST_SAMPLES = [list(array_dict.values()) for array_dict in _ARRAY_DICT_SAMPLES]
 
 
 def pack_array_list(i: int) -> List[np.ndarray]:
@@ -353,7 +360,8 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
                 validation_function=validate_array_list,
                 pack_parameters={"i": i},
                 validation_parameters={"i": i},
-            ) for i in range(len(_ARRAY_LIST_SAMPLES))
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
         ],
         *[
             UnpackTest(
@@ -369,7 +377,8 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
                 pack_handler="pack_array_list",
                 log_hint="my_array: result",
                 pack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_LIST_SAMPLES))
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
         ],
         *[
             PackToUnpackTest(
@@ -382,7 +391,8 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
                 unpack_handler="unpack_array_list",
                 pack_parameters={"i": i},
                 unpack_parameters={"i": i},
-            ) for i in range(len(_ARRAY_LIST_SAMPLES))
+            )
+            for i in range(len(_ARRAY_LIST_SAMPLES))
         ],
         *[
             PackToUnpackTest(
@@ -413,5 +423,5 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
             unpack_handler="unpack_array_list",
             pack_parameters={"i": 1},
             unpack_parameters={"i": 1},
-        )
+        ),
     ]

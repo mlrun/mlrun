@@ -105,10 +105,11 @@ def init_repo(context, url, init_git):
     if not context_path.exists():
         context_path.mkdir(parents=True)
     elif not context_path.is_dir():
-        raise ValueError(f"context {context} is not a dir path")
+        raise ValueError(f"Context {context} is not a dir path")
     try:
         repo = git.Repo(context)
         url = get_repo_url(repo)
+        logger.info("Identified git repo, using it", url=url)
     except Exception:
         if init_git:
             repo = git.Repo.init(context)

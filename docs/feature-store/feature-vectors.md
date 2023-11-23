@@ -26,7 +26,8 @@ The feature vector object minimally holds the following information:
 - Description &mdash; a string description of the feature vector.
 - Features &mdash; a list of features that comprise the feature vector.  
 The feature list is defined by specifying the `<feature-set>.<feature-name>` for specific features or `<feature-set>.*` for all of the feature set's features.
-- Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification.
+- Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification. In classification tasks, the `label_feature` 
+may contain the expected label of each record, and be compared with the model output when training or evaluating a model.
 
 Example of creating a feature vector:
 

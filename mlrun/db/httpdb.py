@@ -3154,7 +3154,8 @@ class HTTPRunDB(RunDBInterface):
         """
         project = project or config.default_project
         error = "list api gateways"
-        resp = self.api_call("GET", f"projects/{project}/nuclio/api-gateways", error)
+        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        resp = self.api_call("GET", endpoint_path, error)
         return resp.json()
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:

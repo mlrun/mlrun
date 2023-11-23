@@ -3149,7 +3149,8 @@ class HTTPRunDB(RunDBInterface):
         :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
 
         :return: json with the list of Nuclio Api Gateways
-            (json example is here https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+            (json example is here
+            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
         """
         project = project or config.default_project
         error = "list api gateways"

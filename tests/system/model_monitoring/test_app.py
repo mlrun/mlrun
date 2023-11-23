@@ -191,5 +191,4 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         self.serving_fn.invoke(self.infer_path, self.infer_input)
         time.sleep(2 * timedelta(minutes=self.app_interval).total_seconds())
 
-        ep_id = self._get_model_enpoint_id()
-        self._test_v3io_records(ep_id)
+        self._test_v3io_records(ep_id=self._get_model_enpoint_id())

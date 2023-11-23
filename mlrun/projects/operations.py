@@ -17,7 +17,6 @@ from typing import Dict, List, Optional, Union
 import kfp
 
 import mlrun
-import mlrun.runtimes
 from mlrun.utils import hub_prefix
 
 from .pipelines import enrich_function_object, pipeline_context

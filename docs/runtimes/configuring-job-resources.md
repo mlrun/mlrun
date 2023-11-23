@@ -1,10 +1,11 @@
 (configuring-job-resources)=
-# Managing run resources
+# Configuring runs and functions
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
-preferences, and priorities in the logical function object. These are used during the function deployment.
+preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
+All of these are used during the function deployment.
 
-Configuration of job resources is relevant for all supported cloud platforms.
+Configuring runs and functions is relevant for all supported cloud platforms.
 
 **In this section**
 - [Replicas](#replicas)
@@ -13,6 +14,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
+- [Preventing stuck pods](#preventing-stuck-pods)
 
 ## Replicas
 

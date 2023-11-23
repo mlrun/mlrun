@@ -25,6 +25,7 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.runtimes
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (
@@ -38,7 +39,7 @@ from mlrun.utils import (
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
 from ..run import _run_pipeline, wait_for_pipeline_completion
-from .operations import enrich_function_object
+from ..runtimes.pod import AutoMountType
 
 
 def get_workflow_engine(engine_kind, local=False):
@@ -372,6 +373,51 @@ def get_db_function(project, key) -> mlrun.runtimes.BaseRuntime:
     )
     runtime = mlrun.get_run_db().get_function(name, project_instance, tag, hash_key)
     return mlrun.new_function(runtime=runtime)
+
+
+def enrich_function_object(
+    project, function, decorator=None, copy_function=True, try_auto_mount=True
+) -> mlrun.runtimes.BaseRuntime:
+    if hasattr(function, "_enriched"):
+        return function
+    f = function.copy() if copy_function else function
+    f.metadata.project = project.metadata.name
+    setattr(f, "_enriched", True)
+
+    # set project default image if defined and function does not have an image specified
+    if project.spec.default_image and not f.spec.image:
+        f._enriched_image = True
+        f.spec.image = project.spec.default_image
+
+    src = f.spec.build.source
+    if src and src in [".", "./"]:
+        if not project.spec.source and not project.spec.mountdir:
+            logger.warning(
+                "project.spec.source should be specified when function is using code from project context"
+            )
+
+        if project.spec.mountdir:
+            f.spec.workdir = project.spec.mountdir
+            f.spec.build.source = ""
+        else:
+            f.spec.build.source = project.spec.source
+            f.spec.build.load_source_on_run = project.spec.load_source_on_run
+            f.spec.workdir = project.spec.workdir or project.spec.subpath
+            f.prepare_image_for_deploy()
+
+    if project.spec.default_requirements:
+        f.with_requirements(project.spec.default_requirements)
+    if decorator:
+        decorator(f)
+
+    if try_auto_mount:
+        if (
+            decorator and AutoMountType.is_auto_modifier(decorator)
+        ) or project.spec.disable_auto_mount:
+            f.spec.disable_auto_mount = True
+        f.try_auto_mount_based_on_config()
+
+    return f
 
 
 class _PipelineRunStatus:

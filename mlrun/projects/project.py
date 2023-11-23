@@ -81,7 +81,6 @@ from .operations import (
     DeployStatus,
     build_function,
     deploy_function,
-    enrich_function_object,
     run_function,
 )
 from .pipelines import (
@@ -89,6 +88,7 @@ from .pipelines import (
     WorkflowSpec,
     _PipelineRunStatus,
     _RemoteRunner,
+    enrich_function_object,
     get_db_function,
     get_workflow_engine,
     pipeline_context,

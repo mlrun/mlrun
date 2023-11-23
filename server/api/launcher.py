@@ -22,6 +22,7 @@ import mlrun.execution
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
 import mlrun.projects.operations
+import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -209,7 +210,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if project:
             project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
             # there is no need to auto mount here as it was already done in the full spec enrichment with the auth info
-            mlrun.projects.operations.enrich_function_object(
+            mlrun.projects.pipelines.enrich_function_object(
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 

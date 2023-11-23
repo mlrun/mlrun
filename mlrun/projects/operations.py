@@ -18,10 +18,9 @@ import kfp
 
 import mlrun
 import mlrun.runtimes
-from mlrun.utils import hub_prefix, logger
+from mlrun.utils import hub_prefix
 
-from ..runtimes.pod import AutoMountType
-from .pipelines import pipeline_context
+from .pipelines import enrich_function_object, pipeline_context
 
 
 def _get_engine_and_function(function, project=None):
@@ -389,48 +388,3 @@ def deploy_function(
             outputs={"endpoint": address, "name": function.status.nuclio_name},
             function=function,
         )
-
-
-def enrich_function_object(
-    project, function, decorator=None, copy_function=True, try_auto_mount=True
-) -> mlrun.runtimes.BaseRuntime:
-    if hasattr(function, "_enriched"):
-        return function
-    f = function.copy() if copy_function else function
-    f.metadata.project = project.metadata.name
-    setattr(f, "_enriched", True)
-
-    # set project default image if defined and function does not have an image specified
-    if project.spec.default_image and not f.spec.image:
-        f._enriched_image = True
-        f.spec.image = project.spec.default_image
-
-    src = f.spec.build.source
-    if src and src in [".", "./"]:
-        if not project.spec.source and not project.spec.mountdir:
-            logger.warning(
-                "project.spec.source should be specified when function is using code from project context"
-            )
-
-        if project.spec.mountdir:
-            f.spec.workdir = project.spec.mountdir
-            f.spec.build.source = ""
-        else:
-            f.spec.build.source = project.spec.source
-            f.spec.build.load_source_on_run = project.spec.load_source_on_run
-            f.spec.workdir = project.spec.workdir or project.spec.subpath
-            f.prepare_image_for_deploy()
-
-    if project.spec.default_requirements:
-        f.with_requirements(project.spec.default_requirements)
-    if decorator:
-        decorator(f)
-
-    if try_auto_mount:
-        if (
-            decorator and AutoMountType.is_auto_modifier(decorator)
-        ) or project.spec.disable_auto_mount:
-            f.spec.disable_auto_mount = True
-        f.try_auto_mount_based_on_config()
-
-    return f

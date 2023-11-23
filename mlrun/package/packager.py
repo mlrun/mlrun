@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import pathlib
-import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Union
@@ -316,7 +314,9 @@ class Packager(ABC):
             f"priority={self.priority})"
         )
 
-    def get_data_item_local_path(self, data_item: DataItem, add_to_future_clearing_path: bool = None) -> str:
+    def get_data_item_local_path(
+        self, data_item: DataItem, add_to_future_clearing_path: bool = None
+    ) -> str:
         """
         Get the local path to the item handled by the data item provided. The local path can be the same as the data
         item in case the data item points to a local path, or will be downloaded to a temporary directory and return
@@ -336,9 +336,8 @@ class Packager(ABC):
         local_path = data_item.local()
 
         # Check if needed to add to the future clear list:
-        if (
-            add_to_future_clearing_path or
-            (add_to_future_clearing_path is None and data_item.kind != "file")
+        if add_to_future_clearing_path or (
+            add_to_future_clearing_path is None and data_item.kind != "file"
         ):
             self.add_future_clearing_path(path=local_path)
 

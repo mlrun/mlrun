@@ -558,13 +558,13 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         if missing_arguments:
             if is_packing:
                 raise MLRunPackagePackingError(
-                    f"The packager '{self.__name__}' could not pack the package due to missing configurations: "
-                    f"{', '.join(missing_arguments)}. Add the missing arguments to the log hint of this object in "
-                    f"order to pack it. Make sure you pass a dictionary log hint and not a string in order to pass "
-                    f"configurations in the log hint."
+                    f"The packager '{self.__class__.__name__}' could not pack the package due to missing "
+                    f"configurations: {', '.join(missing_arguments)}. Add the missing arguments to the log hint of this "
+                    f"object in order to pack it. Make sure you pass a dictionary log hint and not a string in order to "
+                    f"pass configurations in the log hint."
                 )
             raise MLRunPackageUnpackingError(
-                f"The packager '{self.__name__}' could not unpack the package due to missing instructions: "
+                f"The packager '{self.__class__.__name__}' could not unpack the package due to missing instructions: "
                 f"{', '.join(missing_arguments)}. Missing instructions are likely due to an update in the packager's "
                 f"code that not support the old implementation. This backward compatibility should not occur. To "
                 f"overcome it, try to edit the instructions in the artifact's spec to enable unpacking it again."
@@ -577,7 +577,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         if incorrect_arguments:
             arguments_type = "configurations" if is_packing else "instructions"
             logger.warn(
-                f"Unexpected {arguments_type} given for {self.__name__}: {', '.join(incorrect_arguments)}. "
+                f"Unexpected {arguments_type} given for {self.__class__.__name__}: {', '.join(incorrect_arguments)}. "
                 f"Possible {arguments_type} are: {', '.join(possible_arguments.keys())}. The packager tries to "
                 f"continue by ignoring the incorrect arguments."
             )

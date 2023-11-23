@@ -16,10 +16,10 @@ import json
 import time
 import typing
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-import threading
 
 import pandas as pd
 import pytest
@@ -93,22 +93,17 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        threads: list[threading.Thread] = []
-        for app_data in self.apps_data:
-            fn = self.project.set_model_monitoring_function(
-                func=app_data.abs_path,
-                application_class=app_data.class_.__name__,
-                name=app_data.class_.name,
-                image="mlrun/mlrun",
-                requirements=app_data.requirements,
-                **app_data.kwargs,
-            )
-            thread = threading.Thread(target=self.project.deploy_function, args=(fn,))
-            threads.append(thread)
-            thread.start()
-
-        for thread in threads:
-            thread.join()
+        with ThreadPoolExecutor() as executor:
+            for app_data in self.apps_data:
+                fn = self.project.set_model_monitoring_function(
+                    func=app_data.abs_path,
+                    application_class=app_data.class_.__name__,
+                    name=app_data.class_.name,
+                    image="mlrun/mlrun",
+                    requirements=app_data.requirements,
+                    **app_data.kwargs,
+                )
+                executor.submit(self.project.deploy_function, fn)
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -184,9 +179,13 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
-        self._set_and_deploy_monitoring_apps()
         self._log_model()
-        self.serving_fn = self._deploy_model_serving()
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(self._set_and_deploy_monitoring_apps)
+            future = executor.submit(self._deploy_model_serving)
+
+        self.serving_fn = future.result()
 
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)

@@ -552,6 +552,7 @@ default_config = {
         "mode": "legacy",
         # interval for collecting and sending runs which require their logs to be collected
         "periodic_start_log_interval": 10,
+        "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,

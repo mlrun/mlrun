@@ -244,21 +244,12 @@ class Packager(ABC):
         # Unpackable:
         return True
 
-    def add_future_clearing_path(
-        self, path: Union[str, Path], add_temp_paths_only: bool = True
-    ):
+    def add_future_clearing_path(self, path: Union[str, Path]):
         """
         Mark a path to be cleared by this packager's manager after logging the packaged artifacts.
 
-        :param path:                The path to clear.
-        :param add_temp_paths_only: Whether to add only temporary files. When running locally on local files
-                                    ``DataItem.local()`` returns the local given path, which should not be deleted.
-                                    This flag helps to avoid deleting files in that scenario.
+        :param path: The path to clear post logging the artifacts.
         """
-        if add_temp_paths_only:
-            if pathlib.Path(path).is_relative_to(tempfile.gettempdir()):
-                self._future_clearing_path_list.append(str(path))
-            return
         self._future_clearing_path_list.append(str(path))
 
     @property
@@ -324,3 +315,31 @@ class Packager(ABC):
             f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types}, "
             f"priority={self.priority})"
         )
+
+    def get_data_item_local_path(self, data_item: DataItem, add_to_future_clearing_path: bool = None) -> str:
+        """
+        Get the local path to the item handled by the data item provided. The local path can be the same as the data
+        item in case the data item points to a local path, or will be downloaded to a temporary directory and return
+        this newly created temporary local path.
+
+        :param data_item:                   The data item to get its item local path.
+        :param add_to_future_clearing_path: Whether to add the local path to the future clearing paths list. If None, it
+                                            will add the path to the list only if the data item is not of kind 'file',
+                                            meaning it represents a local file and hence we don't want to delete it post
+                                            running automatically. We wish to delete it only if the local path is
+                                            temporary (and that will be in case kind is not 'file', so it is being
+                                            downloaded to a temporary directory).
+
+        :return: The data item local path.
+        """
+        # Get the local path to the item handled by the data item (download it to temporary if not local already):
+        local_path = data_item.local()
+
+        # Check if needed to add to the future clear list:
+        if (
+            add_to_future_clearing_path or
+            (add_to_future_clearing_path is None and data_item.kind != "file")
+        ):
+            self.add_future_clearing_path(path=local_path)
+
+        return local_path

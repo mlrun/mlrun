@@ -155,11 +155,8 @@ class StrPackager(DefaultPackager):
 
         :return: The unpacked string.
         """
-        # Get the file to a local temporary directory:
-        path = data_item.local()
-
-        # Mark the downloaded file for future clear:
-        self.add_future_clearing_path(path=path)
+        # Get the file:
+        path = self.get_data_item_local_path(data_item=data_item)
 
         # If it's not a directory, return the file path. Otherwise, it should be extracted according to the archive
         # format:
@@ -237,8 +234,7 @@ class _BuiltinCollectionPackager(DefaultPackager):
         :return: The unpacked builtin collection.
         """
         # Get the file:
-        file_path = data_item.local()
-        self.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:

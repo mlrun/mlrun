@@ -378,8 +378,7 @@ class NumPyNDArrayPackager(DefaultPackager):
         :return: The unpacked array.
         """
         # Get the file:
-        file_path = data_item.local()
-        self.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:
@@ -469,8 +468,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
         :return: The unpacked array collection.
         """
         # Get the file:
-        file_path = data_item.local()
-        self.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:

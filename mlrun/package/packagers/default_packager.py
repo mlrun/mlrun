@@ -501,10 +501,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         :return: The un-pickled python object.
         """
         # Get the pkl file to local directory:
-        pickle_path = data_item.local()
-
-        # Add the pickle path to the clearing list:
-        self.add_future_clearing_path(path=pickle_path)
+        pickle_path = self.get_data_item_local_path(data_item=data_item)
 
         # Unpickle and return:
         return Pickler.unpickle(

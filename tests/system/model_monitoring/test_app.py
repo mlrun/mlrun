@@ -19,6 +19,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
+import threading
 
 import pandas as pd
 import pytest
@@ -92,6 +93,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
+        threads: list[threading.Thread] = []
         for app_data in self.apps_data:
             fn = self.project.set_model_monitoring_function(
                 func=app_data.abs_path,
@@ -101,7 +103,12 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                 requirements=app_data.requirements,
                 **app_data.kwargs,
             )
-            self.project.deploy_function(fn)
+            thread = threading.Thread(target=self.project.deploy_function, args=(fn,))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
     def _log_model(self) -> None:
         dataset = load_iris()

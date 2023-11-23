@@ -3,16 +3,14 @@
 mlrun.package
 =============
 
-MLRun package enable **fully automated experiment and pipeline tracking and reproducibility**, easy
-**passing python objects between remote jobs** while **not requiring any form of editing** to the actual function
-original code. Simply set the function code in a project and run, MLRun will take care of the dirty work.
+MLRun package enables fully-automated experiment and pipeline tracking and reproducibility, and easy
+passing of python objects between remote jobs, while not requiring any form of editing to the actual function original code. 
+Simply set the function code in a project and run it, MLRun takes care of the rest.
 
-MLRun is using packagers - classes that are performing 2 tasks:
+MLRun uses packagers: classes that perform 2 tasks:
 
-#. **Parsing inputs** - automatically cast runtime's inputs (user's input passed to the function via the ``inputs`` parameter of the ``run`` method) to the relevant hinted type - no need to handle data items.
-#. **Logging outputs** - automatically save, log and upload function's returned objects by the provided log hints (user's input passed to the function via the ``returns`` parameter of the ``run`` method) - no need to handle files and artifacts.
-
-To know more about packagers, see an example and how to write your own custom packager, click here (coming soon).
+#. **Parsing inputs** - automatically cast the runtime's inputs (user's input passed to the function via the ``inputs`` parameter of the ``run`` method) to the relevant hinted type.  (Does not require handling of data items.)
+#. **Logging outputs** - automatically save, log, and upload the function's returned objects by the provided log hints (user's input passed to the function via the ``returns`` parameter of the ``run`` method). (Does not require handling of files and artifacts.)
 
 .. currentmodule:: mlrun.package
 
@@ -33,7 +31,7 @@ To know more about packagers, see an example and how to write your own custom pa
 
 .. rubric:: Packagers
 
-Below is a list of all the modules including the packagers MLRun comes with out of the box. All of the packagers here
+MLRun comes with the following list of modules, out of the box. All of the packagers listed here
 use the implementation of :ref:`DefaultPackager <mlrun.package.packagers.default\_packager.DefaultPackager>` and are
 available by default at the start of each run.
 

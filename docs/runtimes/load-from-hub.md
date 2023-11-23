@@ -47,7 +47,7 @@ print(f'Project path: {project_path}\nProject name: {project_name}')
 The artifact path is the default path for saving all the artifacts that the functions generate:
 
 ```python
-from mlrun import run_local, mlconf, import_function, mount_v3io
+from mlrun import mlconf
 
 # Target location for storing pipeline artifacts
 artifact_path = path.abspath('jobs')

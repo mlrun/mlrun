@@ -16,6 +16,7 @@ import enum
 import functools
 import hashlib
 import inspect
+import itertools
 import json
 import os
 import pathlib
@@ -33,6 +34,7 @@ from typing import Any, List, Optional, Tuple
 import anyio
 import git
 import numpy as np
+import packaging.version
 import pandas
 import semver
 import yaml
@@ -47,9 +49,9 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.config import config
 from mlrun.errors import err_to_str
 
-from ..config import config
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -405,7 +407,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                "Replacing underscores with dashes.",
+                f"Replacing {name} underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")
@@ -895,7 +897,7 @@ def get_docker_repository_or_default(repository: str) -> str:
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
-    docker_registry = config.httpdb.builder.docker_registry
+    docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
     # this is exception to the rules from the link above, since the config value is called docker_registry we assume
     # that if someone gave just one component without any slash they gave a registry and not a repository
@@ -1029,7 +1031,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 
@@ -1064,7 +1066,7 @@ def retry_until_successful(
         )
 
     raise Exception(
-        f"failed to execute command by the given deadline."
+        f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
@@ -1471,29 +1473,6 @@ def is_file_path(filepath):
     return os.path.isfile(filepath) and ext
 
 
-class DeprecationHelper(object):
-    """A helper class to deprecate old schemas"""
-
-    def __init__(self, new_target, version="1.4.0"):
-        self._new_target = new_target
-        self._version = version
-
-    def _warn(self):
-        warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
-            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
-            FutureWarning,
-        )
-
-    def __call__(self, *args, **kwargs):
-        self._warn()
-        return self._new_target(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        self._warn()
-        return getattr(self._new_target, attr)
-
-
 def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
@@ -1515,3 +1494,29 @@ def is_explicit_ack_supported(context):
         "kafka-cluster",
         "kafka",
     ]
+
+
+def line_terminator_kwargs():
+    # pandas 1.5.0 renames line_terminator to lineterminator
+    line_terminator_parameter = (
+        "lineterminator"
+        if packaging.version.Version(pandas.__version__)
+        >= packaging.version.Version("1.5.0")
+        else "line_terminator"
+    )
+    return {line_terminator_parameter: "\n"}
+
+
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
+    """
+    Iterate over a list and yield chunks of the list in the given chunk size
+    e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
+    """
+    if chunk_size <= 0 or not iterable_list:
+        yield iterable_list
+        return
+    iterator = iter(iterable_list)
+    while chunk := list(itertools.islice(iterator, chunk_size)):
+        yield chunk

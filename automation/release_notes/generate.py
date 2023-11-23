@@ -61,7 +61,6 @@ class ReleaseNotesGenerator:
         # adding a map with the common contributors to prevent going to github API on every commit (better performance,
         # and prevent rate limiting)
         self._git_to_github_usernames_map = {
-            "Hedingber": "Hedingber",
             "gilad-shaham": "gilad-shaham",
             "Saar Cohen": "theSaarco",
             "Yaron Haviv": "yaronha",
@@ -69,7 +68,6 @@ class ReleaseNotesGenerator:
             "Gal Topper": "gtopper",
             "guy1992l": "guy1992l",
             "Nick Brown": "ihs-nick",
-            "Tom Tankilevitch": "tankilevitch",
             "Adam": "quaark",
             "Alon Maor": "alonmr",
             "TomerShor": "TomerShor",

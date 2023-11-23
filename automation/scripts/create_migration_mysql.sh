@@ -16,7 +16,7 @@
 
 set -e
 
-if [ ! -v  MLRUN_MIGRATION_MESSAGE ]; then
+if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
 	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
 	exit 1
 fi
@@ -55,7 +55,8 @@ while ! docker exec migration-db mysql --user=root --password=pass -e "status" >
 	times=$(( times + 1 ))
 done
 
+export PYTHONPATH=$ROOT_DIR
 
-alembic -c "${ROOT_DIR}/mlrun/api/alembic_mysql.ini" upgrade head
-alembic -c "${ROOT_DIR}/mlrun/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" upgrade head
+alembic -c "${ROOT_DIR}/server/api/alembic_mysql.ini" revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
 

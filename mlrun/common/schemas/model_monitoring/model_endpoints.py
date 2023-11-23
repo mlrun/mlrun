@@ -18,7 +18,7 @@ import json
 import typing
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from pydantic.main import Extra
 
 import mlrun.common.model_monitoring
@@ -100,6 +100,27 @@ class ModelEndpointSpec(ObjectSpec):
             json_parse_values=json_parse_values,
         )
 
+    @validator("monitor_configuration")
+    def set_name(cls, monitor_configuration):
+        return monitor_configuration or {
+            EventFieldType.DRIFT_DETECTED_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
+            ),
+            EventFieldType.POSSIBLE_DRIFT_THRESHOLD: (
+                mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
+            ),
+        }
+
+    @validator("model_uri")
+    def validate_model_uri(cls, model_uri):
+        """Validate that the model uri includes the required prefix"""
+        prefix, uri = mlrun.datastore.parse_store_uri(model_uri)
+        if prefix and prefix != mlrun.utils.helpers.StorePrefix.Model:
+            return mlrun.datastore.get_store_uri(
+                mlrun.utils.helpers.StorePrefix.Model, uri
+            )
+        return model_uri
+
 
 class Histogram(BaseModel):
     buckets: List[float]
@@ -163,7 +184,7 @@ class ModelEndpointStatus(ObjectStatus):
     features: Optional[List[Features]] = []
     children: Optional[List[str]] = []
     children_uids: Optional[List[str]] = []
-    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value
+    endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP
     monitoring_feature_set_uri: Optional[str] = ""
     state: Optional[str] = ""
 

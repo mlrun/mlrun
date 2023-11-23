@@ -24,11 +24,11 @@ import aiohttp
 import pytest
 import tabulate
 
-import mlrun.api.api.utils
-import mlrun.api.constants
-import mlrun.api.crud
 import mlrun.common.schemas.notification
 import mlrun.utils.notifications
+import server.api.api.utils
+import server.api.constants
+import server.api.crud
 
 
 @pytest.mark.parametrize(
@@ -116,6 +116,60 @@ def test_notification_should_notify(
         mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
     )
     assert notification_pusher._should_notify(run, notification) == expected
+
+
+@pytest.mark.parametrize(
+    "notification_kind",
+    [
+        mlrun.common.schemas.notification.NotificationKind.console,
+        mlrun.common.schemas.notification.NotificationKind.slack,
+        mlrun.common.schemas.notification.NotificationKind.git,
+        mlrun.common.schemas.notification.NotificationKind.webhook,
+        mlrun.common.schemas.notification.NotificationKind.ipython,
+    ],
+)
+def test_notification_reason(notification_kind):
+    error_exc = Exception("Blew up")
+    run = mlrun.model.RunObject.from_dict({"status": {"state": "completed"}})
+    run.spec.notifications = [
+        mlrun.model.Notification.from_dict(
+            {
+                "kind": notification_kind,
+                "status": "pending",
+                "message": "test-abc",
+            }
+        ),
+    ]
+
+    notification_pusher = (
+        mlrun.utils.notifications.notification_pusher.NotificationPusher([run])
+    )
+
+    # dont really update, just mock it for later assertions
+    notification_pusher._update_notification_status = unittest.mock.MagicMock()
+
+    # mock the push method to raise an exception
+    notification_kind_type = getattr(
+        mlrun.utils.notifications.NotificationTypes, notification_kind
+    ).get_notification()
+    if asyncio.iscoroutinefunction(notification_kind_type.push):
+        concrete_notification = notification_pusher._async_notifications[0][0]
+    else:
+        concrete_notification = notification_pusher._sync_notifications[0][0]
+
+    concrete_notification.push = unittest.mock.MagicMock(side_effect=error_exc)
+
+    # send notifications
+    notification_pusher.push()
+
+    # asserts
+    notification_pusher._update_notification_status.assert_called_once()
+    concrete_notification.push.assert_called_once()
+
+    assert (
+        str(error_exc)
+        in notification_pusher._update_notification_status.call_args.kwargs["reason"]
+    )
 
 
 def test_condition_evaluation_timeout():
@@ -417,7 +471,7 @@ def test_notification_params_masking_on_run(monkeypatch):
         pass
 
     monkeypatch.setattr(
-        mlrun.api.crud.Secrets, "store_project_secrets", _store_project_secrets
+        server.api.crud.Secrets, "store_project_secrets", _store_project_secrets
     )
     params = {"sensitive": "sensitive-value"}
     params_hash = hashlib.sha224(
@@ -428,8 +482,8 @@ def test_notification_params_masking_on_run(monkeypatch):
         "metadata": {"uid": run_uid, "project": "test-project"},
         "spec": {"notifications": [{"when": "completed", "secret_params": params}]},
     }
-    mlrun.api.api.utils.mask_notification_params_on_task(
-        run, mlrun.api.constants.MaskOperations.CONCEAL
+    server.api.api.utils.mask_notification_params_on_task(
+        run, server.api.constants.MaskOperations.CONCEAL
     )
     assert "sensitive" not in run["spec"]["notifications"][0]["secret_params"]
     assert "secret" in run["spec"]["notifications"][0]["secret_params"]
@@ -465,10 +519,10 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     db_session_mock = unittest.mock.Mock()
 
     monkeypatch.setattr(
-        mlrun.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
+        server.api.crud.Secrets, "get_project_secret", _get_valid_project_secret
     )
 
-    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
     assert "sensitive" in unmasked_run.spec.notifications[0].secret_params
@@ -476,9 +530,9 @@ def test_notification_params_unmasking_on_run(monkeypatch):
     assert unmasked_run.spec.notifications[0].secret_params == secret_value
 
     monkeypatch.setattr(
-        mlrun.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
+        server.api.crud.Secrets, "get_project_secret", _get_invalid_project_secret
     )
-    unmasked_run = mlrun.api.api.utils.unmask_notification_params_secret_on_task(
+    unmasked_run = server.api.api.utils.unmask_notification_params_secret_on_task(
         db_mock, db_session_mock, copy.deepcopy(run)
     )
     assert len(unmasked_run.spec.notifications) == 0

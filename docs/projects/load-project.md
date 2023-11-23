@@ -1,5 +1,5 @@
 (load-project)=
-# Load and run projects
+# Load projects
 
 Project code, metadata, and configuration are stored and versioned in source control systems like Git or archives (zip, tar) 
 and can be loaded into your work environment or CI system with a single SDK or CLI command.

@@ -435,6 +435,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
+            config.external_platform_tracking = (
+                server_cfg.get("external_platform_tracking")
+                or config.external_platform_tracking
+            )
             config.model_endpoint_monitoring.store_type = (
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
@@ -566,17 +570,32 @@ class HTTPRunDB(RunDBInterface):
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         """
-        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        self.update_run(
-            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
-            uid,
-            project,
-            iter,
-            timeout,
+        project = project or config.default_project
+        params = {"iter": iter}
+        updates = {}
+        if status_text:
+            updates["status.status_text"] = status_text
+        body = _as_json(updates)
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/abort",
+            error="Failed run abortion",
+            params=params,
+            body=body,
+            timeout=timeout,
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
 
     def read_run(self, uid, project="", iter=0):
         """Read the details of a stored run from the DB.
@@ -630,7 +649,10 @@ class HTTPRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """
+        Retrieve a list of runs, filtered by various options.
+        If no filter is provided, will return runs from the last week.
+
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
@@ -670,7 +692,6 @@ class HTTPRunDB(RunDBInterface):
         if (
             not name
             and not uid
-            and not project
             and not labels
             and not state
             and not last
@@ -678,6 +699,9 @@ class HTTPRunDB(RunDBInterface):
             and not start_time_to
             and not last_update_time_from
             and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
         ):
             # default to last week on no filter
             start_time_from = datetime.now() - timedelta(days=7)
@@ -982,7 +1006,7 @@ class HTTPRunDB(RunDBInterface):
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
-            "label_selector": label_selector,
+            "label-selector": label_selector,
             "group-by": group_by,
             "kind": kind,
             "object-id": object_id,
@@ -1184,6 +1208,7 @@ class HTTPRunDB(RunDBInterface):
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1196,6 +1221,7 @@ class HTTPRunDB(RunDBInterface):
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+        :param force_build:   Force building the image, even when no changes were made
         """
 
         try:
@@ -1203,6 +1229,7 @@ class HTTPRunDB(RunDBInterface):
                 "function": func.to_dict(),
                 "with_mlrun": bool2str(with_mlrun),
                 "skip_deployed": skip_deployed,
+                "force_build": force_build,
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
@@ -1469,15 +1496,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(
@@ -1533,7 +1562,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         namespace: str = None,
-        timeout: int = 10,
+        timeout: int = 30,
         format_: Union[
             str, mlrun.common.schemas.PipelinesFormat
         ] = mlrun.common.schemas.PipelinesFormat.summary,
@@ -2237,21 +2266,23 @@ class HTTPRunDB(RunDBInterface):
         """Delete a project.
 
         :param name: Name of the project to delete.
-        :param deletion_strategy: How to treat child objects of the project. Possible values are:
+        :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any child objects when deleted. If using this mode while
-              child objects exist, the operation will fail.
-            - ``cascade`` - Automatically delete all child objects when deleting the project.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using
+              this mode while related resources exist, the operation will fail.
+            - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
-        path = f"projects/{name}"
+        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            return self._wait_for_project_to_be_deleted(name)
+            logger.info("Project is being deleted", project_name=name)
+            self._wait_for_project_to_be_deleted(name)
+        logger.info("Project deleted", project_name=name)
 
     def store_project(
         self,
@@ -2347,10 +2378,13 @@ class HTTPRunDB(RunDBInterface):
         )
 
     def _wait_for_background_task_to_reach_terminal_state(
-        self, name: str
+        self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
-            background_task = self.get_background_task(name)
+            if project:
+                background_task = self.get_project_background_task(project, name)
+            else:
+                background_task = self.get_background_task(name)
             state = background_task.status.state
             if state not in mlrun.common.schemas.BackgroundTaskState.terminal_states():
                 raise Exception(
@@ -3204,6 +3238,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3216,6 +3251,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -3224,6 +3260,11 @@ class HTTPRunDB(RunDBInterface):
             if hasattr(workflow_spec, "image")
             else workflow_spec.get("image", None)
         )
+        workflow_name = name or (
+            workflow_spec.name
+            if hasattr(workflow_spec, "name")
+            else workflow_spec.get("name", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -3231,16 +3272,25 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+        if isinstance(
+            workflow_spec,
+            mlrun.common.schemas.WorkflowSpec,
+        ):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+        req["spec"]["name"] = workflow_name
+        if notifications:
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+
         response = self.api_call(
             "POST",
-            f"projects/{project}/workflows/{name}/submit",
+            f"projects/{project}/workflows/{workflow_name}/submit",
             json=req,
         )
         return mlrun.common.schemas.WorkflowResponse(**response.json())

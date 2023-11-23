@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import typing
+from typing import Callable, Tuple
 
 import pytest
 
@@ -22,6 +24,8 @@ from mlrun.common.model_monitoring.helpers import (
     Histogram,
     pad_features_hist,
 )
+from mlrun.common.schemas.model_monitoring import EventFieldType
+from mlrun.model_monitoring.batch_application import BatchApplicationProcessor
 
 
 class _HistLen(typing.NamedTuple):
@@ -70,3 +74,60 @@ def test_pad_features_hist(
     pad_features_hist(feature_stats)
     for feat_name, feat in feature_stats.items():
         _check_padded_hist_spec(feat["hist"], orig_feature_stats_hist_data[feat_name])
+
+
+class TestBatchInterval:
+    interval_range = BatchApplicationProcessor._get_interval_range
+
+    @staticmethod
+    def _fake_now_func_factory(
+        delta: datetime.timedelta,
+        base_time: datetime.datetime = datetime.datetime(2021, 1, 1, 12, 0, 0),
+    ) -> Callable[[], datetime.datetime]:
+        def fake_now_func() -> datetime.datetime:
+            nonlocal base_time
+            current_time = base_time
+            base_time += delta
+            return current_time
+
+        return fake_now_func
+
+    @classmethod
+    @pytest.fixture
+    def intervals(
+        cls, minutes_delta: int = 6
+    ) -> list[Tuple[datetime.datetime, datetime.datetime]]:
+        now_func = cls._fake_now_func_factory(
+            delta=datetime.timedelta(minutes=minutes_delta)
+        )
+        return [
+            BatchApplicationProcessor._get_interval_range(
+                batch_dict={
+                    EventFieldType.MINUTES: minutes_delta,
+                    EventFieldType.HOURS: 0,
+                    EventFieldType.DAYS: 0,
+                },
+                now_func=now_func,
+            )
+            for _ in range(5)
+        ]
+
+    @staticmethod
+    def test_touching_interval(
+        intervals: list[Tuple[datetime.datetime, datetime.datetime]]
+    ) -> None:
+        for prev, curr in zip(intervals[:-1], intervals[1:]):
+            assert prev[1] == curr[0], "The intervals should be touching"
+
+    @staticmethod
+    def test_end_time_is_in_the_past() -> None:
+        time = datetime.datetime(2023, 11, 16, 12, 0, 0)
+        _, end_time = BatchApplicationProcessor._get_interval_range(
+            batch_dict={
+                EventFieldType.MINUTES: 10,
+                EventFieldType.HOURS: 0,
+                EventFieldType.DAYS: 0,
+            },
+            now_func=lambda: time,
+        )
+        assert end_time < time, "End time should be in the past"

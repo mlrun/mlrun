@@ -30,23 +30,21 @@ import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.utils
-import mlrun.api.crud
-import mlrun.api.main
-import mlrun.api.utils.background_tasks
-import mlrun.api.utils.clients.log_collector
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
-import mlrun.api.utils.singletons.logs_dir
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.schemas
 import mlrun.errors
+import server.api.api.utils
+import server.api.crud
+import server.api.main
+import server.api.utils.auth.verifier
+import server.api.utils.clients.log_collector
+import server.api.utils.singletons.db
+import server.api.utils.singletons.project_member
+import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
-from mlrun.api.db.sqldb.models import (
+from server.api.db.sqldb.models import (
     Artifact,
     Entity,
     Feature,
@@ -59,20 +57,20 @@ from mlrun.api.db.sqldb.models import (
     _classes,
 )
 
-ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 
 
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
-        mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
+        server.api.utils.singletons.project_member.initialize_project_member()
+        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
             db
         )
     elif request.param == "leader":
         mlrun.config.config.httpdb.projects.leader = "mlrun"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
             f"Provided project member mode is not supported. mode={request.param}"
@@ -156,7 +154,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
@@ -408,7 +406,7 @@ def test_list_project_summaries_different_installation_modes(
     response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
-    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+    server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(0, None, [])
     )
     # Enterprise installation configuration post 3.4.0
@@ -600,10 +598,10 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
         f"projects/{project_name}",
@@ -613,17 +611,17 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
+    assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
         distinct_function_names
     )
-    assert mlrun.api.utils.singletons.db.get_db().del_artifact.call_count == len(
+    assert server.api.utils.singletons.db.get_db().del_artifact.call_count == len(
         distinct_artifact_keys
     )
-    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
+    assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )
     assert (
-        mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count
+        server.api.utils.singletons.db.get_db().delete_feature_vector.call_count
         == len(distinct_feature_vector_names)
     )
 
@@ -691,9 +689,9 @@ def test_delete_project_with_stop_logs(
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
-    log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+    log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
     with unittest.mock.patch.object(
-        mlrun.api.utils.clients.log_collector.LogCollectorClient,
+        server.api.utils.clients.log_collector.LogCollectorClient,
         "_call",
         return_value=tests.api.utils.clients.test_log_collector.BaseLogCollectorResponse(
             True, ""
@@ -725,7 +723,7 @@ def test_list_projects_leader_format(
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         )
-        mlrun.api.utils.singletons.db.get_db().create_project(db, project)
+        server.api.utils.singletons.db.get_db().create_project(db, project)
         project_names.append(project_name)
 
     # list in leader format
@@ -916,7 +914,7 @@ def _create_resources_of_all_kinds(
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project: str,
 ):
-    db = mlrun.api.utils.singletons.db.get_db()
+    db = server.api.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
@@ -924,7 +922,7 @@ def _create_resources_of_all_kinds(
         ),
         spec=mlrun.common.schemas.ProjectSpec(description="some desc"),
     )
-    mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+    server.api.utils.singletons.project_member.get_project_member().store_project(
         db_session, project, project_schema
     )
 
@@ -1009,7 +1007,7 @@ def _create_resources_of_all_kinds(
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
     for log_uid in log_uids:
-        mlrun.api.crud.Logs().store_log(log, project, log_uid)
+        server.api.crud.Logs().store_log(log, project, log_uid)
 
     # Create several schedule
     schedule = {
@@ -1019,7 +1017,7 @@ def _create_resources_of_all_kinds(
     schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_names = ["schedule_name_1", "schedule_name_2", "schedule_name_3"]
     for schedule_name in schedule_names:
-        mlrun.api.utils.singletons.scheduler.get_scheduler().create_schedule(
+        server.api.utils.singletons.scheduler.get_scheduler().create_schedule(
             db_session,
             mlrun.common.schemas.AuthInfo(),
             project,
@@ -1132,7 +1130,7 @@ def _assert_schedules_in_project(
     assert_no_resources: bool = False,
 ) -> int:
     number_of_schedules = len(
-        mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
+        server.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
             project
         )
     )
@@ -1147,7 +1145,7 @@ def _assert_logs_in_project(
     project: str,
     assert_no_resources: bool = False,
 ) -> int:
-    logs_path = mlrun.api.api.utils.project_logs_path(project)
+    logs_path = server.api.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
         number_of_log_files = len(
@@ -1456,7 +1454,7 @@ def _mock_pipelines(project_name):
     for status, count in status_count_map.items():
         for index in range(count):
             pipelines.append({"status": status, "project": project_name})
-    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+    server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(None, None, pipelines)
     )
     return status_count_map[mlrun.run.RunStatuses.running]

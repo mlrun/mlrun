@@ -1,0 +1,5 @@
+# this file is not named requirements.txt so that test_requirement_specifiers_convention will not check it.
+# comment
+faker
+python-dotenv
+chardet>=3.0.2, <4.0 # inline comment

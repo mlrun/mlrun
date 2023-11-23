@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import codecs
+import datetime
 import sys
 import time
 from collections import namedtuple
@@ -71,7 +72,7 @@ def start_server(workdir, env_config: dict):
     cmd = [
         executable,
         "-m",
-        "mlrun.api.main",
+        "server.api.main",
     ]
 
     proc = Popen(cmd, env=env, stdout=PIPE, stderr=PIPE, cwd=project_dir_path)
@@ -272,9 +273,19 @@ def test_runs(create_server):
         run_as_dict["metadata"]["name"] = "run-name"
         db.store_run(run_as_dict, uid, prj)
 
+    # retrieve only the last run as it is partitioned by name
+    # and since there is no other filter, it will return only the last run
     runs = db.list_runs(project=prj)
-    assert len(runs) == count, "bad number of runs"
+    assert len(runs) == 1, "bad number of runs"
 
+    # retrieve all runs
+    runs = db.list_runs(
+        project=prj,
+        start_time_from=datetime.datetime.now() - datetime.timedelta(days=1),
+    )
+    assert len(runs) == 7, "bad number of runs"
+
+    # delete runs in created state
     db.del_runs(project=prj, state="created")
     runs = db.list_runs(project=prj)
     assert not runs, "found runs in after delete"

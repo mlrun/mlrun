@@ -15,8 +15,6 @@ import hashlib
 import json
 import os
 import re
-import typing
-from copy import deepcopy
 from io import StringIO
 from sys import stderr
 
@@ -31,7 +29,7 @@ from mlrun.errors import err_to_str
 from mlrun.frameworks.parallel_coordinates import gen_pcp_plot
 
 from ..artifacts import TableArtifact
-from ..config import config, is_running_as_api
+from ..config import config
 from ..utils import get_in, helpers, logger, verify_field_regex
 from .generators import selector
 
@@ -147,24 +145,6 @@ def add_code_metadata(path=""):
     return None
 
 
-def get_k8s():
-    """
-    Get the k8s helper object
-    :return: k8s helper object or None if not running as API
-    """
-    if is_running_as_api():
-        import mlrun.api.utils.singletons.k8s
-
-        return mlrun.api.utils.singletons.k8s.get_k8s_helper()
-
-    return None
-
-
-def set_if_none(struct, key, value):
-    if not struct.get(key):
-        struct[key] = value
-
-
 def results_to_iter(results, runspec, execution):
     if not results:
         logger.error("got an empty results list in to_iter")
@@ -230,7 +210,12 @@ def results_to_iter(results, runspec, execution):
 
 def log_iter_artifacts(execution, df, header):
     csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False, line_terminator="\n", encoding="utf-8")
+    df.to_csv(
+        csv_buffer,
+        index=False,
+        encoding="utf-8",
+        **mlrun.utils.line_terminator_kwargs(),
+    )
     try:
         # may fail due to lack of access credentials to the artifacts store
         execution.log_artifact(
@@ -250,38 +235,6 @@ def log_iter_artifacts(execution, df, header):
         )
     except Exception as exc:
         logger.warning(f"failed to log iter artifacts, {err_to_str(exc)}")
-
-
-def resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
-    project = function.metadata.project or config.default_project
-    name = function.metadata.name
-    tag = function.metadata.tag or "latest"
-    if image:
-        image_name_prefix = resolve_function_target_image_name_prefix(project, name)
-        registries_to_enforce_prefix = (
-            resolve_function_target_image_registries_to_enforce_prefix()
-        )
-        for registry in registries_to_enforce_prefix:
-            if image.startswith(registry):
-                prefix_with_registry = f"{registry}{image_name_prefix}"
-                if not image.startswith(prefix_with_registry):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Configured registry enforces image name to start with this prefix: {image_name_prefix}"
-                    )
-        return image
-    return generate_function_image_name(project, name, tag)
-
-
-def generate_function_image_name(project: str, name: str, tag: str) -> str:
-    _, repository = helpers.get_parsed_docker_registry()
-    repository = helpers.get_docker_repository_or_default(repository)
-    return fill_function_image_name_template(
-        mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX,
-        repository,
-        project,
-        name,
-        tag,
-    )
 
 
 def fill_function_image_name_template(
@@ -315,13 +268,6 @@ def set_named_item(obj, item):
         obj[item["name"]] = item
     else:
         obj[item.name] = item
-
-
-def set_item_attribute(item, attribute, value):
-    if isinstance(item, dict):
-        item[attribute] = value
-    else:
-        setattr(item, attribute, value)
 
 
 def get_item_name(item, attr="name"):
@@ -366,35 +312,6 @@ def apply_kfp(modify, cop, runtime):
         cop.container.volume_mounts.clear()
 
     return runtime
-
-
-def get_resource_labels(function, run=None, scrape_metrics=None):
-    scrape_metrics = (
-        scrape_metrics if scrape_metrics is not None else config.scrape_metrics
-    )
-    run_uid, run_name, run_project, run_owner = None, None, None, None
-    if run:
-        run_uid = run.metadata.uid
-        run_name = run.metadata.name
-        run_project = run.metadata.project
-        run_owner = run.metadata.labels.get("owner")
-    labels = deepcopy(function.metadata.labels)
-    labels[mlrun_key + "class"] = function.kind
-    labels[mlrun_key + "project"] = run_project or function.metadata.project
-    labels[mlrun_key + "function"] = str(function.metadata.name)
-    labels[mlrun_key + "tag"] = str(function.metadata.tag or "latest")
-    labels[mlrun_key + "scrape-metrics"] = str(scrape_metrics)
-
-    if run_uid:
-        labels[mlrun_key + "uid"] = run_uid
-
-    if run_name:
-        labels[mlrun_key + "name"] = run_name
-
-    if run_owner:
-        labels[mlrun_key + "owner"] = run_owner
-
-    return labels
 
 
 def verify_limits(
@@ -497,18 +414,6 @@ def get_func_selector(project, name=None, tag=None):
     return s
 
 
-def parse_function_selector(selector: typing.List[str]) -> typing.Tuple[str, str, str]:
-    project, name, tag = None, None, None
-    for criteria in selector:
-        if f"{mlrun_key}project=" in criteria:
-            project = criteria[f"{mlrun_key}project=":]
-        if f"{mlrun_key}function=" in criteria:
-            name = criteria[f"{mlrun_key}function=":]
-        if f"{mlrun_key}tag=" in criteria:
-            tag = criteria[f"{mlrun_key}tag=":]
-    return project, name, tag
-
-
 class k8s_resource:
     kind = ""
     per_run = False
@@ -544,6 +449,7 @@ def enrich_function_from_dict(function, function_dict):
         "volume_mounts",
         "env",
         "resources",
+        "image",
         "image_pull_policy",
         "replicas",
         "node_name",

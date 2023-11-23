@@ -151,7 +151,6 @@ class StoreyFeatureMerger(BaseMerger):
         server = create_graph_server(graph=graph, parameters={})
 
         cache = ResourceCache()
-        all_fs_entities = []
         for featureset in feature_set_objects.values():
             driver = get_online_target(featureset)
             if not driver:
@@ -160,9 +159,6 @@ class StoreyFeatureMerger(BaseMerger):
                 )
             cache.cache_table(featureset.uri, driver.get_table_object())
 
-            for key in featureset.spec.entities.keys():
-                if key not in all_fs_entities:
-                    all_fs_entities.append(key)
         server.init_states(context=None, namespace=None, resource_cache=cache)
         server.init_object(None)
 
@@ -170,7 +166,6 @@ class StoreyFeatureMerger(BaseMerger):
             self.vector,
             graph,
             entity_keys,
-            all_fs_entities=all_fs_entities,
             impute_policy=self.impute_policy,
             requested_columns=requested_columns,
         )

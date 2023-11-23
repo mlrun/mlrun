@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 import pandas as pd
-import sqlalchemy
+from mergedeep import merge
 
 import mlrun
 import mlrun.utils.helpers
@@ -436,11 +436,20 @@ class BaseStoreTarget(DataTargetBase):
             prefix=self.credentials_prefix,
         )
 
-    def _get_store(self):
-        store, _ = mlrun.store_manager.get_or_create_store(
-            self.get_target_path_with_credentials()
+    def _get_store_and_path(self):
+        credentials_prefix_secrets = (
+            {"CREDENTIALS_PREFIX": self.credentials_prefix}
+            if self.credentials_prefix
+            else None
         )
-        return store
+        store, resolved_store_path = mlrun.store_manager.get_or_create_store(
+            self.get_target_path(),
+            credentials_prefix_secrets,
+        )
+        if self.get_target_path().startswith("ds://"):
+            return store, store.url + resolved_store_path
+        else:
+            return store, self.get_target_path()
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -485,20 +494,22 @@ class BaseStoreTarget(DataTargetBase):
         if hasattr(df, "rdd"):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
+            df = self.prepare_spark_df(df, key_column, timestamp_key, options)
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            storage_options = self._get_store().get_storage_options()
+            store, target_path = self._get_store_and_path()
+            storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
                 if dask_options["format"] == "parquet":
                     df.to_parquet(
-                        generate_path_with_chunk(self, chunk_id),
+                        generate_path_with_chunk(self, chunk_id, target_path),
                         storage_options=storage_options,
                     )
                 elif dask_options["format"] == "csv":
                     df.to_csv(
-                        generate_path_with_chunk(self, chunk_id),
+                        generate_path_with_chunk(self, chunk_id, target_path),
                         storage_options=storage_options,
                     )
                 else:
@@ -508,39 +519,51 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            target_path = generate_path_with_chunk(self, chunk_id)
-            file_system = self._get_store().get_filesystem(False)
+            store, target_path = self._get_store_and_path()
+            target_path = generate_path_with_chunk(self, chunk_id, target_path)
+            file_system = store.get_filesystem(False)
             if file_system.protocol == "file":
                 dir = os.path.dirname(target_path)
                 if dir:
                     os.makedirs(dir, exist_ok=True)
-            partition_cols = []
-            if target_path.endswith(".parquet") or target_path.endswith(".pq"):
-                partition_cols = None
             target_df = df
-            if timestamp_key and (
-                self.partitioned or self.time_partitioning_granularity
-            ):
-                target_df = df.copy(deep=False)
-                time_partitioning_granularity = self.time_partitioning_granularity
-                if not time_partitioning_granularity and self.partitioned:
-                    time_partitioning_granularity = (
-                        mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
-                    )
-                for unit, fmt in [
-                    ("year", "%Y"),
-                    ("month", "%m"),
-                    ("day", "%d"),
-                    ("hour", "%H"),
-                    ("minute", "%M"),
-                ]:
-                    partition_cols.append(unit)
-                    target_df[unit] = pd.DatetimeIndex(target_df[timestamp_key]).format(
-                        date_format=fmt
-                    )
-                    if unit == time_partitioning_granularity:
-                        break
-            storage_options = self._get_store().get_storage_options()
+            partition_cols = None  # single parquet file
+            if not target_path.endswith(".parquet") and not target_path.endswith(
+                ".pq"
+            ):  # directory
+                partition_cols = []
+                if timestamp_key and (
+                    self.partitioned or self.time_partitioning_granularity
+                ):
+                    target_df = df.copy(deep=False)
+                    time_partitioning_granularity = self.time_partitioning_granularity
+                    if not time_partitioning_granularity and self.partitioned:
+                        time_partitioning_granularity = (
+                            mlrun.utils.helpers.DEFAULT_TIME_PARTITIONING_GRANULARITY
+                        )
+                    for unit, fmt in [
+                        ("year", "%Y"),
+                        ("month", "%m"),
+                        ("day", "%d"),
+                        ("hour", "%H"),
+                        ("minute", "%M"),
+                    ]:
+                        partition_cols.append(unit)
+                        target_df[unit] = pd.DatetimeIndex(
+                            target_df[timestamp_key]
+                        ).format(date_format=fmt)
+                        if unit == time_partitioning_granularity:
+                            break
+                # Partitioning will be performed on timestamp_key and then on self.partition_cols
+                # (We might want to give the user control on this order as additional functionality)
+                partition_cols += self.partition_cols or []
+
+            storage_options = store.get_storage_options()
+            if storage_options and self.storage_options:
+                storage_options = merge(storage_options, self.storage_options)
+            else:
+                storage_options = storage_options or self.storage_options
+
             self._write_dataframe(
                 target_df,
                 storage_options,
@@ -607,9 +630,6 @@ class BaseStoreTarget(DataTargetBase):
             else None
         )
 
-    def get_target_path_with_credentials(self):
-        return self.get_target_path()
-
     def get_target_templated_path(self):
         path_object = self._target_path_object
         return path_object.get_templated_path() if path_object else None
@@ -665,7 +685,8 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        self._get_store().rm(self.get_target_path(), recursive=True)
+        store, target_path = self._get_store_and_path()
+        store.rm(target_path, recursive=True)
 
     def as_df(
         self,
@@ -691,7 +712,7 @@ class BaseStoreTarget(DataTargetBase):
         # options used in spark.read.load(**options)
         raise NotImplementedError()
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options={}):
         return df
 
     def get_dask_options(self):
@@ -852,18 +873,25 @@ class ParquetTarget(BaseStoreTarget):
                 "update_last_written": featureset_status.update_last_written_for_target
             }
 
+        store, target_path = self._get_store_and_path()
+
+        storage_options = store.get_storage_options()
+        if storage_options and self.storage_options:
+            storage_options = merge(storage_options, self.storage_options)
+        else:
+            storage_options = storage_options or self.storage_options
+
         graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.ParquetTarget",
-            path=self.get_target_path(),
+            path=target_path,
             columns=column_list,
             index_cols=tuple_key_columns,
             partition_cols=partition_cols,
             time_field=timestamp_key,
-            storage_options=self.storage_options
-            or self._get_store().get_storage_options(),
+            storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             **self.attributes,
@@ -910,7 +938,7 @@ class ParquetTarget(BaseStoreTarget):
         **kwargs,
     ):
         """return the target data as dataframe"""
-        return mlrun.get_dataitem(self.get_target_path()).as_df(
+        result = mlrun.get_dataitem(self.get_target_path()).as_df(
             columns=columns,
             df_module=df_module,
             format="parquet",
@@ -919,11 +947,59 @@ class ParquetTarget(BaseStoreTarget):
             time_column=time_column,
             **kwargs,
         )
+        if not columns:
+            drop_cols = []
+            if self.time_partitioning_granularity:
+                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
+                    drop_cols.append(col)
+                    if col == self.time_partitioning_granularity:
+                        break
+            elif (
+                self.partitioned
+                and not self.partition_cols
+                and not self.key_bucketing_number
+            ):
+                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
+            if drop_cols:
+                # if these columns aren't present for some reason, that's no reason to fail
+                result.drop(columns=drop_cols, inplace=True, errors="ignore")
+        return result
 
     def is_single_file(self):
         if self.path:
             return self.path.endswith(".parquet") or self.path.endswith(".pq")
         return False
+
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
+        # If partitioning by time, add the necessary columns
+        if (
+            timestamp_key
+            and isinstance(spark_options, dict)
+            and "partitionBy" in spark_options
+        ):
+            from pyspark.sql.functions import (
+                dayofmonth,
+                hour,
+                minute,
+                month,
+                second,
+                year,
+            )
+
+            time_unit_to_op = {
+                "year": year,
+                "month": month,
+                "day": dayofmonth,
+                "hour": hour,
+                "minute": minute,
+                "second": second,
+            }
+            timestamp_col = df[timestamp_key]
+            for partition in spark_options["partitionBy"]:
+                if partition not in df.columns and partition in time_unit_to_op:
+                    op = time_unit_to_op[partition]
+                    df = df.withColumn(partition, op(timestamp_col))
+        return df
 
 
 class CSVTarget(BaseStoreTarget):
@@ -953,17 +1029,17 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
+        store, target_path = self._get_store_and_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,
             graph_shape="cylinder",
             class_name="storey.CSVTarget",
-            path=self.get_target_path(),
+            path=target_path,
             columns=column_list,
             header=True,
             index_cols=key_columns,
-            storage_options=self._get_store().get_storage_options(),
+            storage_options=store.get_storage_options(),
             **self.attributes,
         )
 
@@ -974,7 +1050,7 @@ class CSVTarget(BaseStoreTarget):
             "header": "true",
         }
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
 
         for col_name, col_type in df.dtypes:
@@ -1068,7 +1144,7 @@ class NoSqlBaseTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         raise NotImplementedError()
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
@@ -1140,7 +1216,7 @@ class NoSqlTarget(NoSqlBaseTarget):
             spark_options["columnUpdate"] = True
         return spark_options
 
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
@@ -1229,11 +1305,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
             "auth": parsed_endpoint.password if parsed_endpoint.password else None,
         }
 
-    def get_target_path_with_credentials(self):
-        endpoint, uri = self._get_server_endpoint()
-        return endpoint
-
-    def prepare_spark_df(self, df, key_columns):
+    def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         from pyspark.sql.functions import col
 
         spark_udf_directory = os.path.dirname(os.path.abspath(__file__))
@@ -1311,7 +1383,7 @@ class KafkaTarget(BaseStoreTarget):
         attrs = {}
         if bootstrap_servers is not None:
             attrs["bootstrap_servers"] = bootstrap_servers
-        if bootstrap_servers is not None:
+        if producer_options is not None:
             attrs["producer_options"] = producer_options
 
         super().__init__(*args, attributes=attrs, **kwargs)
@@ -1329,10 +1401,15 @@ class KafkaTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-
-        attributes = copy(self.attributes)
-        bootstrap_servers = attributes.pop("bootstrap_servers", None)
-        topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
+        if self.path and self.path.startswith("ds://"):
+            datastore_profile = datastore_profile_read(self.path)
+            attributes = datastore_profile.attributes()
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic = datastore_profile.topic
+        else:
+            attributes = copy(self.attributes)
+            bootstrap_servers = attributes.pop("bootstrap_servers", None)
+            topic, bootstrap_servers = parse_kafka_url(self.path, bootstrap_servers)
 
         graph.add_step(
             name=self.name or "KafkaTarget",
@@ -1347,6 +1424,9 @@ class KafkaTarget(BaseStoreTarget):
 
     def as_df(self, columns=None, df_module=None, **kwargs):
         raise NotImplementedError()
+
+    def purge(self):
+        pass
 
 
 class TSDBTarget(BaseStoreTarget):
@@ -1580,6 +1660,7 @@ class SQLTarget(BaseStoreTarget):
         :param varchar_len :    the defalut len of the all the varchar column (using if needed to create the table).
         :param parse_dates :    all the field to be parsed as timestamp.
         """
+
         create_according_to_data = False  # TODO: open for user
         if time_fields:
             warnings.warn(
@@ -1686,6 +1767,12 @@ class SQLTarget(BaseStoreTarget):
         time_column=None,
         **kwargs,
     ):
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            self._raise_sqlalchemy_import_error(exc)
+
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
         parse_dates: Optional[List[str]] = self.attributes.get("parse_dates")
@@ -1711,6 +1798,12 @@ class SQLTarget(BaseStoreTarget):
     def write_dataframe(
         self, df, key_column=None, timestamp_key=None, chunk_id=0, **kwargs
     ):
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            self._raise_sqlalchemy_import_error(exc)
+
         self._create_sql_table()
 
         if hasattr(df, "rdd"):
@@ -1750,6 +1843,12 @@ class SQLTarget(BaseStoreTarget):
             primary_key,
             create_table,
         ) = self._parse_url()
+        try:
+            import sqlalchemy
+
+        except (ModuleNotFoundError, ImportError) as exc:
+            self._raise_sqlalchemy_import_error(exc)
+
         try:
             primary_key = ast.literal_eval(primary_key)
             primary_key_for_check = primary_key
@@ -1793,6 +1892,12 @@ class SQLTarget(BaseStoreTarget):
                     f"//@{str(create_according_to_data)}//@{if_exists}//@{primary_key}//@{create_table}"
                 )
                 conn.close()
+
+    @staticmethod
+    def _raise_sqlalchemy_import_error(exc):
+        raise mlrun.errors.MLRunMissingDependencyError(
+            "Using 'SQLTarget' requires sqlalchemy package. Use pip install mlrun[sqlalchemy] to install it."
+        ) from exc
 
 
 kind_to_driver = {
@@ -1838,8 +1943,8 @@ def _get_target_path(driver, resource, run_id_mode=False):
     return f"{data_prefix}/{kind_prefix}/{name}{suffix}"
 
 
-def generate_path_with_chunk(target, chunk_id):
-    prefix, suffix = os.path.splitext(target.get_target_path())
+def generate_path_with_chunk(target, chunk_id, path):
+    prefix, suffix = os.path.splitext(path)
     if chunk_id and not target.partitioned and not target.time_partitioning_granularity:
         return f"{prefix}/{chunk_id:0>4}{suffix}"
-    return target.get_target_path()
+    return path

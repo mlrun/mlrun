@@ -12,18 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
+import server.api.runtime_handlers.mpijob
+import server.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -54,7 +58,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid,
         )
 
-        launcher_pod_labels = {
+        self.launcher_pod_labels = {
             "group-name": "kubeflow.org",
             "mlrun/class": "mpijob",
             "mlrun/function": "trainer",
@@ -72,11 +76,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.launcher_pod = self._generate_pod(
             launcher_pod_name,
-            launcher_pod_labels,
+            self.launcher_pod_labels,
             PodPhases.running,
         )
 
-        worker_pod_labels = {
+        self.worker_pod_labels = {
             "group-name": "kubeflow.org",
             "mlrun/class": "mpijob",
             "mlrun/function": "trainer",
@@ -94,7 +98,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.worker_pod = self._generate_pod(
             worker_pod_name,
-            worker_pod_labels,
+            self.worker_pod_labels,
             PodPhases.running,
         )
 
@@ -279,6 +283,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -295,7 +301,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         )
         self._assert_list_namespaced_pods_calls(
             self.runtime_handler,
-            len(list_namespaced_pods_calls),
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            2,
             self.pod_label_selector,
         )
         self._assert_run_reached_state(
@@ -318,6 +325,8 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.launcher_pod, self.worker_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -361,10 +370,10 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         # override the container
         mlrun.runtimes.MpiRuntimeContainer.override(
-            mlrun.api.runtime_handlers.MpiRuntimeHandlerContainer
+            server.api.runtime_handlers.MpiRuntimeHandlerContainer
         )
         mlrun.mlconf.mpijob_crd_version = None
-        mlrun.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1alpha1
         )
 
@@ -374,11 +383,11 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         v1alpha1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
             v1alpha1_runtime_handler
-            == mlrun.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
+            == server.api.runtime_handlers.mpijob.MpiV1Alpha1RuntimeHandler
         )
 
         mlrun.mlconf.mpijob_crd_version = None
-        mlrun.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
+        server.api.runtime_handlers.mpijob.cached_mpijob_crd_version = (
             mlrun.runtimes.MPIJobCRDVersions.v1
         )
 
@@ -387,8 +396,294 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         assert v1_runtime == mlrun.runtimes.MpiRuntimeV1
         v1_runtime_handler = mlrun.runtimes.MpiRuntimeContainer.handler_selector()
         assert (
-            v1_runtime_handler == mlrun.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
+            v1_runtime_handler == server.api.runtime_handlers.mpijob.MpiV1RuntimeHandler
         )
+
+    def test_state_thresholds(self, db: Session, client: TestClient):
+        """
+        Test that the runtime handler aborts runs that are in a state for too long
+        Creates 4 CRDs:
+        1. job in image pull backoff that should be aborted
+        2. job in running state that should be aborted
+        3. job in running state that should not be aborted
+        4. job in succeeded state that should not be aborted
+        """
+        image_pull_backoff_job_uid = str(uuid.uuid4())
+        running_long_uid = str(uuid.uuid4())
+        running_short_uid = str(uuid.uuid4())
+        success_uid = str(uuid.uuid4())
+
+        # create the runs
+        for uid, start_time in [
+            (
+                image_pull_backoff_job_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.image_pull_backoff
+                    )
+                ),
+            ),
+            (
+                running_long_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.running
+                    )
+                ),
+            ),
+            (running_short_uid, datetime.now(timezone.utc)),
+            (success_uid, datetime.now(timezone.utc)),
+        ]:
+            self._store_run(
+                db,
+                "train",
+                uid,
+                start_time=start_time,
+            )
+
+        # create image pull backoff job
+        image_pull_backoff_job = self._generate_mpijob_crd(
+            self.project,
+            image_pull_backoff_job_uid,
+            self._get_active_crd_status(),
+        )
+
+        # create running long job
+        running_long_job = self._generate_mpijob_crd(
+            self.project,
+            running_long_uid,
+            self._get_active_crd_status(),
+        )
+
+        # create running short job
+        running_short_job = self._generate_mpijob_crd(
+            self.project,
+            running_short_uid,
+            self._get_active_crd_status(),
+        )
+
+        list_namespaced_crds_calls = [
+            [image_pull_backoff_job, running_short_job],
+            [running_long_job, self.succeeded_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+
+        # create image pull backoff pods
+        worker_pod_image_pull_backoff = self._generate_pod(
+            "worker_in_image_pull_backoff",
+            self._generate_job_labels(
+                image_pull_backoff_job,
+                uid=image_pull_backoff_job_uid,
+                job_labels=self.worker_pod_labels,
+            ),
+            PodPhases.pending,
+        )
+        worker_pod_image_pull_backoff.status.container_statuses = [
+            k8s_client.V1ContainerStatus(
+                image="some-image",
+                image_id="some-image-id",
+                name="some-container",
+                ready=False,
+                restart_count=10,
+                state=k8s_client.V1ContainerState(
+                    waiting=k8s_client.V1ContainerStateWaiting(
+                        reason="ImagePullBackOff"
+                    )
+                ),
+            )
+        ]
+        launcher_pod_image_pull_backoff = self._generate_pod(
+            "launcher",
+            self._generate_job_labels(
+                image_pull_backoff_job["metadata"]["labels"]["mlrun/name"],
+                uid=image_pull_backoff_job_uid,
+                job_labels=self.launcher_pod_labels,
+            ),
+            PodPhases.running,
+        )
+        list_namespaced_pods_calls = [
+            [launcher_pod_image_pull_backoff, worker_pod_image_pull_backoff],
+        ]
+
+        # create running pods
+        for name, uid, job in [
+            ("running-long", running_long_uid, running_long_job),
+            ("running-short", running_short_uid, running_short_job),
+        ]:
+            worker_pod = self._generate_pod(
+                f"worker-{name}",
+                self._generate_job_labels(
+                    job["metadata"]["labels"]["mlrun/name"],
+                    uid=uid,
+                    job_labels=self.worker_pod_labels,
+                ),
+                PodPhases.running,
+            )
+            launcher_pod = self._generate_pod(
+                f"launcher-{name}",
+                self._generate_job_labels(
+                    job["metadata"]["labels"]["mlrun/name"],
+                    uid=uid,
+                    job_labels=self.launcher_pod_labels,
+                ),
+                PodPhases.running,
+            )
+            list_namespaced_pods_calls.append([launcher_pod, worker_pod])
+
+        # mock succeeded pods
+        list_namespaced_pods_calls.append([])
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+        expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_crds_calls
+        )
+
+        stale_runs = []
+        for _ in range(expected_monitor_cycles_to_reach_expected_state):
+            stale_runs.extend(self.runtime_handler.monitor_runs(get_db(), db))
+
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            len(list_namespaced_pods_calls),
+            self.pod_label_selector,
+        )
+        assert len(stale_runs) == 2
+
+        stale_run_uids = [run["uid"] for run in stale_runs]
+        expected_stale_run_uids = [
+            image_pull_backoff_job_uid,
+            running_long_uid,
+        ]
+        assert stale_run_uids == expected_stale_run_uids
+
+        stale_run_updates = [run["run_updates"] for run in stale_runs]
+        expected_run_updates = []
+        for state in ["image_pull_backoff", "running"]:
+            expected_run_updates.append(
+                {
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                }
+            )
+        assert stale_run_updates == expected_run_updates
+
+    def test_state_thresholds_pending_states(self, db: Session, client: TestClient):
+        pending_uid = str(uuid.uuid4())
+        pending_scheduled_stale_uid = str(uuid.uuid4())
+        pending_scheduled_uid = str(uuid.uuid4())
+
+        # create the runs
+        for name, uid, start_time in [
+            ("pending", pending_uid, datetime.now(timezone.utc)),
+            (
+                "pending-scheduled-stale",
+                pending_scheduled_stale_uid,
+                datetime.now(timezone.utc)
+                - timedelta(
+                    seconds=server.api.utils.helpers.time_string_to_seconds(
+                        mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+                    )
+                ),
+            ),
+            (
+                "pending-scheduled",
+                pending_scheduled_uid,
+                datetime.now(timezone.utc),
+            ),
+        ]:
+            self._store_run(
+                db,
+                f"train={name}",
+                uid,
+                start_time=start_time,
+            )
+
+        # create crds job
+        list_namespaced_crds_calls = [[]]
+        for uid in [pending_scheduled_stale_uid, pending_scheduled_uid, pending_uid]:
+            list_namespaced_crds_calls[0].append(
+                self._generate_mpijob_crd(
+                    self.project,
+                    uid,
+                    self._get_active_crd_status(),
+                )
+            )
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+
+        # create scheduled pods
+        list_namespaced_pods_calls = []
+        for name, uid in [
+            ("pending-scheduled-stale", pending_scheduled_stale_uid),
+            ("pending-scheduled", pending_scheduled_uid),
+            ("pending", pending_uid),
+        ]:
+            worker_pod = self._generate_pod(
+                f"worker-{name}",
+                self._generate_job_labels(
+                    name,
+                    uid=uid,
+                    job_labels=self.worker_pod_labels,
+                ),
+                PodPhases.pending,
+            )
+            launcher_pod = self._generate_pod(
+                f"launcher-{name}",
+                self._generate_job_labels(
+                    name,
+                    uid=uid,
+                    job_labels=self.launcher_pod_labels,
+                ),
+                PodPhases.pending,
+            )
+            if "scheduled" in name:
+                worker_pod.status.conditions = [
+                    k8s_client.V1PodCondition(type="PodScheduled", status="True")
+                ]
+                launcher_pod.status.conditions = [
+                    k8s_client.V1PodCondition(type="PodScheduled", status="True")
+                ]
+
+            list_namespaced_pods_calls.append([launcher_pod, worker_pod])
+
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+
+        stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            # 1 call per threshold state verification
+            len(list_namespaced_pods_calls),
+            f"mlrun/uid={pending_scheduled_stale_uid}",
+        )
+        assert len(stale_runs) == 1
+
+        stale_run_uids = [run["uid"] for run in stale_runs]
+        expected_stale_run_uids = [
+            pending_scheduled_stale_uid,
+        ]
+        assert stale_run_uids == expected_stale_run_uids
+
+        stale_run_updates = [run["run_updates"] for run in stale_runs]
+        expected_run_updates = []
+        for state in ["pending_scheduled"]:
+            expected_run_updates.append(
+                {
+                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                }
+            )
+        assert stale_run_updates == expected_run_updates
 
     def _mock_list_resources_pods(self):
         mocked_responses = self._mock_list_namespaced_pods(
@@ -424,15 +719,17 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         return crd_dict
 
     @staticmethod
-    def _get_active_crd_status():
+    def _get_active_crd_status(start_timestamp=None):
         return {
+            "startTime": start_timestamp or "2020-10-06T00:36:41Z",
             "replicaStatuses": {"Launcher": {"active": 1}, "Worker": {"active": 4}},
         }
 
     @staticmethod
-    def _get_succeeded_crd_status(timestamp=None):
+    def _get_succeeded_crd_status(completion_timestamp=None, start_timestamp=None):
         return {
-            "completionTime": timestamp or "2020-10-06T00:36:41Z",
+            "startTime": start_timestamp or "2020-10-06T00:36:41Z",
+            "completionTime": completion_timestamp or "2020-10-06T00:36:41Z",
             "replicaStatuses": {"Launcher": {"succeeded": 1}, "Worker": {}},
         }
 

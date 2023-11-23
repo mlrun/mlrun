@@ -162,7 +162,7 @@ class CommunityEditionDeployer:
             self._log(
                 "error",
                 "Failed to install helm chart",
-                stderr=stderr,
+                stderr=stderr.strip().decode("utf-8"),
                 exit_status=exit_status,
             )
             raise RuntimeError("Failed to install helm chart")

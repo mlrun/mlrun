@@ -31,18 +31,19 @@ __all__ = [
     "RedisStore",
     "DatabricksFileSystemDisableCache",
     "DatabricksFileBugFixed",
+    "get_stream_pusher",
 ]
 
 import fsspec
 
 import mlrun.datastore.wasbfs
-
-from ..platforms.iguazio import (
+from mlrun.platforms.iguazio import (
     HTTPOutputStream,
     KafkaOutputStream,
     OutputStream,
     parse_path,
 )
+
 from ..utils import logger
 from .base import DataItem
 from .datastore import StoreManager, in_memory_store, uri_to_ipython

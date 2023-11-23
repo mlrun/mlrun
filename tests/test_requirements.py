@@ -76,13 +76,17 @@ def test_requirement_specifiers_convention():
                         len("~=") : tested_requirement_specifier.find(".")
                     ]
                 )
-                is_stable_requirement = major_version >= 1
+
+                # either major or part of limited group of "stable" packages
+                is_stable_requirement = major_version >= 1 or requirement_name in [
+                    "wheel",
+                ]
                 # if it's stable we want to prevent only major changes, meaning version should be X.Y
                 # if it's not stable we want to prevent major and minor changes, meaning version should be X.Y.Z
-                wanted_number_of_dot_occurences = 1 if is_stable_requirement else 2
+                wanted_number_of_dot_occurrences = 1 if is_stable_requirement else 2
                 if (
                     tested_requirement_specifier.count(".")
-                    != wanted_number_of_dot_occurences
+                    != wanted_number_of_dot_occurrences
                 ):
                     invalid_requirement = True
             if invalid_requirement:
@@ -94,15 +98,13 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.4.2,<2.6"},
-        "storey": {"~=1.5.5"},
+        "storey": {"~=1.6.6"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
-        "protobuf": {"~=3.20.3"},
         "sphinx-book-theme": {"~=1.0.1"},
         "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
-        "click": {"~=8.0.0"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
         "python-dotenv": {""},
@@ -116,20 +118,18 @@ def test_requirement_specifiers_convention():
         "adlfs": {">=2022.2,<2023.5"},
         "s3fs": {">=2023.1,<2023.7"},
         "gcsfs": {">=2023.1,<2023.7"},
-        "distributed": {"~=2021.11.2"},
-        "dask": {"~=2021.11.2"},
+        "distributed": {"~=2023.9.0"},
+        "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.26.9, <1.27"},
-        "chardet": {">=3.0.2, <4.0"},
         "numpy": {">=1.16.5, <1.23.0"},
         "boto3": {">=1.24.59,<1.27"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10.0, <12"},
+        "pyarrow": {">=10.0, <13"},
         "nbclassic": {">=0.2.8"},
-        "pandas": {"~=1.2, <1.5.0"},
+        "pandas": {">=1.2, <3"},
         "gitpython": {"~=3.1, >= 3.1.30"},
-        "orjson": {"~=3.3, <3.8.12"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
         "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
@@ -142,6 +142,11 @@ def test_requirement_specifiers_convention():
         "aioresponses": {"~=0.7"},
         # conda requirements since conda does not support ~= operator
         "lightgbm": {">=3.0"},
+        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "pyyaml": {">=5.4.1, <6"},
+        # other requirements
+        "azure-storage-blob": {">=12.13, !=12.18.0"},
+        "aiohttp": {"~=3.8, <3.8.4"},
     }
 
     for (
@@ -175,6 +180,8 @@ def test_requirement_specifiers_inconsistencies():
         # conda requirements since conda does not support ~= operator and
         # since platform condition is not required for docker
         "lightgbm": {"~=3.0", "~=3.0; platform_machine != 'arm64'", ">=3.0"},
+        "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
+        "pyyaml": {"~=5.1", ">=5.4.1, <6"},
     }
 
     for (

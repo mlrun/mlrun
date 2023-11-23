@@ -23,12 +23,10 @@
         name: ""
         type: int
         doc: ""
-        default: ""
       params:
         - name: n
           type: int
           doc: ""
-          default: ""
       lineno: 1
       has_varargs: false
       has_kwargs: false
@@ -41,14 +39,12 @@
       doc: ""
       return:
         name: ""
-        type: ""
+        type: null
         doc: ""
-        default: ""
       params:
         - name: n
           type: ""
           doc: ""
-          default: ""
       lineno: 1
       has_varargs: false
       has_kwargs: false
@@ -69,12 +65,10 @@
         name: ""
         type: int
         doc: a number
-        default: ""
       params:
         - name: n
           type: int
           doc: number to increment
-          default: ""
       lineno: 1
       has_varargs: false
       has_kwargs: false
@@ -90,12 +84,10 @@
         name: ""
         type: int
         doc: ""
-        default: ""
       params:
         - name: n
           type: int
           doc: ""
-          default: ""
         - name: delta
           type: int
           doc: ""
@@ -120,14 +112,12 @@
       doc: Open a file/object archive into a target directory
       return:
         name: ""
-        type: ""
+        type: null
         doc: "content dir"
-        default: ""
       params:
         - name: context
           type: ""
           doc: ""
-          default: ""
         - name: target_dir
           type: str
           doc: "target directory"

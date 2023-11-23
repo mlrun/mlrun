@@ -1,5 +1,5 @@
 (Functions)=
-# Serverless functions
+# Functions
 
 All the executions in MLRun are based on **Serverless functions**. The functions allow specifying code and 
 all the operational aspects (image, required packages, [cpu/mem/gpu resources](../runtimes/configuring-job-resources.html#cpu-gpu-and-memory-limits-for-user-jobs), [storage](../runtimes/function-storage.html), environment, etc.). 
@@ -29,7 +29,6 @@ function-storage
 images
 image-build
 ../concepts/node-affinity
-configuring-job-resources
 load-from-hub
 git-repo-as-hub
 ```

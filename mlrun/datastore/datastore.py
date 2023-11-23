@@ -14,6 +14,8 @@
 import string
 from urllib.parse import urlparse
 
+from mergedeep import merge
+
 import mlrun
 import mlrun.errors
 from mlrun.datastore.datastore_profile import TemporaryClientDatastoreProfiles
@@ -51,6 +53,9 @@ def parse_url(url):
 
 def schema_to_store(schema):
     # import store classes inside to enable making their dependencies optional (package extras)
+
+    # The expression `list(string.ascii_lowercase)` generates a list of lowercase alphabets,
+    # which corresponds to drive letters in Windows file paths such as `C:/Windows/path`.
     if not schema or schema in ["file"] + list(string.ascii_lowercase):
         return FileStore
     elif schema == "s3":
@@ -185,18 +190,24 @@ class StoreManager:
     def get_or_create_store(self, url, secrets: dict = None) -> (DataStore, str):
         schema, endpoint, parsed_url = parse_url(url)
         subpath = parsed_url.path
-        datastore_type = schema
+        store_key = f"{schema}://{endpoint}"
 
         if schema == "ds":
             profile_name = endpoint
-            datastore = TemporaryClientDatastoreProfiles().get(profile_name)
-            if not datastore:
+            datastore_profile = TemporaryClientDatastoreProfiles().get(profile_name)
+            if not datastore_profile:
                 project_name = urlparse(url).username or mlrun.mlconf.default_project
-                datastore = mlrun.db.get_run_db(
+                datastore_profile = mlrun.db.get_run_db(
                     secrets=self._secrets
                 ).get_datastore_profile(profile_name, project_name)
 
-            datastore_type = datastore.type
+            if secrets and datastore_profile.secrets():
+                secrets = merge(secrets, datastore_profile.secrets())
+            else:
+                secrets = secrets or datastore_profile.secrets()
+            url = datastore_profile.url(subpath)
+            schema, endpoint, parsed_url = parse_url(url)
+            subpath = parsed_url.path
 
         if schema == "memory":
             subpath = url[len("memory://") :]
@@ -208,7 +219,6 @@ class StoreManager:
             else:
                 raise ValueError(f"no such store ({endpoint})")
 
-        store_key = f"{schema}://{endpoint}"
         if not secrets and not mlrun.config.is_running_as_api():
             if store_key in self._stores.keys():
                 return self._stores[store_key], subpath
@@ -216,10 +226,13 @@ class StoreManager:
         # support u/p embedding in url (as done in redis) by setting netloc as the "endpoint" parameter
         # when running on server we don't cache the datastore, because there are multiple users and we don't want to
         # cache the credentials, so for each new request we create a new store
-        store = schema_to_store(datastore_type)(
+        store = schema_to_store(schema)(
             self, schema, store_key, parsed_url.netloc, secrets=secrets
         )
         if not secrets and not mlrun.config.is_running_as_api():
             self._stores[store_key] = store
         # in file stores in windows path like c:\a\b the drive letter is dropped from the path, so we return the url
         return store, url if store.kind == "file" else subpath
+
+    def reset_secrets(self):
+        self._secrets = {}

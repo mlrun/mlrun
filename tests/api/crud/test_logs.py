@@ -15,7 +15,7 @@
 import fastapi.testclient
 import sqlalchemy.orm
 
-import mlrun.api.crud
+import server.api.crud
 
 
 class TestLogs:
@@ -26,20 +26,20 @@ class TestLogs:
         project = "project-name"
         uid = "m33"
         data1, data2 = b"ab", b"cd"
-        mlrun.api.crud.Runs().store_run(
+        server.api.crud.Runs().store_run(
             db,
             {"metadata": {"name": "run-name"}, "some-run-data": "blabla"},
             uid,
             project=project,
         )
-        mlrun.api.crud.Logs().store_log(data1, project, uid)
-        log = mlrun.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.api.crud.Logs().store_log(data1, project, uid)
+        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
         assert data1 == log, "get log 1"
 
-        mlrun.api.crud.Logs().store_log(data2, project, uid, append=True)
-        log = mlrun.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.api.crud.Logs().store_log(data2, project, uid, append=True)
+        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
         assert data1 + data2 == log, "get log 2"
 
-        mlrun.api.crud.Logs().store_log(data1, project, uid, append=False)
-        log = mlrun.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
+        server.api.crud.Logs().store_log(data1, project, uid, append=False)
+        log = server.api.crud.Logs()._get_logs_legacy_method(db, project, uid)
         assert data1 == log, "get log append=False"

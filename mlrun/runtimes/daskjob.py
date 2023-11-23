@@ -16,6 +16,7 @@ import inspect
 import socket
 import time
 from os import environ
+from typing import Callable, Dict, List, Optional, Union
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -91,6 +92,7 @@ class DaskSpec(KubeResourceSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
 
         super().__init__(
@@ -121,6 +123,7 @@ class DaskSpec(KubeResourceSpec):
             preemption_mode=preemption_mode,
             security_context=security_context,
             clone_target_dir=clone_target_dir,
+            state_thresholds=state_thresholds,
         )
         self.args = args
 
@@ -228,7 +231,7 @@ class DaskCluster(KubejobRuntime):
             if db_func and "status" in db_func:
                 self.status = db_func["status"]
                 if self.kfp:
-                    logger.info(f"dask status: {db_func['status']}")
+                    logger.info(f"Dask status: {db_func['status']}")
                 return "scheduler_address" in db_func["status"]
 
         return False
@@ -309,7 +312,7 @@ class DaskCluster(KubejobRuntime):
             if self.spec.service_type == "NodePort":
                 dash = f"{config.remote_host}:{self.status.node_ports.get('dashboard')}"
             else:
-                logger.info("to get a dashboard link, use NodePort service_type")
+                logger.info("To get a dashboard link, use NodePort service_type")
 
         return addr, dash
 
@@ -323,12 +326,12 @@ class DaskCluster(KubejobRuntime):
 
         if self.status.scheduler_address:
             addr, dash = self._remote_addresses()
-            logger.info(f"trying dask client at: {addr}")
+            logger.info(f"Trying dask client at: {addr}")
             try:
                 client = Client(addr)
             except OSError as exc:
                 logger.warning(
-                    f"remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
+                    f"Remote scheduler at {addr} not ready, will try to restart {err_to_str(exc)}"
                 )
 
                 status = self.get_status()
@@ -338,7 +341,7 @@ class DaskCluster(KubejobRuntime):
                 client = Client(addr)
 
             logger.info(
-                f"using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
+                f"Using remote dask scheduler ({self.status.cluster_name}) at: {addr}"
             )
             if dash:
                 ipython_display(
@@ -361,6 +364,7 @@ class DaskCluster(KubejobRuntime):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ):
         """deploy function, build container with dependencies
 
@@ -372,6 +376,7 @@ class DaskCluster(KubejobRuntime):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             force building the image, even when no changes were made
 
         :return True if the function is ready (deployed)
         """
@@ -383,6 +388,7 @@ class DaskCluster(KubejobRuntime):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             show_on_failure=show_on_failure,
+            force_build=force_build,
         )
 
     def with_limits(
@@ -451,6 +457,73 @@ class DaskCluster(KubejobRuntime):
         by default it overrides the whole requests section, if you wish to patch specific resources use `patch=True`.
         """
         self.spec._verify_and_set_requests("worker_resources", mem, cpu, patch=patch)
+
+    def set_state_thresholds(
+        self,
+        state_thresholds: Dict[str, str],
+        patch: bool = True,
+    ):
+        raise NotImplementedError(
+            "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead.",
+        )
+
+    def run(
+        self,
+        runspec: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
+        handler: Optional[Union[str, Callable]] = None,
+        name: Optional[str] = "",
+        project: Optional[str] = "",
+        params: Optional[dict] = None,
+        inputs: Optional[Dict[str, str]] = None,
+        out_path: Optional[str] = "",
+        workdir: Optional[str] = "",
+        artifact_path: Optional[str] = "",
+        watch: Optional[bool] = True,
+        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        hyperparams: Optional[Dict[str, list]] = None,
+        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
+        verbose: Optional[bool] = None,
+        scrape_metrics: Optional[bool] = None,
+        local: Optional[bool] = False,
+        local_code_path: Optional[str] = None,
+        auto_build: Optional[bool] = None,
+        param_file_secrets: Optional[Dict[str, str]] = None,
+        notifications: Optional[List[mlrun.model.Notification]] = None,
+        returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
+        **launcher_kwargs,
+    ) -> RunObject:
+        if state_thresholds:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "State thresholds is not supported for Dask runtime yet, use spec.scheduler_timeout instead."
+            )
+        return super().run(
+            runspec=runspec,
+            handler=handler,
+            name=name,
+            project=project,
+            params=params,
+            inputs=inputs,
+            out_path=out_path,
+            workdir=workdir,
+            artifact_path=artifact_path,
+            watch=watch,
+            schedule=schedule,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            verbose=verbose,
+            scrape_metrics=scrape_metrics,
+            local=local,
+            local_code_path=local_code_path,
+            auto_build=auto_build,
+            param_file_secrets=param_file_secrets,
+            notifications=notifications,
+            returns=returns,
+            state_thresholds=state_thresholds,
+            **launcher_kwargs,
+        )
 
     def _run(self, runobj: RunObject, execution):
 

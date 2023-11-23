@@ -52,10 +52,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.7'
+        python-version: '3.9'
         architecture: 'x64'
     
     - name: Install mlrun
@@ -122,7 +122,7 @@ pipeline {
             }
             agent {
                 docker {
-                    image 'mlrun/mlrun:1.4.0'
+                    image 'mlrun/mlrun:1.5.1'
                 }
             }
             steps {

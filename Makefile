@@ -99,8 +99,9 @@ install-requirements: ## Install all requirements needed for development
 		-r docs/requirements.txt
 
 .PHONY: install-conda-requirements
-install-conda-requirements: install-requirements ## Install all requirements needed for development with specific conda packages for arm64
+install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
 	conda install --yes --file conda-arm64-requirements.txt
+	make install-requirements
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
@@ -281,22 +282,32 @@ push-base: base ## Push base docker image
 pull-base: ## Pull base docker image
 	docker pull $(MLRUN_BASE_IMAGE_NAME_TAGGED)
 
-MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter:$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_JUPYTER_IMAGE_NAME := $(MLRUN_DOCKER_IMAGE_PREFIX)/jupyter
+MLRUN_JUPYTER_CACHE_IMAGE_NAME := $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/jupyter
+MLRUN_JUPYTER_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_IMAGE_NAME):$(MLRUN_DOCKER_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED := $(MLRUN_JUPYTER_CACHE_IMAGE_NAME):$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX)
+MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),--cache-from $(strip $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED)),)
+MLRUN_JUPYTER_CACHE_IMAGE_PUSH_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_PUSH_DOCKER_CACHE_IMAGE)),docker tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) && docker push $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED),)
+MLRUN_JUPYTER_CACHE_IMAGE_PULL_COMMAND := $(if $(and $(MLRUN_DOCKER_CACHE_FROM_TAG),$(MLRUN_USE_CACHE)),docker pull $(MLRUN_JUPYTER_CACHE_IMAGE_NAME_TAGGED) || true,)
 DEFAULT_IMAGES += $(MLRUN_JUPYTER_IMAGE_NAME)
 
 .PHONY: jupyter
 jupyter: update-version-file ## Build mlrun jupyter docker image
+	$(MLRUN_JUPYTER_CACHE_IMAGE_PULL_COMMAND)
 	docker build \
 		--file dockerfiles/jupyter/Dockerfile \
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_CACHE_DATE=$(MLRUN_CACHE_DATE) \
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
+		$(MLRUN_JUPYTER_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
-		--tag $(MLRUN_JUPYTER_IMAGE_NAME) .
+		--tag $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED) \
+		.
 
 .PHONY: push-jupyter
 push-jupyter: jupyter ## Push mlrun jupyter docker image
-	docker push $(MLRUN_JUPYTER_IMAGE_NAME)
+	docker push $(MLRUN_JUPYTER_IMAGE_NAME_TAGGED)
+	$(MLRUN_JUPYTER_CACHE_IMAGE_PUSH_COMMAND)
 
 .PHONY: pull-jupyter
 pull-jupyter: ## Pull mlrun jupyter docker image
@@ -309,7 +320,7 @@ log-collector: update-version-file
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector log-collector
 
 .PHONY: push-log-collector
 push-log-collector: log-collector
@@ -318,7 +329,7 @@ push-log-collector: log-collector
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go push-log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector push-log-collector
 
 .PHONY: pull-log-collector
 pull-log-collector:
@@ -327,7 +338,7 @@ pull-log-collector:
 		MLRUN_DOCKER_REPO=$(MLRUN_DOCKER_REPO) \
 		MLRUN_DOCKER_TAG=$(MLRUN_DOCKER_TAG) \
 		MLRUN_DOCKER_IMAGE_PREFIX=$(MLRUN_DOCKER_IMAGE_PREFIX) \
-		make --no-print-directory -C $(shell pwd)/go pull-log-collector
+		make --no-print-directory -C $(shell pwd)/server/log-collector pull-log-collector
 
 
 .PHONY: compile-schemas
@@ -335,7 +346,7 @@ compile-schemas: ## Compile schemas
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
-	cd go && \
+	cd server/log-collector && \
 	  make compile-schemas
 endif
 
@@ -477,14 +488,13 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 
 .PHONY: test-migrations
 test-migrations: clean ## Run mlrun db migrations tests
-	cd mlrun/api; \
 	python -m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
 		-rf \
 		--test-alembic \
-		migrations_sqlite/tests/*
+		server/api/migrations_sqlite/tests/*
 
 .PHONY: test-system-dockerized
 test-system-dockerized: build-test-system ## Run mlrun system tests in docker container
@@ -521,22 +531,22 @@ test-package: ## Run mlrun package tests
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
-	cd go && \
+	cd server/log-collector && \
 		make test-unit-local
 
 .PHONY: test-go-dockerized
 test-go-unit-dockerized: ## Run mlrun go unit tests in docker container
-	cd go && \
+	cd server/log-collector && \
 		make test-unit-dockerized
 
 .PHONY: test-go
 test-go-integration: ## Run mlrun go unit tests
-	cd go && \
+	cd server/log-collector && \
 		make test-integration-local
 
 .PHONY: test-go-dockerized
 test-go-integration-dockerized: ## Run mlrun go integration tests in docker container
-	cd go && \
+	cd server/log-collector && \
 		make test-integration-dockerized
 
 .PHONY: run-api-undockerized
@@ -613,12 +623,12 @@ flake8: ## Run flake8 lint
 
 .PHONY: lint-go
 lint-go:
-	cd go && \
+	cd server/log-collector && \
 		make lint
 
 .PHONY: fmt-go
 fmt-go:
-	cd go && \
+	cd server/log-collector && \
 		make fmt
 
 .PHONY: release
@@ -672,11 +682,12 @@ endif
 ifndef MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH
 	$(error MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH is undefined)
 endif
+	export MLRUN_HTTPDB__DSN='sqlite:////mlrun/db/mlrun.db?check_same_thread=false' && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_base_oai.json && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 $(MLRUN_BC_TESTS_BASE_CODE_PATH)/tests/api/api/test_docs.py::test_save_openapi_json && \
 	export MLRUN_OPENAPI_JSON_NAME=mlrun_bc_head_oai.json && \
 	python -m pytest -v --capture=no --disable-warnings --durations=100 tests/api/api/test_docs.py::test_save_openapi_json && \
-	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:2.0.1 /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
+	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
 
 
 .PHONY: release-notes
@@ -696,19 +707,13 @@ endif
 .PHONY: pull-cache
 pull-cache: ## Pull images to be used as cache for build
 ifdef MLRUN_DOCKER_CACHE_FROM_TAG
-	targets="$(MAKECMDGOALS)" ; \
-	for target in $$targets; do \
-		image_name=$${target#"push-"} ; \
+	targets="$(subst push-,,$(MAKECMDGOALS))" ; \
+	for image_name in $$targets; do \
 		tag=$(MLRUN_DOCKER_CACHE_FROM_TAG)$(MLRUN_PYTHON_VERSION_SUFFIX) ; \
 		case "$$image_name" in \
-		*models*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
-		*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
+			*base*) image_name=$(MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX)$$image_name ;; \
 		esac; \
 		docker pull $(MLRUN_CACHE_DOCKER_IMAGE_PREFIX)/$$image_name:$$tag || true ; \
 	done;
-    ifneq (,$(findstring models,$(MAKECMDGOALS)))
-        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_MODELS_IMAGE_DOCKER_CACHE_FROM_FLAG)
-    else
-        MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
-    endif
+    MLRUN_DOCKER_CACHE_FROM_FLAG := $(MLRUN_BASE_IMAGE_DOCKER_CACHE_FROM_FLAG)
 endif

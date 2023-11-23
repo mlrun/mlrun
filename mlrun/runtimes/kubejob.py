@@ -12,24 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import time
-import warnings
-
-from kubernetes import client
-from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
 
-from ..errors import err_to_str
 from ..kfpops import build_op
 from ..model import RunObject
 from ..utils import get_in, logger
-from .base import RunError
-from .pod import KubeResource, kube_resource_spec_to_pod_spec
-from .utils import get_k8s
+from .pod import KubeResource
 
 
 class KubejobRuntime(KubeResource):
@@ -37,10 +29,6 @@ class KubejobRuntime(KubeResource):
     _is_nested = True
 
     _is_remote = True
-
-    @staticmethod
-    def _get_lifecycle():
-        return None
 
     def is_deployed(self):
         """check if the function is deployed (has a valid container)"""
@@ -113,7 +101,6 @@ class KubejobRuntime(KubeResource):
         auto_build=None,
         requirements=None,
         overwrite=False,
-        verify_base_image=False,
         prepare_image_for_deploy=True,
         requirements_file=None,
         builder_env=None,
@@ -137,8 +124,6 @@ class KubejobRuntime(KubeResource):
         :param overwrite:  overwrite existing build configuration (currently applies to requirements and commands)
            * False: the new params are merged with the existing
            * True: the existing params are replaced by the new ones
-        :param verify_base_image:           verify that the base image is configured
-                                            (deprecated, use prepare_image_for_deploy)
         :param prepare_image_for_deploy:    prepare the image/base_image spec for deployment
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
@@ -164,14 +149,7 @@ class KubejobRuntime(KubeResource):
             extra_args=extra_args,
         )
 
-        if verify_base_image or prepare_image_for_deploy:
-            if verify_base_image:
-                # TODO: remove verify_base_image in 1.6.0
-                warnings.warn(
-                    "verify_base_image is deprecated in 1.4.0 and will be removed in 1.6.0, "
-                    "use prepare_image_for_deploy",
-                    category=FutureWarning,
-                )
+        if prepare_image_for_deploy:
             self.prepare_image_for_deploy()
 
     def deploy(
@@ -183,6 +161,7 @@ class KubejobRuntime(KubeResource):
         mlrun_version_specifier=None,
         builder_env: dict = None,
         show_on_failure: bool = False,
+        force_build: bool = False,
     ) -> bool:
         """deploy function, build container with dependencies
 
@@ -194,8 +173,9 @@ class KubejobRuntime(KubeResource):
         :param builder_env:             Kaniko builder pod env vars dict (for config/credentials)
                                         e.g. builder_env={"GIT_TOKEN": token}
         :param show_on_failure:         show logs only in case of build failure
+        :param force_build:             set True for force building the image, even when no changes were made
 
-        :return True if the function is ready (deployed)
+        :return: True if the function is ready (deployed)
         """
 
         build = self.spec.build
@@ -239,6 +219,7 @@ class KubejobRuntime(KubeResource):
                 mlrun_version_specifier,
                 skip_deployed,
                 builder_env=builder_env,
+                force_build=force_build,
             )
             self.status = data["data"].get("status", None)
             self.spec.image = get_in(data, "data.spec.image")
@@ -317,84 +298,6 @@ class KubejobRuntime(KubeResource):
         )
 
     def _run(self, runobj: RunObject, execution):
-        command, args, extra_env = self._get_cmd_args(runobj)
-
-        if runobj.metadata.iteration:
-            self.store_run(runobj)
-        new_meta = self._get_meta(runobj)
-
-        self._add_secrets_to_spec_before_running(runobj)
-        workdir = self._resolve_workdir()
-
-        pod_spec = func_to_pod(
-            self.full_image_path(
-                client_version=runobj.metadata.labels.get("mlrun/client_version"),
-                client_python_version=runobj.metadata.labels.get(
-                    "mlrun/client_python_version"
-                ),
-            ),
-            self,
-            extra_env,
-            command,
-            args,
-            workdir,
-            self._get_lifecycle(),
+        raise NotImplementedError(
+            f"Running a {self.kind} function from the client is not supported. Use .run() to submit the job to the API."
         )
-        pod = client.V1Pod(metadata=new_meta, spec=pod_spec)
-        try:
-            pod_name, namespace = get_k8s().create_pod(pod)
-        except ApiException as exc:
-            raise RunError(err_to_str(exc))
-
-        txt = f"Job is running in the background, pod: {pod_name}"
-        logger.info(txt)
-        runobj.status.status_text = txt
-
-        return None
-
-    def _resolve_workdir(self):
-        """
-        The workdir is relative to the source root, if the source is not loaded on run then the workdir
-        is relative to the clone target dir (where the source was copied to).
-        Otherwise, if the source is loaded on run, the workdir is resolved on the run as well.
-        If the workdir is absolute, keep it as is.
-        """
-        workdir = self.spec.workdir
-        if self.spec.build.source and self.spec.build.load_source_on_run:
-            # workdir will be set AFTER the clone which is done in the pre-run of local runtime
-            return None
-
-        if workdir and os.path.isabs(workdir):
-            return workdir
-
-        if self.spec.clone_target_dir:
-            workdir = workdir or ""
-            workdir = workdir.removeprefix("./")
-
-            return os.path.join(self.spec.clone_target_dir, workdir)
-
-        return workdir
-
-
-def func_to_pod(image, runtime, extra_env, command, args, workdir, lifecycle):
-    container = client.V1Container(
-        name="base",
-        image=image,
-        env=extra_env + runtime.spec.env,
-        command=[command] if command else None,
-        args=args,
-        working_dir=workdir,
-        image_pull_policy=runtime.spec.image_pull_policy,
-        volume_mounts=runtime.spec.volume_mounts,
-        resources=runtime.spec.resources,
-        lifecycle=lifecycle,
-    )
-
-    pod_spec = kube_resource_spec_to_pod_spec(runtime.spec, container)
-
-    if runtime.spec.image_pull_secret:
-        pod_spec.image_pull_secrets = [
-            client.V1LocalObjectReference(name=runtime.spec.image_pull_secret)
-        ]
-
-    return pod_spec

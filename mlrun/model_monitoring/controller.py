@@ -350,25 +350,29 @@ class MonitoringApplicationProcessor:
 
         :param endpoints: List of dictionaries of model endpoints records.
         """
+        if self.parquet_directory.startswith("v3io:///"):
 
-        target = ParquetTarget(path=self.parquet_directory)
-        fs = target._get_store().get_filesystem()
-
-        # calculate time threshold (keep only files from the last 24 hours)
-        time_to_keep = float(
-            (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
-        )
-        for endpoint in endpoints:
-            parquet_files = fs.listdir(
-                path=f"{self.parquet_directory}"
-                f"/key={endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
+            target = mlrun.datastore.targets.BaseStoreTarget(
+                path=self.parquet_directory
             )
-            for file in parquet_files:
-                if file["mktime"] < time_to_keep:
-                    # Delete files
-                    fs.rm(path=file["name"], recursive=True)
-                    # Delete directory
-                    fs.rmdir(path=file["name"])
+            store, _ = target._get_store_and_path()
+            fs = store.get_filesystem()
+
+            # calculate time threshold (keep only files from the last 24 hours)
+            time_to_keep = float(
+                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
+            )
+            for endpoint in endpoints:
+                parquet_files = fs.listdir(
+                    path=f"{self.parquet_directory}"
+                    f"/key={endpoint[mlrun.common.schemas.model_monitoring.EventFieldType.UID]}"
+                )
+                for file in parquet_files:
+                    if file["mtime"] < time_to_keep:
+                        # Delete files
+                        fs.rm(path=file["name"], recursive=True)
+                        # Delete directory
+                        fs.rmdir(path=file["name"])
 
     @staticmethod
     def _push_to_applications(
@@ -469,7 +473,7 @@ class MonitoringApplicationProcessor:
             timestamp_for_filtering=mlrun.common.schemas.model_monitoring.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
                 path=parquet_directory
-                + f"/key={endpoint_id}/processing_time={end_time}/{application_name}.parquet",
+                + f"/key={endpoint_id}/{end_time.strftime('%s')}/{application_name}.parquet",
                 partition_cols=[
                     mlrun.common.schemas.model_monitoring.EventFieldType.ENDPOINT_ID,
                 ],

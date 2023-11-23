@@ -90,6 +90,10 @@ class _DefaultPackagerMeta(ABCMeta):
         # Create a packager instance:
         packager = cls()
 
+        # Get the packager's name and module:
+        packager_name = packager.__class__.__name__
+        packager_module = packager.__module__
+
         # Get the original packager class doc string:
         packager_doc_string = cls._packager_doc.split("\n")
         packager_doc_string = "\n".join(line[4:] for line in packager_doc_string)
@@ -124,11 +128,11 @@ class _DefaultPackagerMeta(ABCMeta):
             argument_name = pack_or_unpack.upper()
             return (
                 getattr(packager, argument_name)
-                if packager.__name__ == "DefaultPackager"
-                or method_name not in packager.__dict__
+                if packager_name == "DefaultPackager"
+                or method_name not in packager.__class__.__dict__
                 else (
                     f"Refer to the packager's "
-                    f":py:meth:`~{packager.__module__}.{packager.__name__}.{method_name}` method."
+                    f":py:meth:`~{packager_module}.{packager_name}.{method_name}` method."
                 )
             )
 
@@ -150,7 +154,7 @@ class _DefaultPackagerMeta(ABCMeta):
                 "\n", ""
             )
             artifact_types += (
-                f"\n\n* :py:meth:`{artifact_type}<{packager.__module__}.{packager.__name__}.pack_{artifact_type}>` - "
+                f"\n\n* :py:meth:`{artifact_type}<{packager_module}.{packager_name}.pack_{artifact_type}>` - "
                 + artifact_type_doc
             )
             # Add the artifact type configurations (ignoring the `obj` and `key` parameters):

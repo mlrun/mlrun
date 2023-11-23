@@ -16,7 +16,6 @@ import typing
 from datetime import datetime
 
 from kubernetes import client
-from sqlalchemy.orm import Session
 
 import mlrun.k8s_utils
 import mlrun.utils.helpers
@@ -24,7 +23,6 @@ from mlrun import mlconf
 from mlrun.runtimes.constants import MPIJobV1Alpha1States, RunStates
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime, MpiRuntimeV1Alpha1
 from mlrun.utils import update_in
-from server.api.db.base import DBInterface
 from server.api.runtime_handlers.mpijob.abstract import AbstractMPIJobRuntimeHandler
 
 
@@ -155,7 +153,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return selector
 
     def _resolve_crd_object_status_info(
-        self, db: DBInterface, db_session: Session, crd_object
+        self, crd_object: dict
     ) -> typing.Tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
         """
         https://github.com/kubeflow/mpi-operator/blob/master/pkg/apis/kubeflow/v1alpha1/types.go#L115

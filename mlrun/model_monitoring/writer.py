@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from typing import Any, NewType
 
 import pandas as pd
@@ -25,11 +24,7 @@ import mlrun.common.model_monitoring
 import mlrun.model_monitoring
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.common.schemas.model_monitoring.constants import (
-    ProjectSecretKeys,
-    ResultStatusApp,
-    WriterEvent,
-)
+from mlrun.common.schemas.model_monitoring.constants import ResultStatusApp, WriterEvent
 from mlrun.common.schemas.notification import NotificationKind, NotificationSeverity
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger
@@ -115,6 +110,7 @@ class ModelMonitoringWriter(StepToDict):
             notification_types=[NotificationKind.slack]
         )
         self._create_tsdb_table()
+        self._kv_schemas = []
 
     @staticmethod
     def get_v3io_container(project_name: str) -> str:
@@ -124,7 +120,6 @@ class ModelMonitoringWriter(StepToDict):
     def _get_v3io_client() -> V3IOClient:
         return mlrun.utils.v3io_clients.get_v3io_client(
             endpoint=mlrun.mlconf.v3io_api,
-            access_key=os.getenv(ProjectSecretKeys.ACCESS_KEY),
         )
 
     @staticmethod
@@ -132,7 +127,6 @@ class ModelMonitoringWriter(StepToDict):
         return mlrun.utils.v3io_clients.get_frames_client(
             address=mlrun.mlconf.v3io_framesd,
             container=v3io_container,
-            token=os.getenv(ProjectSecretKeys.ACCESS_KEY, ""),
         )
 
     def _create_tsdb_table(self) -> None:
@@ -153,7 +147,40 @@ class ModelMonitoringWriter(StepToDict):
             key=app_name,
             attributes=event,
         )
+        if endpoint_id not in self._kv_schemas:
+            self._generate_kv_schema(endpoint_id)
         logger.info("Updated V3IO KV successfully", key=app_name)
+
+    def _generate_kv_schema(self, endpoint_id: str):
+        """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
+        fields = [
+            {"name": WriterEvent.APPLICATION_NAME, "type": "string", "nullable": False},
+            {"name": WriterEvent.SCHEDULE_TIME, "type": "string", "nullable": False},
+            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False},
+            {"name": WriterEvent.RESULT_KIND, "type": "double", "nullable": False},
+            {"name": WriterEvent.RESULT_VALUE, "type": "double", "nullable": False},
+            {"name": WriterEvent.RESULT_STATUS, "type": "double", "nullable": False},
+            {
+                "name": WriterEvent.RESULT_EXTRA_DATA,
+                "type": "string",
+                "nullable": False,
+            },
+        ]
+        res = self._kv_client.create_schema(
+            container=self._v3io_container,
+            table_path=endpoint_id,
+            key=WriterEvent.APPLICATION_NAME,
+            fields=fields,
+        )
+        if res.status_code != 200:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
+            )
+        else:
+            logger.info(
+                "Generated V3IO KV schema successfully", endpoint_id=endpoint_id
+            )
+            self._kv_schemas.append(endpoint_id)
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())

@@ -93,7 +93,7 @@ class SQLRunDB(RunDBInterface):
             updates,
         )
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         raise NotImplementedError()
 
     def read_run(self, uid, project=None, iter=None):

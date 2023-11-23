@@ -159,11 +159,6 @@ api_router.include_router(
     tags=["datastores"],
     dependencies=[Depends(deps.authenticate_request)],
 )
-api_router.include_router(
-    datastore_profile.router,
-    tags=["datastores"],
-    dependencies=[Depends(deps.authenticate_request)],
-)
 
 # v2 Router
 api_v2_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])

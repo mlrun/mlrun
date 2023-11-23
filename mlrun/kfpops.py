@@ -463,6 +463,7 @@ def mlrun_op(
     cop = add_function_node_selection_attributes(container_op=cop, function=function)
 
     add_annotations(cop, PipelineRunType.run, function, func_url, project)
+    add_labels(cop, function, scrape_metrics)
     if code_env:
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(name="MLRUN_EXEC_CODE", value=code_env)
@@ -682,6 +683,16 @@ def add_annotations(cop, kind, function, func_url=None, project=None):
     cop.add_pod_annotation(run_annotation, kind)
     cop.add_pod_annotation(project_annotation, project or function.metadata.project)
     cop.add_pod_annotation(function_annotation, func_url or function.uri)
+
+
+def add_labels(cop, function, scrape_metrics=False):
+    prefix = mlrun.runtimes.utils.mlrun_key
+    cop.add_pod_label(prefix + "class", function.kind)
+    cop.add_pod_label(prefix + "function", function.metadata.name)
+    cop.add_pod_label(prefix + "name", cop.human_name)
+    cop.add_pod_label(prefix + "project", function.metadata.project)
+    cop.add_pod_label(prefix + "tag", function.metadata.tag or "latest")
+    cop.add_pod_label(prefix + "scrape-metrics", "True" if scrape_metrics else "False")
 
 
 def generate_kfp_dag_and_resolve_project(run, project=None):

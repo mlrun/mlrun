@@ -898,16 +898,32 @@ class Scheduler:
 
         return schedule
 
-    @staticmethod
     def _enrich_schedule_with_last_run(
-        db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
+        self, db_session: Session, schedule_output: mlrun.common.schemas.ScheduleOutput
     ):
         if schedule_output.last_run_uri:
-            run_project, run_uid, iteration, _ = RunObject.parse_uri(
-                schedule_output.last_run_uri
-            )
+            run_data = self._get_last_run(db_session, schedule_output.last_run_uri)
+            if run_data:
+                schedule_output.last_run = run_data
+            else:
+                # Possibly the last-run was already deleted (ML-4902). Continue, and clear the last_run_uri in
+                # the response.
+                schedule_output.last_run_uri = None
+
+    @staticmethod
+    def _get_last_run(db_session, last_run_uri):
+        run_project, run_uid, iteration, _ = RunObject.parse_uri(last_run_uri)
+        try:
             run_data = get_db().read_run(db_session, run_uid, run_project, iteration)
-            schedule_output.last_run = run_data
+            return run_data
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "Failed to find the last run for schedule. Continuing",
+                project=run_project,
+                run_uid=run_uid,
+                iteration=iteration,
+            )
+            return None
 
     def _enrich_schedule_with_credentials(
         self, schedule_output: mlrun.common.schemas.ScheduleOutput

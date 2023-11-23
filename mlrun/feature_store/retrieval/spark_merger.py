@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pandas as pd
+import semver
 
 import mlrun
 from mlrun.datastore.targets import get_offline_target
@@ -165,7 +167,24 @@ class SparkFeatureMerger(BaseMerger):
     def get_df(self, to_pandas=True):
         if to_pandas:
             if self._pandas_df is None:
-                self._pandas_df = self._result_df.toPandas()
+                df = self._result_df
+                # as of pyspark 3.2.3, toPandas fails to convert timestamps unless we work around the issue
+                # when we upgrade pyspark, we should check whether this workaround is still necessary
+                # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
+                if semver.parse(pd.__version__)["major"] >= 2:
+                    type_conversion_dict = {}
+                    for field in df.schema.fields:
+                        if str(field.dataType) == "TimestampType":
+                            df = df.withColumn(
+                                field.name, df[field.name].cast("string")
+                            )
+                            type_conversion_dict[field.name] = "datetime64[ns]"
+                    df = df.toPandas()
+                    if type_conversion_dict:
+                        df = df.astype(type_conversion_dict)
+                else:
+                    df = df.toPandas()
+                self._pandas_df = df
                 self._set_indexes(self._pandas_df)
             return self._pandas_df
 

@@ -16,6 +16,7 @@ import enum
 import functools
 import hashlib
 import inspect
+import itertools
 import json
 import os
 import pathlib
@@ -898,7 +899,7 @@ def get_docker_repository_or_default(repository: str) -> str:
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
-    docker_registry = config.httpdb.builder.docker_registry
+    docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
     # this is exception to the rules from the link above, since the config value is called docker_registry we assume
     # that if someone gave just one component without any slash they gave a registry and not a repository
@@ -1068,7 +1069,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 
@@ -1103,7 +1104,7 @@ def retry_until_successful(
         )
 
     raise Exception(
-        f"failed to execute command by the given deadline."
+        f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
@@ -1551,3 +1552,18 @@ def line_terminator_kwargs():
         else "line_terminator"
     )
     return {line_terminator_parameter: "\n"}
+
+
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
+    """
+    Iterate over a list and yield chunks of the list in the given chunk size
+    e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
+    """
+    if chunk_size <= 0 or not iterable_list:
+        yield iterable_list
+        return
+    iterator = iter(iterable_list)
+    while chunk := list(itertools.islice(iterator, chunk_size)):
+        yield chunk

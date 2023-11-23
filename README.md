@@ -8,7 +8,7 @@
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
 
-<p align="left"><img src="docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
+<p align="left"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/MLRun-logo.png" alt="MLRun logo" width="150"/></p>
 
 # Using MLRun 
 
@@ -22,7 +22,7 @@ This page explains how MLRun addresses the [**MLOps Tasks**](#mlops-tasks) and t
 <a id="mlops-tasks"></a>
 ## MLOps tasks
 
-<p align="center"><img src="docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="800"/></p><br>
+<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/mlops-task.png" alt="mlrun-tasks" width="800"/></p><br>
 
 The [**MLOps development workflow**](https://docs.mlrun.org/en/latest/mlops-dev-flow.html) section describes the different tasks and stages in detail.
 MLRun can be used to automate and orchestrate all the different tasks or just specific tasks (and integrate them with what you have already deployed).
@@ -64,7 +64,7 @@ See: **Docs:** [Monitor and alert](https://docs.mlrun.org/en/latest/monitoring/i
 <a id="core-components"></a>
 ## MLRun core components
 
-<p align="center"><img src="docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
+<p align="center"><img src="https://github.com/mlrun/mlrun/raw/development/docs/_static/images/mlops-core.png" alt="mlrun-core" width="800"/></p><br>
 
 MLRun includes the following major components:
 

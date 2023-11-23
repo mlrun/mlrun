@@ -49,6 +49,7 @@ class BackgroundTaskSpec(pydantic.BaseModel):
 
 class BackgroundTaskStatus(pydantic.BaseModel):
     state: BackgroundTaskState
+    error: typing.Optional[str]
 
 
 class BackgroundTask(pydantic.BaseModel):

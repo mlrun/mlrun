@@ -92,11 +92,18 @@ default_config = {
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    # runs monitoring interval in seconds
-    "runs_monitoring_interval": "30",
-    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
-    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
-    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
+    "monitoring": {
+        "runs": {
+            # runs monitoring interval in seconds
+            "interval": "30",
+            # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding
+            # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
+            # default
+            "missing_runtime_resources_debouncing_interval": None,
+            # max number of parallel abort run jobs in runs monitoring
+            "concurrent_abort_stale_runs_workers": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -147,12 +154,35 @@ default_config = {
     # when set (True or non empty str) it will force the mock=True in deploy_function(),
     # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
+    # Configurations for `mlrun.track` - tracking runs and experiments from 3rd party vendors like MLFlow
+    # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
+    "external_platform_tracking": {
+        # General enabler for the entire tracking mechanism (all tracking services):
+        "enabled": False,
+        # Specific enablement and other configurations for the supported trackers:
+        "mlflow": {
+            # Enabler of MLFlow tracking:
+            "enabled": True,
+            # Whether to match the experiment name to the runtime name (sets mlflow experiment name to mlrun
+            # context name):
+            "match_experiment_to_runtime": False,
+            # Whether to determine the mlflow run id before tracking starts, by doing so we can be positive that we
+            # are tracking the correct run, this is useful especially for when we run number of runs simultaneously
+            # in the same experiment. the default is set to false because in the process a mlflow run is created in
+            # advance, and we want to avoid creating unnecessary runs.
+            "control_run": False,
+        },
+    },
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600", "load_project": "60"},
+            "operations": {
+                "migrations": "3600",
+                "load_project": "60",
+                "run_abortion": "600",
+            },
             "runtimes": {"dask": "600"},
         },
     },
@@ -174,6 +204,17 @@ default_config = {
                 },
             },
             "service_account": {"default": None},
+            "state_thresholds": {
+                "default": {
+                    "pending_scheduled": "1h",
+                    "pending_not_scheduled": "-1",  # infinite
+                    "image_pull_backoff": "1h",
+                    "running": "24h",
+                }
+            },
+        },
+        "databricks": {
+            "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -290,7 +331,7 @@ default_config = {
             # - mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes
             # - mlrun.runtimes.function.enrich_function_with_ingress
             "add_templated_ingress_host_mode": "never",
-            "explicit_ack": "disabled",
+            "explicit_ack": "enabled",
         },
         "logs": {
             "decode": {
@@ -424,8 +465,8 @@ default_config = {
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
-        "parquet_batching_max_events": 10000,
-        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
+        "parquet_batching_max_events": 10_000,
+        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
@@ -902,9 +943,9 @@ class Config:
 
     def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
         return (
-            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
-            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
-            else float(config.runs_monitoring_interval) * 2.0
+            float(self.monitoring.runs.missing_runtime_resources_debouncing_interval)
+            if self.monitoring.runs.missing_runtime_resources_debouncing_interval
+            else float(config.monitoring.runs.interval) * 2.0
         )
 
     @staticmethod

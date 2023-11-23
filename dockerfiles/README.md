@@ -45,9 +45,6 @@ For example, running `MLRUN_VERSION=x.y.z make docker-images` will generate the 
   * `mlrun/jupyter:x.y.z`
   * `mlrun/ml-base:x.y.z`
 
-[comment]: <> (TODO: remove once make targets are deleted) 
-  * `mlrun/ml-models:x.y.z`
-
 It's also possible to build only a specific image - `make api` (will build only the api image)<br>
 Or a set of images - `make mlrun jupyter base`
 The possible commands are:
@@ -56,9 +53,6 @@ The possible commands are:
 * `api`
 * `jupyter`
 * `base`
-
-[comment]: <> (TODO: remove once make targets are deleted) 
-* `models`
 
 To run an image locally and explore its contents:  `docker run -it <image-name>:<image-tag> /bin/bash`<br>
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`.

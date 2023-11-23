@@ -17,7 +17,6 @@ import glob
 import http
 import importlib.util as imputil
 import json
-import os.path
 import pathlib
 import shutil
 import tempfile
@@ -36,7 +35,6 @@ import kfp
 import nuclio
 import requests
 import yaml
-from deprecated import deprecated
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
@@ -89,6 +87,7 @@ from .pipelines import (
     FunctionsDict,
     WorkflowSpec,
     _PipelineRunStatus,
+    _RemoteRunner,
     enrich_function_object,
     get_db_function,
     get_workflow_engine,
@@ -1009,59 +1008,12 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        # TODO: remove all arguments except metadata and spec in 1.6.0
-        name=None,
-        description=None,
-        params=None,
-        functions=None,
-        workflows=None,
-        artifacts=None,
-        artifact_path=None,
-        conda=None,
-        # all except these metadata and spec are for backwards compatibility with MlrunProjectLegacy
-        metadata=None,
-        spec=None,
-        default_requirements: typing.Union[str, typing.List[str]] = None,
+        metadata: Optional[Union[ProjectMetadata, Dict]] = None,
+        spec: Optional[Union[ProjectSpec, Dict]] = None,
     ):
-        self._metadata = None
-        self.metadata = metadata
-        self._spec = None
-        self.spec = spec
-        self._status = None
+        self.metadata: ProjectMetadata = metadata
+        self.spec: ProjectSpec = spec
         self.status = None
-
-        if any(
-            [
-                name,
-                description,
-                params,
-                functions,
-                workflows,
-                artifacts,
-                artifact_path,
-                conda,
-                default_requirements,
-            ]
-        ):
-            # TODO: remove in 1.6.0 along with all arguments except metadata and spec
-            warnings.warn(
-                "Project constructor arguments are deprecated in 1.4.0 and will be removed in 1.6.0,"
-                " use metadata and spec instead",
-                FutureWarning,
-            )
-
-        # Handling the fields given in the legacy way
-        self.metadata.name = name or self.metadata.name
-        self.spec.description = description or self.spec.description
-        self.spec.params = params or self.spec.params
-        self.spec.functions = functions or self.spec.functions
-        self.spec.workflows = workflows or self.spec.workflows
-        self.spec.artifacts = artifacts or self.spec.artifacts
-        self.spec.artifact_path = artifact_path or self.spec.artifact_path
-        self.spec.conda = conda or self.spec.conda
-        self.spec.default_requirements = (
-            default_requirements or self.spec.default_requirements
-        )
 
         self._initialized = False
         self._secrets = SecretsStore()
@@ -1204,17 +1156,11 @@ class MlrunProject(ModelObj):
         self.spec.mountdir = mountdir
 
     @property
-    def params(self) -> str:
+    def params(self) -> dict:
         return self.spec.params
 
     @params.setter
     def params(self, params):
-        warnings.warn(
-            "This is a property of the spec, use project.spec.params instead. "
-            "This is deprecated in 1.3.0, and will be removed in 1.5.0",
-            # TODO: In 1.3.0 do changes in examples & demos In 1.5.0 remove
-            FutureWarning,
-        )
         self.spec.params = params
 
     @property
@@ -1278,6 +1224,7 @@ class MlrunProject(ModelObj):
                               (which will be converted to the class using its `from_crontab` constructor),
                               see this link for help:
                               https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
+                              Note that "local" engine does not support this argument
         :param ttl:           pipeline ttl in secs (after that the pods will be removed)
         :param image:         image for workflow runner job, only for scheduled and remote workflows
         :param args:          argument values (key=value, ..)
@@ -1290,6 +1237,9 @@ class MlrunProject(ModelObj):
             raise ValueError(
                 f"Invalid 'workflow_path': '{workflow_path}'. Please provide a valid URL/path to a file."
             )
+
+        if engine and "local" in engine and schedule:
+            raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
         # engine could be "remote" or "remote:local"
         if image and ((engine and "remote" in engine) or schedule):
@@ -1644,7 +1594,7 @@ class MlrunProject(ModelObj):
         :param parameters:      key/value dict of model parameters
         :param inputs:          ordered list of model input features (name, type, ..)
         :param outputs:         ordered list of model output/result elements (name, type, ..)
-        :param upload:          upload to datastore (default is True)
+        :param upload:          upload to datastore (if not specified, defaults to True (uploads artifact))
         :param labels:          a set of key/value labels to tag the artifact with
         :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
         :param feature_weights: list of feature weights, one per input column
@@ -1784,7 +1734,7 @@ class MlrunProject(ModelObj):
         )
         return _run_project_setup(self, setup_file_path, save)
 
-    def set_model_monitoring_application(
+    def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         application_class: typing.Union[str, ModelMonitoringApplication] = None,
@@ -1798,28 +1748,126 @@ class MlrunProject(ModelObj):
         **application_kwargs,
     ) -> mlrun.runtimes.BaseRuntime:
         """
-        update or add a monitoring application to the project & deploy it.
+        Update or add a monitoring function to the project.
+
         examples::
-            project.set_model_monitoring_application(application_class_name="MyApp",
-                                                 image="davesh0812/mlrun-api:1.5.0", name="myApp")
-        :param func:                    function object or spec/code url, None refers to current Notebook
-        :param name:                    name of the function (under the project), can be specified with a tag to support
+            project.set_model_monitoring_function(application_class_name="MyApp",
+                                                 image="mlrun/mlrun", name="myApp")
+
+        :param func:                    Function object or spec/code url, None refers to current Notebook
+        :param name:                    Name of the function (under the project), can be specified with a tag to support
                                         versions (e.g. myfunc:v1)
-                                        default: job
-        :param image:                   docker image to be used, can also be specified in
+                                        Default: job
+        :param image:                   Docker image to be used, can also be specified in
                                         the function object/yaml
-        :param handler:                 default function handler to invoke (can only be set with .py/.ipynb files)
-        :param with_repo:               add (clone) the current repo to the build source
-        :param tag:                     function version tag (none for 'latest', can only be set with .py/.ipynb files)
+        :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:               Add (clone) the current repo to the build source
+        :param tag:                     Function version tag (none for 'latest', can only be set with .py/.ipynb files)
                                         if tag is specified and name is empty, the function key (under the project)
                                         will be enriched with the tag value. (i.e. 'function-name:tag')
-        :param requirements:            a list of python packages
-        :param requirements_file:       path to a python requirements file
+        :param requirements:            A list of python packages
+        :param requirements_file:       Path to a python requirements file
         :param application_class:       Name or an Instance of a class that implementing the monitoring application.
         :param application_kwargs:      Additional keyword arguments to be passed to the
                                         monitoring application's constructor.
         """
 
+        function_object: RemoteRuntime = None
+        (
+            resolved_function_name,
+            function_object,
+            func,
+        ) = self._instantiate_model_monitoring_function(
+            func,
+            application_class,
+            name,
+            image,
+            handler,
+            with_repo,
+            tag,
+            requirements,
+            requirements_file,
+            **application_kwargs,
+        )
+        models_names = "all"
+        function_object.set_label(
+            mm_constants.ModelMonitoringAppLabel.KEY,
+            mm_constants.ModelMonitoringAppLabel.VAL,
+        )
+        function_object.set_label("models", models_names)
+
+        if not mlrun.mlconf.is_ce_mode():
+            function_object.apply(mlrun.mount_v3io())
+
+        # save to project spec
+        self.spec.set_function(resolved_function_name, function_object, func)
+
+        return function_object
+
+    def create_model_monitoring_function(
+        self,
+        func: str = None,
+        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        name: str = None,
+        image: str = None,
+        handler: str = None,
+        with_repo: bool = None,
+        tag: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
+        **application_kwargs,
+    ) -> mlrun.runtimes.BaseRuntime:
+        """
+        Create a monitoring function object without setting it to the project
+
+        examples::
+            project.create_model_monitoring_function(application_class_name="MyApp",
+                                                 image="mlrun/mlrun", name="myApp")
+
+        :param func:                    Code url, None refers to current Notebook
+        :param name:                    Name of the function, can be specified with a tag to support
+                                        versions (e.g. myfunc:v1)
+                                        Default: job
+        :param image:                   Docker image to be used, can also be specified in
+                                        the function object/yaml
+        :param handler:                 Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param with_repo:               Add (clone) the current repo to the build source
+        :param tag:                     Function version tag (none for 'latest', can only be set with .py/.ipynb files)
+                                        if tag is specified and name is empty, the function key (under the project)
+                                        will be enriched with the tag value. (i.e. 'function-name:tag')
+        :param requirements:            A list of python packages
+        :param requirements_file:       Path to a python requirements file
+        :param application_class:       Name or an Instance of a class that implementing the monitoring application.
+        :param application_kwargs:      Additional keyword arguments to be passed to the
+                                        monitoring application's constructor.
+        """
+        _, function_object, _ = self._instantiate_model_monitoring_function(
+            func,
+            application_class,
+            name,
+            image,
+            handler,
+            with_repo,
+            tag,
+            requirements,
+            requirements_file,
+            **application_kwargs,
+        )
+        return function_object
+
+    def _instantiate_model_monitoring_function(
+        self,
+        func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
+        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        name: str = None,
+        image: str = None,
+        handler: str = None,
+        with_repo: bool = None,
+        tag: str = None,
+        requirements: typing.Union[str, typing.List[str]] = None,
+        requirements_file: str = "",
+        **application_kwargs,
+    ) -> typing.Tuple[str, mlrun.runtimes.BaseRuntime, dict]:
         function_object: RemoteRuntime = None
         kind = None
         if (isinstance(func, str) or func is None) and application_class is not None:
@@ -1853,7 +1901,12 @@ class MlrunProject(ModelObj):
         elif isinstance(func, str) and isinstance(handler, str):
             kind = "nuclio"
 
-        resolved_function_name, tag, function_object, func = self._resolved_function(
+        (
+            resolved_function_name,
+            tag,
+            function_object,
+            func,
+        ) = self._instantiate_function(
             func,
             name,
             kind,
@@ -1866,22 +1919,15 @@ class MlrunProject(ModelObj):
         )
         models_names = "all"
         function_object.set_label(
-            mm_constants.ModelMonitoringAppTag.KEY,
-            mm_constants.ModelMonitoringAppTag.VAL,
+            mm_constants.ModelMonitoringAppLabel.KEY,
+            mm_constants.ModelMonitoringAppLabel.VAL,
         )
         function_object.set_label("models", models_names)
 
         if not mlrun.mlconf.is_ce_mode():
             function_object.apply(mlrun.mount_v3io())
-        # Deploy & Add stream triggers
-        self.deploy_function(
-            function_object,
-        )
 
-        # save to project spec
-        self._set_function(resolved_function_name, tag, function_object, func)
-
-        return function_object
+        return resolved_function_name, function_object, func
 
     def set_function(
         self,
@@ -1889,7 +1935,7 @@ class MlrunProject(ModelObj):
         name: str = "",
         kind: str = "",
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
@@ -1939,7 +1985,12 @@ class MlrunProject(ModelObj):
 
         :returns: function object
         """
-        resolved_function_name, tag, function_object, func = self._resolved_function(
+        (
+            resolved_function_name,
+            tag,
+            function_object,
+            func,
+        ) = self._instantiate_function(
             func,
             name,
             kind,
@@ -1954,18 +2005,18 @@ class MlrunProject(ModelObj):
         self._set_function(resolved_function_name, tag, function_object, func)
         return function_object
 
-    def _resolved_function(
+    def _instantiate_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
         image: str = None,
-        handler=None,
+        handler: str = None,
         with_repo: bool = None,
         tag: str = None,
         requirements: typing.Union[str, typing.List[str]] = None,
         requirements_file: str = "",
-    ):
+    ) -> typing.Tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
         if func is None and not _has_module(handler, kind):
             # if function path is not provided and it is not a module (no ".")
             # use the current notebook as default
@@ -2011,6 +2062,7 @@ class MlrunProject(ModelObj):
                 "with_repo": with_repo,
                 "tag": tag,
                 "requirements": requirements,
+                "requirements_file": requirements_file,
             }
             func = {k: v for k, v in function_dict.items() if v}
             resolved_function_name, function_object = _init_function_from_dict(
@@ -2031,9 +2083,9 @@ class MlrunProject(ModelObj):
             if with_repo:
                 # mark source to be enriched before run with project source (enrich_function_object)
                 function_object.spec.build.source = "./"
-            if requirements:
+            if requirements or requirements_file:
                 function_object.with_requirements(
-                    requirements, requirements_file=requirements_file
+                    requirements, requirements_file=requirements_file, overwrite=True
                 )
             if not resolved_function_name:
                 raise ValueError("Function name must be specified")
@@ -2067,28 +2119,27 @@ class MlrunProject(ModelObj):
         self.spec.set_function(name, function_object, func)
 
     def remove_function(self, name):
-        """remove a function from a project
+        """remove the specified function from the project
 
         :param name:    name of the function (under the project)
         """
         self.spec.remove_function(name)
 
-    def remove_model_monitoring_application(self, name):
-        """remove a function from a project and from the db.
+    def remove_model_monitoring_function(self, name):
+        """remove the specified model-monitoring-app function from the project
 
-        :param name: name of the function (under the project)
+        :param name: name of the model-monitoring-app function (under the project)
         """
-        application = self.get_function(key=name)
+        function = self.get_function(key=name)
         if (
-            application.metadata.labels.get(mm_constants.ModelMonitoringAppTag.KEY)
-            == mm_constants.ModelMonitoringAppTag.VAL
+            function.metadata.labels.get(mm_constants.ModelMonitoringAppLabel.KEY)
+            == mm_constants.ModelMonitoringAppLabel.VAL
         ):
             self.remove_function(name=name)
-            mlrun.db.get_run_db().delete_function(name=name.lower())
-            logger.info(f"{name} application has been removed from {self.name} project")
+            logger.info(f"{name} function has been removed from {self.name} project")
         else:
             raise logger.error(
-                f"There is no model monitoring application with {name} name"
+                f"There is no model monitoring function with {name} name"
             )
 
     def get_function(
@@ -2449,6 +2500,7 @@ class MlrunProject(ModelObj):
         timeout: int = None,
         source: str = None,
         cleanup_ttl: int = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ) -> _PipelineRunStatus:
         """run a workflow using kubeflow pipelines
 
@@ -2481,6 +2533,8 @@ class MlrunProject(ModelObj):
         :param cleanup_ttl:
                           pipeline cleanup ttl in secs (time to wait after workflow completion, at which point the
                           workflow and all its resources are deleted)
+        :param notifications:
+                          list of notifications to send for workflow completion
         :returns: run id
         """
 
@@ -2506,10 +2560,7 @@ class MlrunProject(ModelObj):
             )
 
         if not name and not workflow_path and not workflow_handler:
-            if self.spec.workflows:
-                name = list(self.spec._workflows.keys())[0]
-            else:
-                raise ValueError("Workflow name or path must be specified")
+            raise ValueError("Workflow name, path, or handler must be specified")
 
         if workflow_path or (workflow_handler and callable(workflow_handler)):
             workflow_spec = WorkflowSpec(path=workflow_path, args=arguments)
@@ -2551,6 +2602,7 @@ class MlrunProject(ModelObj):
             artifact_path=artifact_path,
             namespace=namespace,
             source=source,
+            notifications=notifications,
         )
         # run is None when scheduling
         if run and run.state == mlrun.run.RunStatuses.failed:
@@ -2562,7 +2614,14 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
-            run._engine.get_run_status(project=self, run=run, timeout=timeout)
+            # run's engine gets replaced with inner engine if engine is remote,
+            # so in that case we need to get the status from the remote engine manually
+            if engine == "remote":
+                status_engine = _RemoteRunner
+            else:
+                status_engine = run._engine
+
+            status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
 
     def save_workflow(self, name, target, artifact_path=None, ttl=None):
@@ -2597,43 +2656,6 @@ class MlrunProject(ModelObj):
             expected_statuses=expected_statuses,
             notifiers=notifiers,
         )
-
-    # TODO: remove in 1.6.0
-    @deprecated(
-        version="1.4.0",
-        reason="'clear_context' will be removed in 1.6.0, this can cause unexpected issues",
-        category=FutureWarning,
-    )
-    def clear_context(self):
-        """delete all files and clear the context dir"""
-        warnings.warn(
-            "This method deletes all files and clears the context directory or subpath (if defined)!"
-            "  Please keep in mind that this method can produce unexpected outcomes and is not recommended,"
-            " it will be deprecated in 1.6.0."
-        )
-        # clear only if the context path exists and not relative
-        if self.spec.context and os.path.isabs(self.spec.context):
-            # if a subpath is defined, will empty the subdir instead of the entire context
-            if self.spec.subpath:
-                path_to_clear = path.join(self.spec.context, self.spec.subpath)
-                logger.info(f"Subpath is defined, Clearing path: {path_to_clear}")
-            else:
-                path_to_clear = self.spec.context
-                logger.info(
-                    f"Subpath is not defined, Clearing context: {path_to_clear}"
-                )
-            if path.exists(path_to_clear) and path.isdir(path_to_clear):
-                shutil.rmtree(path_to_clear)
-            else:
-                logger.warn(
-                    f"Attempt to clear {path_to_clear} failed. Path either does not exist or is not a directory."
-                    " Please ensure that your context or subdpath are properly defined."
-                )
-        else:
-            logger.warn(
-                "Your context path is a relative path;"
-                " in order to avoid unexpected results, we do not allow the deletion of relative paths."
-            )
 
     def save(self, filepath=None, store=True):
         """export project to yaml file and save project in database
@@ -2701,6 +2723,7 @@ class MlrunProject(ModelObj):
         """Set the credentials that will be used by the project's model monitoring
         infrastructure functions.
 
+        :param access_key:                Model Monitoring access key for managing user permissions
         :param access_key:                Model Monitoring access key for managing user permissions
         :param endpoint_store_connection: Endpoint store connection string
         :param stream_path:               Path to the model monitoring stream
@@ -2970,7 +2993,7 @@ class MlrunProject(ModelObj):
                         used. If not set, the `mlconf.default_project_image_name` value will be used
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
-        :param skip_deployed:   skip the build if we already have the image specified built
+        :param skip_deployed:   *Deprecated* parameter is ignored
         :param base_image:      base image name/path (commands and source code will be added to it)
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
@@ -2985,8 +3008,16 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build:
+        :param force_build: set True for force building the image
         """
+
+        if skip_deployed:
+            warnings.warn(
+                "The 'skip_deployed' parameter is deprecated and will be removed in 1.7.0. "
+                "This parameter is ignored.",
+                # TODO: remove in 1.7.0
+                FutureWarning,
+            )
 
         self.build_config(
             image=image,
@@ -3011,7 +3042,6 @@ class MlrunProject(ModelObj):
             commands=build.commands,
             secret_name=build.secret,
             requirements=build.requirements,
-            skip_deployed=skip_deployed,
             overwrite_build_params=overwrite_build_params,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
@@ -3196,16 +3226,31 @@ class MlrunProject(ModelObj):
             # convert dict to function objects
             return [mlrun.new_function(runtime=func) for func in functions]
 
-    def list_model_monitoring_applications(self):
-        """Retrieve a list of alll the model monitoring application.
+    def list_model_monitoring_functions(
+        self,
+        name: Optional[str] = None,
+        tag: Optional[str] = None,
+        labels: Optional[list[str]] = None,
+    ) -> Optional[list]:
+        """Retrieve a list of all the model monitoring functions.
         example::
-            functions = project.list_model_monitoring_applications()
+            functions = project.list_model_monitoring_functions()
+
+        :param name: Return only functions with a specific name.
+        :param tag: Return function versions with specific tags.
+        :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
+
+        model_monitoring_labels_list = [
+            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+        ]
+        if labels:
+            model_monitoring_labels_list += labels
         return self.list_functions(
-            labels=[
-                f"{mm_constants.ModelMonitoringAppTag.KEY}={mm_constants.ModelMonitoringAppTag.VAL}"
-            ]
+            name=name,
+            tag=tag,
+            labels=model_monitoring_labels_list,
         )
 
     def list_runs(
@@ -3301,6 +3346,10 @@ class MlrunProject(ModelObj):
         )
 
     def list_datastore_profiles(self) -> List[DatastoreProfile]:
+        """
+        Returns a list of datastore profiles associated with the project.
+        The information excludes private details, showcasing only public data.
+        """
         return mlrun.db.get_run_db(secrets=self._secrets).list_datastore_profiles(
             self.name
         )
@@ -3393,6 +3442,7 @@ def _init_function_from_dict(
     handler = f.get("handler", None)
     with_repo = f.get("with_repo", False)
     requirements = f.get("requirements", None)
+    requirements_file = f.get("requirements_file", None)
     tag = f.get("tag", None)
 
     has_module = _has_module(handler, kind)
@@ -3404,7 +3454,11 @@ def _init_function_from_dict(
     url, in_context = project.get_item_absolute_path(url)
 
     if "spec" in f:
-        func = new_function(name, runtime=f, tag=tag)
+        if "spec" in f["spec"]:
+            # Functions are stored in the project yaml as a dict with a spec key where the spec is the function
+            func = new_function(name, runtime=f["spec"])
+        else:
+            func = new_function(name, runtime=f, tag=tag)
 
     elif not url and has_module:
         func = new_function(
@@ -3455,8 +3509,12 @@ def _init_function_from_dict(
     if with_repo:
         # mark source to be enriched before run with project source (enrich_function_object)
         func.spec.build.source = "./"
-    if requirements:
-        func.with_requirements(requirements)
+    if requirements or requirements_file:
+        func.with_requirements(
+            requirements=requirements,
+            requirements_file=requirements_file,
+            overwrite=True,
+        )
 
     return _init_function_from_obj(func, project)
 

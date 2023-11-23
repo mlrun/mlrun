@@ -238,6 +238,54 @@ async def test_invoke_schedule(
 
 
 @pytest.mark.asyncio
+# ML-4902
+async def test_get_schedule_last_run_deleted(
+    db: Session,
+    scheduler: Scheduler,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+):
+    cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
+    schedule_name = "schedule-name"
+    project_name = config.default_project
+    create_project(db, project_name)
+    scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
+        db, project_name
+    )
+    scheduler.create_schedule(
+        db,
+        mlrun.common.schemas.AuthInfo(),
+        project_name,
+        schedule_name,
+        mlrun.common.schemas.ScheduleKinds.job,
+        scheduled_object,
+        cron_trigger,
+    )
+    await scheduler.invoke_schedule(
+        db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
+    )
+    runs = get_db().list_runs(db, project=project_name)
+    assert len(runs) == 1
+
+    run_uid = runs[0]["metadata"]["uid"]
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
+
+    assert schedule.last_run is not None
+    assert schedule.last_run["metadata"]["uid"] == run_uid
+    assert schedule.last_run["metadata"]["project"] == project_name
+
+    # delete the last run for the schedule, ensure we can still get the schedule without failing
+    get_db().del_run(db, uid=run_uid, project=project_name)
+    schedule = scheduler.get_schedule(
+        db, project_name, schedule_name, include_last_run=True
+    )
+
+    assert schedule.last_run_uri is None
+    assert schedule.last_run == {}
+
+
+@pytest.mark.asyncio
 async def test_create_schedule_mlrun_function(
     db: Session,
     scheduler: Scheduler,

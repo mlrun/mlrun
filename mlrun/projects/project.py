@@ -103,7 +103,7 @@ def init_repo(context, url, init_git):
     repo = None
     context_path = pathlib.Path(context)
     if not context_path.exists():
-        context_path.mkdir(parents=True)
+        context_path.mkdir(parents=True, exist_ok=True)
     elif not context_path.is_dir():
         raise ValueError(f"Context {context} is not a dir path")
     try:

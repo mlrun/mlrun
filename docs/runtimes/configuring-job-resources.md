@@ -271,3 +271,32 @@ train_fn.run(inputs={"dataset" :my_data})
 
 
 See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+
+## Preventing stuck pods
+
+The runtimes spec has four "state_threshold" attributes that can determine when to abort a run. 
+Once a threshold is passed and the run is in the matching state, the API monitoring aborts the run, deletes its resources, 
+sets the run state to aborted, and issues a "status_text" message.
+
+The four states and their default thresholds are:
+
+```
+'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
+'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
+'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
+'running': '24h' #Job is running  
+```
+
+The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 
+To configure to infinity, use `-1`. 
+
+To change the state thresholds, use:
+```
+func.set_state_thresholds({"pending_not_scheduled": "1 min"}) 
+```
+For just the run, use:
+```
+func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
+```
+
+See {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.

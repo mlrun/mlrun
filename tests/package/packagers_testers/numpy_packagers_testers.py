@@ -15,7 +15,6 @@
 import os
 import tempfile
 from typing import Dict, List, Tuple
-import itertools
 
 import numpy as np
 

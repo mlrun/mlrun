@@ -559,9 +559,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             if is_packing:
                 raise MLRunPackagePackingError(
                     f"The packager '{self.__class__.__name__}' could not pack the package due to missing "
-                    f"configurations: {', '.join(missing_arguments)}. Add the missing arguments to the log hint of this "
-                    f"object in order to pack it. Make sure you pass a dictionary log hint and not a string in order to "
-                    f"pass configurations in the log hint."
+                    f"configurations: {', '.join(missing_arguments)}. Add the missing arguments to the log hint of "
+                    f"this object in order to pack it. Make sure you pass a dictionary log hint and not a string in "
+                    f"order to pass configurations in the log hint."
                 )
             raise MLRunPackageUnpackingError(
                 f"The packager '{self.__class__.__name__}' could not unpack the package due to missing instructions: "

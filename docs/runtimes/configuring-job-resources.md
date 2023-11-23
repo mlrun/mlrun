@@ -299,4 +299,4 @@ For just the run, use:
 func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
 ```
 
-See {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`.
+See {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`.

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import unittest
+from unittest.mock import patch
 
 import fastapi
 
@@ -23,7 +24,10 @@ import server.api.utils.clients.iguazio
 PROJECT = "project-name"
 
 
-def test_list_api_gateways(client: fastapi.testclient.TestClient):
+@patch.object(server.api.utils.clients.async_nuclio.Client, "list_api_gateways")
+def test_list_api_gateways(
+    list_api_gateway_mocked, client: fastapi.testclient.TestClient
+):
     mlrun.mlconf.httpdb.authentication.mode = "iguazio"
     server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
         unittest.mock.AsyncMock(
@@ -68,13 +72,9 @@ def test_list_api_gateways(client: fastapi.testclient.TestClient):
 
     expected_response_body = list(nuclio_api_response_body.values())
 
-    server.api.utils.clients.async_nuclio.Client.list_api_gateways = (
-        unittest.mock.AsyncMock()
-    )
-    server.api.utils.clients.async_nuclio.Client.list_api_gateways.return_value = (
-        nuclio_api_response_body
-    )
+    list_api_gateway_mocked.return_value = nuclio_api_response_body
     response = client.get(
         f"projects/{PROJECT}/nuclio/api-gateways",
     )
+
     assert response.json() == expected_response_body

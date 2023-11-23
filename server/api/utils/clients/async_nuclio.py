@@ -74,17 +74,17 @@ class Client:
             except Exception:
                 response_body = {}
             self._handle_error_response(
-                method, path, response, response_body, error_message, kwargs
+                method, url, path, response, response_body, error_message, kwargs
             )
         else:
             return await response.json()
 
     def _handle_error_response(
-        self, method, path, response, response_body, error_message, kwargs
+        self, method, url, path, response, response_body, error_message, kwargs
     ):
         log_kwargs = copy.deepcopy(kwargs)
         log_kwargs.pop("json", None)
-        log_kwargs.update({"method": method, "path": path})
+        log_kwargs.update({"method": method, "url": url, "path": path})
 
         try:
             error = response_body.get("error", "")

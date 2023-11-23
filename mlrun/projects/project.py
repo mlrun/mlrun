@@ -109,7 +109,6 @@ def init_repo(context, url, init_git):
     try:
         repo = git.Repo(context)
         url = get_repo_url(repo)
-        logger.info("Identified git repo, using it", url=url)
     except Exception:
         if init_git:
             repo = git.Repo.init(context)
@@ -223,6 +222,7 @@ def new_project(
     if remote and url != remote:
         project.create_remote(remote)
     elif url:
+        logger.info("Identified pre-initialized git repo, using it", url=url)
         project.spec._source = url
         project.spec.origin_url = url
     if description:

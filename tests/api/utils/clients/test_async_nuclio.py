@@ -48,7 +48,7 @@ def mock_aioresponse():
 
 
 @pytest.mark.asyncio
-async def test_list_api_gateways(
+async def test_nuclio_list_api_gateways(
     api_url,
     nuclio_client,
     mock_aioresponse,

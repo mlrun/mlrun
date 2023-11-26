@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import re
+import time
 from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import mlrun
@@ -31,9 +32,43 @@ from mlrun.utils import logger
 
 
 class _BatchWindow:
-    def __init__(self, batch_dict: Union[dict, str]) -> None:
+    def __init__(
+        self,
+        endpoint: str,
+        application: str,
+        timedelta_seconds: int,
+        last_updated: int,
+        first_request: Optional[int],
+    ) -> None:
         """
         Initialize a batch window object that handles the batch interval time range
+        for the monitoring functions.
+        All the time values are in seconds.
+        The start and stop time are in seconds since the epoch.
+        """
+        self._endpoint = endpoint
+        self._application = application
+        self._start = self._get_last_analyzed() or first_request
+        self._stop = last_updated
+        self._step = timedelta_seconds
+
+    def _get_last_analyzed(self) -> int:
+        raise NotImplementedError
+
+    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+        """
+        Get the batch interval time range.
+        TODO: replace with a for loop from the start time to the end time.
+        """
+        end_time = datetime.datetime.utcfromtimestamp(self._stop)
+        start_time = datetime.datetime.utcfromtimestamp(self._stop - self._step)
+        return start_time, end_time
+
+
+class _BatchWindowGenerator:
+    def __init__(self, batch_dict: Union[dict, str]) -> None:
+        """
+        Initialize a batch window generator object that generates batch window objects
         for the monitoring functions.
         """
         self._batch_dict = batch_dict
@@ -58,7 +93,7 @@ class _BatchWindow:
             pair_list = pair.split(":")
             self._batch_dict[pair_list[0]] = float(pair_list[1])
 
-    def _get_timedelta(self) -> datetime.timedelta:
+    def _get_timedelta(self) -> int:
         """Get the timedelta from a batch dictionary"""
         self._batch_dict = cast(dict[str, int], self._batch_dict)
         minutes, hours, days = (
@@ -66,26 +101,51 @@ class _BatchWindow:
             self._batch_dict[mm_constants.EventFieldType.HOURS],
             self._batch_dict[mm_constants.EventFieldType.DAYS],
         )
-        return datetime.timedelta(minutes=minutes, hours=hours, days=days)
+        return int(
+            datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
+        )
 
     @staticmethod
-    def _get_last_updated_time(
-        now_func: Callable[[], datetime.datetime] = datetime.datetime.now
-    ) -> datetime.datetime:
+    def _get_last_updated_time() -> int:
         """
         Get the last updated time of a model endpoint.
         Note: this is an approximation of this time. Once we save it in the DB,
         we will have the exact time and won't use now_func.
         """
-        return now_func() - datetime.timedelta(
-            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        return int(
+            time.time()
+            - cast(
+                float,
+                mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
+            )
         )
 
-    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
-        """Getting batch interval time range"""
-        end_time = self._get_last_updated_time()
-        start_time = end_time - self._timedelta
-        return start_time, end_time
+    @staticmethod
+    def _normalize_first_request(
+        first_request: Optional[str], endpoint: str
+    ) -> Optional[int]:
+        if not first_request:
+            logger.warn(
+                "There is no first request time for this endpoint.",
+                endpoint=endpoint,
+                first_request=first_request,
+            )
+            return None
+        # See mm_constants.EventFieldType.TIME_FORMAT
+        return int(datetime.datetime.fromisoformat(first_request).timestamp())
+
+    def get_batch_window(
+        self, endpoint: str, application: str, first_request: Optional[str]
+    ) -> _BatchWindow:
+        """Get the batch window for a specific endpoint and application"""
+
+        return _BatchWindow(
+            endpoint=endpoint,
+            application=application,
+            timedelta_seconds=self._timedelta,
+            last_updated=self._get_last_updated_time(),
+            first_request=self._normalize_first_request(first_request, endpoint),
+        )
 
 
 class MonitoringApplicationController:
@@ -122,7 +182,7 @@ class MonitoringApplicationController:
         self.endpoints_exceptions = {}
 
         # The batch window
-        self._batch_window = _BatchWindow(
+        self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=context.parameters[
                 mm_constants.EventFieldType.BATCH_INTERVALS_DICT
             ]
@@ -202,7 +262,7 @@ class MonitoringApplicationController:
                         MonitoringApplicationController.model_endpoint_process,
                         endpoint=endpoint,
                         applications_names=applications_names,
-                        batch_interval_dict=self._batch_window.get_interval_range,
+                        batch_window_generator=self._batch_window_generator,
                         project=self.project,
                         parquet_directory=self.parquet_directory,
                         storage_options=self.storage_options,
@@ -222,7 +282,7 @@ class MonitoringApplicationController:
         cls,
         endpoint: dict,
         applications_names: list[str],
-        get_interval_range: Callable[[], Tuple[datetime.datetime, datetime.datetime]],
+        batch_window_generator: _BatchWindowGenerator,
         project: str,
         parquet_directory: str,
         storage_options: dict,
@@ -235,7 +295,7 @@ class MonitoringApplicationController:
 
         :param endpoint:                    (dict) Model endpoint record.
         :param applications_names:          (list[str]) List of application names to push results to.
-        :param get_interval_range:          (callable) A callable returning the batch interval start and end times.
+        :param batch_window_generator:      (_BatchWindowGenerator) An object that generates _BatchWindow objects.
         :param project:                     (str) Project name.
         :param parquet_directory:           (str) Directory to store application parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
@@ -244,8 +304,13 @@ class MonitoringApplicationController:
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
-            # Get the monitoring feature set of the current model endpoint.
-            # Will be used later to retrieve the infer data through the feature set target.
+            # Getting batch interval start time and end time
+            application_name = applications_names[0]
+            batch_window = batch_window_generator.get_batch_window(
+                endpoint=endpoint_id,
+                application=application_name,
+                first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
+            )
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
@@ -259,7 +324,7 @@ class MonitoringApplicationController:
 
             # Getting batch interval start time and end time
             # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_infer_time, end_infer_time = get_interval_range()
+            start_infer_time, end_infer_time = batch_window.get_interval_range()
             for application in applications_names:
                 try:
                     # Get application sample data

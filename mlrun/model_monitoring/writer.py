@@ -183,7 +183,7 @@ class ModelMonitoringWriter(StepToDict):
             },
             {
                 "name": WriterEvent.RESULT_VALUE,
-                "type": "int",
+                "type": "double",
                 "nullable": False,
             },
             {

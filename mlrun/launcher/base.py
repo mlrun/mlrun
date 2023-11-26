@@ -127,15 +127,8 @@ class BaseLauncher(abc.ABC):
         return "db://" + runtime._function_uri(hash_key=hash_key, tag=tag)
 
     @staticmethod
-    def prepare_image_for_deploy(
-        runtime: "mlrun.runtimes.BaseRuntime", creation_flow: bool = False
-    ):
-        """
-        Check if the runtime requires to build the image and updates the spec accordingly.
-
-        :param runtime: runtime to enrich prior to deployment
-        :param creation_flow: internal. `True` in initial creation flows, triggers specific logic on server-side.
-        """
+    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+        """Check if the runtime requires to build the image and updates the spec accordingly"""
         pass
 
     def _validate_runtime(

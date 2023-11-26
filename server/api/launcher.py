@@ -214,19 +214,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 
-    @staticmethod
-    def prepare_image_for_deploy(
-        runtime: "mlrun.runtimes.BaseRuntime", creation_flow: bool = False
-    ):
-        """
-        Validate the runtime is ready for execution. On the server side launcher we do nothing in creation flows.
-        If this is pre-run flow the runtime needs to have an image - if there isn't any enrich the runtime
-        with the default image for the specific runtime kind.
-        """
-
-        if creation_flow:
-            return
-
         if (
             not runtime.spec.image
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()

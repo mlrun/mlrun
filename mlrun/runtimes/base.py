@@ -800,18 +800,16 @@ class BaseRuntime(ModelObj):
         self.spec.build = {}
         return self
 
-    def prepare_image_for_deploy(self, creation_flow: bool = False):
+    def prepare_image_for_deploy(self):
         """
         if a function has a 'spec.image' it is considered to be deployed,
         but because we allow the user to set 'spec.image' for usability purposes,
         we need to check whether this is a built image or it requires to be built on top.
-
-        :param creation_flow: internal. `True` in initial creation flows, triggers specific logic on server-side.
         """
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             is_remote=self._is_remote
         )
-        launcher.prepare_image_for_deploy(self, creation_flow)
+        launcher.prepare_image_for_deploy(self)
 
     def export(self, target="", format=".yaml", secrets=None, strip=True):
         """save function spec to a local/remote path (default to./function.yaml)

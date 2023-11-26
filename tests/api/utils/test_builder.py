@@ -37,7 +37,7 @@ from mlrun.config import config
 def test_build_runtime_use_base_image_when_no_build():
     fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
     base_image = "mlrun/mlrun"
-    fn.build_config(base_image=base_image, prepare_image_for_deploy=False)
+    fn.build_config(base_image=base_image)
     assert fn.spec.image == ""
     ready = server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
@@ -58,8 +58,7 @@ def test_build_runtime_enrich_base_image(monkeypatch):
         fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
         base_image = "some/image"
         fn.build_config(
-            base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}",
-            prepare_image_for_deploy=False,
+            base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
         )
         assert fn.spec.image == ""
         server.api.utils.builder.build_runtime(

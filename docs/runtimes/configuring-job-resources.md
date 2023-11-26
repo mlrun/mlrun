@@ -1,10 +1,11 @@
 (configuring-job-resources)=
-# Managing run resources
+# Configuring runs and functions
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
-preferences, and priorities in the logical function object. These are used during the function deployment.
+preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
+All of these are used during the function deployment.
 
-Configuration of job resources is relevant for all supported cloud platforms.
+Configuring runs and functions is relevant for all supported cloud platforms.
 
 **In this section**
 - [Replicas](#replicas)
@@ -13,6 +14,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
+- [Preventing stuck pods](#preventing-stuck-pods)
 
 ## Replicas
 
@@ -271,3 +273,34 @@ train_fn.run(inputs={"dataset" :my_data})
 
 
 See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+
+## Preventing stuck pods
+
+The runtimes spec has four "state_threshold" attributes that can determine when to abort a run. 
+Once a threshold is passed and the run is in the matching state, the API monitoring aborts the run, deletes its resources, 
+sets the run state to aborted, and issues a "status_text" message.
+
+The four states and their default thresholds are:
+
+```
+'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
+'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
+'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
+'running': '24h' #Job is running  
+```
+
+The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 
+To configure to infinity, use `-1`. 
+
+To change the state thresholds, use:
+```
+func.set_state_thresholds({"pending_not_scheduled": "1 min"}) 
+```
+For just the run, use:
+```
+func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
+```
+
+See:
+- {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`
+- {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`

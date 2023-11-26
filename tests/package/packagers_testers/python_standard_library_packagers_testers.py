@@ -66,7 +66,7 @@ class NonePackagerTester(PackagerTester):
     A tester for the `NonePackager`.
     """
 
-    PACKAGER_IN_TEST = NonePackager
+    PACKAGER_IN_TEST = NonePackager()
 
     TESTS = [
         PackTest(
@@ -102,7 +102,7 @@ class IntPackagerTester(PackagerTester):
     A tester for the `IntPackager`.
     """
 
-    PACKAGER_IN_TEST = IntPackager
+    PACKAGER_IN_TEST = IntPackager()
 
     TESTS = [
         PackTest(
@@ -147,7 +147,7 @@ class FloatPackagerTester(PackagerTester):
     A tester for the `FloatPackager`.
     """
 
-    PACKAGER_IN_TEST = FloatPackager
+    PACKAGER_IN_TEST = FloatPackager()
 
     TESTS = [
         PackTest(
@@ -192,7 +192,7 @@ class BoolPackagerTester(PackagerTester):
     A tester for the `BoolPackager`.
     """
 
-    PACKAGER_IN_TEST = BoolPackager
+    PACKAGER_IN_TEST = BoolPackager()
 
     TESTS = [
         PackTest(
@@ -278,7 +278,7 @@ class StrPackagerTester(PackagerTester):
     A tester for the `StrPackager`.
     """
 
-    PACKAGER_IN_TEST = StrPackager
+    PACKAGER_IN_TEST = StrPackager()
 
     TESTS = [
         PackTest(
@@ -358,7 +358,7 @@ class DictPackagerTester(PackagerTester):
     A tester for the `DictPackager`.
     """
 
-    PACKAGER_IN_TEST = DictPackager
+    PACKAGER_IN_TEST = DictPackager()
 
     TESTS = [
         PackTest(
@@ -434,7 +434,7 @@ class ListPackagerTester(PackagerTester):
     A tester for the `ListPackager`.
     """
 
-    PACKAGER_IN_TEST = ListPackager
+    PACKAGER_IN_TEST = ListPackager()
 
     TESTS = [
         PackTest(
@@ -511,7 +511,7 @@ class TuplePackagerTester(PackagerTester):
     A tester for the `TuplePackager`.
     """
 
-    PACKAGER_IN_TEST = TuplePackager
+    PACKAGER_IN_TEST = TuplePackager()
 
     TESTS = [
         PackTest(
@@ -588,7 +588,7 @@ class SetPackagerTester(PackagerTester):
     A tester for the `SetPackager`.
     """
 
-    PACKAGER_IN_TEST = SetPackager
+    PACKAGER_IN_TEST = SetPackager()
 
     TESTS = [
         PackTest(
@@ -665,7 +665,7 @@ class FrozensetPackagerTester(PackagerTester):
     A tester for the `FrozensetPackager`.
     """
 
-    PACKAGER_IN_TEST = FrozensetPackager
+    PACKAGER_IN_TEST = FrozensetPackager()
 
     TESTS = [
         PackTest(
@@ -742,7 +742,7 @@ class BytearrayPackagerTester(PackagerTester):
     A tester for the `BytearrayPackager`.
     """
 
-    PACKAGER_IN_TEST = BytearrayPackager
+    PACKAGER_IN_TEST = BytearrayPackager()
 
     TESTS = [
         PackTest(
@@ -819,7 +819,7 @@ class BytesPackagerTester(PackagerTester):
     A tester for the `BytesPackager`.
     """
 
-    PACKAGER_IN_TEST = BytesPackager
+    PACKAGER_IN_TEST = BytesPackager()
 
     TESTS = [
         PackTest(
@@ -923,7 +923,7 @@ class PathPackagerTester(PackagerTester):
     A tester for the `PathPackager`.
     """
 
-    PACKAGER_IN_TEST = PathPackager
+    PACKAGER_IN_TEST = PathPackager()
 
     TESTS = [
         PackTest(

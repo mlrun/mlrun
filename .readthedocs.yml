@@ -32,3 +32,14 @@ python:
     - requirements: dev-requirements.txt
     - requirements: dockerfiles/mlrun-api/requirements.txt
     - requirements: docs/requirements.txt
+
+search:
+  ignore:
+    # https://github.com/readthedocs/readthedocs.org/issues/10911
+    - '*/01-mlrun-basics-colab.html'
+
+    # Defaults
+    - search.html
+    - search/index.html
+    - 404.html
+    - 404/index.html

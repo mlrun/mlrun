@@ -324,16 +324,25 @@ class MonitoringApplicationProcessor:
                 (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
             )
             for endpoint in endpoints:
-                parquet_files = fs.listdir(
-                    path=f"{self.parquet_directory}"
-                    f"/key={endpoint[mm_constants.EventFieldType.UID]}"
-                )
-                for file in parquet_files:
-                    if file["mtime"] < time_to_keep:
-                        # Delete files
-                        fs.rm(path=file["name"], recursive=True)
-                        # Delete directory
-                        fs.rmdir(path=file["name"])
+                try:
+                    parquet_files = fs.listdir(
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}"
+                    )
+                    for file in parquet_files:
+                        if file["mtime"] < time_to_keep:
+                            # Delete files
+                            fs.rm(path=file["name"], recursive=True)
+                            # Delete directory
+                            fs.rmdir(path=file["name"])
+                except FileNotFoundError:
+                    logger.info(
+                        "Application parquet directory is empty, "
+                        "probably parquets have not yet been created for this app",
+                        endpoint=endpoint[mm_constants.EventFieldType.UID],
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}",
+                    )
 
     @staticmethod
     def _push_to_applications(

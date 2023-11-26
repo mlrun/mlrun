@@ -56,7 +56,7 @@ class ModelMonitoringApplicationResult:
     result_value: float
     result_kind: mm_constant.ResultKindApp
     result_status: mm_constant.ResultStatusApp
-    result_extra_data: dict
+    result_extra_data: dict = dataclasses.field(default_factory=dict)
     _current_stats: dict = None
 
     def to_dict(self):
@@ -97,7 +97,8 @@ class ModelMonitoringApplication(StepToDict):
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
-                sample_df: pd.DataFrame,
+                start_processing_time: pd.Timestamp,
+                end_processing_time: pd.Timestamp,
                 schedule_time: pd.Timestamp,
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
@@ -188,7 +189,7 @@ class ModelMonitoringApplication(StepToDict):
         str,
     ]:
         """
-        Converting the event into a single tuple that will be be used for passing the event arguments to the running
+        Converting the event into a single tuple that will be used for passing the event arguments to the running
         application
 
         :param event: dictionary with all the incoming data

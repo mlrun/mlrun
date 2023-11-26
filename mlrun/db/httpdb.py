@@ -3143,6 +3143,21 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
+    def list_api_gateways(self, project=None):
+        """
+        Returns a list of Nuclio api gateways
+        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+
+        :return: json with the list of Nuclio Api Gateways
+            (json example is here
+            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        """
+        project = project or config.default_project
+        error = "list api gateways"
+        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        resp = self.api_call("GET", endpoint_path, error)
+        return resp.json()
+
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered

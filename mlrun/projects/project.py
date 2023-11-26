@@ -103,9 +103,9 @@ def init_repo(context, url, init_git):
     repo = None
     context_path = pathlib.Path(context)
     if not context_path.exists():
-        context_path.mkdir(parents=True)
+        context_path.mkdir(parents=True, exist_ok=True)
     elif not context_path.is_dir():
-        raise ValueError(f"context {context} is not a dir path")
+        raise ValueError(f"Context {context} is not a dir path")
     try:
         repo = git.Repo(context)
         url = get_repo_url(repo)
@@ -222,6 +222,7 @@ def new_project(
     if remote and url != remote:
         project.create_remote(remote)
     elif url:
+        logger.info("Identified pre-initialized git repo, using it", url=url)
         project.spec._source = url
         project.spec.origin_url = url
     if description:
@@ -367,7 +368,7 @@ def load_project(
         project = _load_project_dir(context, name, subpath)
 
     if not project.metadata.name:
-        raise ValueError("project name must be specified")
+        raise ValueError("Project name must be specified")
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup

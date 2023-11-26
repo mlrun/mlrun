@@ -472,6 +472,7 @@ def test_build_runtime_ecr_with_ec2_iam_policy(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert {"name": "AWS_SDK_LOAD_CONFIG", "value": "true", "value_from": None} in [
@@ -535,6 +536,7 @@ def test_build_runtime_resolve_ecr_registry(monkeypatch):
         server.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             function,
+            force_build=True,
         )
         pod_spec = _create_pod_mock_pod_spec()
         for init_container in pod_spec.init_containers:
@@ -707,6 +709,7 @@ def test_kaniko_pod_spec_default_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account
@@ -731,6 +734,7 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
     server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         function,
+        force_build=True,
     )
     pod_spec = _create_pod_mock_pod_spec()
     assert pod_spec.service_account == service_account

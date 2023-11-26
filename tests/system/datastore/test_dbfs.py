@@ -53,21 +53,6 @@ class TestDBFS(TestMLRunSystem):
             workspace=cls.workspace, specific_test_class_dir=cls.test_dir
         )
 
-    def _get_target_path(self, local_filename):
-        target_generated_dirs = list(
-            self.workspace.dbfs.list(f"dbfs://{self._object_dir_path}")
-        )
-        assert (
-            len(target_generated_dirs) == 2
-        )  # directory should have source file and target dir.
-        target_generated_dir_path = (
-            target_generated_dirs[0].path
-            if not target_generated_dirs[0].path.endswith(f"source_{local_filename}")
-            else target_generated_dirs[1].path
-        )
-        target_file_path = f"dbfs://{target_generated_dir_path}/target_{local_filename}"
-        return target_file_path
-
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         self._object_dir = f"/directory_{uuid.uuid4()}"
@@ -86,6 +71,11 @@ class TestDBFS(TestMLRunSystem):
             self._url_prefix = "dbfs://"
 
         self._dir_url = self._url_prefix + self._object_dir_path
+        setup_dbfs_dirs(
+            workspace=self.workspace,
+            specific_test_class_dir=self.test_dir,
+            subdirs=[self._object_dir],
+        )
         logger.info(f"Object URL: {self._dir_url}")
 
     @pytest.mark.parametrize(
@@ -132,11 +122,6 @@ class TestDBFS(TestMLRunSystem):
 
         with open(local_source_path, "rb") as source_file:
             source_content = source_file.read()
-        setup_dbfs_dirs(
-            workspace=self.workspace,
-            specific_test_class_dir=self.test_dir,
-            subdirs=[self._object_dir],
-        )
         with self.workspace.dbfs.open(
             f"{self._object_dir_path}/source_{local_filename}",
             write=True,
@@ -145,7 +130,7 @@ class TestDBFS(TestMLRunSystem):
             f.write(source_content)
         source = source_class("my_source", dbfs_source_path, **reader_kwargs)
         fstore.ingest(measurements, source=source, targets=[target])
-        target_file_path = self._get_target_path(local_filename=local_filename)
+        target_file_path = measurements.get_target_path()
         result = reader(
             target_file_path,
             storage_options={

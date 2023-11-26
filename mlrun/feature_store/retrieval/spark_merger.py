@@ -172,11 +172,17 @@ class SparkFeatureMerger(BaseMerger):
                 # when we upgrade pyspark, we should check whether this workaround is still necessary
                 # see https://stackoverflow.com/questions/76389694/transforming-pyspark-to-pandas-dataframe
                 if semver.parse(pd.__version__)["major"] >= 2:
+                    import pyspark.sql.functions as pyspark_functions
+
                     type_conversion_dict = {}
                     for field in df.schema.fields:
                         if str(field.dataType) == "TimestampType":
                             df = df.withColumn(
-                                field.name, df[field.name].cast("string")
+                                field.name,
+                                pyspark_functions.date_format(
+                                    pyspark_functions.to_timestamp(field.name),
+                                    "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                                ),
                             )
                             type_conversion_dict[field.name] = "datetime64[ns]"
                     df = df.toPandas()

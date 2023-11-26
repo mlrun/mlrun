@@ -103,7 +103,7 @@ class PandasDataFramePackagerTester(PackagerTester):
     A tester for the `PandasDataFramePackager`.
     """
 
-    PACKAGER_IN_TEST = PandasDataFramePackager
+    PACKAGER_IN_TEST = PandasDataFramePackager()
 
     TESTS = list(
         itertools.chain.from_iterable(
@@ -231,7 +231,7 @@ class PandasSeriesPackagerTester(PackagerTester):
     A tester for the `PandasSeriesPackager`.
     """
 
-    PACKAGER_IN_TEST = PandasSeriesPackager
+    PACKAGER_IN_TEST = PandasSeriesPackager()
 
     TESTS = list(
         itertools.chain.from_iterable(

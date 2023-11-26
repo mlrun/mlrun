@@ -16,6 +16,7 @@ import asyncio
 import re
 from typing import Optional
 
+import semver
 from timelength import TimeLength
 
 import mlrun
@@ -93,11 +94,20 @@ def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int
 
 
 def extract_image_tag(image_reference):
-    # Define a regular expression pattern for extracting the image tag
-    pattern = r"(?<=:)[\w.-]+"  # This matches any word character,dots,hyphens after a colon (:)
-
-    # Use re.search to find the first match in the string
+    # This matches any word character,dots,hyphens after a colon (:)
+    pattern = r"(?<=:)[\w.-]+"
     match = re.search(pattern, image_reference)
 
-    # Check if a match is found and return the result
-    return match.group() if match else None
+    tag = None
+    is_semver = False
+    has_pypi = False
+    if match:
+        tag = match.group()
+        is_semver = semver.Version.is_valid(tag)
+
+    if is_semver:
+        version = semver.Version.parse(tag)
+        # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
+        has_pypi = not version.prerelease or version.prerelease.find("-") == -1
+
+    return tag, has_pypi

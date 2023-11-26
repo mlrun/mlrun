@@ -980,13 +980,19 @@ def test_resolve_build_requirements(
             None,
             "mlrun/mlrun:unstable",
             "1.4.0",
-            " @ git+https://github.com/mlrun/mlrun@development",
+            None,
         ),
         (
             None,
             "mlrun/mlrun",
             "0.0.0+unstable",
-            " @ git+https://github.com/mlrun/mlrun@development",
+            None,
+        ),
+        (
+            None,
+            "mlrun/mlrun:1.4.0-rc5-feature",
+            "1.4.0",
+            None,
         ),
     ],
 )

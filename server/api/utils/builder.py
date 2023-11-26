@@ -687,10 +687,16 @@ def build_runtime(
 
     # Add mlrun to the requirements even though it is already installed because
     # we want pip to include mlrun constraints when installing other packages
-    # TODO: don't add if feature branch
     if is_mlrun_image and build.requirements:
-        image_tag = server.api.utils.helpers.extract_image_tag(enriched_base_image)
-        if image_tag:
+        image_tag, has_pypi = server.api.utils.helpers.extract_image_tag(
+            enriched_base_image
+        )
+        if not has_pypi:
+            mlrun.utils.logger.warning(
+                "Cannot resolve mlrun pypi version from base image, mlrun requirements may be overriden",
+                base_image=enriched_base_image,
+            )
+        elif image_tag:
             installed_mlrun_version_command = resolve_mlrun_install_command_version(
                 mlrun_version_specifier, client_version=image_tag
             )

@@ -43,11 +43,16 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             runtime.metadata.project = project_name
 
     @staticmethod
-    def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
+    def prepare_image_for_deploy(
+        runtime: "mlrun.runtimes.BaseRuntime", creation_flow: bool = False
+    ):
         """
         Check if the runtime requires to build the image.
         If build is needed, set the image as the base_image for the build.
         If image is not given set the default one.
+
+        :param runtime: runtime to enrich prior to deployment
+        :param creation_flow: ignored for client-side launcher (inherited from base class)
         """
         if runtime.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
             return

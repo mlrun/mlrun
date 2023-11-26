@@ -551,7 +551,7 @@ def new_function(
             prepare_image_for_deploy=False,
         )
 
-    runner.prepare_image_for_deploy()
+    runner.prepare_image_for_deploy(creation_flow=True)
     return runner
 
 
@@ -699,7 +699,13 @@ def code_to_function(
         fn.spec.build.secret = get_in(spec, "spec.build.secret")
 
         if requirements or requirements_file:
-            fn.with_requirements(requirements, requirements_file=requirements_file)
+            fn.with_requirements(
+                requirements,
+                requirements_file=requirements_file,
+                prepare_image_for_deploy=False,
+            )
+            # calling prepare_image_for_deploy independently, to correctly pass the creation_flow parameter.
+            fn.prepare_image_for_deploy(creation_flow=True)
 
         if embed_code:
             fn.spec.build.functionSourceCode = get_in(
@@ -832,7 +838,7 @@ def code_to_function(
 
     build.image = get_in(spec, "spec.build.image")
     update_common(r, spec)
-    r.prepare_image_for_deploy()
+    r.prepare_image_for_deploy(creation_flow=True)
 
     if with_doc:
         update_function_entry_points(r, code)

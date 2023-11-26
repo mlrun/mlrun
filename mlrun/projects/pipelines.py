@@ -133,7 +133,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
                     required.remove(k)
         if required:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"workflow argument(s) {','.join(required)} are required and were not specified"
+                f"Workflow argument(s) {','.join(required)} are required and were not specified"
             )
 
     def clear_tmp(self):
@@ -246,7 +246,7 @@ class _PipelineContext:
             return True
         if raise_exception:
             raise ValueError(
-                "pipeline context is not initialized, must be used inside a pipeline"
+                "Pipeline context is not initialized, must be used inside a pipeline"
             )
         return False
 
@@ -670,7 +670,7 @@ class _KFPRunner(_PipelineRunner):
         raise_error = None
         try:
             if timeout:
-                logger.info("waiting for pipeline run completion")
+                logger.info("Waiting for pipeline run completion")
                 state = run.wait_for_completion(
                     timeout=timeout, expected_statuses=expected_statuses
                 )
@@ -681,6 +681,7 @@ class _KFPRunner(_PipelineRunner):
         mldb = mlrun.db.get_run_db(secrets=project._secrets)
         runs = mldb.list_runs(project=project.name, labels=f"workflow={run.run_id}")
 
+        # TODO: The below section duplicates notifiers.push_pipeline_run_results() logic. We should use it instead.
         had_errors = 0
         for r in runs:
             if r["status"].get("state", "") == "error":
@@ -909,7 +910,7 @@ class _RemoteRunner(_PipelineRunner):
     ):
         # ignore notifiers, as they are handled by the remote pipeline notifications,
         # so overriding with CustomNotificationPusher with empty list of notifiers
-        return _KFPRunner.get_run_status(
+        state, had_errors, text = _KFPRunner.get_run_status(
             project,
             run,
             timeout,
@@ -917,11 +918,15 @@ class _RemoteRunner(_PipelineRunner):
             notifiers=mlrun.utils.notifications.CustomNotificationPusher([]),
         )
 
+        # indicate the pipeline status since we don't push the notifications in the remote runner
+        logger.info(text)
+        return state, had_errors, text
+
 
 def create_pipeline(project, pipeline, functions, secrets=None, handler=None):
     spec = imputil.spec_from_file_location("workflow", pipeline)
     if spec is None:
-        raise ImportError(f"cannot import workflow {pipeline}")
+        raise ImportError(f"Cannot import workflow {pipeline}")
     mod = imputil.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
@@ -1076,7 +1081,7 @@ def load_and_run(
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
-        pipeline_state = run.wait_for_completion()
+        pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
         if pipeline_state != mlrun.run.RunStatuses.succeeded:
             raise RuntimeError(

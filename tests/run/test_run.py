@@ -141,7 +141,7 @@ def test_local_runtime_failure_before_executing_the_function_code(rundb_mock):
     function = new_function(command=f"{assets_path}/fail.py")
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         function.run(local=True, handler="handler")
-    assert "failed on pre-loading" in str(exc.value)
+    assert "Failed on pre-loading" in str(exc.value)
 
 
 @pytest.mark.parametrize(

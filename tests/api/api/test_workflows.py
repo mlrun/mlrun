@@ -31,7 +31,7 @@ def test_workflow_does_not_exist(db: Session, client: TestClient):
     wrong_name = "not-" + PROJECT_NAME
     resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
     assert (
-        resp.json()["detail"]["reason"] == f"workflow {wrong_name} not found in project"
+        resp.json()["detail"]["reason"] == f"Workflow {wrong_name} not found in project"
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 

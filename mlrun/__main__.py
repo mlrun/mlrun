@@ -303,7 +303,7 @@ def run(
     elif runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print(f"runtime parameter must be a dict, not {type(runtime)}")
+            print(f"Runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
     else:
         runtime = {}
@@ -317,7 +317,7 @@ def run(
             get_in(runtime, "spec.build.origin_filename", origin_file)
         )
         if kfp:
-            print(f"code:\n{code}\n")
+            print(f"Code:\n{code}\n")
         suffix = pathlib.Path(url_file).suffix if url else ".py"
 
         # * is a placeholder for the url file when we want to use url args and let mlrun resolve the url file
@@ -340,7 +340,7 @@ def run(
                 url = f"bash {url_file} {url_args}".strip()
             else:
                 print(
-                    "error, command must be specified with '{codefile}' in it "
+                    "Error: command must be specified with '{codefile}' in it "
                     "(to determine the position of the code file)"
                 )
                 exit(1)
@@ -428,7 +428,7 @@ def run(
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
-        print(f"runtime error: {err_to_str(err)}")
+        print(f"Runtime error: {err_to_str(err)}")
         exit(1)
 
 
@@ -500,7 +500,7 @@ def build(
     if runtime:
         runtime = py_eval(runtime)
         if not isinstance(runtime, dict):
-            print(f"runtime parameter must be a dict, not {type(runtime)}")
+            print(f"Runtime parameter must be a dict, not {type(runtime)}")
             exit(1)
         if kfp:
             print("Runtime:")
@@ -515,7 +515,7 @@ def build(
         func = import_function(func_url)
 
     else:
-        print("please specify the function path or url")
+        print("Error: Function path or url are required")
         exit(1)
 
     meta = func.metadata
@@ -532,12 +532,12 @@ def build(
 
     if source.endswith(".py"):
         if not path.isfile(source):
-            print(f"source file doesnt exist ({source})")
+            print(f"Source file doesnt exist ({source})")
             exit(1)
         with open(source) as fp:
             body = fp.read()
         based = b64encode(body.encode("utf-8")).decode("utf-8")
-        logger.info(f"packing code at {source}")
+        logger.info(f"Packing code at {source}")
         b.functionSourceCode = based
         func.spec.command = ""
     else:
@@ -563,13 +563,13 @@ def build(
         )
 
     if hasattr(func, "deploy"):
-        logger.info("remote deployment started")
+        logger.info("Remote deployment started")
         try:
             func.deploy(
                 with_mlrun=with_mlrun, watch=not silent, is_kfp=kfp, skip_deployed=skip
             )
         except Exception as err:
-            print(f"deploy error, {err_to_str(err)}")
+            print(f"Deploy error, {err_to_str(err)}")
             exit(1)
 
         state = func.status.state
@@ -584,9 +584,9 @@ def build(
                 fp.write(full_image)
             print("full image path = ", full_image)
 
-        print(f"function built, state={state} image={image}")
+        print(f"Function built, state={state} image={image}")
     else:
-        print("function does not have a deploy() method")
+        print("Function does not have a deploy() method")
         exit(1)
 
 
@@ -645,7 +645,7 @@ def deploy(
     else:
         runtime = {}
     if not isinstance(runtime, dict):
-        print(f"runtime parameter must be a dict, not {type(runtime)}")
+        print(f"Runtime parameter must be a dict, not {type(runtime)}")
         exit(1)
 
     if verbose:
@@ -683,7 +683,7 @@ def deploy(
         print(f"deploy error: {err_to_str(err)}")
         exit(1)
 
-    print(f"function deployed, address={addr}")
+    print(f"Function deployed, address={addr}")
     with open("/tmp/output", "w") as fp:
         fp.write(addr)
     with open("/tmp/name", "w") as fp:
@@ -716,7 +716,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     if db:
         mlconf.dbpath = db
     if not project:
-        print("warning, project parameter was not specified using default !")
+        print("Warning, project parameter was not specified using default !")
     if kind.startswith("po"):
         print("Unsupported, use 'get runtimes' instead")
         return
@@ -794,7 +794,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
     elif kind.startswith("workflow"):
         run_db = get_run_db()
         if project == "*":
-            print("warning, reading workflows for all projects may take a long time !")
+            print("Warning, reading workflows for all projects may take a long time !")
             pipelines = run_db.list_pipelines(project=project, page_size=200)
             pipe_runs = pipelines.runs
             while pipelines.next_page_token is not None:
@@ -821,7 +821,7 @@ def get(kind, name, selector, namespace, uid, project, tag, db, extra_args):
 
     else:
         print(
-            "currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
+            "Currently only get runs | runtimes | workflows | artifacts  | func [name] | runtime are supported"
         )
 
 
@@ -906,7 +906,7 @@ def db(
         )
         pid = child.pid
         print(
-            f"background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
+            f"Background pid: {pid}, logs written to mlrun-stdout.log and mlrun-stderr.log, use:\n"
             f"`kill {pid}` (linux/mac) or `taskkill /pid {pid} /t /f` (windows), to kill the mlrun service process"
         )
     else:
@@ -924,7 +924,7 @@ def db(
         dotenv.set_key(filename, "MLRUN_MOCK_NUCLIO_DEPLOYMENT", "auto", quote_mode="")
         if pid:
             dotenv.set_key(filename, "MLRUN_SERVICE_PID", str(pid), quote_mode="")
-        print(f"updated configuration in {update_env} .env file")
+        print(f"Updated configuration in {update_env} .env file")
 
 
 @main.command()
@@ -952,7 +952,7 @@ def logs(uid, project, offset, db, watch):
             print(text.decode())
 
     if state:
-        print(f"final state: {state}")
+        print(f"Final state: {state}")
 
 
 @main.command()
@@ -1120,7 +1120,7 @@ def project(
         if arguments:
             args = fill_params(arguments)
 
-        print(f"running workflow {run} file: {workflow_path}")
+        print(f"Running workflow {run} file: {workflow_path}")
         gitops = (
             git_issue
             or environ.get("GITHUB_EVENT_PATH")
@@ -1159,7 +1159,7 @@ def project(
             exit(1)
 
     elif sync:
-        print("saving project functions to db ..")
+        print("Saving project functions to db ..")
         proj.sync_functions(save=True)
 
 
@@ -1296,7 +1296,7 @@ def show_or_set_config(
     if not op or op == "get":
         # print out the configuration (default or based on the specified env/api)
         if env_file and not path.isfile(path.expanduser(env_file)):
-            print(f"error, env file {env_file} does not exist")
+            print(f"Error: Env file {env_file} does not exist")
             exit(1)
         if env_file or api:
             mlrun.set_environment(
@@ -1316,7 +1316,7 @@ def show_or_set_config(
                 f".env file {filename} not found, creating new and setting configuration"
             )
         else:
-            print(f"updating configuration in .env file {filename}")
+            print(f"Updating configuration in .env file {filename}")
         env_dict = {
             "MLRUN_DBPATH": api,
             "MLRUN_ARTIFACT_PATH": artifact_path,
@@ -1332,7 +1332,7 @@ def show_or_set_config(
         if env_file:
             # if its not the default file print the usage details
             print(
-                f"to use the {env_file} .env file add the following to your development environment:\n"
+                f"To use the {env_file} .env file add the following to your development environment:\n"
                 f"MLRUN_ENV_FILE={env_file}"
             )
 
@@ -1341,11 +1341,11 @@ def show_or_set_config(
         if not path.isfile(filename):
             print(f".env file {filename} not found")
         else:
-            print(f"deleting .env file {filename}")
+            print(f"Deleting .env file {filename}")
             remove(filename)
 
     else:
-        print(f"Error, unsupported config option {op}")
+        print(f"Error: Unsupported config option {op}")
 
 
 def fill_params(params, params_dict=None):

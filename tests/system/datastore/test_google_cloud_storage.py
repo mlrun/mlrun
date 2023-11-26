@@ -130,7 +130,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             mode="w", suffix=f".{file_extension}", delete=True
         ) as df_file:
             writer(df, df_file.name, **writer_kwargs)
-            self._gcs_fs.upload(lpath=df_file.name, rpath=source_url)
+            self._gcs_fs.upload(lpath=df_file.name, rpath=source_url.replace(self._bucket_path, self._bucket_name))
         source = source_class(path=source_url)
         targets = [target_class(path=target_url)]
 

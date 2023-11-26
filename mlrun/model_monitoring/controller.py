@@ -68,14 +68,22 @@ class _BatchWindow:
         )
         return datetime.timedelta(minutes=minutes, hours=hours, days=days)
 
-    def get_interval_range(
-        self,
-        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
-    ) -> Tuple[datetime.datetime, datetime.datetime]:
-        """Getting batch interval time range"""
-        end_time = now_func() - datetime.timedelta(
+    @staticmethod
+    def _get_last_updated_time(
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now
+    ) -> datetime.datetime:
+        """
+        Get the last updated time of a model endpoint.
+        Note: this is an approximation of this time. Once we save it in the DB,
+        we will have the exact time and won't use now_func.
+        """
+        return now_func() - datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )
+
+    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+        """Getting batch interval time range"""
+        end_time = self._get_last_updated_time()
         start_time = end_time - self._timedelta
         return start_time, end_time
 

@@ -94,8 +94,8 @@ def time_string_to_seconds(time_str: str, min_seconds: int = 60) -> Optional[int
 
 
 def extract_image_tag(image_reference):
-    # This matches any word character,dots,hyphens after a colon (:)
-    pattern = r"(?<=:)[\w.-]+"
+    # This matches any word character,dots,hyphens after a colon (:) anchored to the end of the string
+    pattern = r"(?<=:)[\w.-]+$"
     match = re.search(pattern, image_reference)
 
     tag = None

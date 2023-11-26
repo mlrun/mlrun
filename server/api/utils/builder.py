@@ -277,8 +277,9 @@ def make_kaniko_pod(
             commands.append("echo ${CODE} | base64 -d > /empty/" + name)
         if requirements:
             # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
+            requirements_file_content = "{0}\n".format("\n".join(requirements))
             env["REQUIREMENTS"] = b64encode(
-                "\n".join(requirements).encode("utf-8")
+                requirements_file_content.encode("utf-8")
             ).decode("utf-8")
             # dump requirement content and decode to the requirement.txt destination
             commands.append(

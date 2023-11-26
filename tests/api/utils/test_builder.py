@@ -935,6 +935,12 @@ def test_resolve_build_requirements(
             "==1.4.0",
         ),
         (
+            None,
+            "registry:80/quay.io/mlrun/mlrun:1.6.0-rc7",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
+        ),
+        (
             "mlrun~=1.5.0",
             "mlrun/mlrun:1.6.0",
             "1.4.0",

@@ -360,7 +360,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if resp:
                     run_obj_dict = json.loads(resp)
                 else:
-                    logger.error("Empty context tmp file")
+                    logger.debug("Empty context tmp file")
             else:
                 logger.info("No context file found")
 

@@ -100,7 +100,7 @@ def extract_image_tag(image_reference):
 
     tag = None
     is_semver = False
-    has_pypi = False
+    has_py_package = False
     if match:
         tag = match.group()
         is_semver = semver.Version.is_valid(tag)
@@ -108,6 +108,6 @@ def extract_image_tag(image_reference):
     if is_semver:
         version = semver.Version.parse(tag)
         # If the version is a prerelease, and it has a hyphen, it means it's a feature branch build
-        has_pypi = not version.prerelease or version.prerelease.find("-") == -1
+        has_py_package = not version.prerelease or version.prerelease.find("-") == -1
 
-    return tag, has_pypi
+    return tag, has_py_package

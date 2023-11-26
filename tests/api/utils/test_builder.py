@@ -941,10 +941,10 @@ def test_resolve_build_requirements(
             "==1.6.0-rc7",
         ),
         (
-            "mlrun~=1.5.0",
-            "mlrun/mlrun:1.6.0",
-            "1.4.0",
+            None,
             "",
+            "1.6.0-rc7",
+            "==1.6.0-rc7",
         ),
         (
             None,
@@ -999,6 +999,48 @@ def test_resolve_build_requirements(
             "mlrun/mlrun:1.4.0-rc5-feature",
             "1.4.0",
             None,
+        ),
+        (
+            "mlrun~=1.5.0",
+            "mlrun/mlrun:1.6.0",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:not-semver",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            None,
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "",
+            "1.4.0",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun",
+            "unstable",
+            "",
+        ),
+        (
+            "mlrun==1.5.0",
+            "mlrun/mlrun:unstable",
+            "unstable",
+            "",
         ),
     ],
 )

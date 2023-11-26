@@ -38,6 +38,7 @@ class _BatchWindow:
         """
         self._batch_dict = batch_dict
         self._norm_batch_dict()
+        self._timedelta = self._get_timedelta()
 
     def _norm_batch_dict(self) -> None:
         # TODO: This will be removed once the job params can be parsed with different types
@@ -57,23 +58,25 @@ class _BatchWindow:
             pair_list = pair.split(":")
             self._batch_dict[pair_list[0]] = float(pair_list[1])
 
-    def get_interval_range(
-        self,
-        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
-    ) -> Tuple[datetime.datetime, datetime.datetime]:
-        """Getting batch interval time range"""
+    def _get_timedelta(self) -> datetime.timedelta:
+        """Get the timedelta from a batch dictionary"""
         self._batch_dict = cast(dict[str, int], self._batch_dict)
         minutes, hours, days = (
             self._batch_dict[mm_constants.EventFieldType.MINUTES],
             self._batch_dict[mm_constants.EventFieldType.HOURS],
             self._batch_dict[mm_constants.EventFieldType.DAYS],
         )
+        return datetime.timedelta(minutes=minutes, hours=hours, days=days)
+
+    def get_interval_range(
+        self,
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
+    ) -> Tuple[datetime.datetime, datetime.datetime]:
+        """Getting batch interval time range"""
         end_time = now_func() - datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )
-        start_time = end_time - datetime.timedelta(
-            minutes=minutes, hours=hours, days=days
-        )
+        start_time = end_time - self._timedelta
         return start_time, end_time
 
 

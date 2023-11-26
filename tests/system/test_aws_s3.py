@@ -58,7 +58,6 @@ class TestAwsS3(TestMLRunSystem):
             "bucket_path": bucket_path,
             "object_path": object_path,
             "object_url": object_url,
-            "blob_url": f"{object_url}.blob",
             "parquet_url": f"{object_url}.parquet",
             "test_dir": f"{bucket_path}/{object_dir}",
         }

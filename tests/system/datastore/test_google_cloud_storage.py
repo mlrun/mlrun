@@ -112,7 +112,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             ),
         ],
     )
-    def test_ingest_single_parquet_file(
+    def test_ingest_single_file(
         self,
         use_datastore_profile,
         source_class,

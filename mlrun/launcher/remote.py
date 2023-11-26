@@ -90,9 +90,9 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
                 runtime.deploy(skip_deployed=True, show_on_failure=True)
 
             else:
-                if not runtime.spec.build.load_source_on_run:
+                if runtime.requires_build():
                     logger.warning(
-                        "Function image is not built/ready and source is not loaded in run time. "
+                        "Function image is not built/ready and function requires build - execution will fail. "
                         "Need to set auto_build=True or use .deploy() method first"
                     )
 

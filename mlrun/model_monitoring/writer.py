@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+from http import HTTPStatus
 from typing import Any, NewType
 
 import pandas as pd
@@ -177,17 +178,17 @@ class ModelMonitoringWriter(StepToDict):
             },
             {
                 "name": WriterEvent.RESULT_KIND,
-                "type": "double",
+                "type": "int",
                 "nullable": False,
             },
             {
                 "name": WriterEvent.RESULT_VALUE,
-                "type": "double",
+                "type": "int",
                 "nullable": False,
             },
             {
                 "name": WriterEvent.RESULT_STATUS,
-                "type": "double",
+                "type": "int",
                 "nullable": False,
             },
             {
@@ -202,7 +203,7 @@ class ModelMonitoringWriter(StepToDict):
             key=WriterEvent.APPLICATION_NAME,
             fields=fields,
         )
-        if res.status_code != 200:
+        if res.status_code != HTTPStatus.OK.value:
             raise mlrun.errors.MLRunBadRequestError(
                 f"Couldn't infer schema for endpoint {endpoint_id} which is required for Grafana dashboards"
             )

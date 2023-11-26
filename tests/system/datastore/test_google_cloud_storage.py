@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import os
+import tempfile
 import uuid
 
 import fsspec
@@ -25,7 +26,8 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileGCS,
     register_temporary_client_datastore_profile,
 )
-from mlrun.datastore.targets import ParquetTarget
+from mlrun.datastore.sources import CSVSource, ParquetSource
+from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.utils import logger
 from tests.system.base import TestMLRunSystem
 
@@ -72,8 +74,13 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             if use_datastore_profile
             else "gcs://" + self._bucket_name
         )
-        self._target_url = self._bucket_path + "/" + self._object_dir
-        logger.info(f"Object URL: {self._target_url}")
+        self._source_url_template = (
+            self._bucket_path + "/" + self._object_dir + "/source."
+        )
+        self._target_url_template = (
+            self._bucket_path + "/" + self._object_dir + "/target."
+        )
+        logger.info(f"Object URL template: {self._target_url_template}")
         if use_datastore_profile:
             kwargs = {"credentials_path": self.credentials_path}
             profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
@@ -82,17 +89,59 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         else:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
 
-    def test_ingest_single_parquet_file(self, use_datastore_profile):
+    @pytest.mark.parametrize(
+        "source_class, target_class, file_extension, reader, writer, writer_kwargs, reset_index",
+        [
+            (
+                CSVSource,
+                CSVTarget,
+                "csv",
+                pd.read_csv,
+                pd.DataFrame.to_csv,
+                {"index": False},
+                False,
+            ),
+            (
+                ParquetSource,
+                ParquetTarget,
+                "parquet",
+                pd.read_parquet,
+                pd.DataFrame.to_parquet,
+                {},
+                True,
+            ),
+        ],
+    )
+    def test_ingest_single_parquet_file(
+        self,
+        use_datastore_profile,
+        source_class,
+        target_class,
+        file_extension,
+        reader,
+        writer,
+        writer_kwargs,
+        reset_index,
+    ):
         df = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
-        targets = [ParquetTarget(path=self._target_url)]
+        source_url = self._source_url_template + file_extension
+        target_url = self._target_url_template + file_extension
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=f".{file_extension}", delete=True
+        ) as df_file:
+            writer(df, df_file.name, **writer_kwargs)
+            self._gcs_fs.upload(lpath=df_file.name, rpath=source_url)
+        source = source_class(path=source_url)
+        targets = [target_class(path=target_url)]
 
         fset = fstore.FeatureSet(
             name="gcs_system_test", entities=[fstore.Entity("name")]
         )
-        fstore.ingest(fset, df, targets=targets)
-        result = targets[0].as_df()
-        result.reset_index(inplace=True, drop=False)
-
+        fstore.ingest(fset, source, targets=targets)
+        target_path = fset.get_target_path()
+        result = source_class(path=target_path).to_dataframe()
+        if reset_index:
+            result.reset_index(inplace=True, drop=False)
         assert_frame_equal(
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )

@@ -65,9 +65,17 @@ def test_build_runtime_enrich_base_image(monkeypatch):
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
+
         dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
+
+        # verify that the target image is populated properly
+        target_image = server.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        assert (
+            target_image
+            == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        )
 
 
 def test_build_runtime_use_image_when_no_build():

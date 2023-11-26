@@ -52,12 +52,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if runtime.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
             return
 
-        build = runtime.spec.build
-        require_build = (
-            build.commands
-            or build.requirements
-            or (build.source and not build.load_source_on_run)
-        )
+        require_build = runtime.requires_build()
         image = runtime.spec.image
         # we allow users to not set an image, in that case we'll use the default
         if (

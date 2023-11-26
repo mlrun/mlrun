@@ -17,7 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -28,6 +28,53 @@ from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
 from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stream_path
 from mlrun.utils import logger
+
+
+class _BatchWindow:
+    def __init__(self, batch_dict: Union[dict, str]) -> None:
+        """
+        Initialize a batch window object that handles the batch interval time range
+        for the monitoring functions.
+        """
+        self._batch_dict = batch_dict
+        self._norm_batch_dict()
+
+    def _norm_batch_dict(self) -> None:
+        # TODO: This will be removed once the job params can be parsed with different types
+        # Convert batch dict string into a dictionary
+        if isinstance(self._batch_dict, str):
+            self._parse_batch_dict_str()
+
+    def _parse_batch_dict_str(self) -> None:
+        """Convert batch dictionary string into a valid dictionary"""
+        characters_to_remove = "{} "
+        pattern = "[" + characters_to_remove + "]"
+        # Remove unnecessary characters from the provided string
+        batch_list = re.sub(pattern, "", self._batch_dict).split(",")
+        # Initialize the dictionary of batch interval ranges
+        self._batch_dict = {}
+        for pair in batch_list:
+            pair_list = pair.split(":")
+            self._batch_dict[pair_list[0]] = float(pair_list[1])
+
+    def get_interval_range(
+        self,
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
+    ) -> Tuple[datetime.datetime, datetime.datetime]:
+        """Getting batch interval time range"""
+        self._batch_dict = cast(dict[str, int], self._batch_dict)
+        minutes, hours, days = (
+            self._batch_dict[mm_constants.EventFieldType.MINUTES],
+            self._batch_dict[mm_constants.EventFieldType.HOURS],
+            self._batch_dict[mm_constants.EventFieldType.DAYS],
+        )
+        end_time = now_func() - datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        )
+        start_time = end_time - datetime.timedelta(
+            minutes=minutes, hours=hours, days=days
+        )
+        return start_time, end_time
 
 
 class MonitoringApplicationController:
@@ -63,15 +110,13 @@ class MonitoringApplicationController:
         # If an error occurs, it will be raised using the following argument
         self.endpoints_exceptions = {}
 
-        # Get the batch interval range
-        self.batch_dict = context.parameters[
-            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
-        ]
+        # The batch window
+        self._batch_window = _BatchWindow(
+            batch_dict=context.parameters[
+                mm_constants.EventFieldType.BATCH_INTERVALS_DICT
+            ]
+        )
 
-        # TODO: This will be removed once the job params can be parsed with different types
-        # Convert batch dict string into a dictionary
-        if isinstance(self.batch_dict, str):
-            self._parse_batch_dict_str()
         # If provided, only model endpoints in that that list will be analyzed
         self.model_endpoints = context.parameters.get(
             mm_constants.EventFieldType.MODEL_ENDPOINTS, None
@@ -146,7 +191,7 @@ class MonitoringApplicationController:
                         MonitoringApplicationController.model_endpoint_process,
                         endpoint=endpoint,
                         applications_names=applications_names,
-                        batch_interval_dict=self.batch_dict,
+                        batch_interval_dict=self._batch_window.get_interval_range,
                         project=self.project,
                         parquet_directory=self.parquet_directory,
                         storage_options=self.storage_options,
@@ -165,8 +210,8 @@ class MonitoringApplicationController:
     def model_endpoint_process(
         cls,
         endpoint: dict,
-        applications_names: List[str],
-        batch_interval_dict: dict,
+        applications_names: list[str],
+        get_interval_range: Callable[[], Tuple[datetime.datetime, datetime.datetime]],
         project: str,
         parquet_directory: str,
         storage_options: dict,
@@ -178,8 +223,8 @@ class MonitoringApplicationController:
         for a specific time range.
 
         :param endpoint:                    (dict) Model endpoint record.
-        :param applications_names:          (List[str]) List of application names to push results to.
-        :param batch_interval_dict:         (dict) Batch interval start and end times.
+        :param applications_names:          (list[str]) List of application names to push results to.
+        :param get_interval_range:          (callable) A callable returning the batch interval start and end times.
         :param project:                     (str) Project name.
         :param parquet_directory:           (str) Directory to store application parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
@@ -203,9 +248,7 @@ class MonitoringApplicationController:
 
             # Getting batch interval start time and end time
             # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_infer_time, end_infer_time = cls._get_interval_range(
-                batch_interval_dict
-            )
+            start_infer_time, end_infer_time = get_interval_range()
             for application in applications_names:
                 try:
                     # Get application sample data
@@ -275,39 +318,14 @@ class MonitoringApplicationController:
             )
             return endpoint_id, e
 
-    @staticmethod
-    def _get_interval_range(
-        batch_dict: dict[str, int],
-        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
-    ) -> Tuple[datetime.datetime, datetime.datetime]:
-        """Getting batch interval time range"""
-        minutes, hours, days = (
-            batch_dict[mm_constants.EventFieldType.MINUTES],
-            batch_dict[mm_constants.EventFieldType.HOURS],
-            batch_dict[mm_constants.EventFieldType.DAYS],
-        )
-        end_time = now_func() - datetime.timedelta(
-            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
-        )
-        start_time = end_time - datetime.timedelta(
-            minutes=minutes, hours=hours, days=days
-        )
-        return start_time, end_time
-
-    def _parse_batch_dict_str(self):
-        """Convert batch dictionary string into a valid dictionary"""
-        characters_to_remove = "{} "
-        pattern = "[" + characters_to_remove + "]"
-        # Remove unnecessary characters from the provided string
-        batch_list = re.sub(pattern, "", self.batch_dict).split(",")
-        # Initialize the dictionary of batch interval ranges
-        self.batch_dict = {}
-        for pair in batch_list:
-            pair_list = pair.split(":")
-            self.batch_dict[pair_list[0]] = float(pair_list[1])
-
     def _delete_old_parquet(self, endpoints: List[Dict[str, Any]], days: int = 1):
         """Delete application parquets that are older than 24 hours.
+        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
+        batch_dict: dict[str, int],
+        # Initialize the dictionary of batch interval ranges
+        pattern = "[" + characters_to_remove + "]"
+        self.batch_dict = {}
+
 
         :param endpoints: List of dictionaries of model endpoints records.
         """

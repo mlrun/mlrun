@@ -216,9 +216,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
-        """Check if the runtime requires to build the image and updates the spec accordingly"""
-
-        # we allow users to not set an image, in that case we'll use the default
+        # At this point (server side, prior to running) the runtime needs to have an image. If there isn't any we
+        # use the default image for the runtime.
         if (
             not runtime.spec.image
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
@@ -285,11 +284,11 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self._validate_state_thresholds(run.spec.state_thresholds)
 
         if (
-            not mlrun.runtimes.RuntimeKinds.is_local_runtime(runtime.kind)
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
             and not runtime.spec.image
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Remote runtime must have a valid image"
+                f"This runtime kind ({runtime.kind}) must have a valid image"
             )
 
         super()._validate_runtime(runtime, run)

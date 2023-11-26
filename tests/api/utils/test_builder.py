@@ -38,7 +38,8 @@ def test_build_runtime_use_base_image_when_no_build():
     fn = mlrun.new_function("some-function", "some-project", "some-tag", kind="job")
     base_image = "mlrun/mlrun"
     fn.build_config(base_image=base_image)
-    assert fn.spec.image == ""
+    # image is populated in prepare_image_for_deploy
+    assert fn.spec.image == "mlrun/mlrun"
     ready = server.api.utils.builder.build_runtime(
         mlrun.common.schemas.AuthInfo(),
         fn,
@@ -60,11 +61,19 @@ def test_build_runtime_enrich_base_image(monkeypatch):
         fn.build_config(
             base_image=f"{mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX}{base_image}"
         )
-        assert fn.spec.image == ""
+        # at this point (at creation) the image is automatically enriched with the default image for the runtime
+        assert fn.spec.image == "mlrun/mlrun"
         server.api.utils.builder.build_runtime(
             mlrun.common.schemas.AuthInfo(),
             fn,
         )
+        # however, when building target_image **must not** be the default image
+        target_image = server.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        assert (
+            target_image
+            == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
+        )
+
         dockerfile = server.api.utils.builder.make_kaniko_pod.call_args[1]["dockertext"]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"

@@ -25,7 +25,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
 )
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.model_monitoring.controller import MonitoringApplicationProcessor
+from mlrun.model_monitoring.controller import MonitoringApplicationController
 
 
 class _HistLen(typing.NamedTuple):
@@ -77,7 +77,7 @@ def test_pad_features_hist(
 
 
 class TestBatchInterval:
-    interval_range = MonitoringApplicationProcessor._get_interval_range
+    interval_range = MonitoringApplicationController._get_interval_range
 
     @staticmethod
     def _fake_now_func_factory(
@@ -101,7 +101,7 @@ class TestBatchInterval:
             delta=datetime.timedelta(minutes=minutes_delta)
         )
         return [
-            MonitoringApplicationProcessor._get_interval_range(
+            MonitoringApplicationController._get_interval_range(
                 batch_dict={
                     EventFieldType.MINUTES: minutes_delta,
                     EventFieldType.HOURS: 0,
@@ -122,7 +122,7 @@ class TestBatchInterval:
     @staticmethod
     def test_end_time_is_in_the_past() -> None:
         time = datetime.datetime(2023, 11, 16, 12, 0, 0)
-        _, end_time = MonitoringApplicationProcessor._get_interval_range(
+        _, end_time = MonitoringApplicationController._get_interval_range(
             batch_dict={
                 EventFieldType.MINUTES: 10,
                 EventFieldType.HOURS: 0,

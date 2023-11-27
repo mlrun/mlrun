@@ -14,7 +14,7 @@
 #
 
 import mlrun
-from mlrun.model_monitoring.controller import MonitoringApplicationProcessor
+from mlrun.model_monitoring.controller import MonitoringApplicationController
 
 
 def handler(context: mlrun.run.MLClientCtx):
@@ -23,10 +23,10 @@ def handler(context: mlrun.run.MLClientCtx):
 
     :param context: the MLRun context
     """
-    monitor_app_processor = MonitoringApplicationProcessor(
+    monitor_app_controller = MonitoringApplicationController(
         context=context,
         project=context.project,
     )
-    monitor_app_processor.run()
-    if monitor_app_processor.endpoints_exceptions:
-        print(monitor_app_processor.endpoints_exceptions)
+    monitor_app_controller.run()
+    if monitor_app_controller.endpoints_exceptions:
+        print(monitor_app_controller.endpoints_exceptions)

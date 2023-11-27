@@ -30,11 +30,11 @@ from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stre
 from mlrun.utils import logger
 
 
-class MonitoringApplicationProcessor:
+class MonitoringApplicationController:
     """
     The main object to handle the monitoring processing job. This object is used to get the required configurations and
     to manage the main monitoring drift detection process based on the current batch.
-    Note that the MonitoringApplicationProcessor object requires access keys along with valid project configurations.
+    Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
     def __init__(
@@ -52,7 +52,7 @@ class MonitoringApplicationProcessor:
         self.project = project
 
         logger.info(
-            "Initializing MonitoringApplicationProcessor",
+            "Initializing MonitoringApplicationController",
             project=project,
         )
 
@@ -143,7 +143,7 @@ class MonitoringApplicationProcessor:
                         )
                         continue
                     future = pool.submit(
-                        MonitoringApplicationProcessor.model_endpoint_process,
+                        MonitoringApplicationController.model_endpoint_process,
                         endpoint=endpoint,
                         applications_names=applications_names,
                         batch_interval_dict=self.batch_dict,

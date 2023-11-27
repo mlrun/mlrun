@@ -145,6 +145,10 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
+class SchedulingKeys:
+    LAST_ANALYZED = "last_analyzed"
+
+
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"

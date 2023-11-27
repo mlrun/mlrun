@@ -20,10 +20,13 @@ import re
 import time
 from typing import Any, Callable, Optional, Tuple, Union, cast
 
+from v3io.dataplane.response import HttpResponseError
+
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
@@ -32,6 +35,8 @@ from mlrun.utils import logger
 
 
 class _BatchWindow:
+    V3IO_CONTAINER_FORMAT = "users/pipelines/{project}/monitoring-schedules/functions"
+
     def __init__(
         self,
         project: str,
@@ -49,12 +54,42 @@ class _BatchWindow:
         """
         self._endpoint = endpoint
         self._application = application
-        self._start = self._get_last_analyzed() or first_request
+        self._first_request = first_request
+        self._start = self._get_last_analyzed()
         self._stop = last_updated
         self._step = timedelta_seconds
+        self._kv_storage = mlrun.utils.v3io_clients.get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api
+        ).kv
+        self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
 
-    def _get_last_analyzed(self) -> int:
-        raise NotImplementedError
+    def _get_last_analyzed(self) -> Optional[int]:
+        try:
+            data = self._kv_storage.get(
+                container=self._v3io_container,
+                table_path=self._endpoint,
+                key=self._application,
+            )
+        except HttpResponseError as err:
+            logger.warn(
+                "Failed to get the last analyzed time for this endpoint and application, "
+                "as this is probably the first time this application is running. "
+                "Using the first request time instead.",
+                endpoint=self._endpoint,
+                application=self._application,
+                first_request=self._first_request,
+                error=err,
+            )
+            return self._first_request
+
+        last_analyzed = data.output.item[mm_constants.SchedulingKeys.LAST_ANALYZED]
+        logger.info(
+            "Got the last analyzed time for this endpoint and application",
+            endpoint=self._endpoint,
+            application=self._application,
+            last_analyzed=last_analyzed,
+        )
+        return last_analyzed
 
     def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
         """

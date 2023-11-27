@@ -14,9 +14,11 @@
 
 import datetime
 import typing
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
+from unittest.mock import Mock, patch
 
 import pytest
+from v3io.dataplane.response import HttpResponseError
 
 from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
@@ -24,11 +26,7 @@ from mlrun.common.model_monitoring.helpers import (
     Histogram,
     pad_features_hist,
 )
-from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.model_monitoring.controller import (
-    MonitoringApplicationController,
-    _BatchWindowGenerator,
-)
+from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
 
 
 class _HistLen(typing.NamedTuple):
@@ -80,45 +78,35 @@ def test_pad_features_hist(
 
 
 class TestBatchInterval:
-    interval_range = MonitoringApplicationController._get_interval_range
-
     @staticmethod
-    def _fake_now_func_factory(
-        delta: datetime.timedelta,
-        base_time: datetime.datetime = datetime.datetime(2021, 1, 1, 12, 0, 0),
-    ) -> Callable[[], datetime.datetime]:
-        def fake_now_func() -> datetime.datetime:
-            nonlocal base_time
-            current_time = base_time
-            base_time += delta
-            return current_time
-
-        return fake_now_func
-
-    @classmethod
     @pytest.fixture
     def intervals(
-        cls, minutes_delta: int = 6
+        timedelta_seconds: int = int(datetime.timedelta(minutes=6).total_seconds()),
+        first_request: int = int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
+        last_updated: int = int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
     ) -> list[Tuple[datetime.datetime, datetime.datetime]]:
-        now_func = cls._fake_now_func_factory(
-            delta=datetime.timedelta(minutes=minutes_delta)
-        )
-        return [
-            MonitoringApplicationController._get_interval_range(
-                batch_dict={
-                    EventFieldType.MINUTES: minutes_delta,
-                    EventFieldType.HOURS: 0,
-                    EventFieldType.DAYS: 0,
-                },
-                now_func=now_func,
+        mock = Mock(spec=["kv"])
+        mock.kv.get = Mock(side_effect=HttpResponseError)
+        with patch(
+            "mlrun.model_monitoring.batch_application.get_v3io_client",
+            return_value=mock,
+        ):
+            return list(
+                _BatchWindow(
+                    project="project",
+                    endpoint="ep",
+                    application="app",
+                    timedelta_seconds=timedelta_seconds,
+                    first_request=first_request,
+                    last_updated=last_updated,
+                ).get_intervals()
             )
-            for _ in range(5)
-        ]
 
     @staticmethod
-    def test_touching_interval(
+    def test_touching_intervals(
         intervals: list[Tuple[datetime.datetime, datetime.datetime]]
     ) -> None:
+        assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"
 

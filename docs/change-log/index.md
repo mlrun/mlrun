@@ -23,7 +23,7 @@
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
-|ML-3840|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
+|ML-3480|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
 |ML-4839/4844|Running `project.build_image` now always reads the requirements.txt file. |
 |ML-4860  |Fixed creating and running functions with no parameters from the UI.      |
 |ML-4872 |Fixed synchronizing functions from project yaml.                          |

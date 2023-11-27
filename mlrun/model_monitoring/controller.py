@@ -91,18 +91,39 @@ class _BatchWindow:
         )
         return last_analyzed
 
+    def _update_last_analyzed(self, last_analyzed: int) -> None:
+        logger.info(
+            "Updating the last analyzed time for this endpoint and application",
+            endpoint=self._endpoint,
+            application=self._application,
+            last_analyzed=last_analyzed,
+        )
+        self._kv_storage.put(
+            container=self._v3io_container,
+            table_path=self._endpoint,
+            key=self._application,
+            attributes={mm_constants.SchedulingKeys.LAST_ANALYZED: last_analyzed},
+        )
+
     def get_intervals(
         self,
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
-        """
-        Get the batch interval time range.
-        """
+        """Generate the batch interval time ranges."""
         if self._start is not None:
             for timestamp in range(self._start, self._stop, self._step):
                 start_time = datetime.datetime.utcfromtimestamp(timestamp)
                 end_time = datetime.datetime.utcfromtimestamp(timestamp + self._step)
                 yield start_time, end_time
-                # TODO: update the last analyzed time in the KV
+                self._update_last_analyzed(timestamp + self._step)
+        else:
+            logger.warn(
+                "The first request time is not not found for this endpoint. "
+                "No intervals will be generated.",
+                endpoint=self._endpoint,
+                application=self._application,
+                start=self._start,
+                stop=self._stop,
+            )
 
 
 class _BatchWindowGenerator:

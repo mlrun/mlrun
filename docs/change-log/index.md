@@ -1,6 +1,6 @@
 (change-log)=
 # Change log
-- [v1.5.0](#v1-5-0-23-october-2023) | [v1.5.1](#v1-5-1-11-november-2023)
+- [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
 - [v1.2.3](#v1-2-3-15-may-2023) | [v1.2.2](#v1-2-2-8-may-2023) | [v1.2.1](#v1-2-1-8-january-2023) | [v1.2.0](#v1-2-0-1-december-2022)
@@ -10,14 +10,22 @@
 - [Limitations](#limitations)
 - [Deprecations](#deprecations-and-removed-code)
 
-## v1.5.1 (11 November 2023)
+## v1.5.2 (30 November 2023)
 
 ###  Closed issues
-| ID           | Description                                                               |
-|--------------|---------------------------------------------------------------------------|
-| ML-4839/4844 | Running `project.build_image` now always reads the requirements.txt file. |
-| ML-4860      | Fixed creating and running functions with no parameters from the UI.      |
-| ML-4872      | Fixed synchronizing functions from project yaml.                          |
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-4960|Fixed browser caching so the **Members** tab is always presented for projects.|
+
+## v1.5.1 (2 November 2023)
+
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-3480|Add details about `label_feature` parameter. See [Creating a feature vector](../feature-store/feature-vectors.html#creating-a-feature-vector).| 
+|ML-4839/4844|Running `project.build_image` now always reads the requirements.txt file. |
+|ML-4860  |Fixed creating and running functions with no parameters from the UI.      |
+|ML-4872 |Fixed synchronizing functions from project yaml.                          |
 
 ## v1.5.0 (23 October 2023)
 
@@ -737,6 +745,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4758|In rare cases, deleting a heavy project is unsuccessful and results in a timeout error message while the project moves to offline state.|Delete again|v1.5.0 |
     
 ## Limitations
+<<<<<<< HEAD
 
 |ID  |Description                                                   |Workaround                          |Opened in|
 |----|--------------------------------------------------------------|------------------------------------|----------|     
@@ -747,6 +756,20 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.|To see the error, use `mlrun.db.get_pipelines()` instead. |
 |ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.|When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)| 
 |ML-4767|Use PyTorch versions up to and including than 2.0.1, but not higher.  |
+=======
+| ID     |Description                                                                                                                                 |Workaround |Opened in|
+|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|     
+|ML-1278|Users do not automatically have access rights to the project data of the projects they are members of.    | Assign the user access permission for the project folder.             | v0.8.0   |
+|ML-2014|Model deployment returns ResourceNotFoundException (Nuclio error that Service <name> is invalid.)                                                                                    |Verify that all `metadata.labels` values are 63 characters or less. See the [Kubernetes limitation](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set).                                                                                                                        |v1.0.0    |
+|ML-3206|When `get_or_create_project` is called, and there is a project.yaml in the dir, no new project is created (even of the project name is new). The existing project.yaml is loaded instead.|v1.2.1                                                                                                                                                                                                                                                                                                                           |
+|ML-3520|MLRun does not decompress large Kubeflow pipelines.                                                                                                                                 |NA                                                                                                                                                                                                                                                                                                                              |v1.3.0    |
+|ML-3731|When trying to identify a failed step in a workflow with `mlrun.get_run_db().list_pipelines('project-name')`, the returned error is `None`.                                          |To see the error, use `mlrun.db.get_pipelines()` instead.                                                                                                                                                                                                                                                                        |
+|ML-3743|Setting AWS credentials as project secret cause a build failure on EKS configured with ECR.                                                                                          |When using an ECR as the external container registry, make sure that the project secrets AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY have read/write access to ECR, as described in the [platform documentation](https://www.iguazio.com/docs/latest-release/services/app-services/docker-registry/#create-off-cluster-registry)|
+|ML-4386|Notifications of local runs aren't persisted. | NA | v1.5.0|
+|ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | NA |                 v1.5.0|   
+|ML-4855|MLRun supports TensorFlow up to 2.13.1.
+|ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
+>>>>>>> 470c994d ([Docs] V1.5.2 change log  (#4639))
 
 ## Deprecations and removed code
 

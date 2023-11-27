@@ -228,10 +228,8 @@ class MonitoringApplicationController:
                             featureset_name=m_fs.metadata.name,
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                             min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                            start_time=str(
-                                datetime.datetime.now() - datetime.timedelta(hours=1)
-                            ),
-                            end_time=str(datetime.datetime.now()),
+                            start_time=start_infer_time,
+                            end_time=end_infer_time,
                         )
                         return
 

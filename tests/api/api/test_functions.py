@@ -114,6 +114,7 @@ async def test_list_functions_with_hash_key_versioned(
             "project": function_project,
             "tag": "another-tag",
         },
+        "spec": {"image": "mlrun/mlrun:v2"},
     }
 
     post_function1_response = await async_client.post(

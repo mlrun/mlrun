@@ -462,7 +462,7 @@ default_config = {
         "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
+        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
@@ -1016,9 +1016,9 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self):
+    def get_v3io_access_key(self) -> typing.Optional[str]:
         # Get v3io access key from the environment
-        return os.environ.get("V3IO_ACCESS_KEY")
+        return os.getenv("V3IO_ACCESS_KEY")
 
     def get_model_monitoring_file_target_path(
         self,

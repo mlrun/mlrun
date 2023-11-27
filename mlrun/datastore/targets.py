@@ -294,10 +294,12 @@ def add_target_steps(graph, resource, targets, to_df=False, final_step=None):
         driver = get_target_driver(target, resource)
         table = driver.get_table_object() or table
         driver.update_resource_status()
+        if target.after_step:
+            target.attributes["infer_columns_from_data"] = True
         driver.add_writer_step(
             graph,
             target.after_step or final_step,
-            features=features,
+            features=features if not target.after_step else None,
             key_columns=key_columns,
             timestamp_key=timestamp_key,
             featureset_status=resource.status,
@@ -436,7 +438,7 @@ class BaseStoreTarget(DataTargetBase):
             prefix=self.credentials_prefix,
         )
 
-    def _get_store(self):
+    def _get_store_and_path(self):
         credentials_prefix_secrets = (
             {"CREDENTIALS_PREFIX": self.credentials_prefix}
             if self.credentials_prefix
@@ -446,7 +448,10 @@ class BaseStoreTarget(DataTargetBase):
             self.get_target_path(),
             credentials_prefix_secrets,
         )
-        return store, store.url + resolved_store_path
+        if self.get_target_path().startswith("ds://"):
+            return store, store.url + resolved_store_path
+        else:
+            return store, self.get_target_path()
 
     def _get_column_list(self, features, timestamp_key, key_columns, with_type=False):
         result = []
@@ -495,7 +500,7 @@ class BaseStoreTarget(DataTargetBase):
             df.write.mode("overwrite").save(**options)
         elif hasattr(df, "dask"):
             dask_options = self.get_dask_options()
-            store, target_path = self._get_store()
+            store, target_path = self._get_store_and_path()
             storage_options = store.get_storage_options()
             df = df.repartition(partition_size="100MB")
             try:
@@ -516,7 +521,7 @@ class BaseStoreTarget(DataTargetBase):
             except Exception as exc:
                 raise RuntimeError("Failed to write Dask Dataframe") from exc
         else:
-            store, target_path = self._get_store()
+            store, target_path = self._get_store_and_path()
             target_path = generate_path_with_chunk(self, chunk_id, target_path)
             file_system = store.get_filesystem(False)
             if file_system.protocol == "file":
@@ -612,6 +617,7 @@ class BaseStoreTarget(DataTargetBase):
 
         driver._resource = resource
         driver.run_id = spec.run_id
+        driver.after_step = spec.after_step
         return driver
 
     def get_table_object(self):
@@ -682,7 +688,7 @@ class BaseStoreTarget(DataTargetBase):
         raise NotImplementedError()
 
     def purge(self):
-        store, target_path = self._get_store()
+        store, target_path = self._get_store_and_path()
         store.rm(target_path, recursive=True)
 
     def as_df(
@@ -870,7 +876,7 @@ class ParquetTarget(BaseStoreTarget):
                 "update_last_written": featureset_status.update_last_written_for_target
             }
 
-        store, target_path = self._get_store()
+        store, target_path = self._get_store_and_path()
 
         storage_options = store.get_storage_options()
         if storage_options and self.storage_options:
@@ -1026,7 +1032,7 @@ class CSVTarget(BaseStoreTarget):
         column_list = self._get_column_list(
             features=features, timestamp_key=timestamp_key, key_columns=key_columns
         )
-        store, target_path = self._get_store()
+        store, target_path = self._get_store_and_path()
         graph.add_step(
             name=self.name or "CSVTarget",
             after=after,

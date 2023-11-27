@@ -51,10 +51,10 @@ class PackagersManager:
                                  object or data item. Default to ``mlrun.DefaultPackager``.
         """
         # Set the default packager:
-        self._default_packager = default_packager or DefaultPackager
+        self._default_packager = (default_packager or DefaultPackager)()
 
         # Initialize the packagers list (with the default packager in it):
-        self._packagers: List[Type[Packager]] = []
+        self._packagers: List[Packager] = []
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
@@ -80,7 +80,7 @@ class PackagersManager:
         return self._results
 
     def collect_packagers(
-        self, packagers: List[Union[Type, str]], default_priority: int = 5
+        self, packagers: List[Union[Type[Packager], str]], default_priority: int = 5
     ):
         """
         Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
@@ -155,9 +155,11 @@ class PackagersManager:
                 raise MLRunPackageCollectionError(
                     f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
+            # Initialize the packager class:
+            packager = packager()
             # Set default priority in case it is not set in the packager's class:
-            if packager.PRIORITY is ...:
-                packager.PRIORITY = default_priority
+            if packager.priority is ...:
+                packager.priority = default_priority
             # Collect the packager (putting him first in the list for highest priority:
             self._packagers.insert(0, packager)
             # For debugging, we'll print the collected packager:
@@ -350,13 +352,14 @@ class PackagersManager:
         artifacts, to ensure that files that require uploading have already been uploaded.
         """
         for packager in self._get_packagers_with_default_packager():
-            for path in packager.get_future_clearing_path_list():
+            for path in packager.future_clearing_path_list:
                 if not os.path.exists(path):
                     continue
                 if os.path.isdir(path):
                     shutil.rmtree(path)
                 else:
                     os.remove(path)
+            packager.future_clearing_path_list.clear()
 
     class _InstructionsNotesKey:
         """
@@ -368,7 +371,7 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
-    def _get_packagers_with_default_packager(self) -> List[Type[Packager]]:
+    def _get_packagers_with_default_packager(self) -> List[Packager]:
         """
         Get the full list of packagers - the collected packagers and the default packager (located at last place in the
         list - the lowest priority).
@@ -377,7 +380,7 @@ class PackagersManager:
         """
         return [*self._packagers, self._default_packager]
 
-    def _get_packager_by_name(self, name: str) -> Union[Type[Packager], None]:
+    def _get_packager_by_name(self, name: str) -> Union[Packager, None]:
         """
         Look for a packager with the given name and return it.
 
@@ -389,7 +392,7 @@ class PackagersManager:
         """
         # Look for a packager by exact name:
         for packager in self._get_packagers_with_default_packager():
-            if packager.__name__ == name:
+            if packager.__class__.__name__ == name:
                 return packager
 
         # No packager was found:
@@ -401,7 +404,7 @@ class PackagersManager:
         obj: Any,
         artifact_type: str = None,
         configurations: dict = None,
-    ) -> Union[Type[Packager], None]:
+    ) -> Union[Packager, None]:
         """
         Look for a packager that can pack the provided object as the provided artifact type.
 
@@ -428,7 +431,7 @@ class PackagersManager:
         data_item: Any,
         type_hint: type,
         artifact_type: str = None,
-    ) -> Union[Type[Packager], None]:
+    ) -> Union[Packager, None]:
         """
         Look for a packager that can unpack the data item of the given type hint as the provided artifact type.
 
@@ -495,7 +498,7 @@ class PackagersManager:
 
         # Prepare the manager's unpackaging instructions:
         unpackaging_instructions = {
-            self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
+            self._InstructionsNotesKey.PACKAGER_NAME: packager.__class__.__name__,
             self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
             self._InstructionsNotesKey.ARTIFACT_TYPE: (
                 artifact_type
@@ -646,7 +649,7 @@ class PackagersManager:
         :raise MLRunPackageUnpackingError: If there is no packager that supports the provided type hint.
         """
         # Prepare a list of a packager and exception string for all the failures in case there was no fitting packager:
-        found_packagers: List[Tuple[Type[Packager], str]] = []
+        found_packagers: List[Tuple[Packager, str]] = []
 
         # Try to unpack as one of the possible types in the type hint:
         possible_type_hints = {type_hint}

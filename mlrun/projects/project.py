@@ -103,9 +103,9 @@ def init_repo(context, url, init_git):
     repo = None
     context_path = pathlib.Path(context)
     if not context_path.exists():
-        context_path.mkdir(parents=True)
+        context_path.mkdir(parents=True, exist_ok=True)
     elif not context_path.is_dir():
-        raise ValueError(f"context {context} is not a dir path")
+        raise ValueError(f"Context {context} is not a dir path")
     try:
         repo = git.Repo(context)
         url = get_repo_url(repo)
@@ -222,6 +222,7 @@ def new_project(
     if remote and url != remote:
         project.create_remote(remote)
     elif url:
+        logger.info("Identified pre-initialized git repo, using it", url=url)
         project.spec._source = url
         project.spec.origin_url = url
     if description:
@@ -367,7 +368,7 @@ def load_project(
         project = _load_project_dir(context, name, subpath)
 
     if not project.metadata.name:
-        raise ValueError("project name must be specified")
+        raise ValueError("Project name must be specified")
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
@@ -3008,7 +3009,7 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build:
+        :param force_build: set True for force building the image
         """
 
         if skip_deployed:
@@ -3241,13 +3242,16 @@ class MlrunProject(ModelObj):
         :param labels: Return functions that have specific labels assigned to them.
         :returns: List of function objects.
         """
-        labels = labels or []
+
+        model_monitoring_labels_list = [
+            f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
+        ]
+        if labels:
+            model_monitoring_labels_list += labels
         return self.list_functions(
             name=name,
             tag=tag,
-            labels=[
-                f"{mm_constants.ModelMonitoringAppLabel.KEY}={mm_constants.ModelMonitoringAppLabel.VAL}"
-            ].extend(labels),
+            labels=model_monitoring_labels_list,
         )
 
     def list_runs(
@@ -3476,7 +3480,13 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        if not image and not project.default_image and kind != "local":
+        # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
+        if (
+            not image
+            and not project.default_image
+            and kind != "local"
+            and not project.spec.load_source_on_run
+        ):
             raise ValueError(
                 "image must be provided with py code files which do not "
                 "run on 'local' engine kind"

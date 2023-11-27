@@ -1522,6 +1522,8 @@ class SQLDB(DBInterface):
             project_desired_state=project.spec.desired_state,
             project_status=project.status,
         )
+        self._normalize_project_parameters(project)
+
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1529,6 +1531,14 @@ class SQLDB(DBInterface):
             self.create_project(session, project)
         else:
             self._update_project_record_from_project(session, project_record, project)
+
+    @staticmethod
+    def _normalize_project_parameters(project: mlrun.common.schemas.Project):
+        # remove leading & trailing whitespaces from the project parameters keys and values to prevent duplications
+        if project.spec.params:
+            project.spec.params = {
+                key.strip(): value.strip() for key, value in project.spec.params.items()
+            }
 
     def patch_project(
         self,

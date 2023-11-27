@@ -199,6 +199,12 @@ class RuntimeKinds(object):
             return True
         return False
 
+    @staticmethod
+    def requires_image_name_for_execution(kind):
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+        return kind not in [RuntimeKinds.spark]
+
 
 def get_runtime_class(kind: str):
     if kind == RuntimeKinds.mpijob:

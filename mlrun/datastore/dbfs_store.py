@@ -82,9 +82,6 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        if not endpoint:
-            endpoint = self._get_secret_or_env("DATABRICKS_HOST")
-        self.endpoint = endpoint
         self.get_filesystem(silent=False)
 
     def get_filesystem(self, silent=True):

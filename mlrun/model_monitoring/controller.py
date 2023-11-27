@@ -203,15 +203,17 @@ class MonitoringApplicationController:
 
             # Getting batch interval start time and end time
             # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_time, end_time = cls._get_interval_range(batch_interval_dict)
+            start_infer_time, end_infer_time = cls._get_interval_range(
+                batch_interval_dict
+            )
             for application in applications_names:
                 try:
                     # Get application sample data
                     offline_response = cls._get_sample_df(
                         feature_set=m_fs,
                         endpoint_id=endpoint_id,
-                        end_time=end_time,
-                        start_time=start_time,
+                        start_infer_time=start_infer_time,
+                        end_infer_time=end_infer_time,
                         parquet_directory=parquet_directory,
                         storage_options=storage_options,
                         application_name=application,
@@ -260,8 +262,8 @@ class MonitoringApplicationController:
                 cls._push_to_applications(
                     current_stats=current_stats,
                     feature_stats=feature_stats,
-                    start_time=start_time,
-                    end_time=end_time,
+                    start_infer_time=start_infer_time,
+                    end_infer_time=end_infer_time,
                     endpoint_id=endpoint_id,
                     latest_request=latest_request,
                     project=project,
@@ -348,8 +350,8 @@ class MonitoringApplicationController:
     def _push_to_applications(
         current_stats,
         feature_stats,
-        start_time,
-        end_time,
+        start_infer_time,
+        end_infer_time,
         endpoint_id,
         latest_request,
         project,
@@ -362,8 +364,8 @@ class MonitoringApplicationController:
 
         :param current_stats:       Current statistics of input data.
         :param feature_stats:       Statistics of train features.
-        :param start_time:          Start time of the monitoring schedule.
-        :param end_time:            End time of the monitoring schedule.
+        :param start_infer_time:    The beginning of the infer interval window.
+        :param end_infer_time:      The end of the infer interval window.
         :param endpoint_id:         Identifier for the model endpoint.
         :param latest_request:      Timestamp of the latest model request.
         :param project: mlrun       Project name.
@@ -375,10 +377,10 @@ class MonitoringApplicationController:
             mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
             mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
             mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: parquet_target_path,
-            mm_constants.ApplicationEvent.START_PROCESSING_TIME: start_time.isoformat(
+            mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constants.ApplicationEvent.END_PROCESSING_TIME: end_time.isoformat(
+            mm_constants.ApplicationEvent.END_INFER_TIME: end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
@@ -405,19 +407,19 @@ class MonitoringApplicationController:
     def _get_sample_df(
         feature_set: mlrun.common.schemas.FeatureSet,
         endpoint_id: str,
-        end_time: datetime.datetime,
-        start_time: datetime.datetime,
+        start_infer_time: datetime.datetime,
+        end_infer_time: datetime.datetime,
         parquet_directory: str,
         storage_options: dict,
         application_name: str,
     ) -> mlrun.feature_store.OfflineVectorResponse:
         """
-        Retrieves a sample DataFrame of the current input.
+        Retrieves a sample DataFrame of the current input according to the provided infer interval window.
 
         :param feature_set:         The main feature set.
         :param endpoint_id:         Identifier for the model endpoint.
-        :param end_time:            End time of the monitoring schedule.
-        :param start_time:          Start time of the monitoring schedule.
+        :param start_infer_time:    The beginning of the infer interval window.
+        :param end_infer_time:      The end of the infer interval window.
         :param parquet_directory:   Directory where Parquet files are stored.
         :param storage_options:     Storage options for accessing the data.
         :param application_name:    Current application name.
@@ -438,12 +440,12 @@ class MonitoringApplicationController:
         # store the result parquet by partitioning by controller end processing time
         offline_response = fstore.get_offline_features(
             feature_vector=vector,
-            start_time=start_time,
-            end_time=end_time,
+            start_time=start_infer_time,
+            end_time=end_infer_time,
             timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
                 path=parquet_directory
-                + f"/key={endpoint_id}/{end_time.strftime('%s')}/{application_name}.parquet",
+                + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
                 partition_cols=[
                     mm_constants.EventFieldType.ENDPOINT_ID,
                 ],

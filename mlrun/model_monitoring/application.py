@@ -38,8 +38,8 @@ class ModelMonitoringApplicationResult:
 
     :param application_name:      (str) Name of the model monitoring application.
     :param endpoint_id:           (str) ID of the monitored model endpoint.
-    :param start_processing_time: (pd.Timestamp) Start time of the monitoring schedule.
-    :param end_processing_time:   (pd.Timestamp) End time of the monitoring schedule.
+    :param start_infer_time:      (pd.Timestamp) Start time of the monitoring schedule.
+    :param end_infer_time:        (pd.Timestamp) End time of the monitoring schedule.
     :param result_name:           (str) Name of the application result.
     :param result_value:          (float) Value of the application result.
     :param result_kind:           (ResultKindApp) Kind of application result.
@@ -50,8 +50,8 @@ class ModelMonitoringApplicationResult:
 
     application_name: str
     endpoint_id: str
-    start_processing_time: pd.Timestamp
-    end_processing_time: pd.Timestamp
+    start_infer_time: pd.Timestamp
+    end_infer_time: pd.Timestamp
     result_name: str
     result_value: float
     result_kind: mm_constant.ResultKindApp
@@ -68,10 +68,10 @@ class ModelMonitoringApplicationResult:
         return {
             mm_constant.WriterEvent.APPLICATION_NAME: self.application_name,
             mm_constant.WriterEvent.ENDPOINT_ID: self.endpoint_id,
-            mm_constant.WriterEvent.START_PROCESSING_TIME: self.start_processing_time.isoformat(
+            mm_constant.WriterEvent.START_INFER_TIME: self.start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mm_constant.WriterEvent.END_PROCESSING_TIME: self.end_processing_time.isoformat(
+            mm_constant.WriterEvent.END_INFER_TIME: self.end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constant.WriterEvent.RESULT_NAME: self.result_name,
@@ -97,8 +97,8 @@ class ModelMonitoringApplication(StepToDict):
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
-                start_processing_time: pd.Timestamp,
-                end_processing_time: pd.Timestamp,
+                start_infer_time: pd.Timestamp,
+                end_infer_time: pd.Timestamp,
                 schedule_time: pd.Timestamp,
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
@@ -148,8 +148,8 @@ class ModelMonitoringApplication(StepToDict):
         sample_df_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
-        start_processing_time: pd.Timestamp,
-        end_processing_time: pd.Timestamp,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
@@ -163,8 +163,8 @@ class ModelMonitoringApplication(StepToDict):
         :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
         :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
         :param sample_df:               (pd.DataFrame) The new sample DataFrame.
-        :param start_processing_time:   (pd.Timestamp) Start time of the monitoring schedule.
-        :param end_processing_time:     (pd.Timestamp) End time of the monitoring schedule.
+        :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+        :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
         :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param output_stream_uri:       (str) URI of the output stream for results
@@ -205,10 +205,8 @@ class ModelMonitoringApplication(StepToDict):
                      [7] = (str) endpoint id
                      [8] = (str) output stream uri
         """
-        start_time = pd.Timestamp(
-            event[mm_constant.ApplicationEvent.START_PROCESSING_TIME]
-        )
-        end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_PROCESSING_TIME])
+        start_time = pd.Timestamp(event[mm_constant.ApplicationEvent.START_INFER_TIME])
+        end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
             ModelMonitoringApplication._dict_to_histogram(

@@ -76,7 +76,7 @@ class _Notifier:
 The monitoring app `{self._event[WriterEvent.APPLICATION_NAME]}` \
 of kind `{self._event[WriterEvent.RESULT_KIND]}` \
 detected a problem in model endpoint ID `{self._event[WriterEvent.ENDPOINT_ID]}` \
-at time `{self._event[WriterEvent.START_PROCESSING_TIME]}`.
+at time `{self._event[WriterEvent.START_INFER_TIME]}`.
 
 Result data:
 Name: `{self._event[WriterEvent.RESULT_NAME]}`
@@ -162,12 +162,12 @@ class ModelMonitoringWriter(StepToDict):
                 "nullable": False,
             },
             {
-                "name": WriterEvent.START_PROCESSING_TIME,
+                "name": WriterEvent.START_INFER_TIME,
                 "type": "string",
                 "nullable": False,
             },
             {
-                "name": WriterEvent.END_PROCESSING_TIME,
+                "name": WriterEvent.END_INFER_TIME,
                 "type": "string",
                 "nullable": False,
             },
@@ -215,8 +215,8 @@ class ModelMonitoringWriter(StepToDict):
 
     def _update_tsdb(self, event: _AppResultEvent) -> None:
         event = _AppResultEvent(event.copy())
-        event[WriterEvent.END_PROCESSING_TIME] = pd.to_datetime(
-            event[WriterEvent.END_PROCESSING_TIME],
+        event[WriterEvent.END_INFER_TIME] = pd.to_datetime(
+            event[WriterEvent.END_INFER_TIME],
             format=EventFieldType.TIME_FORMAT,
         )
         del event[WriterEvent.RESULT_EXTRA_DATA]
@@ -226,7 +226,7 @@ class ModelMonitoringWriter(StepToDict):
                 table=_TSDB_TABLE,
                 dfs=pd.DataFrame.from_records([event]),
                 index_cols=[
-                    WriterEvent.END_PROCESSING_TIME,
+                    WriterEvent.END_INFER_TIME,
                     WriterEvent.ENDPOINT_ID,
                     WriterEvent.APPLICATION_NAME,
                 ],

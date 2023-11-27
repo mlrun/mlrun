@@ -165,8 +165,8 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
         sample_df_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
-        start_processing_time: pd.Timestamp,
-        end_processing_time: pd.Timestamp,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
@@ -175,31 +175,25 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplication):
 
         sample_df = sample_df[self.columns]
 
-        data_drift_report = self.create_report(sample_df, end_processing_time)
+        data_drift_report = self.create_report(sample_df, end_infer_time)
         self.evidently_workspace.add_report(
             self.evidently_project_id, data_drift_report
         )
-        data_drift_test_suite = self.create_test_suite(sample_df, end_processing_time)
+        data_drift_test_suite = self.create_test_suite(sample_df, end_infer_time)
         self.evidently_workspace.add_test_suite(
             self.evidently_project_id, data_drift_test_suite
         )
 
-        self.log_evidently_object(
-            data_drift_report, f"report_{str(end_processing_time)}"
-        )
-        self.log_evidently_object(
-            data_drift_test_suite, f"suite_{str(end_processing_time)}"
-        )
-        self.log_project_dashboard(
-            None, end_processing_time + datetime.timedelta(minutes=1)
-        )
+        self.log_evidently_object(data_drift_report, f"report_{str(end_infer_time)}")
+        self.log_evidently_object(data_drift_test_suite, f"suite_{str(end_infer_time)}")
+        self.log_project_dashboard(None, end_infer_time + datetime.timedelta(minutes=1))
 
         self.context.logger.info("Logged evidently objects")
         return ModelMonitoringApplicationResult(
             application_name=self.name,
             endpoint_id=endpoint_id,
-            start_processing_time=start_processing_time,
-            end_processing_time=end_processing_time,
+            start_infer_time=start_infer_time,
+            end_infer_time=end_infer_time,
             result_name="data_drift_test",
             result_value=0.5,
             result_kind=ResultKindApp.data_drift,

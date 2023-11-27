@@ -37,8 +37,8 @@ def event(request: FixtureRequest) -> _AppResultEvent:
     return _AppResultEvent(
         {
             WriterEvent.ENDPOINT_ID: "some-ep-id",
-            WriterEvent.START_PROCESSING_TIME: "2023-09-19 14:26:06.501084",
-            WriterEvent.END_PROCESSING_TIME: "2023-09-19 16:26:06.501084",
+            WriterEvent.START_INFER_TIME: "2023-09-19 14:26:06.501084",
+            WriterEvent.END_INFER_TIME: "2023-09-19 16:26:06.501084",
             WriterEvent.APPLICATION_NAME: "dummy-app",
             WriterEvent.RESULT_NAME: "data-drift-0",
             WriterEvent.RESULT_KIND: 0,

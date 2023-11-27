@@ -137,6 +137,16 @@ async def submit_workflow(
         spec=workflow_request.spec,
         arguments=workflow_request.arguments,
     )
+
+    if workflow_spec.schedule:
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+            project_name=project.metadata.name,
+            resource_name=workflow_spec.name,
+            action=mlrun.common.schemas.AuthorizationAction.create,
+            auth_info=auth_info,
+        )
+
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 

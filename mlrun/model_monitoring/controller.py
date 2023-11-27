@@ -325,16 +325,16 @@ class MonitoringApplicationController:
             )
             for endpoint in endpoints:
                 try:
-                    parquet_files = fs.listdir(
+                    apps_parquet_directories = fs.listdir(
                         path=f"{self.parquet_directory}"
                         f"/key={endpoint[mm_constants.EventFieldType.UID]}"
                     )
-                    for file in parquet_files:
-                        if file["mtime"] < time_to_keep:
+                    for directory in apps_parquet_directories:
+                        if directory["mtime"] < time_to_keep:
                             # Delete files
-                            fs.rm(path=file["name"], recursive=True)
+                            fs.rm(path=directory["name"], recursive=True)
                             # Delete directory
-                            fs.rmdir(path=file["name"])
+                            fs.rmdir(path=directory["name"])
                 except FileNotFoundError:
                     logger.info(
                         "Application parquet directory is empty, "

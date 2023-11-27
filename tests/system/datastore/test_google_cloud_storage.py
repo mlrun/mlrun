@@ -142,6 +142,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         )
         fstore.ingest(fset, source, targets=targets)
         target_path = fset.get_target_path()
+
         result = source_class(path=target_path).to_dataframe()
         if reset_index:
             result.reset_index(inplace=True, drop=False)

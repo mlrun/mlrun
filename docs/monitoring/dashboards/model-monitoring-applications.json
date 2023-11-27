@@ -362,19 +362,19 @@
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "index": 0,
-                        "text": "Data Drift"
-                      },
-                      "1": {
+                      "ResultKindApp.concept_drift": {
                         "index": 1,
                         "text": "Concept Drift"
                       },
-                      "2": {
+                      "ResultKindApp.data_drift": {
+                        "index": 0,
+                        "text": "Data Drift"
+                      },
+                      "ResultKindApp.model_performance": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "3": {
+                      "ResultKindApp.system_performance": {
                         "index": 3,
                         "text": "System Performance"
                       }
@@ -425,6 +425,20 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "time"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -473,7 +487,8 @@
               "result_kind": false,
               "result_name": false,
               "result_value": false,
-              "time": true
+              "start_infer_time": true,
+              "time": false
             },
             "indexByName": {
               "application_name": 0,
@@ -489,7 +504,7 @@
               "result_name": "Name",
               "result_status": "Status",
               "result_value": "Value",
-              "time": ""
+              "time": "End Infer Time"
             }
           }
         }
@@ -533,19 +548,19 @@
                 "value": [
                   {
                     "options": {
-                      "0": {
-                        "index": 0,
-                        "text": "Data Drift"
-                      },
-                      "1": {
+                      "ResultKindApp.concept_drift": {
                         "index": 1,
                         "text": "Concept Drift"
                       },
-                      "2": {
+                      "ResultKindApp.data_drift": {
+                        "index": 0,
+                        "text": "Data Drift"
+                      },
+                      "ResultKindApp.model_performance": {
                         "index": 2,
                         "text": "Model Performance"
                       },
-                      "3": {
+                      "ResultKindApp.system_performance": {
                         "index": 3,
                         "text": "System Performance"
                       }

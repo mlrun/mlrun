@@ -678,7 +678,7 @@ class TestProject(TestMLRunSystem):
         out = exec_project(args)
         self._logger.debug("executed project", out=out)
         assert (
-            out.find("pipeline run finished, state=Succeeded") != -1
+            out.find("Pipeline run finished, state=Succeeded") != -1
         ), "pipeline failed"
 
     def test_run_cli_watch_with_timeout(self):

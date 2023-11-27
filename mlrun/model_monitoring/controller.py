@@ -18,7 +18,7 @@ import json
 import os
 import re
 import time
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Iterator, Optional, Tuple, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -91,14 +91,18 @@ class _BatchWindow:
         )
         return last_analyzed
 
-    def get_interval_range(self) -> Tuple[datetime.datetime, datetime.datetime]:
+    def get_interval_range(
+        self,
+    ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """
         Get the batch interval time range.
-        TODO: replace with a for loop from the start time to the end time.
         """
-        end_time = datetime.datetime.utcfromtimestamp(self._stop)
-        start_time = datetime.datetime.utcfromtimestamp(self._stop - self._step)
-        return start_time, end_time
+        if self._start is not None:
+            for timestamp in range(self._start, self._stop, self._step):
+                start_time = datetime.datetime.utcfromtimestamp(timestamp)
+                end_time = datetime.datetime.utcfromtimestamp(timestamp + self._step)
+                yield start_time, end_time
+                # TODO: update the last analyzed time in the KV
 
 
 class _BatchWindowGenerator:
@@ -356,6 +360,15 @@ class MonitoringApplicationController:
                 application=application_name,
                 first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
             )
+
+            # TODO: run on all intervals
+            intervals = list(batch_window.get_interval_range())
+            if not intervals:
+                logger.warn(
+                    "No intervals were found for this endpoint",
+                    endpoint=endpoint_id,
+                )
+                return
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
@@ -369,7 +382,7 @@ class MonitoringApplicationController:
 
             # Getting batch interval start time and end time
             # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_infer_time, end_infer_time = batch_window.get_interval_range()
+            start_infer_time, end_infer_time = intervals[-1]
             for application in applications_names:
                 try:
                     # Get application sample data

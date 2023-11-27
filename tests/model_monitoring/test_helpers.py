@@ -14,7 +14,7 @@
 
 import datetime
 import typing
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import pytest
 
@@ -25,7 +25,10 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
 )
 from mlrun.common.schemas.model_monitoring import EventFieldType
-from mlrun.model_monitoring.controller import MonitoringApplicationController
+from mlrun.model_monitoring.controller import (
+    MonitoringApplicationController,
+    _BatchWindowGenerator,
+)
 
 
 class _HistLen(typing.NamedTuple):
@@ -119,15 +122,27 @@ class TestBatchInterval:
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"
 
+
+class TestBatchWindowGenerator:
     @staticmethod
-    def test_end_time_is_in_the_past() -> None:
-        time = datetime.datetime(2023, 11, 16, 12, 0, 0)
-        _, end_time = MonitoringApplicationController._get_interval_range(
-            batch_dict={
-                EventFieldType.MINUTES: 10,
-                EventFieldType.HOURS: 0,
-                EventFieldType.DAYS: 0,
-            },
-            now_func=lambda: time,
+    @pytest.mark.parametrize(
+        ("first_request", "expected"),
+        [("", None), (None, None), ("2023-11-09 09:25:59.554971+00:00", 1699521959)],
+    )
+    def test_normalize_first_request(
+        first_request: Optional[str], expected: Optional[int]
+    ) -> None:
+        assert (
+            _BatchWindowGenerator._normalize_first_request(
+                first_request=first_request, endpoint=""
+            )
+            == expected
         )
-        assert end_time < time, "End time should be in the past"
+
+    @staticmethod
+    def test_last_updated_is_in_the_past() -> None:
+        time = datetime.datetime(2023, 11, 16, 12, 0, 0).timestamp()
+        last_updated = _BatchWindowGenerator._get_last_updated_time(
+            now_func=lambda: time
+        )
+        assert last_updated < time, "The last updated time should be in the past"

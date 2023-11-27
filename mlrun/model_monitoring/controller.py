@@ -18,7 +18,7 @@ import json
 import os
 import re
 import time
-from typing import Any, Iterator, Optional, Tuple, Union, cast
+from typing import Any, Callable, Iterator, Optional, Tuple, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -167,14 +167,14 @@ class _BatchWindowGenerator:
         )
 
     @staticmethod
-    def _get_last_updated_time() -> int:
+    def _get_last_updated_time(now_func: Callable[[], float] = time.time) -> int:
         """
         Get the last updated time of a model endpoint.
         Note: this is an approximation of this time. Once we save it in the DB,
         we will have the exact time and won't use now_func.
         """
         return int(
-            time.time()
+            now_func()
             - cast(
                 float,
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,

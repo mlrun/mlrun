@@ -64,6 +64,7 @@ async def log_request_response(request: fastapi.Request, call_next):
     try:
         response = await call_next(request)
     except Exception as exc:
+        exc = mlrun.errors.err_to_str(exc)
         logger.warning(
             "Request handling failed. Sending response",
             # User middleware (like this one) runs after the exception handling middleware, the only thing running after

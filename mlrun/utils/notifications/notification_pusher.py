@@ -549,7 +549,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
                 runs_list.append(run.to_dict())
                 run._notified = True
 
-        text = "pipeline run finished"
+        text = "Pipeline run finished"
         if had_errors:
             text += f" with {had_errors} errors"
         if state:

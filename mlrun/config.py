@@ -1016,9 +1016,9 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self):
+    def get_v3io_access_key(self) -> typing.Optional[str]:
         # Get v3io access key from the environment
-        return os.environ.get("V3IO_ACCESS_KEY")
+        return os.getenv("V3IO_ACCESS_KEY")
 
     def get_model_monitoring_file_target_path(
         self,

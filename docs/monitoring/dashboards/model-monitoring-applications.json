@@ -640,7 +640,8 @@
               "end_infer_time": true,
               "endpoint_id": true,
               "result_extra_data": true,
-              "schedule_time": false
+              "schedule_time": false,
+              "start_infer_time": true
             },
             "indexByName": {
               "application_name": 5,

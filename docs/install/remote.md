@@ -126,7 +126,7 @@ If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V
 
 The `mlrun config set` command sets configuration parameters in mlrun default or the specified environment file. By default, it stores all 
 of the configuration into the default environment file, and your own environment file does not need editing. The default environment file is 
-created by default at `~/.mlrun.env` for Linux and `%USERPROFILE%/.mlrun.env` for Windows. 
+created by default at `~/.mlrun.env`. 
 
 The `set` command can work with the following parameters:
 - `--env-file` or `-f` to set the url path to the mlrun environment file

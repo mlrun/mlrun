@@ -91,7 +91,7 @@ class _BatchWindow:
         )
         return last_analyzed
 
-    def get_interval_range(
+    def get_intervals(
         self,
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """
@@ -362,7 +362,7 @@ class MonitoringApplicationController:
             )
 
             # TODO: run on all intervals
-            intervals = list(batch_window.get_interval_range())
+            intervals = list(batch_window.get_intervals())
             if not intervals:
                 logger.warn(
                     "No intervals were found for this endpoint",

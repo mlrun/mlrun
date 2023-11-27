@@ -34,6 +34,7 @@ from mlrun.utils import logger
 class _BatchWindow:
     def __init__(
         self,
+        project: str,
         endpoint: str,
         application: str,
         timedelta_seconds: int,
@@ -135,11 +136,19 @@ class _BatchWindowGenerator:
         return int(datetime.datetime.fromisoformat(first_request).timestamp())
 
     def get_batch_window(
-        self, endpoint: str, application: str, first_request: Optional[str]
+        self,
+        project: str,
+        endpoint: str,
+        application: str,
+        first_request: Optional[str],
     ) -> _BatchWindow:
-        """Get the batch window for a specific endpoint and application"""
+        """
+        Get the batch window for a specific endpoint and application.
+        first_request is the first request time to the endpoint.
+        """
 
         return _BatchWindow(
+            project=project,
             endpoint=endpoint,
             application=application,
             timedelta_seconds=self._timedelta,
@@ -307,6 +316,7 @@ class MonitoringApplicationController:
             # Getting batch interval start time and end time
             application_name = applications_names[0]
             batch_window = batch_window_generator.get_batch_window(
+                project=project,
                 endpoint=endpoint_id,
                 application=application_name,
                 first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],

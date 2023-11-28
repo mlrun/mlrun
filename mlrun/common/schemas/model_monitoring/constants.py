@@ -251,7 +251,7 @@ class EndpointUID:
         return self.uid
 
 
-class DriftStatus(enum.Enum):
+class DriftStatus(Enum):
     """
     Enum for the drift status values.
     """

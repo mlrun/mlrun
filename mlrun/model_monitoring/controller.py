@@ -471,19 +471,13 @@ class MonitoringApplicationController:
             )
             return endpoint_id, e
 
-    def _delete_old_parquet(self, endpoints: List[Dict[str, Any]], days: int = 1):
-        """Delete application parquets that are older than 24 hours.
-        now_func: Callable[[], datetime.datetime] = datetime.datetime.now,
-        batch_dict: dict[str, int],
-        # Initialize the dictionary of batch interval ranges
-        pattern = "[" + characters_to_remove + "]"
-        self.batch_dict = {}
+    def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
+        """
+        Delete application parquets older than the argument days.
 
-
-        :param endpoints: List of dictionaries of model endpoints records.
+        :param endpoints: A list of dictionaries of model endpoints records.
         """
         if self.parquet_directory.startswith("v3io:///"):
-
             target = mlrun.datastore.targets.BaseStoreTarget(
                 path=self.parquet_directory
             )

@@ -88,7 +88,7 @@ class TestBatchInterval:
         mock = Mock(spec=["kv"])
         mock.kv.get = Mock(side_effect=HttpResponseError)
         with patch(
-            "mlrun.model_monitoring.batch_application.get_v3io_client",
+            "mlrun.model_monitoring.controller.get_v3io_client",
             return_value=mock,
         ):
             return list(

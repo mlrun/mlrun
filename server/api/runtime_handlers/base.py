@@ -1051,8 +1051,10 @@ class BaseRuntimeHandler(ABC):
             project=project,
             uid=uid,
         )
-        self._ensure_run_state(db, db_session, project, uid, name, run_state)
-        self._ensure_run_logs_collected(db, db_session, project, uid)
+        _, _, run = self._ensure_run_state(
+            db, db_session, project, uid, name, run_state
+        )
+        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -1172,7 +1174,7 @@ class BaseRuntimeHandler(ABC):
 
         run = project_run_uid_map.get(project, {}).get(uid)
         run = self._ensure_run(
-            db, db_session, name, project, run, search_run=False, uid=uid
+            db, db_session, name, project, run, search_run=True, uid=uid
         )
         (
             run_state,
@@ -1201,7 +1203,7 @@ class BaseRuntimeHandler(ABC):
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
 
         if updated_run_state in RunStates.terminal_states():
-            self._ensure_run_logs_collected(db, db_session, project, uid)
+            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _resolve_resource_state_and_apply_threshold(
         self,
@@ -1468,14 +1470,14 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str
+        db: DBInterface, db_session: Session, project: str, uid: str, run: Dict = None
     ):
         log_file_exists, _ = crud.Logs().log_file_exists_for_run_uid(project, uid)
         if not log_file_exists:
             # this stays for now for backwards compatibility in case we would not use the log collector but rather
             # the legacy method to pull logs
             logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S
+                db_session, project, uid, source=LogSources.K8S, run=run
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
@@ -1492,7 +1494,7 @@ class BaseRuntimeHandler(ABC):
         name: str,
         run_state: str,
         run: Dict = None,
-        search_run=True,
+        search_run: bool = True,
     ) -> Tuple[bool, str, dict]:
         run = self._ensure_run(
             db, db_session, name, project, run, search_run=search_run, uid=uid
@@ -1549,7 +1551,7 @@ class BaseRuntimeHandler(ABC):
     def _ensure_run(db, db_session, name, project, run, search_run, uid):
         if run is None:
             run = {}
-        if search_run:
+        if not run and search_run:
             try:
                 run = db.read_run(db_session, uid, project)
             except mlrun.errors.MLRunNotFoundError:

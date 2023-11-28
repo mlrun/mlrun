@@ -220,6 +220,27 @@ class DatastoreProfileDBFS(DatastoreProfile):
         return res if res else None
 
 
+class DatastoreProfileGCS(DatastoreProfile):
+    type: str = pydantic.Field("gcs")
+    _private_attributes = ("gcp_credentials",)
+    credentials_path: typing.Optional[str] = None  # path to file.
+    gcp_credentials: typing.Optional[str] = None
+
+    def url(self, subpath) -> str:
+        if subpath.startswith("/"):
+            #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
+            subpath = subpath[1:]
+        return f"gcs://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.credentials_path:
+            res["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
+        if self.gcp_credentials:
+            res["GCP_CREDENTIALS"] = self.gcp_credentials
+        return res if res else None
+
+
 class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def _to_json(attributes):
@@ -277,6 +298,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "kafka_target": DatastoreProfileKafkaTarget,
             "kafka_source": DatastoreProfileKafkaSource,
             "dbfs": DatastoreProfileDBFS,
+            "gcs": DatastoreProfileGCS,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

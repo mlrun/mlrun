@@ -99,7 +99,7 @@ default_config = {
     "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
     "monitoring": {
         "runs": {
-            "list_runs_last_update_time_from": 7,  # days
+            "list_runs_time_period_in_days": 7,  # days
         }
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)

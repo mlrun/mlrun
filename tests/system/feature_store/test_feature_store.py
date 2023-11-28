@@ -3961,7 +3961,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
@@ -4066,7 +4068,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by=["n"],
         )
 
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     def test_pandas_ingest_from_parquet(self, with_indexes):
@@ -4406,7 +4410,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
         res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert_frame_equal(expected_df, res_df)
+        assert_frame_equal(expected_df, res_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize(

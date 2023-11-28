@@ -160,10 +160,8 @@ class Runs(
             return_as_run_structs=return_as_run_structs,
             with_notifications=with_notifications,
         )
-
-        if runs:
-            for run in runs:
-                run_list.append(run)
+        for run in runs:
+            run_list.append(run)
 
         return run_list
 

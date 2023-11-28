@@ -672,7 +672,7 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
         with_notifications=True,
     )
 
-    if not runs:
+    if not len(runs):
         return
 
     # Unmasking the run parameters from secrets before handing them over to the notification handler
@@ -685,8 +685,7 @@ def _push_terminal_run_notifications(db: server.api.db.base.DBInterface, db_sess
     ]
 
     logger.debug(
-        "Got terminal runs with configured notifications",
-        runs_amount=len(unmasked_runs),
+        "Got terminal runs with configured notifications", runs_amount=len(runs)
     )
     mlrun.utils.notifications.NotificationPusher(unmasked_runs).push()
 

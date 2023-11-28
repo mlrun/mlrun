@@ -1010,7 +1010,7 @@ def my_func(context):
     def test_state_thresholds_defaults(self, db: Session, k8s_secrets_mock):
         runtime = self._generate_runtime()
         self.execute_function(runtime)
-        run = list(get_db().list_runs(db, project=self.project))[0]
+        run = get_db().list_runs(db, project=self.project)[0]
         assert (
             run["spec"]["state_thresholds"]
             == mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
@@ -1029,7 +1029,7 @@ def my_func(context):
             state_thresholds=state_thresholds,
         )
         self.execute_function(runtime)
-        run = list(get_db().list_runs(db, project=self.project))[0]
+        run = get_db().list_runs(db, project=self.project)[0]
         assert run["spec"]["state_thresholds"] == state_thresholds
 
         override_state_thresholds = {
@@ -1041,7 +1041,7 @@ def my_func(context):
             patch=False,
         )
         self.execute_function(runtime)
-        run = list(get_db().list_runs(db, project=self.project))[0]
+        run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = override_state_thresholds
         expected_state_thresholds[
             "image_pull_backoff"
@@ -1059,7 +1059,7 @@ def my_func(context):
             state_thresholds=patch_state_thresholds,
         )
         self.execute_function(runtime)
-        run = list(get_db().list_runs(db, project=self.project))[0]
+        run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = patch_state_thresholds
         expected_state_thresholds["running"] = override_state_thresholds["running"]
         expected_state_thresholds[

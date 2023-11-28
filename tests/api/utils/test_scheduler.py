@@ -191,7 +191,7 @@ async def test_invoke_schedule(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
@@ -202,17 +202,17 @@ async def test_invoke_schedule(
         scheduled_object,
         cron_trigger,
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     response_1 = await scheduler.invoke_schedule(
         db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
     response_2 = await scheduler.invoke_schedule(
         db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 2
     for run in runs:
         assert run["status"]["state"] == RunStates.completed
@@ -263,7 +263,7 @@ async def test_get_schedule_last_run_deleted(
     await scheduler.invoke_schedule(
         db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
 
     run_uid = runs[0]["metadata"]["uid"]
@@ -276,7 +276,7 @@ async def test_get_schedule_last_run_deleted(
     assert schedule.last_run["metadata"]["project"] == project_name
 
     # delete the last run for the schedule, ensure we can still get the schedule without failing
-    server.api.crud.Runs().del_run(db, uid=run_uid, project=project_name)
+    get_db().del_run(db, uid=run_uid, project=project_name)
     schedule = scheduler.get_schedule(
         db, project_name, schedule_name, include_last_run=True
     )
@@ -298,7 +298,7 @@ async def test_create_schedule_mlrun_function(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
     expected_call_counter = 1
@@ -324,7 +324,7 @@ async def test_create_schedule_mlrun_function(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
 
     assert len(runs) == expected_call_counter
 
@@ -416,7 +416,7 @@ async def test_schedule_upgrade_from_scheduler_without_credentials_store(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 3
     assert (
         server.api.utils.singletons.project_member.get_project_member().get_project_owner.call_count
@@ -1107,7 +1107,7 @@ async def test_update_schedule(
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.create_schedule(
         db,
@@ -1240,7 +1240,7 @@ async def test_update_schedule(
     ).total_seconds() + schedule_end_time_margin
 
     await asyncio.sleep(time_to_sleep)
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
     assert runs[0]["status"]["state"] == RunStates.completed
 
@@ -1330,7 +1330,7 @@ async def test_schedule_job_concurrency_limit(
         else bump_counter_and_wait
     )
 
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
     now = datetime.now(timezone.utc)
@@ -1373,7 +1373,7 @@ async def test_schedule_job_concurrency_limit(
     # wait so all runs will complete
     await asyncio.sleep(7 - random_sleep_time)
     if schedule_kind == mlrun.common.schemas.ScheduleKinds.job:
-        runs = server.api.crud.Runs().list_runs(db, project=project_name)
+        runs = get_db().list_runs(db, project=project_name)
         assert len(runs) == run_amount
     else:
         assert call_counter == run_amount
@@ -1406,7 +1406,7 @@ async def test_schedule_job_next_run_time(
         db, project_name, handler="sleep_two_seconds"
     )
 
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
 
     scheduler.create_schedule(
@@ -1421,7 +1421,7 @@ async def test_schedule_job_next_run_time(
     )
 
     while datetime.now(timezone.utc) < now_plus_5_seconds:
-        runs = server.api.crud.Runs().list_runs(db, project=project_name)
+        runs = get_db().list_runs(db, project=project_name)
         if len(runs) == 1:
             break
 
@@ -1436,7 +1436,7 @@ async def test_schedule_job_next_run_time(
         db, mlrun.common.schemas.AuthInfo(), project_name, schedule_name
     )
 
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 1
 
     # assert next run time was updated
@@ -1449,7 +1449,7 @@ async def test_schedule_job_next_run_time(
 
     # wait so all runs will complete
     await asyncio.sleep(5)
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 2
 
 
@@ -1466,7 +1466,7 @@ def test_store_schedule(db: Session, scheduler: Scheduler):
     scheduled_object = _create_mlrun_function_and_matching_scheduled_object(
         db, project_name
     )
-    runs = server.api.crud.Runs().list_runs(db, project=project_name)
+    runs = get_db().list_runs(db, project=project_name)
     assert len(runs) == 0
     scheduler.store_schedule(
         db,

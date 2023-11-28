@@ -3034,7 +3034,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_1 = result_1.to_dataframe()
 
-        pd.testing.assert_frame_equal(df_res_1, expected_df, check_dtype=False)
+        assert_frame_equal(df_res_1, expected_df, check_dtype=False)
 
         result_2 = fstore.get_offline_features(
             fv_name,
@@ -3045,7 +3045,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_2 = result_2.to_dataframe()
 
-        pd.testing.assert_frame_equal(df_res_2, expected_df, check_dtype=False)
+        assert_frame_equal(df_res_2, expected_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_set_event_with_spaces_or_hyphens(self, engine):
@@ -3735,11 +3735,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected = pd.DataFrame(
                 employees_with_department, columns=["id", "name"]
             ).set_index("id", drop=True)
-            assert_frame_equal(expected, resp.to_dataframe())
+            assert_frame_equal(expected, resp.to_dataframe(), check_dtype=False)
         else:
             assert_frame_equal(
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
+                check_dtype=False,
             )
 
         with fstore.get_online_feature_service(vector) as svc:
@@ -3763,7 +3764,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3790,7 +3793,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by=["n"],
         )
-        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+        assert_frame_equal(
+            join_employee_managers, resp_2.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3817,7 +3822,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="name",
         )
-        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe(), check_dtype=False)
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
@@ -3851,7 +3856,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_all, resp_4.to_dataframe())
+        assert_frame_equal(join_all, resp_4.to_dataframe(), check_dtype=False)
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})

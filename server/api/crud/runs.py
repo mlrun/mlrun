@@ -134,9 +134,10 @@ class Runs(
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
-        return server.api.utils.singletons.db.get_db().list_runs(
+        run_list = mlrun.lists.RunList()
+        runs = server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
             name=name,
             uid=uid,
@@ -159,6 +160,10 @@ class Runs(
             return_as_run_structs=return_as_run_structs,
             with_notifications=with_notifications,
         )
+        for run in runs:
+            run_list.append(run)
+
+        return run_list
 
     def delete_run(
         self,

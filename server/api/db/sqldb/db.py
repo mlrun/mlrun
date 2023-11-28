@@ -371,14 +371,17 @@ class SQLDB(DBInterface):
                 partition_order,
                 max_partitions,
             )
+
         if not return_as_run_structs:
-            return query.all()
+            for run_struct in query:
+                yield run_struct
+
+            return None
 
         # Purposefully not using outer join to avoid returning runs without notifications
         if with_notifications:
             query = query.join(Run.Notification)
 
-        runs = RunList()
         for run in query:
             run_struct = run.struct
             if with_notifications:
@@ -395,9 +398,7 @@ class SQLDB(DBInterface):
                     run_struct["status"]["notifications"][
                         notification.name
                     ] = notification_status
-            runs.append(run_struct)
-
-        return runs
+            yield run_struct
 
     def del_run(self, session, uid, project=None, iter=0):
         project = project or config.default_project

@@ -1172,7 +1172,7 @@ class BaseRuntimeHandler(ABC):
 
         run = project_run_uid_map.get(project, {}).get(uid)
         run = self._ensure_run(
-            db, db_session, name, project, run, search_run=False, uid=uid
+            db, db_session, name, project, run, search_run=True, uid=uid
         )
         (
             run_state,

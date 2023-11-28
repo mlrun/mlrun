@@ -1089,7 +1089,21 @@ class BaseRuntimeHandler(ABC):
     def _list_runs_for_monitoring(
         self, db: DBInterface, db_session: Session, states: list = None
     ):
-        runs = db.list_runs(db_session, project="*", states=states)
+        last_update_time_from = None
+        if config.monitoring.runs.list_runs_time_period_in_days:
+            last_update_time_from = (
+                datetime.now()
+                - timedelta(
+                    days=int(config.monitoring.runs.list_runs_time_period_in_days)
+                )
+            ).isoformat()
+
+        runs = db.list_runs(
+            db_session,
+            project="*",
+            states=states,
+            last_update_time_from=last_update_time_from,
+        )
         project_run_uid_map = {}
         run_with_missing_data = []
         duplicated_runs = []

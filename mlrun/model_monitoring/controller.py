@@ -17,9 +17,7 @@ import datetime
 import json
 import os
 import re
-from typing import Callable, Optional, Tuple
-
-import pandas as pd
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -32,11 +30,11 @@ from mlrun.model_monitoring.helpers import get_monitoring_parquet_path, get_stre
 from mlrun.utils import logger
 
 
-class BatchApplicationProcessor:
+class MonitoringApplicationController:
     """
-    The main object to handle the batch processing job. This object is used to get the required configurations and
+    The main object to handle the monitoring processing job. This object is used to get the required configurations and
     to manage the main monitoring drift detection process based on the current batch.
-    Note that the BatchProcessor object requires access keys along with valid project configurations.
+    Note that the MonitoringApplicationController object requires access keys along with valid project configurations.
     """
 
     def __init__(
@@ -45,7 +43,7 @@ class BatchApplicationProcessor:
         project: str,
     ):
         """
-        Initialize Batch Processor object.
+        Initialize Monitoring Application Processor object.
 
         :param context:                     An MLRun context.
         :param project:                     Project name.
@@ -54,7 +52,7 @@ class BatchApplicationProcessor:
         self.project = project
 
         logger.info(
-            "Initializing BatchProcessor",
+            "Initializing MonitoringApplicationController",
             project=project,
         )
 
@@ -81,7 +79,7 @@ class BatchApplicationProcessor:
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
             project=project,
-            kind=mm_constants.FileTargetKind.BATCH_CONTROLLER_PARQUET,
+            kind=mm_constants.FileTargetKind.APPS_PARQUET,
         )
         self.storage_options = None
         if not mlrun.mlconf.is_ce_mode():
@@ -145,51 +143,53 @@ class BatchApplicationProcessor:
                         )
                         continue
                     future = pool.submit(
-                        BatchApplicationProcessor.model_endpoint_process,
-                        endpoint,
-                        applications_names,
-                        self.batch_dict,
-                        self.project,
-                        self.parquet_directory,
-                        self.storage_options,
-                        self.model_monitoring_access_key,
+                        MonitoringApplicationController.model_endpoint_process,
+                        endpoint=endpoint,
+                        applications_names=applications_names,
+                        batch_interval_dict=self.batch_dict,
+                        project=self.project,
+                        parquet_directory=self.parquet_directory,
+                        storage_options=self.storage_options,
+                        model_monitoring_access_key=self.model_monitoring_access_key,
                     )
                     futures.append(future)
+
             for future in concurrent.futures.as_completed(futures):
                 res = future.result()
                 if res:
                     self.endpoints_exceptions[res[0]] = res[1]
 
-            self._delete_old_parquet()
+            self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod
     def model_endpoint_process(
         cls,
         endpoint: dict,
-        applications_names: list[str],
-        bath_dict: dict,
+        applications_names: List[str],
+        batch_interval_dict: dict,
         project: str,
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
     ):
         """
-        Process a model endpoint and trigger the monitoring applications,
-        this function running on different process for each endpoint.
+        Process a model endpoint and trigger the monitoring applications. This function running on different process
+        for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
+        for a specific time range.
 
-        :param endpoint:                    (dict) Dictionary representing the model endpoint.
-        :param applications_names:          (Lst[str]) List of application names to push results to.
-        :param bath_dict:                   (dict) Dictionary containing batch interval start and end times.
+        :param endpoint:                    (dict) Model endpoint record.
+        :param applications_names:          (List[str]) List of application names to push results to.
+        :param batch_interval_dict:         (dict) Batch interval start and end times.
         :param project:                     (str) Project name.
-        :param parquet_directory:           (str) Directory to store Parquet files
+        :param parquet_directory:           (str) Directory to store application parquet files
         :param storage_options:             (dict) Storage options for writing ParquetTarget.
         :param model_monitoring_access_key: (str) Access key to apply the model monitoring process.
 
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
-            # Getting batch interval start time and end time
-            start_time, end_time = cls._get_interval_range(bath_dict)
+            # Get the monitoring feature set of the current model endpoint.
+            # Will be used later to retrieve the infer data through the feature set target.
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
@@ -201,80 +201,74 @@ class BatchApplicationProcessor:
                     if label not in list(m_fs.spec.features.keys()):
                         m_fs.add_feature(fstore.Feature(name=label, value_type="float"))
 
-            # TODO : add extra feature_sets
+            # Getting batch interval start time and end time
+            # TODO: Once implemented, use the monitoring policy to generate time range for each application
+            start_infer_time, end_infer_time = cls._get_interval_range(
+                batch_interval_dict
+            )
+            for application in applications_names:
+                try:
+                    # Get application sample data
+                    offline_response = cls._get_sample_df(
+                        feature_set=m_fs,
+                        endpoint_id=endpoint_id,
+                        start_infer_time=start_infer_time,
+                        end_infer_time=end_infer_time,
+                        parquet_directory=parquet_directory,
+                        storage_options=storage_options,
+                        application_name=application,
+                    )
 
-            try:
-                # get sample data
-                df = cls._get_sample_df(
-                    m_fs,
-                    endpoint_id,
-                    end_time,
-                    start_time,
-                    parquet_directory,
-                    storage_options,
-                )
+                    df = offline_response.to_dataframe()
+                    parquet_target_path = offline_response.vector.get_target_path()
 
-                if len(df) == 0:
+                    if len(df) == 0:
+                        logger.warn(
+                            "Not enough model events since the beginning of the batch interval",
+                            featureset_name=m_fs.metadata.name,
+                            endpoint=endpoint[mm_constants.EventFieldType.UID],
+                            min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                            start_time=start_infer_time,
+                            end_time=end_infer_time,
+                        )
+                        return
+
+                # Continue if not enough events provided since the deployment of the model endpoint
+                except FileNotFoundError:
                     logger.warn(
-                        "Not enough model events since the beginning of the batch interval",
-                        featureset_name=m_fs.metadata.name,
+                        "Parquet not found, probably due to not enough model events",
                         endpoint=endpoint[mm_constants.EventFieldType.UID],
                         min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                        start_time=start_time,
-                        end_time=end_time,
                     )
                     return
 
-            # TODO: The below warn will be removed once the state of the Feature Store target is updated
-            #       as expected. In that case, the existence of the file will be checked before trying to get
-            #       the offline data from the feature set.
-            # Continue if not enough events provided since the deployment of the model endpoint
-            except FileNotFoundError:
-                logger.warn(
-                    "Parquet not found, probably due to not enough model events",
-                    # parquet_target=m_fs.status.targets[0].path, TODO:
-                    endpoint=endpoint[mm_constants.EventFieldType.UID],
-                    min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                # Get the timestamp of the latest request:
+                latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
+
+                # Get the feature stats from the model endpoint for reference data
+                feature_stats = json.loads(
+                    endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                 )
-                return
 
-            # Infer feature set stats and schema
-            fstore.api._infer_from_static_df(
-                df,
-                m_fs,
-                options=mlrun.data_types.infer.InferOptions.all_stats(),
-            )
+                # Get the current stats:
+                current_stats = calculate_inputs_statistics(
+                    sample_set_statistics=feature_stats,
+                    inputs=df,
+                )
 
-            # Save feature set to apply changes
-            m_fs.save()
-
-            # Get the timestamp of the latest request:
-            latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
-
-            # Get the feature stats from the model endpoint for reference data
-            feature_stats = json.loads(
-                endpoint[mm_constants.EventFieldType.FEATURE_STATS]
-            )
-
-            # Get the current stats:
-            current_stats = calculate_inputs_statistics(
-                sample_set_statistics=feature_stats,
-                inputs=df,
-            )
-
-            # create and push data to all applications
-            cls._push_to_applications(
-                current_stats,
-                feature_stats,
-                parquet_directory,
-                end_time,
-                endpoint_id,
-                latest_request,
-                project,
-                applications_names,
-                model_monitoring_access_key,
-            )
-
+                # create and push data to all applications
+                cls._push_to_applications(
+                    current_stats=current_stats,
+                    feature_stats=feature_stats,
+                    start_infer_time=start_infer_time,
+                    end_infer_time=end_infer_time,
+                    endpoint_id=endpoint_id,
+                    latest_request=latest_request,
+                    project=project,
+                    applications_names=applications_names,
+                    model_monitoring_access_key=model_monitoring_access_key,
+                    parquet_target_path=parquet_target_path,
+                )
         except FileNotFoundError as e:
             logger.error(
                 f"Exception for endpoint {endpoint[mm_constants.EventFieldType.UID]}"
@@ -312,107 +306,79 @@ class BatchApplicationProcessor:
             pair_list = pair.split(":")
             self.batch_dict[pair_list[0]] = float(pair_list[1])
 
-    @staticmethod
-    def _get_parquet_path(
-        parquet_directory: str, schedule_time: datetime.datetime, endpoint_id: str
-    ):
-        schedule_time_str = ""
-        for unit, fmt in [
-            ("year", "%Y"),
-            ("month", "%m"),
-            ("day", "%d"),
-            ("hour", "%H"),
-            ("minute", "%M"),
-        ]:
-            schedule_time_str += f"{unit}={schedule_time.strftime(fmt)}/"
-        endpoint_str = f"{mm_constants.EventFieldType.ENDPOINT_ID}={endpoint_id}"
+    def _delete_old_parquet(self, endpoints: List[Dict[str, Any]], days: int = 1):
+        """Delete application parquets that are older than 24 hours.
 
-        return f"{parquet_directory}/{schedule_time_str}/{endpoint_str}"
+        :param endpoints: List of dictionaries of model endpoints records.
+        """
+        if self.parquet_directory.startswith("v3io:///"):
 
-    def _delete_old_parquet(self):
-        """Delete all the sample parquets that were saved yesterday - (
-        change it to be configurable & and more simple)"""
-        _, schedule_time = BatchApplicationProcessor._get_interval_range(
-            self.batch_dict
-        )
-        threshold_date = schedule_time - datetime.timedelta(days=1)
-        threshold_year = threshold_date.year
-        threshold_month = threshold_date.month
-        threshold_day = threshold_date.day
-
-        base_directory = get_monitoring_parquet_path(
-            project=self.project,
-            kind=mm_constants.FileTargetKind.BATCH_CONTROLLER_PARQUET,
-        )
-        target = ParquetTarget(path=base_directory)
-        store, _ = target._get_store_and_path()
-        fs = store.get_filesystem()
-
-        try:
-            # List all subdirectories in the base directory
-            years_subdirectories = fs.listdir(base_directory)
-
-            for y_subdirectory in years_subdirectories:
-                year = int(y_subdirectory["name"].split("/")[-1].split("=")[1])
-                if year == threshold_year:
-                    month_subdirectories = fs.listdir(y_subdirectory["name"])
-                    for m_subdirectory in month_subdirectories:
-                        month = int(m_subdirectory["name"].split("/")[-1].split("=")[1])
-                        if month == threshold_month:
-                            day_subdirectories = fs.listdir(m_subdirectory["name"])
-                            for d_subdirectory in day_subdirectories:
-                                day = int(
-                                    d_subdirectory["name"].split("/")[-1].split("=")[1]
-                                )
-                                if day == threshold_day - 1:
-                                    fs.rm(path=d_subdirectory["name"], recursive=True)
-                        elif month == threshold_month - 1 and threshold_day == 1:
-                            fs.rm(path=m_subdirectory["name"], recursive=True)
-                elif (
-                    year == threshold_year - 1
-                    and threshold_month == 1
-                    and threshold_day == 1
-                ):
-                    fs.rm(path=y_subdirectory["name"], recursive=True)
-        except FileNotFoundError as exc:
-            logger.warn(
-                f"Batch application process were unsuccessful to remove the old parquets due to {exc}."
+            target = mlrun.datastore.targets.BaseStoreTarget(
+                path=self.parquet_directory
             )
+            store, _ = target._get_store_and_path()
+            fs = store.get_filesystem()
+
+            # calculate time threshold (keep only files from the last 24 hours)
+            time_to_keep = float(
+                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
+            )
+            for endpoint in endpoints:
+                try:
+                    apps_parquet_directories = fs.listdir(
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}"
+                    )
+                    for directory in apps_parquet_directories:
+                        if directory["mtime"] < time_to_keep:
+                            # Delete files
+                            fs.rm(path=directory["name"], recursive=True)
+                            # Delete directory
+                            fs.rmdir(path=directory["name"])
+                except FileNotFoundError:
+                    logger.info(
+                        "Application parquet directory is empty, "
+                        "probably parquets have not yet been created for this app",
+                        endpoint=endpoint[mm_constants.EventFieldType.UID],
+                        path=f"{self.parquet_directory}"
+                        f"/key={endpoint[mm_constants.EventFieldType.UID]}",
+                    )
 
     @staticmethod
     def _push_to_applications(
         current_stats,
         feature_stats,
-        parquet_directory,
-        end_time,
+        start_infer_time,
+        end_infer_time,
         endpoint_id,
         latest_request,
         project,
         applications_names,
         model_monitoring_access_key,
+        parquet_target_path,
     ):
         """
         Pushes data to multiple stream applications.
 
         :param current_stats:       Current statistics of input data.
         :param feature_stats:       Statistics of train features.
-        :param parquet_directory:   Directory where sample Parquet files are stored.
-        :param end_time:            End time of the monitoring schedule.
+        :param start_infer_time:    The beginning of the infer interval window.
+        :param end_infer_time:      The end of the infer interval window.
         :param endpoint_id:         Identifier for the model endpoint.
         :param latest_request:      Timestamp of the latest model request.
         :param project: mlrun       Project name.
         :param applications_names:  List of application names to which data will be pushed.
 
         """
+
         data = {
             mm_constants.ApplicationEvent.CURRENT_STATS: json.dumps(current_stats),
             mm_constants.ApplicationEvent.FEATURE_STATS: json.dumps(feature_stats),
-            mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: BatchApplicationProcessor._get_parquet_path(
-                parquet_directory=parquet_directory,
-                schedule_time=end_time,
-                endpoint_id=endpoint_id,
+            mm_constants.ApplicationEvent.SAMPLE_PARQUET_PATH: parquet_target_path,
+            mm_constants.ApplicationEvent.START_INFER_TIME: start_infer_time.isoformat(
+                sep=" ", timespec="microseconds"
             ),
-            mm_constants.ApplicationEvent.SCHEDULE_TIME: end_time.isoformat(
+            mm_constants.ApplicationEvent.END_INFER_TIME: end_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
             mm_constants.ApplicationEvent.LAST_REQUEST: latest_request.isoformat(
@@ -427,6 +393,7 @@ class BatchApplicationProcessor:
         for app_name in applications_names:
             data.update({mm_constants.ApplicationEvent.APPLICATION_NAME: app_name})
             stream_uri = get_stream_path(project=project, application_name=app_name)
+
             logger.info(
                 f"push endpoint_id {endpoint_id} to {app_name} by stream :{stream_uri}"
             )
@@ -436,58 +403,51 @@ class BatchApplicationProcessor:
 
     @staticmethod
     def _get_sample_df(
-        feature_set,
-        endpoint_id,
-        end_time,
-        start_time,
-        parquet_directory,
-        storage_options,
-    ):
+        feature_set: mlrun.common.schemas.FeatureSet,
+        endpoint_id: str,
+        start_infer_time: datetime.datetime,
+        end_infer_time: datetime.datetime,
+        parquet_directory: str,
+        storage_options: dict,
+        application_name: str,
+    ) -> mlrun.feature_store.OfflineVectorResponse:
         """
-        Retrieves a sample DataFrame of the current input.
+        Retrieves a sample DataFrame of the current input according to the provided infer interval window.
 
         :param feature_set:         The main feature set.
         :param endpoint_id:         Identifier for the model endpoint.
-        :param end_time:            End time of the monitoring schedule.
-        :param start_time:          Start time of the monitoring schedule.
+        :param start_infer_time:    The beginning of the infer interval window.
+        :param end_infer_time:      The end of the infer interval window.
         :param parquet_directory:   Directory where Parquet files are stored.
         :param storage_options:     Storage options for accessing the data.
+        :param application_name:    Current application name.
 
-        :return: Sample DataFrame containing offline features for the specified endpoint.
+        :return: OfflineVectorResponse that can be used for generating a sample DataFrame for the specified endpoint.
 
         """
         features = [f"{feature_set.metadata.name}.*"]
-        join_graph = fstore.JoinGraph(first_feature_set=feature_set.metadata.name)
         vector = fstore.FeatureVector(
             name=f"{endpoint_id}_vector",
             features=features,
             with_indexes=True,
-            join_graph=join_graph,
         )
-        vector.feature_set_objects = {
-            feature_set.metadata.name: feature_set
-        }  # to avoid exception when the taf is not latest
-        entity_rows = pd.DataFrame(
-            {
-                mm_constants.EventFieldType.ENDPOINT_ID: [endpoint_id],
-                "scheduled_time": [end_time],
-            }
-        )
+        vector.metadata.tag = application_name
+        vector.feature_set_objects = {feature_set.metadata.name: feature_set}
+
+        # get offline features based on application start and end time.
+        # store the result parquet by partitioning by controller end processing time
         offline_response = fstore.get_offline_features(
             feature_vector=vector,
-            entity_rows=entity_rows,
-            entity_timestamp_column="scheduled_time",
-            start_time=start_time,
-            end_time=end_time,
+            start_time=start_infer_time,
+            end_time=end_infer_time,
             timestamp_for_filtering=mm_constants.EventFieldType.TIMESTAMP,
             target=ParquetTarget(
-                path=parquet_directory,
-                time_partitioning_granularity="minute",
+                path=parquet_directory
+                + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
                 partition_cols=[
                     mm_constants.EventFieldType.ENDPOINT_ID,
                 ],
                 storage_options=storage_options,
             ),
         )
-        df = offline_response.to_dataframe()
-        return df
+        return offline_response

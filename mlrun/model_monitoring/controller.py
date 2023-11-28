@@ -108,11 +108,23 @@ class _BatchWindow:
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """Generate the batch interval time ranges."""
         if self._start is not None:
+            entered = False
             for timestamp in range(self._start, self._stop, self._step):
+                entered = True
                 start_time = datetime.datetime.utcfromtimestamp(timestamp)
                 end_time = datetime.datetime.utcfromtimestamp(timestamp + self._step)
                 yield start_time, end_time
                 self._update_last_analyzed(timestamp + self._step)
+            if not entered:
+                logger.info(
+                    "All the data is set, but no complete intervals were found. "
+                    "Wait for last_updated to be updated.",
+                    endpoint=self._endpoint,
+                    application=self._application,
+                    start=self._start,
+                    stop=self._stop,
+                    step=self._step,
+                )
         else:
             logger.warn(
                 "The first request time is not not found for this endpoint. "

@@ -29,31 +29,23 @@ class GoogleCloudStorageStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
-        # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
-        # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
-        # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
-        # we just read a specific env. variable, write it to a temp file and point the env variable to it.
+        # Gives priority to secrets GOOGLE_APPLICATION_CREDENTIALS,
+        # then secrets GCP_CREDENTIALS,
+        # then environment GOOGLE_APPLICATION_CREDENTIALS,
+        # and finally, environment GCP_CREDENTIALS.
+        # Secrets have first priority, especially useful for profile cases.
 
-        # Give priority to secrets, then environment variables (especially useful for profile cases).
-
-        missing_from_env_and_secrets = (
-            "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ
-            and (
-                not self._secrets
-                or "GOOGLE_APPLICATION_CREDENTIALS" not in self._secrets
-            )
-        )
-        # Give priority to secrets, then environment variables (especially useful for profile cases).
-
-        # if GOOGLE_APPLICATION_CREDENTIALS exists in both the environment and secrets,
-        # _get_secret_or_env will automatically give priority to secrets. That is why, in the condition,
-        # we are looking in secrets only for GCP_CREDENTIALS.
-        exists_in_env_and_secrets = (
-            "GOOGLE_APPLICATION_CREDENTIALS" in os.environ
-            and self._secrets
+        choose_gcp_credentials = (
+            self._secrets
             and "GCP_CREDENTIALS" in self._secrets
-        )
-        if missing_from_env_and_secrets or exists_in_env_and_secrets:
+            and "GOOGLE_APPLICATION_CREDENTIALS" not in self._secrets
+        ) or ("GOOGLE_APPLICATION_CREDENTIALS" not in os.environ)
+
+        if choose_gcp_credentials:
+            # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
+            # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
+            # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
+            # we just read a specific env. variable, write it to a temp file and point the env variable to it.
             gcp_credentials = self._get_secret_or_env("GCP_CREDENTIALS")
             if gcp_credentials:
                 with tempfile.NamedTemporaryFile(

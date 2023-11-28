@@ -126,7 +126,6 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.23.0"},
         "boto3": {">=1.24.59,<1.27"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10.0, <13"},
         "nbclassic": {">=0.2.8"},
         "pandas": {">=1.2, <3"},
         "gitpython": {"~=3.1, >= 3.1.30"},

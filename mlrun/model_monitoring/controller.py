@@ -371,23 +371,6 @@ class MonitoringApplicationController:
         """
         endpoint_id = endpoint[mm_constants.EventFieldType.UID]
         try:
-            # Getting batch interval start time and end time
-            application_name = applications_names[0]
-            batch_window = batch_window_generator.get_batch_window(
-                project=project,
-                endpoint=endpoint_id,
-                application=application_name,
-                first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
-            )
-
-            # TODO: run on all intervals
-            intervals = list(batch_window.get_intervals())
-            if not intervals:
-                logger.warn(
-                    "No intervals were found for this endpoint",
-                    endpoint=endpoint_id,
-                )
-                return
             m_fs = fstore.get_feature_set(
                 endpoint[mm_constants.EventFieldType.FEATURE_SET_URI]
             )
@@ -399,72 +382,77 @@ class MonitoringApplicationController:
                     if label not in list(m_fs.spec.features.keys()):
                         m_fs.add_feature(fstore.Feature(name=label, value_type="float"))
 
-            # Getting batch interval start time and end time
-            # TODO: Once implemented, use the monitoring policy to generate time range for each application
-            start_infer_time, end_infer_time = intervals[-1]
             for application in applications_names:
-                try:
-                    # Get application sample data
-                    offline_response = cls._get_sample_df(
-                        feature_set=m_fs,
-                        endpoint_id=endpoint_id,
-                        start_infer_time=start_infer_time,
-                        end_infer_time=end_infer_time,
-                        parquet_directory=parquet_directory,
-                        storage_options=storage_options,
-                        application_name=application,
-                    )
+                batch_window = batch_window_generator.get_batch_window(
+                    project=project,
+                    endpoint=endpoint_id,
+                    application=application,
+                    first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
+                )
 
-                    df = offline_response.to_dataframe()
-                    parquet_target_path = offline_response.vector.get_target_path()
+                for start_infer_time, end_infer_time in batch_window.get_intervals():
+                    try:
+                        # Get application sample data
+                        offline_response = cls._get_sample_df(
+                            feature_set=m_fs,
+                            endpoint_id=endpoint_id,
+                            start_infer_time=start_infer_time,
+                            end_infer_time=end_infer_time,
+                            parquet_directory=parquet_directory,
+                            storage_options=storage_options,
+                            application_name=application,
+                        )
 
-                    if len(df) == 0:
+                        df = offline_response.to_dataframe()
+                        parquet_target_path = offline_response.vector.get_target_path()
+
+                        if len(df) == 0:
+                            logger.warn(
+                                "Not enough model events since the beginning of the batch interval",
+                                featureset_name=m_fs.metadata.name,
+                                endpoint=endpoint[mm_constants.EventFieldType.UID],
+                                min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                                start_time=start_infer_time,
+                                end_time=end_infer_time,
+                            )
+                            return
+
+                    # Continue if not enough events provided since the deployment of the model endpoint
+                    except FileNotFoundError:
                         logger.warn(
-                            "Not enough model events since the beginning of the batch interval",
-                            featureset_name=m_fs.metadata.name,
+                            "Parquet not found, probably due to not enough model events",
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                             min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
-                            start_time=start_infer_time,
-                            end_time=end_infer_time,
                         )
                         return
 
-                # Continue if not enough events provided since the deployment of the model endpoint
-                except FileNotFoundError:
-                    logger.warn(
-                        "Parquet not found, probably due to not enough model events",
-                        endpoint=endpoint[mm_constants.EventFieldType.UID],
-                        min_rqeuired_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
+                    # Get the timestamp of the latest request:
+                    latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
+
+                    # Get the feature stats from the model endpoint for reference data
+                    feature_stats = json.loads(
+                        endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                     )
-                    return
 
-                # Get the timestamp of the latest request:
-                latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
+                    # Get the current stats:
+                    current_stats = calculate_inputs_statistics(
+                        sample_set_statistics=feature_stats,
+                        inputs=df,
+                    )
 
-                # Get the feature stats from the model endpoint for reference data
-                feature_stats = json.loads(
-                    endpoint[mm_constants.EventFieldType.FEATURE_STATS]
-                )
-
-                # Get the current stats:
-                current_stats = calculate_inputs_statistics(
-                    sample_set_statistics=feature_stats,
-                    inputs=df,
-                )
-
-                # create and push data to all applications
-                cls._push_to_applications(
-                    current_stats=current_stats,
-                    feature_stats=feature_stats,
-                    start_infer_time=start_infer_time,
-                    end_infer_time=end_infer_time,
-                    endpoint_id=endpoint_id,
-                    latest_request=latest_request,
-                    project=project,
-                    applications_names=applications_names,
-                    model_monitoring_access_key=model_monitoring_access_key,
-                    parquet_target_path=parquet_target_path,
-                )
+                    # create and push data to all applications
+                    cls._push_to_applications(
+                        current_stats=current_stats,
+                        feature_stats=feature_stats,
+                        start_infer_time=start_infer_time,
+                        end_infer_time=end_infer_time,
+                        endpoint_id=endpoint_id,
+                        latest_request=latest_request,
+                        project=project,
+                        applications_names=applications_names,
+                        model_monitoring_access_key=model_monitoring_access_key,
+                        parquet_target_path=parquet_target_path,
+                    )
         except FileNotFoundError as e:
             logger.error(
                 f"Exception for endpoint {endpoint[mm_constants.EventFieldType.UID]}"

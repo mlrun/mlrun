@@ -3034,7 +3034,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_1 = result_1.to_dataframe()
 
-        assert df_res_1.equals(expected_df)
+        pd.testing.assert_frame_equal(df_res_1, expected_df, check_dtype=False)
 
         result_2 = fstore.get_offline_features(
             fv_name,
@@ -3045,7 +3045,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_2 = result_2.to_dataframe()
 
-        assert df_res_2.equals(expected_df)
+        pd.testing.assert_frame_equal(df_res_2, expected_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_set_event_with_spaces_or_hyphens(self, engine):

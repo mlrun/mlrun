@@ -81,8 +81,7 @@ class GoogleCloudStorageStore(DataStore):
         return self._filesystem
 
     def get_storage_options(self):
-        token = self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS")
-        return dict(token=token)
+        return dict(token=self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS"))
 
     def _prepare_path_and_verify_filesystem(self, key):
         if not self._filesystem:

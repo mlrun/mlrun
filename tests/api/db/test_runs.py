@@ -38,18 +38,18 @@ def test_list_runs_name_filter(db: DBInterface, db_session: Session):
     db.store_run(db_session, run_1, run_uid_1, project)
     db.store_run(db_session, run_2, run_uid_2, project)
     db.store_run(db_session, run_3, run_uid_3, project)
-    runs = db.list_runs(db_session, project=project)
+    runs = list(db.list_runs(db_session, project=project))
     assert len(runs) == 3
 
-    runs = db.list_runs(db_session, name=run_name_1, project=project)
+    runs = list(db.list_runs(db_session, name=run_name_1, project=project))
     assert len(runs) == 1
     assert runs[0]["metadata"]["name"] == run_name_1
 
-    runs = db.list_runs(db_session, name=run_name_2, project=project)
+    runs = list(db.list_runs(db_session, name=run_name_2, project=project))
     assert len(runs) == 1
     assert runs[0]["metadata"]["name"] == run_name_2
 
-    runs = db.list_runs(db_session, name="~RUN_naMe", project=project)
+    runs = list(db.list_runs(db_session, name="~RUN_naMe", project=project))
     assert len(runs) == 2
 
 
@@ -71,7 +71,7 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
         )
         db.store_run_notifications(db_session, [notification], run_uid, project_name)
 
-    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    runs = list(db.list_runs(db_session, project=project_name, with_notifications=True))
     assert len(runs) == num_runs
     for run in runs:
         run_notifications = run["spec"]["notifications"]
@@ -82,13 +82,15 @@ def test_runs_with_notifications(db: DBInterface, db_session: Session):
         )
 
     db.delete_run_notifications(db_session, run_uid=run_uids[0], project=project_name)
-    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    runs = list(db.list_runs(db_session, project=project_name, with_notifications=True))
     assert len(runs) == num_runs - 1
 
     db.delete_run_notifications(db_session, project=project_name)
-    runs = db.list_runs(db_session, project=project_name, with_notifications=False)
+    runs = list(
+        db.list_runs(db_session, project=project_name, with_notifications=False)
+    )
     assert len(runs) == num_runs
-    runs = db.list_runs(db_session, project=project_name, with_notifications=True)
+    runs = list(db.list_runs(db_session, project=project_name, with_notifications=True))
     assert len(runs) == 0
 
     db.del_runs(db_session, project=project_name)
@@ -102,7 +104,7 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
     for i in range(3):
         _create_new_run(db, db_session, project=project_name, iteration=i, uid=uid)
 
-    runs = db.list_runs(db_session, project=project_name, iter=True)
+    runs = list(db.list_runs(db_session, project=project_name, iter=True))
     assert len(runs) == 3
 
     distinct_runs = db.list_distinct_runs_uids(
@@ -160,19 +162,25 @@ def test_list_runs_state_filter(db: DBInterface, db_session: Session):
         uid=run_uid_completed,
         state=mlrun.runtimes.constants.RunStates.completed,
     )
-    runs = db.list_runs(db_session, project=project)
+    runs = list(db.list_runs(db_session, project=project))
     assert len(runs) == 2
 
-    runs = db.list_runs(
-        db_session, project=project, states=[mlrun.runtimes.constants.RunStates.running]
+    runs = list(
+        db.list_runs(
+            db_session,
+            project=project,
+            states=[mlrun.runtimes.constants.RunStates.running],
+        )
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_running
 
-    runs = db.list_runs(
-        db_session,
-        project=project,
-        states=[mlrun.runtimes.constants.RunStates.completed],
+    runs = list(
+        db.list_runs(
+            db_session,
+            project=project,
+            states=[mlrun.runtimes.constants.RunStates.completed],
+        )
     )
     assert len(runs) == 1
     assert runs[0]["metadata"]["uid"] == run_uid_completed
@@ -289,16 +297,16 @@ def test_store_run_success(db: DBInterface, db_session: Session):
 def test_update_runs_requested_logs(db: DBInterface, db_session: Session):
     project, name, uid, iteration, run = _create_new_run(db, db_session)
 
-    runs_before = db.list_runs(
-        db_session, project=project, uid=uid, return_as_run_structs=False
+    runs_before = list(
+        db.list_runs(db_session, project=project, uid=uid, return_as_run_structs=False)
     )
     assert runs_before[0].requested_logs is False
     run_updated_time = runs_before[0].updated
 
     db.update_runs_requested_logs(db_session, [uid], True)
 
-    runs_after = db.list_runs(
-        db_session, project=project, uid=uid, return_as_run_structs=False
+    runs_after = list(
+        db.list_runs(db_session, project=project, uid=uid, return_as_run_structs=False)
     )
     assert runs_after[0].requested_logs is True
     assert runs_after[0].updated > run_updated_time
@@ -355,10 +363,12 @@ def test_list_runs_limited_unsorted_failure(db: DBInterface, db_session: Session
         mlrun.errors.MLRunInvalidArgumentError,
         match="Limiting the number of returned records without sorting will provide non-deterministic results",
     ):
-        db.list_runs(
-            db_session,
-            sort=False,
-            last=1,
+        list(
+            db.list_runs(
+                db_session,
+                sort=False,
+                last=1,
+            )
         )
 
 

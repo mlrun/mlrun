@@ -99,7 +99,6 @@ def extract_image_tag(image_reference):
     match = re.search(pattern, image_reference)
 
     tag = None
-    is_semver = False
     has_py_package = False
     if match:
         tag = match.group()

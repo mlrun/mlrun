@@ -1387,8 +1387,9 @@ class MlrunProject(ModelObj):
         Get the absolute path of the artifact or function file
         :param url:                   remote url, absolute path or relative path
         :param check_path_in_context: if True, will check if the path exists when in the context
-                                      (temporary parameter to allow for backwards compatibility)
-        :returns:                     absolute path / url, whether the path is in the project context
+        (temporary parameter to allow for backwards compatibility)
+
+        :returns:   absolute path / url, whether the path is in the project context
         """
         # If the URL is for a remote location, we do not want to change it
         if not url or "://" in url:
@@ -3233,13 +3234,16 @@ class MlrunProject(ModelObj):
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
     ) -> Optional[list]:
-        """Retrieve a list of all the model monitoring functions.
-        example::
+        """
+        Retrieve a list of all the model monitoring functions.
+        Example::
+
             functions = project.list_model_monitoring_functions()
 
-        :param name: Return only functions with a specific name.
-        :param tag: Return function versions with specific tags.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param name:    Return only functions with a specific name.
+        :param tag:     Return function versions with specific tags.
+        :param labels:  Return functions that have specific labels assigned to them.
+
         :returns: List of function objects.
         """
 

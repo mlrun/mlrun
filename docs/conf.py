@@ -105,7 +105,6 @@ html_theme = "sphinx_book_theme"
 html_title = ""
 html_logo = "./MLRun_Character.png"
 html_favicon = "./favicon.ico"
-extra_navbar = "<p>Your HTML</p>"
 nb_execution_mode = "off"
 html_sourcelink_suffix = ""
 autoclass_content = "both"
@@ -128,7 +127,6 @@ html_theme_options = {
     "show_navbar_depth": 1,
     "extra_navbar": 'By <a href="https://www.iguazio.com/">Iguazio</a>',
     "extra_footer": "",
-    "google_analytics_id": "",
 }
 
 html_sidebars = {

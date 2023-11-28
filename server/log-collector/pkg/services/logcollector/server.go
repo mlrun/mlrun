@@ -46,10 +46,11 @@ import (
 
 type Server struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace     string
-	baseDir       string
-	kubeClientSet kubernetes.Interface
-	isChief       bool
+	namespace        string
+	baseDir          string
+	kubeClientSet    kubernetes.Interface
+	isChief          bool
+	advancedLogLevel int
 
 	// the state manifest determines which runs' logs should be collected, and is persisted to a file
 	stateManifest statestore.StateStore
@@ -84,8 +85,9 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
 	logCollectionBufferSizeBytes,
-	getLogsBufferSizeBytes int,
-	logTimeUpdateBytesInterval int) (*Server, error) {
+	getLogsBufferSizeBytes,
+	logTimeUpdateBytesInterval,
+	advancedLogLevel int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -111,6 +113,7 @@ func NewLogCollectorServer(logger logger.Logger,
 			Logger:                  logger,
 			StateFileUpdateInterval: stateFileUpdateIntervalDuration,
 			BaseDir:                 baseDir,
+			AdvancedLogLevel:        advancedLogLevel,
 		},
 	)
 	if err != nil {
@@ -159,6 +162,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		isChief:                      isChief,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
+		advancedLogLevel:             advancedLogLevel,
 	}, nil
 }
 
@@ -522,7 +526,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 	for _, runUID := range request.RunUIDs {
 
 		// remove item from state manifest
-		if err := s.stateManifest.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.stateManifest.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from state manifest for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -532,7 +536,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		}
 
 		// remove item from current state
-		if err := s.currentState.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -638,7 +642,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		}
 
 		// remove this goroutine from in-current state
-		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx,
 				"Failed to remove item from in memory state",
 				"runUID", runUID,
@@ -753,12 +757,13 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	}
 
 	s.Logger.DebugWithCtx(ctx,
-		"Removing item from state file",
+		"Finished log streaming",
 		"runUID", runUID,
+		"projectName", projectName,
 		"podName", podName)
 
 	// remove run from state file
-	if err := s.stateManifest.RemoveLogItem(runUID, projectName); err != nil {
+	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 

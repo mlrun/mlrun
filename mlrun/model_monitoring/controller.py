@@ -452,7 +452,6 @@ class MonitoringApplicationController:
                         inputs=df,
                     )
 
-                    # create and push data to all applications
                     cls._push_to_applications(
                         current_stats=current_stats,
                         feature_stats=feature_stats,
@@ -461,7 +460,7 @@ class MonitoringApplicationController:
                         endpoint_id=endpoint_id,
                         latest_request=latest_request,
                         project=project,
-                        applications_names=applications_names,
+                        applications_names=[application],
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )

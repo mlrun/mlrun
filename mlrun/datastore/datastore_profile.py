@@ -227,7 +227,10 @@ class DatastoreProfileGCS(DatastoreProfile):
     gcp_credentials: typing.Optional[str] = None
 
     def url(self, subpath) -> str:
-        return f"gcs:/{subpath}"
+        if subpath.startswith("/"):
+            #  in gcs the path after schema is starts with bucket, wherefore it should not start with "/".
+            subpath = subpath[1:]
+        return f"gcs://{subpath}"
 
     def secrets(self) -> dict:
         res = {}

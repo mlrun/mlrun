@@ -1041,9 +1041,9 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:Application name, None for model_monitoring_stream.
+        :param application_name:    Application name, None for model_monitoring_stream.
 
-        :return: Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":

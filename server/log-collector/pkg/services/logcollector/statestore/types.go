@@ -112,6 +112,7 @@ type Config struct {
 	Logger                  logger.Logger
 	StateFileUpdateInterval time.Duration
 	BaseDir                 string
+	AdvancedLogLevel        int
 }
 
 type StateStore interface {

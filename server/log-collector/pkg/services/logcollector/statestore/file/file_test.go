@@ -53,7 +53,12 @@ func (suite *FileStateStoreTestSuite) SetupTest() {
 	suite.Require().NoError(err, "Failed to create base dir")
 
 	// create state store
-	suite.stateStore = NewFileStore(suite.logger, suite.baseDir, 2*time.Second)
+	config := &statestore.Config{
+		Logger:                  suite.logger,
+		StateFileUpdateInterval: 2 * time.Second,
+		BaseDir:                 suite.baseDir,
+	}
+	suite.stateStore = NewFileStore(config)
 	suite.Require().NoError(suite.stateStore.Initialize(suite.ctx))
 
 	suite.logger.InfoWith("Setup complete")

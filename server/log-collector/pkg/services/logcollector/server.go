@@ -46,10 +46,11 @@ import (
 
 type Server struct {
 	*framework.AbstractMlrunGRPCServer
-	namespace     string
-	baseDir       string
-	kubeClientSet kubernetes.Interface
-	isChief       bool
+	namespace        string
+	baseDir          string
+	kubeClientSet    kubernetes.Interface
+	isChief          bool
+	advancedLogLevel int
 
 	// the state manifest determines which runs' logs should be collected, and is persisted to a file
 	stateManifest statestore.StateStore
@@ -84,8 +85,9 @@ func NewLogCollectorServer(logger logger.Logger,
 	logCollectionBufferPoolSize,
 	getLogsBufferPoolSize,
 	logCollectionBufferSizeBytes,
-	getLogsBufferSizeBytes int,
-	logTimeUpdateBytesInterval int) (*Server, error) {
+	getLogsBufferSizeBytes,
+	logTimeUpdateBytesInterval,
+	advancedLogLevel int) (*Server, error) {
 	abstractServer, err := framework.NewAbstractMlrunGRPCServer(logger, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to create abstract server")
@@ -111,6 +113,7 @@ func NewLogCollectorServer(logger logger.Logger,
 			Logger:                  logger,
 			StateFileUpdateInterval: stateFileUpdateIntervalDuration,
 			BaseDir:                 baseDir,
+			AdvancedLogLevel:        advancedLogLevel,
 		},
 	)
 	if err != nil {
@@ -159,6 +162,7 @@ func NewLogCollectorServer(logger logger.Logger,
 		isChief:                      isChief,
 		startLogsFindingPodsInterval: 3 * time.Second,
 		startLogsFindingPodsTimeout:  15 * time.Second,
+		advancedLogLevel:             advancedLogLevel,
 	}, nil
 }
 
@@ -751,6 +755,12 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		// stream pod logs might return fast when there is nothing to read and no error occurred
 		time.Sleep(100 * time.Millisecond)
 	}
+
+	s.Logger.DebugWithCtx(ctx,
+		"Finished log streaming",
+		"runUID", runUID,
+		"projectName", projectName,
+		"podName", podName)
 
 	// remove run from state file
 	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {

@@ -963,11 +963,8 @@ class KafkaSource(OnlineSource):
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
         )
-        func = function.add_trigger("kafka", trigger)
-        replicas = 1 if not partitions else len(partitions)
-        func.spec.min_replicas = replicas
-        func.spec.max_replicas = replicas
-        return func
+        function = function.add_trigger("kafka", trigger)
+        return function
 
 
 class SQLSource(BaseSourceDriver):

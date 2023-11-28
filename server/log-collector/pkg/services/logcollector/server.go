@@ -522,7 +522,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 	for _, runUID := range request.RunUIDs {
 
 		// remove item from state manifest
-		if err := s.stateManifest.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.stateManifest.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from state manifest for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -532,7 +532,7 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		}
 
 		// remove item from current state
-		if err := s.currentState.RemoveLogItem(runUID, request.Project); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove item from in memory state for run id %s", runUID)
 			return &protologcollector.BaseResponse{
 				Success:      false,
@@ -638,7 +638,7 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		}
 
 		// remove this goroutine from in-current state
-		if err := s.currentState.RemoveLogItem(runUID, projectName); err != nil {
+		if err := s.currentState.RemoveLogItem(ctx, runUID, projectName); err != nil {
 			s.Logger.WarnWithCtx(ctx,
 				"Failed to remove item from in memory state",
 				"runUID", runUID,
@@ -752,13 +752,8 @@ func (s *Server) startLogStreaming(ctx context.Context,
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	s.Logger.DebugWithCtx(ctx,
-		"Removing item from state file",
-		"runUID", runUID,
-		"podName", podName)
-
 	// remove run from state file
-	if err := s.stateManifest.RemoveLogItem(runUID, projectName); err != nil {
+	if err := s.stateManifest.RemoveLogItem(ctx, runUID, projectName); err != nil {
 		s.Logger.WarnWithCtx(ctx, "Failed to remove log item from state file")
 	}
 

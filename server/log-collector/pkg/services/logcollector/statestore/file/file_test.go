@@ -142,7 +142,7 @@ func (suite *FileStateStoreTestSuite) TestAddRemoveItemFromInProgress() {
 	suite.Require().Equal(labelSelector, storedItem.(statestore.LogItem).LabelSelector)
 
 	// remove item from in progress
-	err = suite.stateStore.RemoveLogItem(runId, project)
+	err = suite.stateStore.RemoveLogItem(suite.ctx, runId, project)
 	suite.Require().NoError(err, "Failed to remove item from in progress")
 
 	// write state to file again

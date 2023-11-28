@@ -77,6 +77,23 @@ func (s *Store) Initialize(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
+	s.Logger.DebugWithCtx(ctx,
+		"Adding item to state file",
+		"runUID", runUID,
+		"selector", selector,
+		"project", project)
+	return s.Store.AddLogItem(ctx, runUID, selector, project)
+}
+
+func (s *Store) RemoveLogItem(ctx context.Context, runUID, project string) error {
+	s.Logger.DebugWithCtx(ctx,
+		"Removing item from state file",
+		"runUID", runUID,
+		"project", project)
+	return s.Store.RemoveLogItem(runUID, project)
+}
+
 // WriteState writes the state to file, used mainly for testing
 func (s *Store) WriteState(state *statestore.State) error {
 	return s.writeStateToFile(state)

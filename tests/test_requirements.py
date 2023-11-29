@@ -98,7 +98,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.4.2,<2.6"},
-        "storey": {"~=1.6.6"},
+        "storey": {"~=1.6.7"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -126,7 +126,7 @@ def test_requirement_specifiers_convention():
         "numpy": {">=1.16.5, <1.23.0"},
         "boto3": {">=1.24.59,<1.27"},
         "dask-ml": {"~=1.4,<1.9.0"},
-        "pyarrow": {">=10.0, <13"},
+        "pyarrow": {">=10.0, <15"},
         "nbclassic": {">=0.2.8"},
         "pandas": {">=1.2, <3"},
         "gitpython": {"~=3.1, >= 3.1.30"},

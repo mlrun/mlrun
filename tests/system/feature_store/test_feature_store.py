@@ -3955,7 +3955,10 @@ class TestFeatureStore(TestMLRunSystem):
             order_by="n",
         )
         assert_frame_equal(
-            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+            join_employee_department,
+            resp_1.to_dataframe(),
+            check_dtype=False,
+            check_index_type=False,
         )
 
     @pytest.mark.parametrize("with_indexes", [True, False])

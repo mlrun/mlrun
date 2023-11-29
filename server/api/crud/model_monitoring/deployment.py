@@ -31,7 +31,6 @@ from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
-from server.api.api.endpoints.functions import create_model_monitoring_stream
 from server.api.crud.model_monitoring.helpers import (
     Seconds,
     add_minutes_offset,
@@ -757,7 +756,7 @@ class MonitoringDeployment:
         function.metadata.project = project
 
         # create v3io stream for  model_monitoring_writer | model monitoring application
-        create_model_monitoring_stream(
+        server.api.api.endpoints.functions.create_model_monitoring_stream(
             project=project,
             function=function,
             monitoring_application=mm_constants.MonitoringFunctionNames.WRITER,

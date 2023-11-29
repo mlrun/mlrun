@@ -37,6 +37,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import server.api.api.utils
+import server.api.crud.model_monitoring.deployment
 import server.api.crud.runtimes.nuclio.function
 import server.api.db.session
 import server.api.launcher
@@ -55,7 +56,6 @@ from mlrun.runtimes import RuntimeKinds, ServingRuntime
 from mlrun.runtimes.utils import get_item_name
 from mlrun.utils import get_in, logger, update_in
 from server.api.api import deps
-from server.api.crud.model_monitoring.deployment import MonitoringDeployment
 from server.api.crud.secrets import Secrets, SecretsClientType
 from server.api.utils.builder import build_runtime
 from server.api.utils.singletons.scheduler import get_scheduler
@@ -788,7 +788,10 @@ def _build_function(
                                 )
 
                             # deploy model monitoring stream, model monitoring batch job,
-                            MonitoringDeployment().deploy_monitoring_functions(
+                            monitoring_deploy = (
+                                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+                            )
+                            monitoring_deploy.deploy_monitoring_functions(
                                 project=fn.metadata.project,
                                 db_session=db_session,
                                 auth_info=auth_info,
@@ -818,7 +821,10 @@ def _build_function(
                             access_key=model_monitoring_access_key,
                         )
                     # apply stream trigger to monitoring application
-                    fn = MonitoringDeployment()._apply_stream_trigger(
+                    monitoring_deploy = (
+                        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
+                    )
+                    fn = monitoring_deploy._apply_stream_trigger(
                         project=fn.metadata.project,
                         function=fn,
                         model_monitoring_access_key=model_monitoring_access_key,

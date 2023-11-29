@@ -92,6 +92,11 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             cls._v3io_container
         )
 
+    def _submit_controller_and_deploy_writer(self) -> None:
+        self.project.enable_model_monitoring_controller(
+            base_period=1,
+        )
+
     def _set_and_deploy_monitoring_apps(self) -> None:
         with ThreadPoolExecutor() as executor:
             for app_data in self.apps_data:
@@ -130,7 +135,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         serving_fn.set_tracking(
             tracking_policy=TrackingPolicy(
                 default_batch_intervals=f"*/{cls.app_interval} * * * *",
-                application_batch=True,
             ),
         )
 
@@ -182,6 +186,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         self._log_model()
 
         with ThreadPoolExecutor() as executor:
+            executor.submit(self._submit_controller_and_deploy_writer)
             executor.submit(self._set_and_deploy_monitoring_apps)
             future = executor.submit(self._deploy_model_serving)
 

@@ -79,7 +79,7 @@ ENV JUPYTER_ENABLE_LAB=yes \
 # backup home since it will be deleted when using pvc
 RUN tar -cvf /tmp/basehome.tar $HOME
 
-COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlcestart.sh /usr/local/bin/mlcestart.sh
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
 # run the mlrun db (api) and the notebook in parallel
 CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \

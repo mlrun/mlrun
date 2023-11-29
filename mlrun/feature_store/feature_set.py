@@ -16,7 +16,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-import pytz
 from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
@@ -930,11 +929,8 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                # overwrite `source.start_time` when the source is schedule.
-                start_time=start_time
-                or pd.to_datetime(pd.Timestamp.min, unit="ns").replace(tzinfo=pytz.UTC),
-                end_time=end_time
-                or pd.to_datetime(pd.Timestamp.max, unit="ns").replace(tzinfo=pytz.UTC),
+                start_time=start_time,
+                end_time=end_time,
                 time_field=time_column,
                 **kwargs,
             )

@@ -216,6 +216,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         if (
             not runtime.spec.image
+            and not runtime.requires_build()
             and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
         ):
             runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[

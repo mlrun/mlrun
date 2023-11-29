@@ -1299,7 +1299,7 @@ class BaseRuntimeHandler(ABC):
             namespace=namespace,
         )
         run_updates = {
-            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
 
         stale_runs.append(

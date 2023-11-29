@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import typing
+import unittest.mock
 from datetime import timedelta
 
 import pytest
@@ -556,6 +557,64 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             self.run_uid,
             log,
             self.completed_job_pod.metadata.name,
+        )
+
+    @pytest.mark.asyncio
+    async def test_monitor_stale_run(self, db: Session, client: TestClient):
+        # since we can't change the run updated time to be stale, we change the list run time period to be negative
+        # so that list runs will not find the run
+        config.monitoring.runs.list_runs_time_period_in_days = -1
+        list_namespaced_pods_calls = [
+            [self.completed_job_pod],
+            # additional time for the get_logger_pods
+            [self.completed_job_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        run = get_db().read_run(db, self.run_uid, self.project)
+        with unittest.mock.patch(
+            "mlrun.api.db.sqldb.db.SQLDB.read_run",
+            unittest.mock.Mock(return_value=run),
+        ) as mock_read_run:
+
+            for _ in range(expected_monitor_cycles_to_reach_expected_state):
+                self.runtime_handler.monitor_runs(get_db(), db)
+
+            mock_read_run.assert_called_once()
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
+        )
+
+    @pytest.mark.asyncio
+    async def test_monitor_no_search_run(self, db: Session, client: TestClient):
+        # tests the opposite of test_monitor_stale_run - that the run is listed, and we don't try to read it
+        list_namespaced_pods_calls = [
+            [self.completed_job_pod],
+            # additional time for the get_logger_pods
+            [self.completed_job_pod],
+        ]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self._mock_read_namespaced_pod_log()
+        expected_number_of_list_pods_calls = len(list_namespaced_pods_calls)
+        expected_monitor_cycles_to_reach_expected_state = (
+            expected_number_of_list_pods_calls - 1
+        )
+
+        with unittest.mock.patch(
+            "mlrun.api.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
+        ) as mock_read_run:
+
+            for _ in range(expected_monitor_cycles_to_reach_expected_state):
+                self.runtime_handler.monitor_runs(get_db(), db)
+
+            mock_read_run.assert_not_called()
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.completed
         )
 
     def _mock_list_resources_pods(self, pod=None):

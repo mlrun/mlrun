@@ -747,7 +747,7 @@ def _build_function(
             serving_to_monitor = (
                 fn.kind == RuntimeKinds.serving and fn.spec.track_models
             )
-            # if serving_to_monitor or monitoring_application:
+
             if serving_to_monitor or monitoring_application:
                 if not mlrun.mlconf.is_ce_mode():
                     model_monitoring_access_key = process_model_monitoring_secret(

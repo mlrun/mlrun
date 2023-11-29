@@ -152,39 +152,3 @@ async def create_model_monitoring_controller(
     return {
         "func": controller_function,
     }
-
-
-@router.delete("/model-monitoring-controller")
-async def delete_model_monitoring_controller(
-    project: str,
-    request: fastapi.Request,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        deps.authenticate_request
-    ),
-    db_session: Session = fastapi.Depends(deps.get_db_session),
-):
-    """
-    Submit model monitoring application controller job along with deploying the model monitoring writer function.
-    While the main goal of the controller job is to handle the monitoring processing and triggering applications,
-    the goal of the model monitoring writer function is to write all the monitoring application results to the
-    databases. Note that the default scheduling policy of the controller job is to run every 5 min.
-
-    :param project:                  Project name.
-    :param request:                  fastapi request for the HTTP connection.
-    :param auth_info:                The auth info of the request.
-    :param db_session:               A session that manages the current dialog with the database.
-    """
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info(
-            "Requesting to deploy model monitoring controller, re-routing to chief",
-            function_name="model-monitoring-controller",
-            project=project,
-        )
-        chief_client = server.api.utils.clients.chief.Client()
-
-        return await chief_client.create_model_monitoring_controller(
-            project=project, request=request
-        )

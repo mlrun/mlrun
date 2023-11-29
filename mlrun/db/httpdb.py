@@ -2934,11 +2934,6 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
 
-    def delete_model_monitoring_controller(self, project: str):
-        '''Delete model monitoring controller scheduled job'''
-        path = f"projects/{project}/jobs/model-monitoring-controller"
-        self.api_call(method="DELETE", path=path)
-
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):

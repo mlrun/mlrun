@@ -958,7 +958,7 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
 
     # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
     # so further updates of the artifacts will have the same hash
-    db_key = object_dict.get("spec").pop("db_key", None)
+    db_key = object_dict.get("spec", {}).pop("db_key", None)
 
     # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
     if not object_dict["metadata"].get("key"):

@@ -76,6 +76,7 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_ENV_FILE=$HOME/mlrun.env
 
+# backup home since it will be deleted when using pvc
 RUN tar -cvf /tmp/basehome.tar $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlcestart.sh /usr/local/bin/mlcestart.sh

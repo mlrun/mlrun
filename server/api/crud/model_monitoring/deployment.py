@@ -607,7 +607,7 @@ class MonitoringDeployment:
                 hours,
                 days,
             ) = (tracking_policy.base_period, 0, 0)
-            schedule = "*/{} * * * *".format(
+            schedule = "1/{} * * * *".format(
                 add_minutes_offset(
                     minute=tracking_policy.base_period,
                     offset=seconds2minutes(tracking_offset),

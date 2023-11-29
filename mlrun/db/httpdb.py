@@ -2904,6 +2904,41 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
 
+    def create_model_monitoring_controller(
+        self,
+        project: str = "",
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 5,
+    ):
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 5 min.
+        :param project:                  Project name.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_controller_image": default_controller_image,
+            "base_period": base_period,
+        }
+        path = f"projects/{project}/jobs/model-monitoring-controller"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
+    def delete_model_monitoring_controller(self, project: str):
+        '''Delete model monitoring controller scheduled job'''
+        path = f"projects/{project}/jobs/model-monitoring-controller"
+        self.api_call(method="DELETE", path=path)
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):

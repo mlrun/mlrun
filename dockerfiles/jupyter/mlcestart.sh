@@ -1,8 +1,8 @@
 file_path="${HOME}/.intdata"
 
+# .intdata indicates if we extracted the home tar or not
 if [ -f "$file_path" ]; then
-    echo "base data exists."
-    # Perform actions when the file exists
+    echo "Base data exists."
 else
     echo "base data does not exist."
     echo "1" > $file_path

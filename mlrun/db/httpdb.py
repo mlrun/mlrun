@@ -39,15 +39,9 @@ from ..config import config
 from ..datastore.datastore_profile import DatastoreProfile2Json
 from ..feature_store import FeatureSet, FeatureVector
 from ..lists import ArtifactList, RunList
-from ..runtimes import BaseRuntime
-from ..utils import (
-    datetime_to_iso,
-    dict_to_json,
-    logger,
-    normalize_name,
-    version,
-)
 from ..pipelines import new_pipe_metadata
+from ..runtimes import BaseRuntime
+from ..utils import datetime_to_iso, dict_to_json, logger, normalize_name, version
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [

@@ -23,9 +23,8 @@ from kfp import dsl
 from kubernetes import client as k8s_client
 
 import mlrun
-from mlrun.errors import err_to_str
-
 from mlrun.config import config
+from mlrun.errors import err_to_str
 from mlrun.model import HyperParamOptions, RunSpec
 from mlrun.utils import (
     dict_to_yaml,

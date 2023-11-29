@@ -27,7 +27,10 @@ def _create_enriched_mlrun_workflow(
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
     from mlrun import pipeline_context
-    from mlrun.projects.pipelines import _set_function_attribute_on_kfp_pod, _enrich_kfp_pod_security_context
+    from mlrun.projects.pipelines import (
+        _enrich_kfp_pod_security_context,
+        _set_function_attribute_on_kfp_pod,
+    )
 
     workflow = self._original_create_workflow(
         pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf

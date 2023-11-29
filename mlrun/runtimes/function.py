@@ -34,10 +34,10 @@ import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
+from mlrun.pipelines import deploy_op
 
 from ..config import config as mlconf
 from ..errors import err_to_str
-from mlrun.pipelines import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import (

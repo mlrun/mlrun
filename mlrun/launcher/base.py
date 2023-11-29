@@ -21,9 +21,9 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import mlrun.pipelines
 import mlrun.lists
 import mlrun.model
+import mlrun.pipelines
 import mlrun.runtimes
 import mlrun.utils.regex
 from mlrun.utils import logger

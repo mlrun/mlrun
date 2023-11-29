@@ -18,11 +18,12 @@ pipeline_compatibility_mode = "kfp-v1.8"
 
 # fmt: off
 if pipeline_compatibility_mode == "kfp-v1.8":
-    # TODO: encapsulate import list in the __init__ of the target module
-    from mlrun.pipelines.kfp.v1_8 import *  # noqa
     import mlrun.pipelines.kfp.v1_8.patcher  # noqa
 
+    # TODO: encapsulate import list in the __init__ of the target module
+    from mlrun.pipelines.kfp.v1_8 import *  # noqa
+
     # TODO: we need to namespace the following imports
-    from mlrun.pipelines.kfp.v1_8.ops import *  # noqa
     from mlrun.pipelines.kfp.v1_8.helpers import *  # noqa
+    from mlrun.pipelines.kfp.v1_8.ops import *  # noqa
 # fmt: on

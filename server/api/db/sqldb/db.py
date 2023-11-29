@@ -758,13 +758,14 @@ class SQLDB(DBInterface):
         artifacts = self.list_artifacts(session, project=project, category=category)
         results = []
         for artifact in artifacts:
-            results.append(
-                (
-                    project,
-                    artifact["spec"].get("db_key"),
-                    artifact["metadata"].get("tag"),
+            if artifact["metadata"].get("tag") is not None:
+                results.append(
+                    (
+                        project,
+                        artifact["spec"].get("db_key"),
+                        artifact["metadata"].get("tag"),
+                    )
                 )
-            )
 
         return results
 
@@ -923,8 +924,6 @@ class SQLDB(DBInterface):
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
         artifact_dict["metadata"]["created"] = str(artifact_record.created)
         artifact_dict["kind"] = kind
-        if tag:
-            artifact_dict["metadata"]["tag"] = tag
 
         db_key = artifact_dict.get("spec", {}).get("db_key")
         if not db_key:

@@ -220,6 +220,46 @@ def test_store_artifact_tagging(db: DBInterface, db_session: Session):
     assert len(artifacts) == 1
 
 
+def test_store_artifact_latest_tag(db: DBInterface, db_session: Session):
+    project = "artifact_project"
+    artifact_1_key = "artifact_key_1"
+    artifact_1_tree = "artifact_tree"
+    artifact_1_body = _generate_artifact(
+        artifact_1_key, tree=artifact_1_tree, project=project
+    )
+    artifact_2_body = _generate_artifact(
+        artifact_1_key, tree=artifact_1_tree, project=project
+    )
+    artifact_1_body["spec"]["something"] = "same"
+    artifact_2_body["spec"]["something"] = "different"
+
+    db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_1_body,
+        project=project,
+    )
+    db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_2_body,
+        project=project,
+    )
+
+    artifact_tags = db.list_artifact_tags(db_session, project)
+
+    # make sure only a single "latest" tag is returned
+    assert len(artifact_tags) == 1
+
+    artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
+    assert len(artifacts) == 2
+    for artifact in artifacts:
+        if artifact["metadata"]["tag"] == "latest":
+            assert artifact["spec"]["something"] == "different"
+        else:
+            assert artifact["spec"]["something"] == "same"
+
+
 def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Session):
     project = "artifact_project"
     artifact_key = "artifact_key_1"

@@ -35,7 +35,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
         ] = mlrun.common.schemas.schedule.ScheduleCronTrigger(minute="0", hour="*/1"),
         default_batch_image: str = "mlrun/mlrun",
         stream_image: str = "mlrun/mlrun",
-        base_period: int = 5,
+        base_period: int = 10,
         default_controller_image: str = "mlrun/mlrun",
     ):
         """
@@ -50,7 +50,7 @@ class TrackingPolicy(mlrun.model.ModelObj):
         :param stream_image:                The image of the model monitoring stream real-time function. By default,
                                             the image is mlrun/mlrun.
         :param base_period:                 Minutes to determine the frequency in which the model monitoring controller
-                                            job is running. By default, the base period is 5 minutes.
+                                            job is running. By default, the base period is 10 minutes.
         :param default_controller_image:    The default image of the model monitoring controller job. Note that the
                                             writer function, which is a real time nuclio functino, will be deployed
                                             with the same image. By default, the image is mlrun/mlrun.

@@ -1934,13 +1934,13 @@ class MlrunProject(ModelObj):
     def enable_model_monitoring_controller(
         self,
         default_controller_image: str = "mlrun/mlrun",
-        base_period: int = 5,
+        base_period: int = 10,
     ) -> dict:
         """
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
-        databases. Note that the default scheduling policy of the controller job is to run every 5 min.
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.

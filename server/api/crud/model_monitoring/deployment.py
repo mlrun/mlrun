@@ -425,7 +425,6 @@ class MonitoringDeployment:
                 filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
                 kind=mlrun.run.RuntimeKinds.serving,
                 image=tracking_policy.stream_image,
-                handler="handler",
             ),
         )
 

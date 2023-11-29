@@ -27,6 +27,7 @@ import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.prometheus
+import mlrun.serving.states
 import mlrun.utils
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -133,7 +134,7 @@ class EventStreamProcessor:
         self.tsdb_batching_max_events = tsdb_batching_max_events
         self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
-    def apply_monitoring_serving_graph(self, fn):
+    def apply_monitoring_serving_graph(self, fn: mlrun.runtimes.ServingRuntime) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 20 steps
         of different operations that are executed on the events from the model server. Each event has
@@ -162,14 +163,20 @@ class EventStreamProcessor:
         :param fn: A serving function.
         """
 
-        graph = fn.set_topology("flow")
+        graph = typing.cast(
+            mlrun.serving.states.RootFlowStep,
+            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+        )
 
         # Step 1 - Event routing based on the provided path
         def apply_event_routing():
-            graph.add_step(
-                "EventRouting",
-                full_event=True,
-                project=self.project,
+            typing.cast(
+                mlrun.serving.TaskStep,
+                graph.add_step(
+                    "EventRouting",
+                    full_event=True,
+                    project=self.project,
+                ),
             ).respond()
 
         apply_event_routing()

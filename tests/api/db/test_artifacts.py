@@ -294,7 +294,7 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
 
     # ids are auto generated using this util function
     expected_uids = [
-        mlrun.utils.fill_artifact_object_hash(artifact_body, "uid")
+        mlrun.utils.fill_artifact_object_hash(artifact_body)
         for artifact_body in [artifact_1_body, artifact_2_body]
     ]
     uids = [artifact["metadata"]["uid"] for artifact in artifacts]
@@ -322,6 +322,46 @@ def test_store_artifact_restoring_multiple_tags(db: DBInterface, db_session: Ses
     artifact = db.read_artifact(db_session, artifact_key, tag=artifact_2_tag)
     assert artifact["metadata"]["uid"] == expected_uids[1]
     assert artifact["metadata"]["tag"] == artifact_2_tag
+
+
+def test_store_artifact_with_different_labels(db: DBInterface, db_session: Session):
+    # create an artifact with a single label
+    project = "artifact_project"
+    artifact_1_key = "artifact_key_1"
+    artifact_1_tree = "artifact_tree"
+    artifact_1_body = _generate_artifact(
+        artifact_1_key, tree=artifact_1_tree, project=project
+    )
+    labels = {"label1": "value1"}
+    artifact_1_body["metadata"]["labels"] = {"label1": "value1"}
+    db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_1_body,
+        project=project,
+    )
+
+    # add a new label to the same artifact
+    labels["label2"] = "value2"
+    artifact_1_body["metadata"]["labels"] = labels
+    db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_1_body,
+        project=project,
+    )
+
+    # verify that the artifact has both labels and it didn't create a new artifact
+    artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
+    assert len(artifacts) == 1
+    assert (
+        deepdiff.DeepDiff(
+            artifacts[0].get("metadata", {}).get("labels", {}),
+            labels,
+            ignore_order=True,
+        )
+        == {}
+    )
 
 
 def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
@@ -828,7 +868,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             )
 
 
-def _generate_artifact(name, uid=None, kind=None, tree=None, project=None):
+def _generate_artifact(name, uid=None, kind="artifact", tree=None, project=None):
     artifact = {
         "metadata": {"key": name},
         "spec": {"src_path": "/some/path"},

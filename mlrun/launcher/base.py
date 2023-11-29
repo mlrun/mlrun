@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
-import mlrun.kfpops
+import mlrun.pipelines
 import mlrun.lists
 import mlrun.model
 import mlrun.runtimes
@@ -387,7 +387,7 @@ class BaseLauncher(abc.ABC):
             return
 
         if result and runtime.kfp and err is None:
-            mlrun.kfpops.write_kfpmeta(result)
+            mlrun.pipelines.write_kfpmeta(result)
 
         self._log_track_results(runtime.is_child, result, run)
 

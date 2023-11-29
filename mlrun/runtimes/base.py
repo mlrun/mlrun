@@ -36,7 +36,7 @@ from mlrun.utils.helpers import generate_object_uri, verify_field_regex
 from ..config import config
 from ..datastore import store_manager
 from ..errors import err_to_str
-from ..kfpops import mlrun_op
+from mlrun.pipelines import mlrun_op
 from ..lists import RunList
 from ..model import BaseMetadata, HyperParamOptions, ImageBuilder, ModelObj, RunObject
 from ..utils import (

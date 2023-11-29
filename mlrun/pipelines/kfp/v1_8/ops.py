@@ -25,9 +25,9 @@ from kubernetes import client as k8s_client
 import mlrun
 from mlrun.errors import err_to_str
 
-from .config import config
-from .model import HyperParamOptions, RunSpec
-from .utils import (
+from mlrun.config import config
+from mlrun.model import HyperParamOptions, RunSpec
+from mlrun.utils import (
     dict_to_yaml,
     gen_md_table,
     get_artifact_target,

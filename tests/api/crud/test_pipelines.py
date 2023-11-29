@@ -15,7 +15,7 @@
 import json
 
 import mlrun.errors
-import mlrun.kfpops
+import mlrun.pipelines
 import mlrun.run
 import mlrun.utils.helpers
 import server.api.crud
@@ -248,7 +248,7 @@ def test_resolve_pipeline_project():
             "template": {
                 "metadata": {
                     "annotations": {
-                        mlrun.kfpops.project_annotation: "project-from-annotation"
+                        mlrun.pipelines.project_annotation: "project-from-annotation"
                     }
                 }
             },

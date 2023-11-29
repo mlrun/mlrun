@@ -44,10 +44,10 @@ from ..utils import (
     datetime_to_iso,
     dict_to_json,
     logger,
-    new_pipe_metadata,
     normalize_name,
     version,
 )
+from ..pipelines import new_pipe_metadata
 from .base import RunDBError, RunDBInterface
 
 _artifact_keys = [

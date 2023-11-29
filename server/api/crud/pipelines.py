@@ -27,7 +27,7 @@ import mlrun
 import mlrun.common.helpers
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.kfpops
+import mlrun.pipelines
 import mlrun.utils.helpers
 import mlrun.utils.singleton
 import server.api.api.utils
@@ -308,7 +308,7 @@ class Pipelines(
                     "The full kfp api_run_detail object is needed to generate the summary format"
                 )
             run_db = server.api.api.utils.get_run_db_instance(db_session)
-            return mlrun.kfpops.format_summary_from_kfp_run(
+            return mlrun.pipelines.format_summary_from_kfp_run(
                 api_run_detail, run["project"], run_db=run_db
             )
         else:
@@ -379,7 +379,7 @@ class Pipelines(
             project_from_annotation = (
                 template.get("metadata", {})
                 .get("annotations", {})
-                .get(mlrun.kfpops.project_annotation)
+                .get(mlrun.pipelines.project_annotation)
             )
             if project_from_annotation:
                 return project_from_annotation

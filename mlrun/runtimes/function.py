@@ -37,7 +37,7 @@ from mlrun.common.schemas import AuthInfo
 
 from ..config import config as mlconf
 from ..errors import err_to_str
-from ..kfpops import deploy_op
+from mlrun.pipelines import deploy_op
 from ..lists import RunList
 from ..model import RunObject
 from ..platforms.iguazio import (

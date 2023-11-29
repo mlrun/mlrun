@@ -24,7 +24,7 @@ import plotly.graph_objects as go
 import pytest
 import yaml
 
-import mlrun.kfpops
+import mlrun.pipelines
 from mlrun import new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
@@ -88,8 +88,8 @@ def kfp_dirs(monkeypatch):
             artifacts_dir=artifacts_dir,
             output_dir=output_dir,
         )
-        monkeypatch.setattr(mlrun.kfpops, "KFPMETA_DIR", str(meta_dir))
-        monkeypatch.setattr(mlrun.kfpops, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
+        monkeypatch.setattr(mlrun.pipelines, "KFPMETA_DIR", str(meta_dir))
+        monkeypatch.setattr(mlrun.pipelines, "KFP_ARTIFACTS_DIR", str(artifacts_dir))
         yield (str(meta_dir), str(artifacts_dir), str(output_dir))
 
 

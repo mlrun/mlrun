@@ -93,10 +93,6 @@ def filter_df_start_end_time(
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
     if not time_column:
         return df
-    if not start_time and not end_time:
-        df[time_column] = pd.to_datetime(df[time_column])
-        return df
-
     if isinstance(df, pd.DataFrame):
         return _execute_time_filter(df, time_column, start_time, end_time)
     else:

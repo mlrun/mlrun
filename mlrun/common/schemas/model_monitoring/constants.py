@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import enum
+
 import hashlib
 from dataclasses import dataclass
+from enum import Enum, IntEnum
 from typing import Optional
 
 import mlrun.common.helpers
-import mlrun.common.types
+from mlrun.common.types import StrEnum
 
 
 class EventFieldType:
@@ -90,7 +90,7 @@ class ApplicationEvent:
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent(mlrun.common.types.StrEnum):
+class WriterEvent(StrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
     START_INFER_TIME = "start_infer_time"
@@ -145,6 +145,10 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
+class SchedulingKeys:
+    LAST_ANALYZED = "last_analyzed"
+
+
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
@@ -154,12 +158,12 @@ class FileTargetKind:
     LOG_STREAM = "log_stream"
 
 
-class ModelMonitoringMode(str, enum.Enum):
+class ModelMonitoringMode(str, Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class EndpointType(enum.IntEnum):
+class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
@@ -247,7 +251,7 @@ class EndpointUID:
         return self.uid
 
 
-class DriftStatus(enum.Enum):
+class DriftStatus(Enum):
     """
     Enum for the drift status values.
     """
@@ -257,7 +261,7 @@ class DriftStatus(enum.Enum):
     POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
 
 
-class ResultKindApp(enum.Enum):
+class ResultKindApp(Enum):
     """
     Enum for the result kind values
     """
@@ -268,7 +272,7 @@ class ResultKindApp(enum.Enum):
     system_performance = 3
 
 
-class ResultStatusApp(enum.IntEnum):
+class ResultStatusApp(IntEnum):
     """
     Enum for the result status values, detected means that the app detected some problem.
     """

@@ -32,8 +32,6 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/
 
-
-
 USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1

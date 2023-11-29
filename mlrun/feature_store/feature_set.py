@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import pytz
@@ -23,6 +23,7 @@ import mlrun
 import mlrun.common.schemas
 
 from ..config import config as mlconf
+from ..data_types import InferOptions
 from ..datastore import get_store_uri
 from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
@@ -45,11 +46,12 @@ from ..model import (
     ObjectList,
     VersionedObjMetadata,
 )
+from ..runtimes import BaseRuntime
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
-from .common import verify_feature_set_permissions
+from .common import RunConfig, verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
 
@@ -981,6 +983,56 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+    def ingest(
+        self,
+        source=None,
+        targets: List[DataTargetBase] = None,
+        namespace=None,
+        return_df: bool = True,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
+        mlrun_context=None,
+        spark_context=None,
+        overwrite=None,
+    ) -> Optional[pd.DataFrame]:
+        return mlrun.feature_store.api.ingest(
+            self,
+            source,
+            targets,
+            namespace,
+            return_df,
+            infer_options,
+            run_config,
+            mlrun_context,
+            spark_context,
+            overwrite,
+        )
+
+    def preview(
+        self,
+        source,
+        entity_columns: list = None,
+        namespace=None,
+        options: InferOptions = None,
+        verbose: bool = False,
+        sample_size: int = None,
+    ) -> pd.DataFrame:
+        return mlrun.feature_store.api.preview(
+            source, entity_columns, namespace, options, verbose, sample_size
+        )
+
+    def deploy_ingestion_service(
+        self,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        run_config: RunConfig = None,
+        verbose=False,
+    ) -> Tuple[str, BaseRuntime]:
+        return mlrun.feature_store.api.deploy_ingestion_service_v2(
+            self, source, targets, name, run_config, verbose
+        )
 
 
 class SparkAggregateByKey(StepToDict):

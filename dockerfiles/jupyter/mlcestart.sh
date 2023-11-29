@@ -4,11 +4,10 @@ file_path="${HOME}/.intdata"
 if [ -f "$file_path" ]; then
     echo "Base data exists."
 else
-    echo "base data does not exist."
-    echo "1" > $file_path
-    echo "base data exists."
-    cd / ; tar -xvf /tmp/basehome.tar
     # Perform actions when the file does not exist
+    echo "Base data does not exist, extracting home backup..."
+    cd / ; tar -xvf /tmp/basehome.tar
+    echo "1" > $file_path
 fi
 
 cd ${HOME}

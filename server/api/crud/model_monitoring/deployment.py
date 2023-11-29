@@ -417,12 +417,16 @@ class MonitoringDeployment:
         )
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name="model-monitoring-stream",
-            project=project,
-            filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.stream_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name="model-monitoring-stream",
+                project=project,
+                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=tracking_policy.stream_image,
+                handler="handler",
+            ),
         )
 
         # Create monitoring serving graph

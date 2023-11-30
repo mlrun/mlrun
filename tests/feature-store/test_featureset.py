@@ -91,6 +91,7 @@ def test_preview_method(mock_preview):
 
     # Assert that mlrun.feature_store.api.preview was called with the correct parameters
     mock_preview.assert_called_once_with(
+        fs,
         test_source,
         test_entity_columns,
         test_namespace,

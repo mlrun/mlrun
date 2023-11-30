@@ -928,42 +928,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
     # it's valid here.
-    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
-    h = hashlib.sha1()
-    h.update(data)
-    uid = h.hexdigest()
-    object_dict["metadata"]["tag"] = tag
-    object_dict["metadata"][uid_property_name] = uid
-    object_dict["status"] = status
-    if object_created_timestamp:
-        object_dict["metadata"]["created"] = object_created_timestamp
-    return uid
-
-
-def fill_artifact_object_hash(
-    object_dict, uid_property_name, iteration=None, producer_id=None
-):
-    # remove status, tag, date and old uid from calculation
-    object_dict.setdefault("metadata", {})
-    tag = object_dict["metadata"].get("tag", None)
-    status = object_dict.setdefault("status", {})
-    object_dict["metadata"]["tag"] = ""
-    object_dict["metadata"][uid_property_name] = ""
-    object_dict["status"] = None
-    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
-    object_created_timestamp = object_dict["metadata"].pop("created", None)
-
-    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
-    if not object_dict["metadata"].get("key"):
-        raise ValueError("artifact key is not set")
-    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
-    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
-
-    # calc hash and fill
     data = json.dumps(object_dict, sort_keys=True, default=str).encode()
     h = hashlib.sha1()
     h.update(data)
@@ -975,8 +944,36 @@ def fill_artifact_object_hash(
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    return uid
+
+
+def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
+
+    # remove artifact related fields before calculating hash
+    object_dict.setdefault("metadata", {})
+    labels = object_dict["metadata"].pop("labels", None)
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
+
+    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
+    # so further updates of the artifacts will have the same hash
+    db_key = object_dict.get("spec", {}).pop("db_key", None)
+
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
+
+    # calc hash and fill
+    uid = fill_object_hash(object_dict, "uid")
+
+    # restore original values
+    if labels:
+        object_dict["metadata"]["labels"] = labels
     if object_updated_timestamp:
         object_dict["metadata"]["updated"] = object_updated_timestamp
+    if db_key:
+        object_dict.setdefault("spec", {})["db_key"] = db_key
     return uid
 
 

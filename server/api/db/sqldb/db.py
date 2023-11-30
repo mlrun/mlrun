@@ -506,7 +506,7 @@ class SQLDB(DBInterface):
             artifact_dict.setdefault("metadata", {})["project"] = project
 
         # calculate uid
-        uid = fill_artifact_object_hash(artifact_dict, "uid", iter, producer_id)
+        uid = fill_artifact_object_hash(artifact_dict, iter, producer_id)
 
         # If object was referenced by UID, the request cannot modify it
         if original_uid and uid != original_uid:
@@ -536,7 +536,6 @@ class SQLDB(DBInterface):
                 uid,
                 iter,
                 best_iteration,
-                tag,
                 producer_id,
             )
             self._upsert(session, [db_artifact])
@@ -758,13 +757,15 @@ class SQLDB(DBInterface):
         artifacts = self.list_artifacts(session, project=project, category=category)
         results = []
         for artifact in artifacts:
-            results.append(
-                (
-                    project,
-                    artifact["spec"].get("db_key"),
-                    artifact["metadata"].get("tag"),
+            # we want to return only artifacts that have tags when listing tags
+            if artifact["metadata"].get("tag"):
+                results.append(
+                    (
+                        project,
+                        artifact["spec"].get("db_key"),
+                        artifact["metadata"].get("tag"),
+                    )
                 )
-            )
 
         return results
 
@@ -894,7 +895,6 @@ class SQLDB(DBInterface):
         uid: str,
         iter: int = None,
         best_iteration: bool = False,
-        tag: str = None,
         producer_id: str = None,
     ):
         artifact_record.project = project
@@ -923,8 +923,6 @@ class SQLDB(DBInterface):
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
         artifact_dict["metadata"]["created"] = str(artifact_record.created)
         artifact_dict["kind"] = kind
-        if tag:
-            artifact_dict["metadata"]["tag"] = tag
 
         db_key = artifact_dict.get("spec", {}).get("db_key")
         if not db_key:
@@ -949,7 +947,7 @@ class SQLDB(DBInterface):
         best_iteration=False,
     ):
         if not uid:
-            uid = fill_artifact_object_hash(artifact, "uid", iteration, producer_id)
+            uid = fill_artifact_object_hash(artifact, iteration, producer_id)
 
         # check if the object already exists
         query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
@@ -971,7 +969,6 @@ class SQLDB(DBInterface):
             uid,
             iteration,
             best_iteration,
-            tag,
             producer_id,
         )
 

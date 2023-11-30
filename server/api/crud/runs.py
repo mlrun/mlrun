@@ -27,7 +27,6 @@ import server.api.api.utils
 import server.api.constants
 import server.api.utils.singletons.db
 from mlrun.utils import logger
-from server.api.runtime_handlers import get_runtime_handler
 
 
 class Runs(

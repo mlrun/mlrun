@@ -286,3 +286,7 @@ class ResultStatusApp(IntEnum):
 class ModelMonitoringAppLabel:
     KEY = "mlrun__type"
     VAL = "mlrun__model-monitoring-application"
+
+
+class ControllerPolicy:
+    BASE_PERIOD = "base_period"

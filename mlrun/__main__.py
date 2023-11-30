@@ -582,7 +582,7 @@ def build(
                 fp.write(image)
             with open("/tmp/fullimage", "w") as fp:
                 fp.write(full_image)
-            print("full image path = ", full_image)
+            print("Full image path = ", full_image)
 
         print(f"Function built, state={state} image={image}")
     else:

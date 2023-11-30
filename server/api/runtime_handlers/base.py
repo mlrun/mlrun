@@ -437,6 +437,17 @@ class BaseRuntimeHandler(ABC):
             runtime.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
 
     @staticmethod
+    def are_resources_coupled_to_run_object() -> bool:
+        """
+        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Function of the job kind
+        a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
+        and every Run is being executed using this cluster, i.e. no resources are created for the Run.
+        This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
+        aspects of the Run (like its state) should be taken into consideration on resources deletion
+        """
+        return False
+
+    @staticmethod
     @abstractmethod
     def _get_object_label_selector(object_id: str) -> str:
         """
@@ -727,17 +738,6 @@ class BaseRuntimeHandler(ABC):
         return "", "", ""
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
-        """
-        Some resources are tightly coupled to mlrun Run object, for example, for each Run of a Function of the job kind
-        a kubernetes job is being generated, on the opposite a Function of the daskjob kind generates a dask cluster,
-        and every Run is being executed using this cluster, i.e. no resources are created for the Run.
-        This function should return true for runtimes in which Run are coupled to the underlying resources and therefore
-        aspects of the Run (like its state) should be taken into consideration on resources deletion
-        """
-        return False
-
-    @staticmethod
     def _expect_pods_without_uid() -> bool:
         return False
 
@@ -820,7 +820,7 @@ class BaseRuntimeHandler(ABC):
         # if they are not coupled we are not able to wait - simply return
         # NOTE - there are surely smarter ways to do this, without depending on the run object, but as of writing this
         # none of the runtimes using CRDs are like that, so not handling it now
-        if not self._are_resources_coupled_to_run_object():
+        if not self.are_resources_coupled_to_run_object():
             return
 
         def _verify_crds_underlying_pods_removed():
@@ -918,7 +918,7 @@ class BaseRuntimeHandler(ABC):
 
                 # if resources are tightly coupled to the run object - we want to perform some actions on the run object
                 # before deleting them
-                if self._are_resources_coupled_to_run_object():
+                if self.are_resources_coupled_to_run_object():
                     try:
                         self._pre_deletion_runtime_resource_run_actions(
                             db, db_session, pod_dict, run_state
@@ -992,7 +992,7 @@ class BaseRuntimeHandler(ABC):
 
                     # if resources are tightly coupled to the run object - we want to perform some actions on the run
                     # object before deleting them
-                    if self._are_resources_coupled_to_run_object():
+                    if self.are_resources_coupled_to_run_object():
                         try:
                             self._pre_deletion_runtime_resource_run_actions(
                                 db,

@@ -547,7 +547,7 @@ def build(
     archive = archive or mlconf.default_archive
     if archive:
         src = b.source or "./"
-        logger.info(f"uploading data from {src} to {archive}")
+        logger.info(f"Uploading data from {src} to {archive}")
         target = archive if archive.endswith("/") else archive + "/"
         target += f"src-{meta.project}-{meta.name}-{meta.tag or 'latest'}.tar.gz"
         mlrun.datastore.utils.upload_tarball(src, target)

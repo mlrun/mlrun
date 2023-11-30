@@ -62,7 +62,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             self.crdapi = client.CustomObjectsApi()
         except Exception as exc:
             logger.warning(
-                "cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
+                "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
             )
             if not silent:
                 raise

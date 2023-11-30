@@ -725,7 +725,7 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
     num_iters = 5
     best_iter_1 = 2
     best_iter_2 = 4
-    best_iter_3 = 2
+    best_iter_3 = 1
     _generate_artifact_with_iterations(
         db,
         db_session,
@@ -760,7 +760,10 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
         )
         assert len(results) == 3
         for result in results:
-            assert result["metadata"]["tag"] == "latest"
+            if result["metadata"]["tree"] == artifact_3_tree:
+                assert result["metadata"]["tag"] == "latest"
+            else:
+                assert not result["metadata"]["tag"]
 
 
 def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):

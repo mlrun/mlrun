@@ -757,7 +757,7 @@ class SQLDB(DBInterface):
         artifacts = self.list_artifacts(session, project=project, category=category)
         results = []
         for artifact in artifacts:
-            if artifact["metadata"].get("tag") is not None:
+            if artifact["metadata"].get("tag"):
                 results.append(
                     (
                         project,

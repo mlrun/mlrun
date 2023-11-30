@@ -928,6 +928,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
@@ -936,6 +937,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
+
+    # restore original values
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
@@ -945,16 +948,11 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
 
 
 def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
-    # remove status, tag, date and old uid from calculation
+
+    # remove artifact related fields before calculating hash
     object_dict.setdefault("metadata", {})
-    tag = object_dict["metadata"].get("tag", None)
     labels = object_dict["metadata"].pop("labels", None)
-    status = object_dict.setdefault("status", {})
-    object_dict["metadata"]["tag"] = ""
-    object_dict["metadata"]["uid"] = ""
-    object_dict["status"] = None
     object_updated_timestamp = object_dict["metadata"].pop("updated", None)
-    object_created_timestamp = object_dict["metadata"].pop("created", None)
 
     # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
     # so further updates of the artifacts will have the same hash
@@ -967,20 +965,11 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
     object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
 
     # calc hash and fill
-    data = json.dumps(object_dict, sort_keys=True, default=str).encode()
-    h = hashlib.sha1()
-    h.update(data)
-    uid = h.hexdigest()
+    uid = fill_object_hash(object_dict, "uid")
 
     # restore original values
-    if tag:
-        object_dict["metadata"]["tag"] = tag
     if labels:
         object_dict["metadata"]["labels"] = labels
-    object_dict["metadata"]["uid"] = uid
-    object_dict["status"] = status
-    if object_created_timestamp:
-        object_dict["metadata"]["created"] = object_created_timestamp
     if object_updated_timestamp:
         object_dict["metadata"]["updated"] = object_updated_timestamp
     if db_key:

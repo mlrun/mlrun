@@ -757,6 +757,7 @@ class SQLDB(DBInterface):
         artifacts = self.list_artifacts(session, project=project, category=category)
         results = []
         for artifact in artifacts:
+            # we want to return only artifacts that have tags when listing tags
             if artifact["metadata"].get("tag"):
                 results.append(
                     (

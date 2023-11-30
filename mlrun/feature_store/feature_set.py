@@ -1015,7 +1015,7 @@ class FeatureSet(ModelObj):
         sample_size: int = None,
     ) -> pd.DataFrame:
         return mlrun.feature_store.api.preview(
-            source, entity_columns, namespace, options, verbose, sample_size
+            self, source, entity_columns, namespace, options, verbose, sample_size
         )
 
     def deploy_ingestion_service(

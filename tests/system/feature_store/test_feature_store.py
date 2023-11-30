@@ -181,9 +181,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
 
-        df = fstore.ingest(
-            stocks_set, stocks, infer_options=fstore.InferOptions.default()
-        )
+        df = stocks_set.ingest(stocks, infer_options=fstore.InferOptions.default())
 
         self._logger.info(f"output df:\n{df}")
         stocks_set["name"].description = "some name"
@@ -223,8 +221,7 @@ class TestFeatureStore(TestMLRunSystem):
             column="bid", operations=["max"], windows="1h", period="10m"
         )
 
-        df = fstore.preview(
-            quotes_set,
+        df = quotes_set.preview(
             quotes,
             entity_columns=["ticker"],
             options=fstore.InferOptions.default(),
@@ -2397,9 +2394,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=myset, source=source, run_config=run_config
-        )
+        myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
         stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/{fset_name}/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
@@ -2802,7 +2797,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check without impute
         vector = fstore.FeatureVector("vectori2", features)
-        with fstore.get_online_feature_service(vector) as svc:
+        with vector.get_online_feature_service() as svc:
             resp = svc.get([{"name": "cd"}])
             assert np.isnan(resp[0]["data2"])
             assert np.isnan(resp[0]["data_avg_1h"])
@@ -2869,7 +2864,7 @@ class TestFeatureStore(TestMLRunSystem):
             svc.close()
         assert resp == [{"some_data": 10, "ddata": "Paris"}]
 
-        resp = fstore.get_offline_features(vector)
+        resp = vector.get_offline_features()
         assert resp.to_dataframe().to_dict() == {
             "some_data": {0: 10, 1: 20},
             "ddata": {0: "Paris", 1: "Tel Aviv"},

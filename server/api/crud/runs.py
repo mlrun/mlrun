@@ -25,6 +25,7 @@ import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
+import server.api.runtime_handlers
 import server.api.utils.singletons.db
 from mlrun.utils import logger
 
@@ -181,9 +182,7 @@ class Runs(
             )
             return
 
-        runtime_kind = run.get("kind") or run.get("metadata", {}).get("labels", {}).get(
-            "kind"
-        )
+        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = server.api.runtime_handlers.get_runtime_handler(
                 runtime_kind
@@ -197,6 +196,13 @@ class Runs(
                     force=True,
                 )
 
+        logger.debug(
+            "Deleting run",
+            project=project,
+            uid=uid,
+            iter=iter,
+            runtime_kind=runtime_kind,
+        )
         server.api.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
 
     def delete_runs(

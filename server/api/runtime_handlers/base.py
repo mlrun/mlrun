@@ -172,6 +172,13 @@ class BaseRuntimeHandler(ABC):
         label_selector = self._add_object_label_selector_if_needed(
             object_id, label_selector
         )
+        logger.debug(
+            "Deleting runtime object resources",
+            object_id=object_id,
+            label_selector=label_selector,
+            force=force,
+            grace_period=grace_period,
+        )
         self.delete_resources(db, db_session, label_selector, force, grace_period)
 
     def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
@@ -1547,8 +1554,7 @@ class BaseRuntimeHandler(ABC):
 
         return True, run_state, run
 
-    @staticmethod
-    def _ensure_run(db, db_session, name, project, run, search_run, uid):
+    def _ensure_run(self, db, db_session, name, project, run, search_run, uid):
         if run is None:
             run = {}
         if not run and search_run:
@@ -1563,7 +1569,14 @@ class BaseRuntimeHandler(ABC):
                 uid=uid,
                 search_run=search_run,
             )
-            run = {"metadata": {"project": project, "name": name, "uid": uid}}
+            run = {
+                "metadata": {
+                    "project": project,
+                    "name": name,
+                    "uid": uid,
+                    "labels": {"kind": self.kind},
+                }
+            }
         return run
 
     @staticmethod

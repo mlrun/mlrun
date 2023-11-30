@@ -1520,3 +1520,10 @@ def iterate_list_by_chunks(
     iterator = iter(iterable_list)
     while chunk := list(itertools.islice(iterator, chunk_size)):
         yield chunk
+
+
+def to_parquet(df, *args, **kwargs):
+    # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
+    if "version" not in kwargs:
+        kwargs["version"] = "2.4"
+    df.to_parquet(*args, **kwargs)

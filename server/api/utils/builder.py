@@ -622,6 +622,11 @@ def build_runtime(
     namespace = runtime.metadata.namespace
     project = runtime.metadata.project
     if skip_deployed and runtime.is_deployed():
+        mlrun.utils.logger.info(
+            "Skipping build, runtime is already deployed",
+            runtime_uid=runtime.metadata.uid,
+            project=project,
+        )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
         return True
 

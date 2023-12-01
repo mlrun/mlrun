@@ -478,7 +478,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         assert len(stale_runs) == 1
         assert stale_job_uid in [run["uid"] for run in stale_runs]
         assert stale_runs[0]["run_updates"] == {
-            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):

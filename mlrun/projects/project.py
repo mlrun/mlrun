@@ -1931,6 +1931,37 @@ class MlrunProject(ModelObj):
 
         return resolved_function_name, function_object, func
 
+    def enable_model_monitoring_controller(
+        self,
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 10,
+    ) -> dict:
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :return: model monitoring controller job as a dictionary.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.create_model_monitoring_controller(
+            project=self.name,
+            default_controller_image=default_controller_image,
+            base_period=base_period,
+        )
+
+    def disable_model_monitoring_controller(self):
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
+
     def set_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,

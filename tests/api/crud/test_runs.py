@@ -42,10 +42,11 @@ def test_delete_runs_with_resources(db: sqlalchemy.orm.Session):
     run = server.api.crud.Runs().get_run(db, "uid", 0, project)
     assert run["metadata"]["name"] == "run-name"
 
-    with unittest.mock.patch.object(
-        server.api.utils.singletons.k8s.get_k8s_helper().v1api, "delete_namespaced_pod"
+    k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+    with unittest.mock.patch.object(k8s_helper, "v1api"), unittest.mock.patch.object(
+        k8s_helper.v1api, "delete_namespaced_pod"
     ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
-        server.api.utils.singletons.k8s.get_k8s_helper().v1api,
+        k8s_helper.v1api,
         "list_namespaced_pod",
         side_effect=[
             k8s_client.V1PodList(

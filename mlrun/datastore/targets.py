@@ -31,6 +31,7 @@ import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
+from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
@@ -803,7 +804,8 @@ class ParquetTarget(BaseStoreTarget):
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
-        df.to_parquet(
+        to_parquet(
+            df,
             target_path,
             partition_cols=partition_cols,
             storage_options=storage_options,

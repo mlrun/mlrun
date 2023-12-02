@@ -44,6 +44,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -592,7 +593,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -601,7 +602,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        ).to_parquet(path=path, filesystem=fsys)
+        )
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -651,7 +653,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             assert resp[0]["data"] == 10
             assert resp[1]["data"] == 2000
 
-            pd.DataFrame(
+            df = pd.DataFrame(
                 {
                     "time": [
                         pd.Timestamp("2021-01-10 12:00:00"),
@@ -662,7 +664,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "first_name": ["moshe", "dina", "katya", "uri"],
                     "data": [50, 10, 25, 30],
                 }
-            ).to_parquet(path=path)
+            )
+            to_parquet(df, path=path)
 
             fstore.ingest(
                 feature_set,
@@ -717,7 +720,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
 
@@ -988,7 +991,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
@@ -1077,7 +1080,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -1086,7 +1089,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        ).to_parquet(path=path, filesystem=fsys)
+        )
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1150,7 +1154,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "data": [2000],
             }
         )[0:0]
-        empty_df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(empty_df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1203,7 +1207,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "data": [2000],
             }
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1265,7 +1269,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        stocks.to_parquet(path=source, filesystem=fsys)
+        to_parquet(stocks, path=source, filesystem=fsys)
         source = ParquetSource(
             "myparquet",
             path=source,
@@ -2240,8 +2244,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
         fsys.makedirs(base_path, exist_ok=True)
-        df_left.to_parquet(path=left_path, filesystem=fsys)
-        df_right.to_parquet(path=right_path, filesystem=fsys)
+        to_parquet(df_left, path=left_path, filesystem=fsys)
+        to_parquet(df_right, path=right_path, filesystem=fsys)
 
         fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
         self.set_targets(fset1, also_in_remote=True)
@@ -2309,7 +2313,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
         fsys.makedirs(base_path, exist_ok=True)
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
         source = ParquetSource("pq1", path=path)
 
         fset1 = fstore.FeatureSet(

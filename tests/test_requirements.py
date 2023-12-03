@@ -124,7 +124,7 @@ def test_requirement_specifiers_convention():
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.26.9, <1.27"},
         "numpy": {">=1.16.5, <1.23.0"},
-        "boto3": {">=1.28.0,<1.33.0"},
+        "boto3": {">=1.28.0,<=1.29.7"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <15"},
         "nbclassic": {">=0.2.8"},

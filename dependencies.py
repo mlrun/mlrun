@@ -32,7 +32,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
     #       there as well
     extras_require = {
         "s3": [
-            "boto3>=1.28.0,<=1.29.7",
+            "boto3>=1.28.0,<1.29.0",
             "aiobotocore>=2.7.0,<2.8",
             "s3fs>=2023.9,<=2023.10",
         ],

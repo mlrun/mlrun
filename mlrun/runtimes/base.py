@@ -2281,9 +2281,10 @@ class BaseRuntimeHandler(ABC):
             uid=uid,
         )
 
-        self._ensure_run_state(db, db_session, project, uid, name, run_state)
-
-        self._ensure_run_logs_collected(db, db_session, project, uid)
+        _, _, run = self._ensure_run_state(
+            db, db_session, project, uid, name, run_state
+        )
+        self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _is_runtime_resource_run_in_terminal_state(
         self,
@@ -2413,7 +2414,7 @@ class BaseRuntimeHandler(ABC):
                 run_state,
             ) = self._resolve_pod_status_info(db, db_session, runtime_resource)
         self._update_ui_url(db, db_session, project, uid, runtime_resource, run)
-        _, updated_run_state = self._ensure_run_state(
+        _, updated_run_state, run = self._ensure_run_state(
             db,
             db_session,
             project,
@@ -2421,10 +2422,10 @@ class BaseRuntimeHandler(ABC):
             name,
             run_state,
             run,
-            search_run=False,
+            search_run=True,
         )
         if updated_run_state in RunStates.terminal_states():
-            self._ensure_run_logs_collected(db, db_session, project, uid)
+            self._ensure_run_logs_collected(db, db_session, project, uid, run=run)
 
     def _build_list_resources_response(
         self,
@@ -2560,7 +2561,7 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _ensure_run_logs_collected(
-        db: DBInterface, db_session: Session, project: str, uid: str
+        db: DBInterface, db_session: Session, project: str, uid: str, run: Dict = None
     ):
         # import here to avoid circular imports
         import mlrun.api.crud as crud
@@ -2570,7 +2571,7 @@ class BaseRuntimeHandler(ABC):
             # this stays for now for backwards compatibility in case we would not use the log collector but rather
             # the legacy method to pull logs
             logs_from_k8s = crud.Logs()._get_logs_legacy_method(
-                db_session, project, uid, source=LogSources.K8S
+                db_session, project, uid, source=LogSources.K8S, run=run
             )
             if logs_from_k8s:
                 logger.info("Storing run logs", project=project, uid=uid)
@@ -2586,10 +2587,10 @@ class BaseRuntimeHandler(ABC):
         run_state: str,
         run: Dict = None,
         search_run: bool = True,
-    ) -> Tuple[bool, str]:
+    ) -> Tuple[bool, str, dict]:
         if run is None:
             run = {}
-        if search_run:
+        if not run and search_run:
             try:
                 run = db.read_run(db_session, uid, project)
             except mlrun.errors.MLRunNotFoundError:
@@ -2606,7 +2607,7 @@ class BaseRuntimeHandler(ABC):
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
             if db_run_state == run_state:
-                return False, run_state
+                return False, run_state, run
             # if the current run state is terminal and different than the desired - log
             if db_run_state in RunStates.terminal_states():
 
@@ -2632,7 +2633,7 @@ class BaseRuntimeHandler(ABC):
                                 now=now,
                                 debounce_period=debounce_period,
                             )
-                            return False, run_state
+                            return False, run_state, run
 
                 logger.warning(
                     "Run record has terminal state but monitoring found different state on runtime resource. Changing",
@@ -2647,7 +2648,7 @@ class BaseRuntimeHandler(ABC):
         run.setdefault("status", {})["last_update"] = now_date().isoformat()
         db.store_run(db_session, run, uid, project)
 
-        return True, run_state
+        return True, run_state, run
 
     @staticmethod
     def _resolve_runtime_resource_run(runtime_resource: Dict) -> Tuple[str, str, str]:

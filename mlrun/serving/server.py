@@ -360,7 +360,13 @@ def v2_serving_init(context, namespace=None):
         context.logger.debug(
             "Setting termination callback to terminate graph on worker shutdown"
         )
-        context.platform.set_termination_callback(server.wait_for_completion)
+
+        def termination_callback():
+            context.logger.info("Termination callback called")
+            server.wait_for_completion()
+            context.logger.info("Termination of async flow is completed")
+
+        context.platform.set_termination_callback(termination_callback)
 
 
 def v2_serving_handler(context, event, get_body=False):

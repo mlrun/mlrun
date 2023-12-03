@@ -265,6 +265,7 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
             # 5 minutes, to resiliently handle delicate/slow k8s clusters
             "kubernetes.scheduler-service-wait-timeout": 60 * 5,
             "distributed.comm.timeouts.connect": "300s",
+            "distributed.comm.retry.count": 10,
         }
     )
 

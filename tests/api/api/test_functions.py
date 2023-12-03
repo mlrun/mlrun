@@ -373,7 +373,7 @@ def test_tracking_on_serving(
         server.api.api.utils: ["apply_enrichment_and_validation_on_function"],
         server.api.api.endpoints.functions: [
             "process_model_monitoring_secret",
-            "_create_model_monitoring_stream",
+            "create_model_monitoring_stream",
         ],
         server.api.crud: ["ModelEndpoints"],
         nuclio.deploy: ["deploy_config"],

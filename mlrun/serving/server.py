@@ -364,7 +364,12 @@ def v2_serving_init(context, namespace=None):
         def termination_callback():
             context.logger.info("Termination callback called")
             server.wait_for_completion()
-            context.logger.info("Termination of async flow is completed")
+            context.logger.info(
+                "Termination of async flow is completed. Rerunning async flow."
+            )
+            # Rerun the flow without reconstructing it
+            server.graph._run_async_flow()
+            context.logger.info("Async flow restarted")
 
         context.platform.set_termination_callback(termination_callback)
 

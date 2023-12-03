@@ -52,7 +52,9 @@ class _AppData:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow"
+    project_name = "test-monitoring-app-flow-3"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = "jonathandaniel503/mlrun:app-sys-tst"
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -65,6 +67,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls.num_features = 4
 
         cls.app_interval: int = 1  # every 1 minute
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
 
         cls.evidently_workspace_path = (
             f"/v3io/projects/{cls.project_name}/artifacts/evidently-workspace"
@@ -94,7 +97,8 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring_controller(
-            base_period=1,
+            base_period=self.app_interval,
+            **({} if self.image is None else {"default_controller_image": self.image}),
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -148,8 +152,10 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         return endpoints[0].metadata.uid
 
     @classmethod
-    def _generate_infer_input(cls) -> str:
-        return json.dumps({"inputs": [[0] * cls.num_features] * cls.max_events})
+    def _generate_infer_input(cls, num_events: typing.Optional[int] = None) -> str:
+        if num_events is None:
+            num_events = cls.max_events
+        return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
@@ -194,6 +200,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
-        time.sleep(2 * timedelta(minutes=self.app_interval).total_seconds())
+        time.sleep(2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

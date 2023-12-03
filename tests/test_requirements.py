@@ -97,7 +97,7 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "aiobotocore": {">=2.7.0,<=2.8"},
+        "aiobotocore": {">=2.7.0,<2.8"},
         "storey": {"~=1.6.7"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},

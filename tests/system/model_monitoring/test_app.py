@@ -88,6 +88,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
         cls.infer_input = cls._generate_infer_input()
+        cls.next_window_input = cls._generate_infer_input(num_events=1)
 
         cls._v3io_container = ModelMonitoringWriter.get_v3io_container(cls.project_name)
         cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
@@ -200,6 +201,10 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
-        time.sleep(2 * self.app_interval_seconds)
+        # mark the first window as "done" with another request
+        time.sleep(self.app_interval_seconds)
+        self.serving_fn.invoke(self.infer_path, self.next_window_input)
+        # wait for the completed window to be processed
+        time.sleep(1.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

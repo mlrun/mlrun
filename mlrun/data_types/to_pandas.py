@@ -234,7 +234,7 @@ def _to_corrected_pandas_type(dt):
     elif type(dt) == DoubleType:
         return np.float64
     elif type(dt) == BooleanType:
-        return bool
+        return np.bool  # type: ignore[attr-defined]
     elif type(dt) == TimestampType:
         return "datetime64[ns]"
     else:

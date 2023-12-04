@@ -55,8 +55,8 @@ AUTH_METHODS_AND_REQUIRED_PARAMS = {
 generated_pytest_parameters = []
 for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
     generated_pytest_parameters.append((authentication_method, False))
-    # if authentication_method.startswith("fsspec"):
-    #     generated_pytest_parameters.append((authentication_method, True))
+    if authentication_method.startswith("fsspec"):
+        generated_pytest_parameters.append((authentication_method, True))
 
 
 # Apply parametrization to all tests in this file. Skip test if auth method is not configured.

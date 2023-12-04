@@ -45,6 +45,8 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage(TestMLRunSystem):
+    project_name = "gcsfs-system-test"
+
     @classmethod
     def clean_test_directory(cls):
         test_dir = f"{cls._bucket_name}/{cls.test_dir}"

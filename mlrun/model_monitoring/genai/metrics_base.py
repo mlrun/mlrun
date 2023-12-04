@@ -67,7 +67,7 @@ class LLMJudgeSingleGrading(ModelObj):
         "model_judge",
         "model_judge_config",
         "prompt_template",
-        "grading_examples",
+        "prompt_config",
     ]
     kind = "llm_judge_single_grading"
 
@@ -77,7 +77,7 @@ class LLMJudgeSingleGrading(ModelObj):
         model_judge: str,
         model_judge_config: Dict[str:str],
         prompt_template: str,
-        grading_examples: str,
+        prompt_config: Dict[str:str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -88,7 +88,7 @@ class LLMJudgeSingleGrading(ModelObj):
         self.model_judge = model_judge
         self.model_judge_config = model_config
         self.prompt_template = prompt_template
-        self.grading_examples = grading_examples
+        self.prompt_config = prompt_config
 
     def compute_over_data(self, **kwargs) -> Dict[str, Any]:
         pass
@@ -102,7 +102,7 @@ class LLMJudgePairwiseGrading(ModelObj):
         "bench_mark_model",
         "bench_mark_model_config",
         "prompt_template",
-        "grading_examples",
+        "prompt_config",
     ]
     kind = "llm_judge_pairwise_grading"
 
@@ -114,7 +114,7 @@ class LLMJudgePairwiseGrading(ModelObj):
         prompt_template: str,
         bench_mark_model: str,
         bench_mark_model_config: Dict[str:str],
-        grading_examples: str,
+        prompt_config: Dict[str:str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -127,7 +127,7 @@ class LLMJudgePairwiseGrading(ModelObj):
         self.bench_mark_model = bench_mark_model
         self.bench_mark_model_config = bench_mark_model_config
         self.prompt_template = prompt_template
-        self.grading_examples = grading_examples
+        self.prompt_config = prompt_config
 
 
 class LLMJudgeReferenceGrading(ModelObj):
@@ -138,7 +138,7 @@ class LLMJudgeReferenceGrading(ModelObj):
         "bench_mark_model",
         "bench_mark_model_config",
         "prompt_template",
-        "reference",
+        "prompt_config",
     ]
     kind = "llm_judge_reference_grading"
 
@@ -150,7 +150,7 @@ class LLMJudgeReferenceGrading(ModelObj):
         prompt_template: str,
         bench_mark_model: str,
         bench_mark_model_config: Dict[str:str],
-        reference: str,
+        prompt_config: Dict[str:str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -163,7 +163,7 @@ class LLMJudgeReferenceGrading(ModelObj):
         self.bench_mark_model = bench_mark_model
         self.bench_mark_model_config = bench_mark_model_config
         self.prompt_template = prompt_template
-        self.reference = reference
+        self.prompt_config = prompt_config
 
 
 # TODO figure out a way to viz the different metrics in a Radar plot

@@ -52,9 +52,9 @@ class _AppData:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow"
+    project_name = "test-monitoring-app-0"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "jonathandaniel503/mlrun:app-sys-tst-7"
 
     @classmethod
     def custom_setup_class(cls) -> None:

@@ -124,7 +124,7 @@ class LLMJudgeSingleGrading(ModelObj):
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
 
-        return {"score": response, "explanation": response}
+        return response
 
 
 class LLMJudgePairwiseGrading(ModelObj):

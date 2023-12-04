@@ -35,22 +35,21 @@ here = Path(__file__).absolute().parent
 parquets_dir = "parquets"
 csv_dir = "csv"
 
-#  todo return all options
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "env_conn_str": ["AZURE_STORAGE_CONNECTION_STRING"],
-    # "env_sas_token": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN"],
-    # "env_account_key": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY"],
-    # "env_spn": [
-    #     "AZURE_STORAGE_ACCOUNT_NAME",
-    #     "AZURE_STORAGE_CLIENT_ID",
-    #     "AZURE_STORAGE_CLIENT_SECRET",
-    #     "AZURE_STORAGE_TENANT_ID",
-    # ],
+    "env_sas_token": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_SAS_TOKEN"],
+    "env_account_key": ["AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY"],
+    "env_spn": [
+        "AZURE_STORAGE_ACCOUNT_NAME",
+        "AZURE_STORAGE_CLIENT_ID",
+        "AZURE_STORAGE_CLIENT_SECRET",
+        "AZURE_STORAGE_TENANT_ID",
+    ],
     "fsspec_conn_str": ["connection_string"],
-    # "fsspec_sas_token": ["account_name", "sas_token"],
-    # "fsspec_account_key": ["account_name", "account_key"],
-    # "fsspec_spn": ["account_name", "client_id", "client_secret", "tenant_id"],
-    # "fsspec_credential": ["credential"],
+    "fsspec_sas_token": ["account_name", "sas_token"],
+    "fsspec_account_key": ["account_name", "account_key"],
+    "fsspec_spn": ["account_name", "client_id", "client_secret", "tenant_id"],
+    "fsspec_credential": ["credential"],
 }
 
 generated_pytest_parameters = []
@@ -260,14 +259,13 @@ class TestAzureBlob:
     @pytest.mark.parametrize(
         "directory, file_format, file_extension, ,writer, reader",
         [
-            #  todo bring back parquet
-            # (
-            #         parquets_dir,
-            #         "parquet",
-            #         "parquet",
-            #         pd.DataFrame.to_parquet,
-            #         pd.read_parquet,
-            # ),
+            (
+                parquets_dir,
+                "parquet",
+                "parquet",
+                pd.DataFrame.to_parquet,
+                pd.read_parquet,
+            ),
             (csv_dir, "csv", "csv", pd.DataFrame.to_csv, pd.read_csv),
         ],
     )

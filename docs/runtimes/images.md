@@ -54,7 +54,7 @@ The possible commands are:
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`
 
-## Building a docker image using dockerfile and using it
+## Building a docker image using a dockerfile and using it
 
 1. Build an image using Dockerfile:
    1. Create a Dockerfile

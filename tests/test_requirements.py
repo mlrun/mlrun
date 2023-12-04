@@ -116,8 +116,8 @@ def test_requirement_specifiers_convention():
         },
         "fsspec": {">=2023.9,<=2023.9.1"},
         "adlfs": {">=2023.9,<=2023.9.1"},
-        "s3fs": {">=2023.9,<=2023.9.1"},
-        "gcsfs": {">=2023.9,<=2023.9.1"},
+        "s3fs": {"==2023.9.0"},
+        "gcsfs": {"==2023.9.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that

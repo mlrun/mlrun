@@ -34,7 +34,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "s3": [
             "boto3>=1.28.0,<1.29.0",
             "aiobotocore>=2.5.0,<2.8",
-            "s3fs>=2023.9,<=2023.9.1",
+            "s3fs==2023.9.0",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
@@ -64,7 +64,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "google-cloud-bigquery[pandas, bqstorage]~=3.2",
             "google-cloud~=0.34",
         ],
-        "google-cloud-storage": ["gcsfs>=2023.9,<=2023.9.1"],
+        "google-cloud-storage": ["gcsfs==2023.9.0"],
         "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
         "kafka": [
             "kafka-python~=2.0",

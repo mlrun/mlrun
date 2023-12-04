@@ -20,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
+from adlfs.spec import AzureBlobFileSystem
 
 import mlrun
 import mlrun.errors
@@ -34,6 +35,10 @@ here = Path(__file__).absolute().parent
 
 parquets_dir = "parquets"
 csv_dir = "csv"
+
+config_file_path = here / "test-azure-blob.yml"
+with config_file_path.open() as fp:
+    config = yaml.safe_load(fp)
 
 AUTH_METHODS_AND_REQUIRED_PARAMS = {
     "env_conn_str": ["AZURE_STORAGE_CONNECTION_STRING"],
@@ -64,31 +69,38 @@ for authentication_method in AUTH_METHODS_AND_REQUIRED_PARAMS:
 @pytest.mark.parametrize(
     "auth_method ,use_datastore_profile", generated_pytest_parameters
 )
+@pytest.mark.skipif(
+    not config["env"].get("AZURE_CONTAINER"),
+    reason="AZURE_CONTAINER is not set",
+)
 class TestAzureBlob:
     @classmethod
     def setup_class(cls):
         cls.profile_name = "azure_blob_ds_profile"
         cls.test_dir = "test_mlrun_azure_blob"
-
-        config_file_path = here / "test-azure-blob.yml"
-        with config_file_path.open() as fp:
-            cls.config = yaml.safe_load(fp)
-
+        cls._bucket_name = config["env"].get("AZURE_CONTAINER", None)
         cls.test_file = here / "test.txt"
         with open(cls.test_file, "r") as f:
             cls.test_string = f.read()
+
+    def teardown_method(self):
+        test_dir = f"{self._bucket_name}/{self.test_dir}"
+        if not self._azure_fs:
+            return
+        if self._azure_fs.exists(test_dir):
+            self._azure_fs.delete(test_dir, recursive=True)
+            logger.debug("test directory has been cleaned.")
 
     @pytest.fixture(autouse=True)
     def setup_before_each_test(self, use_datastore_profile):
         self.blob_file = f"file_{uuid.uuid4()}.txt"
         store_manager.reset_secrets()
+        self._azure_fs = None
 
     def get_blob_container_path(self, use_datastore_profile):
         if use_datastore_profile:
-            return (
-                f"ds://{self.profile_name}/{self.config['env'].get('AZURE_CONTAINER')}"
-            )
-        return "az://" + self.config["env"].get("AZURE_CONTAINER")
+            return f"ds://{self.profile_name}/{self._bucket_name}"
+        return "az://" + self._bucket_name
 
     def verify_auth_parameters_and_configure(self, auth_method, use_datastore_profile):
         # This sets up the authentication method against Azure
@@ -98,9 +110,7 @@ class TestAzureBlob:
         # it returns adlfs-recognized parameters compliant with the
         # fsspec api.  These get saved as secrets by mlrun.get_dataitem()
         # for authentication.
-        if not self.config["env"].get("AZURE_CONTAINER"):
-            pytest.skip(f"Auth method {auth_method} not configured.")
-
+        #  must be run before each test to determine authentication parameters.
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
             for env_var in env_vars:
                 os.environ.pop(env_var, None)
@@ -115,21 +125,23 @@ class TestAzureBlob:
                     f"Auth method {auth_method} does not support profiles."
                 )
             for env_var in test_params:
-                env_value = self.config["env"].get(env_var)
+                env_value = config["env"].get(env_var)
                 if not env_value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 os.environ[env_var] = env_value
 
             logger.info(f"Testing auth method {auth_method}")
+            self._azure_fs = AzureBlobFileSystem()
             return {}
 
         elif auth_method.startswith("fsspec"):
             storage_options = {}
             for var in test_params:
-                value = self.config["env"].get(var)
+                value = config["env"].get(var)
                 if not value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
                 storage_options[var] = value
+            self._azure_fs = AzureBlobFileSystem(**storage_options)
             logger.info(f"Testing auth method {auth_method}")
             if use_datastore_profile:
                 self.profile = DatastoreProfileAzureBlob(

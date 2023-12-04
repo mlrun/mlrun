@@ -31,24 +31,40 @@
 
 SINGLE_GRADE_PROMPT = """
 Task:
-Please act as an impartial judge and evaluate the quality of the response provided by an
-AI assistant to the user question displayed below. Your evaluation should consider factors
-such as the helpfulness, relevance, accuracy, depth, creativity, and level of detail of
-the response. Begin your evaluation by providing a short explanation. Be as objective as
-possible. After providing your explanation, please rate the response on a scale of 1 to 10
-by strictly following this format: "[[rating]]", for example: "Rating: [[5]]".
 
-[Question]
+Please act as an impartial judge and evaluate the quality of the response provided by an
+AI assistant to the user question displayed below. You will be given the definition of {name}, grading rubric, context information.
+
+Your task is to determine a numerical score of {name} for the response. You must use the grading rubric to determine your score. You must also give a explaination about how did you determine the score step-by-step. Please using chain of thinking.
+
+Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+
+[User Question]:
 {question}
-[The Start of Assistant’s Answer]
+
+[Response]:
 {answer}
-[The End of Assistant’s Answer]
+
+[Definition of {name}]:
+{definition}
+
+[Grading Rubric]:
+{rubric}
+
+[Context Information]:
+{context}
+
+[Examples]:
+{examples}
+
+You must return the following fields in your output:
+- score: a numerical score of {name} for the response
+- explaination: a explaination about how did you determine the score step-by-step
 """
 
 
 PAIR_GRADE_PROMPT = """
 Task:
-[System]
 Please act as an impartial judge and evaluate the quality of the responses provided by two
 AI assistants to the user question displayed below. Your evaluation should consider
 correctness and helpfulness. You will be given assistant A’s answer, and assistant B’s

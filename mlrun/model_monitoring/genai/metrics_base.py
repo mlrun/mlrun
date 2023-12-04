@@ -16,7 +16,8 @@
 # This is the base classes of using evluate to compute the metrics score and
 # Using LLM as a Judge to compute the metrics score
 import uuid
-from typing import Union, List, Optional, Dict, Any
+from typing import Union, List, Optional, Dict, Any, ClassVar
+
 from mlrun.model import ModelObj
 import transformers
 
@@ -76,9 +77,9 @@ class LLMJudgeSingleGrading(ModelObj):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str:str],
+        model_judge_config: Dict[str,str],
         prompt_template: str,
-        prompt_config: Dict[str:str],
+        prompt_config: Dict[str,str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -143,11 +144,11 @@ class LLMJudgePairwiseGrading(ModelObj):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str:str],
+        model_judge_config: Dict[str, str],
         prompt_template: str,
         bench_mark_model: str,
-        bench_mark_model_config: Dict[str:str],
-        prompt_config: Dict[str:str],
+        bench_mark_model_config: Dict[str,str],
+        prompt_config: Dict[str,str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -179,11 +180,11 @@ class LLMJudgeReferenceGrading(ModelObj):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str:str],
+        model_judge_config: Dict[str,str],
         prompt_template: str,
         bench_mark_model: str,
-        bench_mark_model_config: Dict[str:str],
-        prompt_config: Dict[str:str],
+        bench_mark_model_config: Dict[str,str],
+        prompt_config: Dict[str,str],
     ):
         """
         Base class for LLM as a judge metrics.

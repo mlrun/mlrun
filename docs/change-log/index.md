@@ -1,5 +1,7 @@
 (change-log)=
 # Change log
+
+- [v1.6.0](v1-6-0-date)
 - [v1.5.2](#v1-5-2-30-november-2023) | [v1.5.1](#v1-5-1-2-november-2023) | [v1.5.0](#v1-5-0-23-october-2023)
 - [v1.4.1](#v1-4-1-8-august-2023) | [v1.4.0](#v1-4-0-23-july-2023)
 - [v1.3.4](#v1-3-4-23-august-2023) | [v1.3.3](#v1-3-3-7-jun-2023) | [v1.3.2](#v1-3-2-4-jun-2023) | [v1.3.1](#v1-3-1-18-may-2023) | [v1.3.0](#v1-3-0-22-march-2023) 
@@ -11,12 +13,60 @@
 - [Deprecations](#deprecations-and-removed-code)
 
 
+## v1.6.0 (date)
+
+### Data store
+| ID |Description                                                                                         |
+|----|-----------------------------------------------------------------------------------------------------|
+|ML-5193|Supports Pandas 2.0.                                                                               |
+
+### Feature store
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-4343|Datastore profiles (for managing datastore credentials) support Azure, DBFS, GCS, Kafka, and S2. [Using data store profiles](../store/datastore.html#using-data-store-profiles).|
+
+### Model monitoring 
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-4620|New Grafana Model Monitoring Applications dashboard that includes charts and KPIs that are relevant to a specific monitoring application (under a specific model endpoint). Most of the presented stats are taken from the V3IO TSDB. See [Model Monitoring Applications dashboard](../monitoring/model-monitoring-deployment.html#model-monitoring-applications-dashboard).|
+
+### Runtimes
+
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-3457|   |
+|ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods).
+|ML-3728|Add MLRun labels to pods that mediate job execution with KFP, to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
+|ML-4205|Support for asynchronous notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
+
+
+### UI
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-50|Add notification by email or slack, webhook upon jobs success or failure.                        |
+|ML-1855|New **Train Model** wizard. Tech Preview.                                                           |
+|ML-2336|You can now delete Jobs in the UI.                                                                 |
+|ML-4506|You can now delete artifacts , models, and datasets in the UI.                                        |
+|ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
+
+###  Closed issues
+| ID          |Description                                                               |
+|----------|---------------------------------------------------------------------------|
+|ML-4563|You can now abort local runtimes.  |
+|ML-5146|The memory footprint when monitoring runs was reduced, solving OOM issues. |
+
+
+
+
+
+
 ## v1.5.2 (30 November 2023)
 
 ###  Closed issues
 | ID          |Description                                                               |
 |----------|---------------------------------------------------------------------------|
 |ML-4960|Fixed browser caching so the **Members** tab is always presented for projects.|
+
 
 ## v1.5.1 (2 November 2023)
 
@@ -48,7 +98,7 @@
 |ML-3644|Support for self-signed docker registries. See [Using self-signed registry](../runtimes/image-build.html#using-self-signed-registry) and [view in Git](https://github.com/mlrun/mlrun/pull/4013).                                                          |
 |ML-4132|The `invoke` function can now receive any parameter supported in the `requests.request` method. See [invoke](../api/mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.invoke) and [view in Git](https://github.com/mlrun/mlrun/pull/3872).                  |
 
-.
+
 ### Runtimes
 | ID     |Description                                                                                                                                                                                                                                                        |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -67,6 +117,7 @@
 |ML-4167|The Projects page now supports downloading the .yaml file.                                          |
 |ML-4571|The Model Endpoints page now displays the drift threshold and the drift actual value.               |
 |ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays a maximum of the last 48 hours. |
+|ML-4511|You can now change the image and add new requirements (such as xgboost) in the Batch Infer wizard.  |
 
 ### Documentation
 | ID     |Description                                                                                                                                                                        |
@@ -740,6 +791,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-3294|Dask coredump during project deletion.|Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
 |ML-3315|Spark ingestion does not support nested aggregations.                 |NA |v1.2.1    |
 |ML-3386|Documentation is missing full details on the feature store sources and targets.| NA|v1.2.1    |
+|ML-3143/ML-3432|Cannot delete a remote function from the DB (neither with SDK nor UI).  |NA |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])`|v1.3.0    |
 |NA|The feature store does not support schema evolution and does not have schema enforcement.| NA| v1.2.1    |
 |ML-3521|Cannot schedule a workflow without a remote source. | NA| v1.2.1    |
@@ -803,25 +855,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 ### Deprecated APIs  
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
-|---------------|------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
+| v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `verify_base_image`                            |`prepare_image_for_deploy` param   |
+| v1.8.0       |v1.6.0    |Runtimes: `verify_base_image` method                                                 |`prepare_image_for_deploy`            |
+| v1.8.0       |v1.6.0    |Project: `project.clear_context`                                                     | NA   |
+| v1.8.0       |v1.6.0    |Project: constructor legacy params                                                   | project spec and metadata |
 | v1.7.0       |v1.5.1    |`skip_deployed` parameter of `MLrunProject.build_image`                            |NA. The parameter is ignored.                                                                                                                               |
 | v1.7.0       |v1.5.0    |`/files` and `/filestat`                                                           |`/projects/{project}/filestat`                                                                                                                              |
-| v1.6.0       |v1.4.0     |`MLRunProject.clear_context() `                                                      |This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
-| v1.6.0       |v1.4.0     |MLRunProject object legacy parameters                                              |metadata and spec                                                                                                                                           |
-| v1.6.0       |v1.4.0    |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                  |
-| v1.6.0       |v1.4.0    |`run_local`                                                                         |`function.run(local=True)`                                                                                                                                    |
-| v1.6.0       |v1.4.0    |CSVSource's time_field parameter                                                   |Use `parse_dates` to parse timestamps                                                                                                                         |
-| v1.6.0       |v1.4.0    |Feature-set `set_targets()`, `default_final_state`                                      |`default_final_step`                                                                                                                                         |
-| v1.6.0       |v1.3.0    |`new_pipe_meta`                                                                      |`new_pipe_metadata`                                                                                                                                          |
-| v1.6.0       |v1.3.0    |ttl param from pipeline                                                            |`cleanup_ttl`                                                                                                                                                 |
-| v1.6.0       |v1.3.0    |objects methods from artifacts list                                                |`to_objects`                                                                                                                                                  |
-
-
-### Deprecated CLIs
-| Will be removed|Deprecated|CLI                         |Use instead                                           |
-|---------------|------------|------------------------------|-------------------------------------------------------|
-| v1.6.0       |v1.3.0    |dashboard (nuclio/deploy)   |No longer supported on client side                    |
-| v1.6.0       |v1.3.0    |overwrite schedule (project)|Not relevant. Running a schedule is now an  operation |
 
 
 
@@ -829,6 +870,15 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                                                                                                                                                                                                                                                                 |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.6.0 |`MLRunProject.clear_context()`                                                      |This method deletes all files and clears the context directory or subpath (if defined). This method can produce unexpected outcomes and is not recommended. |
+| v1.6.0 |MLRunProject object legacy parameters                                              |metadata and spec                                                                                                                                           |
+| v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                 |
+| v1.6.0 |`run_local`                                                                          |function.run(local=True)                                                                                                                                    |
+| v1.6.0 |CSVSource's `time_field` parameter                                                   |Use parse_dates to parse timestamps                                                                                                                         |
+| v1.6.0 |Feature-set `set_targets()`, `default_final_state `                                     |`default_final_step`                                                                                                                                          |
+| v1.6.0 |`new_pipe_meta`                                                                      |`new_pipe_metadata`                                                                                                                                      |
+| v1.6.0 |ttl param from pipeline                                                            |`cleanup_ttl`                                                                                                                                              |
+| v1.6.0 |objects methods from artifacts list                                                |`to_objects`                
 | v1.5.0 |user_project- and project-related parameters of `set_environment`. (Global-related parameters are not deprecated.)                                                                                                                                                                                  |The same parameters in project-related APIs, such as `get_or_create_project` |
 | v1.5.0 |`KubeResource.gpus`                                                                                                                                                                                                                                                                                 |`with_limits`                                                                |
 | v1.5.0 |Dask `gpus`                                                                                                                                                                                                                                                                                         |`with_scheduler_limits` / `with_worker_limits`                               |
@@ -856,4 +906,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|CLI                                                        |
 |---------|------------------------------------------------------------|
-| v1.5.0 |`--ensure-project` flag of the `mlrun project` CLI command |
+| v1.6.0 |dashboard (nuclio/deploy)   |No longer supported on client side                    |
+| v1.6.0 |overwrite schedule (project)|Not relevant. Running a schedule is now an operation |
+| v1.5.0 |`--ensure-project` flag of the `mlrun project` CLI command |  |

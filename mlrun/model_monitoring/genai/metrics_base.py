@@ -17,6 +17,7 @@
 # Using LLM as a Judge to compute the metrics score
 import uuid
 from typing import Union, List, Optional, Dict, Any
+from mlrun.model import ModelObj
 
 """
 @misc{zheng2023judging,
@@ -33,7 +34,11 @@ from typing import Union, List, Optional, Dict, Any
 """
 
 
-class BaseMetric(object):
+class LLMBaseMetric(ModelObj):
+    _dict_fields = ["name"]
+    kind = "llm_metric"
+    default_name: ClassVar[str] = "llm_metric"
+
     def __init__(self, name: str):
         """
         Base class for evaluate metrics
@@ -47,18 +52,21 @@ class BaseMetric(object):
             raise ImportError(
                 "evaluate library is not installed. Please install it using pip install evaluate"
             )
-        self.name = name
+        self.name = name or self.default_name
         self.metric = evaluate.load(name)
 
-    def __call__(
+    def compute_over_data(
         self, predictions: Union[List, Dict], references: Union[List, Dict], **kwargs
     ) -> Dict[str, Any]:
         return self.metric.compute(predictions, references, **kwargs)
 
 
-class LlmMetric(object):
+class LLMJudgeMetric(ModelObj):
+    _dict_fields = ["name", "model", "model_config", "prompt_template"]
+    kind = "llm_judge_metric"
+
     def __init__(
-        self, name: str, model_config: Dict[str, Any], data_config: Dict[str, Any]
+        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
     ):
         """
         Base class for LLM as a judge metrics.
@@ -67,10 +75,81 @@ class LlmMetric(object):
         """
         self.name = name
         self.model_config = model_config
-        self.data_config = data_config
+        self.prompt_template = prompt_template
 
-    def __call__(self, **kwargs) -> Dict[str, Any]:
+    def compute_over_data(self, **kwargs) -> Dict[str, Any]:
         pass
+
+
+class LLMJudgeSingleGrading(LLMJudgeMetric):
+    _dict_fields = ["name", "model_judge", "prompt_template", "grading_examples"]
+    kind = "llm_judge_single_grading"
+
+    def __init__(
+        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+    ):
+        """
+        Base class for LLM as a judge metrics.
+        These metrics are used for more open-ended question for the model
+        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        """
+        self.name = name
+        self.model_config = model_config
+        self.prompt_template = prompt_template
+        self.grading_examples = grading_examples
+
+    def compute_over_data(self, **kwargs) -> Dict[str, Any]:
+        pass
+
+
+class LLMJudgePairwiseGrading(LLMJudgeMetric):
+    _dict_fields = [
+        "name",
+        "model_judge",
+        "bench_mark_model",
+        "bench_mark_model_config",
+        "prompt_template",
+        "grading_examples",
+    ]
+    kind = "llm_judge_pairwise_grading"
+
+    def __init__(
+        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+    ):
+        """
+        Base class for LLM as a judge metrics.
+        These metrics are used for more open-ended question for the model
+        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        """
+        self.name = name
+        self.model_config = model_config
+        self.prompt_template = prompt_template
+        self.grading_examples = grading_examples
+
+
+class LLMJudgeReferenceGrading(LLMJudgeMetric):
+    _dict_fields = [
+        "name",
+        "model_judge",
+        "bench_mark_model",
+        "bench_mark_model_config",
+        "prompt_template",
+        "reference",
+    ]
+    kind = "llm_judge_reference_grading"
+
+    def __init__(
+        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+    ):
+        """
+        Base class for LLM as a judge metrics.
+        These metrics are used for more open-ended question for the model
+        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        """
+        self.name = name
+        self.model_config = model_config
+        self.prompt_template = prompt_template
+        self.reference = reference
 
 
 # TODO add pairwise metrics, sinlge answer grading, reference-guided grading

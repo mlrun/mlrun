@@ -53,6 +53,8 @@ class _AppData:
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem):
     project_name = "test-monitoring-app-flow"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -65,6 +67,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls.num_features = 4
 
         cls.app_interval: int = 1  # every 1 minute
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
 
         cls.evidently_workspace_path = (
             f"/v3io/projects/{cls.project_name}/artifacts/evidently-workspace"
@@ -85,6 +88,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
         cls.infer_input = cls._generate_infer_input()
+        cls.next_window_input = cls._generate_infer_input(num_events=1)
 
         cls._v3io_container = ModelMonitoringWriter.get_v3io_container(cls.project_name)
         cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
@@ -94,7 +98,8 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring_controller(
-            base_period=1,
+            base_period=self.app_interval,
+            **({} if self.image is None else {"default_controller_image": self.image}),
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -104,7 +109,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                     func=app_data.abs_path,
                     application_class=app_data.class_.__name__,
                     name=app_data.class_.name,
-                    image="mlrun/mlrun",
+                    image="mlrun/mlrun" if self.image is None else self.image,
                     requirements=app_data.requirements,
                     **app_data.kwargs,
                 )
@@ -137,6 +142,14 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                 default_batch_intervals=f"*/{cls.app_interval} * * * *",
             ),
         )
+        if cls.image is not None:
+            for attr in (
+                "stream_image",
+                "default_batch_image",
+                "default_controller_image",
+            ):
+                setattr(serving_fn.spec.tracking_policy, attr, cls.image)
+            serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
         return typing.cast(mlrun.runtimes.serving.ServingRuntime, serving_fn)
@@ -148,8 +161,10 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         return endpoints[0].metadata.uid
 
     @classmethod
-    def _generate_infer_input(cls) -> str:
-        return json.dumps({"inputs": [[0] * cls.num_features] * cls.max_events})
+    def _generate_infer_input(cls, num_events: typing.Optional[int] = None) -> str:
+        if num_events is None:
+            num_events = cls.max_events
+        return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
     @classmethod
     def _test_kv_record(cls, ep_id: str) -> None:
@@ -166,7 +181,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         df: pd.DataFrame = cls._tsdb_storage.read(
             backend=_TSDB_BE,
             table=_TSDB_TABLE,
-            start=f"now-{2 * cls.app_interval}m",
+            start=f"now-{5 * cls.app_interval}m",
         )
         assert not df.empty, "No TSDB data"
         assert (
@@ -194,6 +209,10 @@ class TestMonitoringAppFlow(TestMLRunSystem):
 
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
-        time.sleep(2 * timedelta(minutes=self.app_interval).total_seconds())
+        # mark the first window as "done" with another request
+        time.sleep(self.app_interval_seconds + 2)
+        self.serving_fn.invoke(self.infer_path, self.next_window_input)
+        # wait for the completed window to be processed
+        time.sleep(2.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

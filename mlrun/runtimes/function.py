@@ -276,6 +276,10 @@ class RemoteRuntime(KubeResource):
     _is_nested = False
     _mock_server = None
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._http_session = None
+
     @property
     def spec(self) -> NuclioSpec:
         return self._spec
@@ -939,7 +943,11 @@ class RemoteRuntime(KubeResource):
                 http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
+            if self._http_session is None:
+                self._http_session = requests.Session()
+            resp = self._http_session.request(
+                method, path, headers=headers, **http_client_kwargs
+            )
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

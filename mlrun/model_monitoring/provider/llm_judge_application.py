@@ -13,19 +13,49 @@
 # limitations under the License.
 #
 
-#This is a wrapper class for the mlrun to interact with the huggingface's evaluate library
+# This is a wrapper class for the mlrun to interact with the huggingface's evaluate library
 import uuid
-from typing import Union, List
-from mlrun.model_monitoring.application import ModelMonitoringApplication, ModelMonitoringApplicationResult
+from typing import Union, List, Optional, Dict, Any
+from mlrun.model_monitoring.application import (
+    ModelMonitoringApplication,
+    ModelMonitoringApplicationResult,
+)
 
-_HAS_evaluate = False
-try:
-    import evaluate # noqa: F401
-    _HAS_evaluate = True
-except ModuleNotFoundError:
-    pass
 
-if _HAS_evaluate:
-    import evaluate
+class LlmJudgeMonitoringApp(ModelObj):
+    kind = "llm_as_judge_monitoring_app"
 
-class HFEvaluateApplication(ModelMonitoringApplication):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        metrics: Optional[List[Union[MonitoringMetric]]] = None,
+        possible_drift_threshold: float = None,
+        obvious_drift_threshold: float = None,
+    ):
+        pass
+
+    def do(
+        self,
+        train_histograms_path: str = None,
+        sample_histograms_path: str = None,
+        train_df_path: str = None,
+        sample_df_path: str = None,
+        **kwargs,
+    ) -> MonitoringAppResult:
+        pass
+
+    @property
+    def metrics(self) -> List[MonitoringMetric]:
+        """list of all the metrics in current app"""
+        return self._metrics
+
+    @metrics.setter
+    def metrics(self, metrics: List[Union[MonitoringMetric]]):
+        self._metrics = ObjectList.from_list(MonitoringMetric, metrics)
+
+    def compute_metrics_over_data(
+        self, train_df: pd.DataFrame, sample_df: pd.DataFrame, metrics_names: List[str]
+    ) -> Dict[str, float]:
+        """
+        Calculate metrics values - helper for the user .
+        """

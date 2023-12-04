@@ -12,20 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-#This is a wrapper class for the mlrun to interact with the huggingface’s evaluate library
+# This is a wrapper class for the mlrun to interact with the huggingface’s evaluate library
 import uuid
 from typing import Union, List, Dict
-from mlrun.model_monitoring.application import ModelMonitoringApplication, ModelMonitoringApplicationResult
+from mlrun.model_monitoring.application import (
+    ModelMonitoringApplication,
+    ModelMonitoringApplicationResult,
+)
+
 _HAS_evaluate = False
 try:
-    import evaluate # noqa: F401
+    import evaluate  # noqa: F401
+
     _HAS_evaluate = True
 except ModuleNotFoundError:
     pass
 if _HAS_evaluate:
     import evaluate
+
+
 class HFEvaluateApplication(ModelMonitoringApplication):
-    def __init__(self, model,  metrics: List[str], metrics_params: Dict[str, Any] = None):
+    def __init__(
+        self, model, metrics: List[str], metrics_params: Dict[str, Any] = None
+    ):
         # Since it’s a customize class, it’s running as a job, need to take care of the whole thing
         # Model we want to evaluate, currently we have sample_df, where we can get the y_hat and y_true
         # The basic idea is to use the evaluate library to evaluate the hf model
@@ -38,19 +47,20 @@ class HFEvaluateApplication(ModelMonitoringApplication):
         self.model = model
         self.metrics_params = metrics_params
         self.metrics = metrics
+
     def run_application(
-            self,
-            application_name: str,
-            sample_df_stats: pd.DataFrame,
-            feature_stats: pd.DataFrame,
-            sample_df: pd.DataFrame,
-            schedule_time: pd.Timestamp,
-            latest_request: pd.Timestamp,
-            endpoint_id: str,
-            output_stream_uri: str,
-        ) -> Union[
-            ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
-        ]:
+        self,
+        application_name: str,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+        sample_df: pd.DataFrame,
+        schedule_time: pd.Timestamp,
+        latest_request: pd.Timestamp,
+        endpoint_id: str,
+        output_stream_uri: str,
+    ) -> Union[
+        ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
+    ]:
         """
         Run the application
         :param application_name: (str) The name of the application
@@ -69,12 +79,17 @@ class HFEvaluateApplication(ModelMonitoringApplication):
         # where to store the y_hat if we still need the result
         y_true = sample_df["label"].tolist()
         metrics = evaluate.combine(self.metrics)
-        result = metrics.compute(predictions=y_hat, references=y_true, **self.metrics_params)
+        result = metrics.compute(
+            predictions=y_hat, references=y_true, **self.metrics_params
+        )
         self.result = result
         self.context.logger.log_artifact("metrics", body=result)
+
     def log_radar_plot(self, artifact_name: str):
         """
         Log the radar plot to the MLRun context
         :param artifact_name: (str) The name of the artifact to log
         """
-        self.context.logger.log_artifact(artifact_name, body=evaluate.visualization.radar_plot(self.result))
+        self.context.logger.log_artifact(
+            artifact_name, body=evaluate.visualization.radar_plot(self.result)
+        )

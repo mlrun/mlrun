@@ -18,6 +18,7 @@
 import uuid
 from typing import Union, List, Optional, Dict, Any
 from mlrun.model import ModelObj
+import transformers
 
 """
 @misc{zheng2023judging,
@@ -90,8 +91,40 @@ class LLMJudgeSingleGrading(ModelObj):
         self.prompt_template = prompt_template
         self.prompt_config = prompt_config
 
-    def compute_over_data(self, **kwargs) -> Dict[str, Any]:
-        pass
+    def fill_prompt(self) -> str:
+        """
+        Fill the prompt template with the prompt config
+        :param prompt_template: the prompt template to fill
+        :param prompt_config: the prompt config to fill the template with
+        :return: the filled prompt
+        """
+        prompt = self.prompt_template
+        for key, value in self.prompt_config.items():
+            prompt = prompt.replace(f"{{{key}}}", value)
+        return prompt
+
+    def prepare_judge(self) -> None:
+        """
+        Prepare the judge model
+        """
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.name)
+        model = transformers.AutoModelForCausalLM.from_pretrained(self.name)
+
+        return tokenizer, model
+
+    def compute_over_one_data(self, model, tokenizer) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param kwargs: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+        input_ids = tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
+        ouputs = model.generate(input_ids, **self.model_judge_config)
+
+        response_ids = outputs[0]
+        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+
+        return {"score": response, "explanation": response}
 
 
 class LLMJudgePairwiseGrading(ModelObj):

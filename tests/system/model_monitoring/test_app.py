@@ -181,7 +181,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         df: pd.DataFrame = cls._tsdb_storage.read(
             backend=_TSDB_BE,
             table=_TSDB_TABLE,
-            start=f"now-{2 * cls.app_interval}m",
+            start=f"now-{5 * cls.app_interval}m",
         )
         assert not df.empty, "No TSDB data"
         assert (
@@ -210,9 +210,9 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         time.sleep(5)
         self.serving_fn.invoke(self.infer_path, self.infer_input)
         # mark the first window as "done" with another request
-        time.sleep(self.app_interval_seconds)
+        time.sleep(self.app_interval_seconds + 2)
         self.serving_fn.invoke(self.infer_path, self.next_window_input)
         # wait for the completed window to be processed
-        time.sleep(1.2 * self.app_interval_seconds)
+        time.sleep(2.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

@@ -61,32 +61,23 @@ class LLMBaseMetric(ModelObj):
         return self.metric.compute(predictions, references, **kwargs)
 
 
-class LLMJudgeMetric(ModelObj):
-    _dict_fields = ["name", "model", "model_config", "prompt_template"]
-    kind = "llm_judge_metric"
-
-    def __init__(
-        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
-    ):
-        """
-        Base class for LLM as a judge metrics.
-        These metrics are used for more open-ended question for the model
-        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
-        """
-        self.name = name
-        self.model_config = model_config
-        self.prompt_template = prompt_template
-
-    def compute_over_data(self, **kwargs) -> Dict[str, Any]:
-        pass
-
-
-class LLMJudgeSingleGrading(LLMJudgeMetric):
-    _dict_fields = ["name", "model_judge", "prompt_template", "grading_examples"]
+class LLMJudgeSingleGrading(ModelObj):
+    _dict_fields = [
+        "name",
+        "model_judge",
+        "model_judge_config",
+        "prompt_template",
+        "grading_examples",
+    ]
     kind = "llm_judge_single_grading"
 
     def __init__(
-        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+        self,
+        name: str,
+        model_judge: str,
+        model_judge_config: Dict[str:str],
+        prompt_template: str,
+        grading_examples: str,
     ):
         """
         Base class for LLM as a judge metrics.
@@ -94,7 +85,8 @@ class LLMJudgeSingleGrading(LLMJudgeMetric):
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
         self.name = name
-        self.model_config = model_config
+        self.model_judge = model_judge
+        self.model_judge_config = model_config
         self.prompt_template = prompt_template
         self.grading_examples = grading_examples
 
@@ -102,10 +94,11 @@ class LLMJudgeSingleGrading(LLMJudgeMetric):
         pass
 
 
-class LLMJudgePairwiseGrading(LLMJudgeMetric):
+class LLMJudgePairwiseGrading(ModelObj):
     _dict_fields = [
         "name",
         "model_judge",
+        "model_judge_config",
         "bench_mark_model",
         "bench_mark_model_config",
         "prompt_template",
@@ -114,7 +107,14 @@ class LLMJudgePairwiseGrading(LLMJudgeMetric):
     kind = "llm_judge_pairwise_grading"
 
     def __init__(
-        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+        self,
+        name: str,
+        model_judge: str,
+        model_judge_config: Dict[str:str],
+        prompt_template: str,
+        bench_mark_model: str,
+        bench_mark_model_config: Dict[str:str],
+        grading_examples: str,
     ):
         """
         Base class for LLM as a judge metrics.
@@ -122,15 +122,19 @@ class LLMJudgePairwiseGrading(LLMJudgeMetric):
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
         self.name = name
-        self.model_config = model_config
+        self.model_judge = model_judge
+        self.model_judge_config = model_config
+        self.bench_mark_model = bench_mark_model
+        self.bench_mark_model_config = bench_mark_model_config
         self.prompt_template = prompt_template
         self.grading_examples = grading_examples
 
 
-class LLMJudgeReferenceGrading(LLMJudgeMetric):
+class LLMJudgeReferenceGrading(ModelObj):
     _dict_fields = [
         "name",
         "model_judge",
+        "model_judge_config",
         "bench_mark_model",
         "bench_mark_model_config",
         "prompt_template",
@@ -139,7 +143,14 @@ class LLMJudgeReferenceGrading(LLMJudgeMetric):
     kind = "llm_judge_reference_grading"
 
     def __init__(
-        self, name: str, model: str, model_config: Dict[str:str], prompt_template: str
+        self,
+        name: str,
+        model_judge: str,
+        model_judge_config: Dict[str:str],
+        prompt_template: str,
+        bench_mark_model: str,
+        bench_mark_model_config: Dict[str:str],
+        reference: str,
     ):
         """
         Base class for LLM as a judge metrics.
@@ -147,10 +158,12 @@ class LLMJudgeReferenceGrading(LLMJudgeMetric):
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
         self.name = name
-        self.model_config = model_config
+        self.model_judge = model_judge
+        self.model_judge_config = model_config
+        self.bench_mark_model = bench_mark_model
+        self.bench_mark_model_config = bench_mark_model_config
         self.prompt_template = prompt_template
         self.reference = reference
 
 
-# TODO add pairwise metrics, sinlge answer grading, reference-guided grading
-# MLflow chose the simplest single answer grading.
+# TODO figure out a way to viz the different metrics in a Radar plot

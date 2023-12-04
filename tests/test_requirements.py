@@ -114,10 +114,10 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {">=2023.9,<=2023.10"},
-        "adlfs": {">=2023.9,<=2023.10"},
-        "s3fs": {">=2023.9,<=2023.10"},
-        "gcsfs": {">=2023.9,<=2023.10"},
+        "fsspec": {">=2023.9,<=2023.9.1"},
+        "adlfs": {">=2023.9,<=2023.9.1"},
+        "s3fs": {">=2023.9,<=2023.9.1"},
+        "gcsfs": {">=2023.9,<=2023.9.1"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that

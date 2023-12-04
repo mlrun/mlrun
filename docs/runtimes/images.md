@@ -54,6 +54,39 @@ The possible commands are:
 To run an image locally and explore its contents: `docker run -it <image-name>:<image-tag> /bin/bash`
 or to load python (or run a script): `docker run -it <image-name>:<image-tag> python`
 
+## Build a docker image using dockerfile and use it
+
+1. Build an image using Dockerfile:
+   1. Create a Dockerfile
+   ```
+   FROM mlrun/mlrun:X.X
+   RUN pip install package1
+   RUN pip install package2
+   ```
+   2. Build the image:
+	```
+	docker build -t your_docker_registry/your_image_name:tag
+	```
+   2. Push the image:
+   ```
+   docker push your_docker_registry/your_image_name:tag
+   ```
+2. Create a secret on K8s level for accessing your registry:
+   ```
+   kubectl --namespace default-tenant create secret docker-registry registry-credentials \
+       --docker-server your-docker-registry \
+       --docker-username <    > \
+       --docker-password <    > \
+       --docker-email <    >
+   ```
+3. In the code, use the image you created and provide the secret for pulling it:
+   ```
+   func = prj.set_function(name="func",...)
+   func.set_image_pull_configuration(image_pull_secret_name="registry-credentials")
+   ```
+   Now when you run the function, the image is used.
+
+
 ## MLRun images and external docker images
 
 There is no difference in the usage between the MLRun images and external docker images. However:

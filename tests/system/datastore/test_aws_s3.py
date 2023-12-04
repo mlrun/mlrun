@@ -50,6 +50,8 @@ test_environment = TestMLRunSystem._get_env_from_file()
 )
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
 class TestAwsS3(TestMLRunSystem):
+    project_name = "s3-system-test"
+
     def _make_target_names(self, prefix, bucket_name, object_dir, object_file):
         bucket_path = prefix + bucket_name
         object_path = f"{object_dir}/{object_file}"

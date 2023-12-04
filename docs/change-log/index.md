@@ -37,6 +37,7 @@
 |ML-3457|   |
 |ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods).
 |ML-3728|Add MLRun labels to pods that mediate job execution with KFP, to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
+|ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
 |ML-4205|Support for asynchronous notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
 
 

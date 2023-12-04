@@ -92,25 +92,11 @@ class TestAzureBlob:
             logger.debug("test directory has been cleaned.")
 
     @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile):
+    def setup_before_each_test(self, use_datastore_profile, auth_method):
         self.blob_file = f"file_{uuid.uuid4()}.txt"
         store_manager.reset_secrets()
         self._azure_fs = None
-
-    def get_blob_container_path(self, use_datastore_profile):
-        if use_datastore_profile:
-            return f"ds://{self.profile_name}/{self._bucket_name}"
-        return "az://" + self._bucket_name
-
-    def verify_auth_parameters_and_configure(self, auth_method, use_datastore_profile):
-        # This sets up the authentication method against Azure
-        # if testing the use of Azure credentials stored as
-        # environmental variable, it creates the environmental
-        # variables and returns storage_options = None.  Otherwise
-        # it returns adlfs-recognized parameters compliant with the
-        # fsspec api.  These get saved as secrets by mlrun.get_dataitem()
-        # for authentication.
-        #  must be run before each test to determine authentication parameters.
+        self.storage_options = {}
         for k, env_vars in AUTH_METHODS_AND_REQUIRED_PARAMS.items():
             for env_var in env_vars:
                 os.environ.pop(env_var, None)
@@ -132,38 +118,34 @@ class TestAzureBlob:
 
             logger.info(f"Testing auth method {auth_method}")
             self._azure_fs = AzureBlobFileSystem()
-            return {}
-
         elif auth_method.startswith("fsspec"):
-            storage_options = {}
             for var in test_params:
                 value = config["env"].get(var)
                 if not value:
                     pytest.skip(f"Auth method {auth_method} not configured.")
-                storage_options[var] = value
-            self._azure_fs = AzureBlobFileSystem(**storage_options)
+                self.storage_options[var] = value
+            self._azure_fs = AzureBlobFileSystem(**self.storage_options)
             logger.info(f"Testing auth method {auth_method}")
             if use_datastore_profile:
                 self.profile = DatastoreProfileAzureBlob(
-                    name=self.profile_name, **storage_options
+                    name=self.profile_name, **self.storage_options
                 )
                 register_temporary_client_datastore_profile(self.profile)
-            else:
-                return storage_options
-
         else:
             raise ValueError("auth_method not known")
 
+    def get_blob_container_path(self, use_datastore_profile):
+        if use_datastore_profile:
+            return f"ds://{self.profile_name}/{self._bucket_name}"
+        return "az://" + self._bucket_name
+
     def test_azure_blob(self, use_datastore_profile, auth_method):
-        storage_options = self.verify_auth_parameters_and_configure(
-            auth_method, use_datastore_profile
-        )
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
 
         print(f"\nBlob URL: {blob_url}")
 
-        data_item = mlrun.run.get_dataitem(blob_url, secrets=storage_options)
+        data_item = mlrun.run.get_dataitem(blob_url, secrets=self.storage_options)
         data_item.put(self.test_string)
 
         # Validate append is properly blocked (currently not supported for Azure blobs)
@@ -184,17 +166,14 @@ class TestAzureBlob:
         assert stat.size == len(self.test_string), "Stat size different than expected"
 
     def test_list_dir(self, use_datastore_profile, auth_method):
-        storage_options = self.verify_auth_parameters_and_configure(
-            auth_method, use_datastore_profile
-        )
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
         print(f"\nBlob URL: {blob_url}")
 
-        mlrun.run.get_dataitem(blob_url, storage_options).put(self.test_string)
+        mlrun.run.get_dataitem(blob_url, self.storage_options).put(self.test_string)
 
         # Check dir list for container
-        dir_item = mlrun.run.get_dataitem(blob_container_path, storage_options)
+        dir_item = mlrun.run.get_dataitem(blob_container_path, self.storage_options)
         dir_list = dir_item.listdir()  # can take a lot of time to big buckets.
         assert (
             self.test_dir + "/" + self.blob_file in dir_list
@@ -202,19 +181,16 @@ class TestAzureBlob:
 
         # Check dir list for folder in container
         dir_list = mlrun.run.get_dataitem(
-            blob_container_path + "/" + self.test_dir, storage_options
+            blob_container_path + "/" + self.test_dir, self.storage_options
         ).listdir()
         assert self.blob_file in dir_list, "File not in folder dir-list"
 
     def test_blob_upload(self, use_datastore_profile, auth_method):
-        storage_options = self.verify_auth_parameters_and_configure(
-            auth_method, use_datastore_profile
-        )
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
         print(f"\nBlob URL: {blob_url}")
 
-        upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
+        upload_data_item = mlrun.run.get_dataitem(blob_url, self.storage_options)
         upload_data_item.upload(self.test_file)
 
         response = upload_data_item.get()
@@ -244,9 +220,6 @@ class TestAzureBlob:
         writer: callable,
         reader: callable,
     ):
-        storage_options = self.verify_auth_parameters_and_configure(
-            auth_method, use_datastore_profile
-        )
         data = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
         df = pd.DataFrame(data)
         with tempfile.NamedTemporaryFile(
@@ -262,7 +235,7 @@ class TestAzureBlob:
                 + "/"
                 + f"file{uuid.uuid4()}.{file_extension}"
             )
-            upload_data_item = mlrun.run.get_dataitem(blob_url, storage_options)
+            upload_data_item = mlrun.run.get_dataitem(blob_url, self.storage_options)
             upload_data_item.upload(temp_file.name)
 
             result_df = upload_data_item.as_df()
@@ -291,9 +264,6 @@ class TestAzureBlob:
         writer: callable,
         reader: callable,
     ):
-        storage_options = self.verify_auth_parameters_and_configure(
-            auth_method, use_datastore_profile
-        )
         #  generate dfs
         # Define data for the first DataFrame
         data1 = {"Column1": [1, 2, 3], "Column2": ["A", "B", "C"]}
@@ -321,16 +291,16 @@ class TestAzureBlob:
             first_file_url = f"{dir_url}/first_file.{file_extension}"
             second_file_url = f"{dir_url}/second_file.{file_extension}"
             first_file_data_item = mlrun.run.get_dataitem(
-                first_file_url, storage_options
+                first_file_url, self.storage_options
             )
             second_file_data_item = mlrun.run.get_dataitem(
-                second_file_url, storage_options
+                second_file_url, self.storage_options
             )
             first_file_data_item.upload(first_file_path)
             second_file_data_item.upload(second_file_path)
 
             #  start the test:
-            dir_data_item = mlrun.run.get_dataitem(dir_url, storage_options)
+            dir_data_item = mlrun.run.get_dataitem(dir_url, self.storage_options)
             response_df = (
                 dir_data_item.as_df(format=file_format)
                 .sort_values("Column1")

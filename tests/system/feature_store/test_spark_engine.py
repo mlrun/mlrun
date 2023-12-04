@@ -29,6 +29,10 @@ from storey import EmitEveryEvent
 import mlrun
 import mlrun.feature_store as fstore
 from mlrun import code_to_function, store_manager
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileS3,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.datastore.sources import CSVSource, ParquetSource
 from mlrun.datastore.targets import (
     CSVTarget,
@@ -66,14 +70,18 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     It is also possible to run most tests in this suite locally if you have pyspark installed. To run locally, set
     run_local=True. This can be very useful for debugging.
+
+    To use s3 instead of v3io as a remote location, set use_s3_as_remote = True
     """
 
+    ds_profile = None
     project_name = "fs-system-spark-engine"
     spark_service = ""
     pq_source = "testdata.parquet"
     pq_target = "testdata_target"
     csv_source = "testdata.csv"
     run_local = False
+    use_s3_as_remote = False
     spark_image_deployed = (
         False  # Set to True if you want to avoid the image building phase
     )
@@ -92,11 +100,27 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         return os.path.relpath(str(cls.get_assets_path() / cls.pq_source))
 
     @classmethod
+    def get_remote_path_prefix(cls, without_prefix):
+        if cls.use_s3_as_remote:
+            cls.profile = DatastoreProfileS3(
+                name="s3ds_profile",
+                access_key=os.environ["AWS_ACCESS_KEY_ID"],
+                secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+            )
+            register_temporary_client_datastore_profile(cls.profile)
+            bucket = os.environ["AWS_BUCKET_NAME"]
+            path = f"ds://{cls.profile.name}/{bucket}"
+            if without_prefix:
+                path = f"{bucket}"
+        else:
+            path = "v3io://"
+            if without_prefix:
+                path = ""
+        return path
+
+    @classmethod
     def get_remote_pq_source_path(cls, without_prefix=False):
-        path = "v3io://"
-        if without_prefix:
-            path = ""
-        path += "/bigdata/" + cls.pq_source
+        path = cls.get_remote_path_prefix(without_prefix) + "/bigdata/" + cls.pq_source
         return path
 
     @classmethod
@@ -117,10 +141,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     @classmethod
     def get_remote_csv_source_path(cls, without_prefix=False):
-        path = "v3io://"
-        if without_prefix:
-            path = ""
-        path += "/bigdata/" + cls.csv_source
+        path = cls.get_remote_path_prefix(without_prefix) + "/bigdata/" + cls.csv_source
         return path
 
     @classmethod
@@ -241,6 +262,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         super().setup_method(method)
         if self.run_local:
             self._tmpdir = tempfile.TemporaryDirectory()
+        if self.profile:
+            self.project.register_datastore_profile(self.profile)
 
     def teardown_method(self, method):
         super().teardown_method(method)

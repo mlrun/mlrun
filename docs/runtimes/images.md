@@ -56,6 +56,8 @@ or to load python (or run a script): `docker run -it <image-name>:<image-tag> py
 
 ## Building a docker image using a dockerfile and using it
 
+This flow describes how to build the image externally, put it your private repo, and use it in MLRun.
+
 1. Build an image using Dockerfile:
    1. Create a Dockerfile
    ```

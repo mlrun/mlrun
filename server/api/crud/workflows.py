@@ -215,7 +215,7 @@ class WorkflowRunners(
         )
 
         notifications = None
-        if workflow_request.notifications:
+        if workflow_request and workflow_request.notifications:
             notifications = [
                 mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications

@@ -57,7 +57,7 @@ class DefaultPackagerTester(PackagerTester):
     A tester for the `DefaultPackager`.
     """
 
-    PACKAGER_IN_TEST = DefaultPackager
+    PACKAGER_IN_TEST = DefaultPackager()
 
     TESTS = [
         PackTest(

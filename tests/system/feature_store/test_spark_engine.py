@@ -44,6 +44,7 @@ from mlrun.feature_store.steps import (
     OneHotEncoder,
 )
 from mlrun.features import Entity
+from mlrun.utils.helpers import to_parquet
 from tests.system.base import TestMLRunSystem
 from tests.system.feature_store.data_sample import stocks
 from tests.system.feature_store.expected_stats import expected_stats
@@ -258,7 +259,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         return result
 
     @staticmethod
-    def test_name():
+    def get_test_name():
         return (
             os.environ.get("PYTEST_CURRENT_TEST")
             .split(":")[-1]
@@ -267,11 +268,11 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             .replace("]", "")
         )
 
-    def test_output_subdir_path(self, url=True):
-        return f"{self.output_dir(url=url)}/{self.test_name()}"
+    def get_test_output_subdir_path(self, url=True):
+        return f"{self.output_dir(url=url)}/{self.get_test_name()}"
 
     def set_targets(self, feature_set, also_in_remote=False):
-        dir_name = self.test_name()
+        dir_name = self.get_test_name()
         if self.run_local or also_in_remote:
             target_path = f"{self.output_dir(url=False)}/{dir_name}"
             feature_set.set_targets(
@@ -367,7 +368,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_to_csv(self):
         key = "patient_id"
-        base_path = self.test_output_subdir_path()
+        base_path = self.get_test_output_subdir_path()
         csv_path_spark = f"{base_path}_spark"
         csv_path_storey = f"{base_path}_storey.csv"
 
@@ -592,7 +593,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -601,7 +602,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        ).to_parquet(path=path, filesystem=fsys)
+        )
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -651,7 +653,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             assert resp[0]["data"] == 10
             assert resp[1]["data"] == 2000
 
-            pd.DataFrame(
+            df = pd.DataFrame(
                 {
                     "time": [
                         pd.Timestamp("2021-01-10 12:00:00"),
@@ -662,7 +664,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                     "first_name": ["moshe", "dina", "katya", "uri"],
                     "data": [50, 10, 25, 30],
                 }
-            ).to_parquet(path=path)
+            )
+            to_parquet(df, path=path)
 
             fstore.ingest(
                 feature_set,
@@ -717,7 +720,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
 
@@ -988,7 +991,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource("myparquet", path=path)
         name_spark = f"{name}_spark"
@@ -1077,7 +1080,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        pd.DataFrame(
+        df = pd.DataFrame(
             {
                 "time": [
                     pd.Timestamp("2021-01-10 10:00:00"),
@@ -1086,7 +1089,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "first_name": ["moshe", "yosi"],
                 "data": [2000, 10],
             }
-        ).to_parquet(path=path, filesystem=fsys)
+        )
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1150,7 +1154,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "data": [2000],
             }
         )[0:0]
-        empty_df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(empty_df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1166,7 +1170,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path=f"{self.output_dir()}/{self.test_name()}/",
+            path=f"{self.output_dir()}/{self.get_test_name()}/",
             partitioned=False,
         )
 
@@ -1203,7 +1207,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "data": [2000],
             }
         )
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
 
         source = ParquetSource(
             "myparquet",
@@ -1219,7 +1223,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
         target = ParquetTarget(
             name="pq",
-            path=f"{self.output_dir()}/{self.test_name()}/",
+            path=f"{self.output_dir()}/{self.get_test_name()}/",
             partitioned=False,
         )
 
@@ -1265,7 +1269,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
-        stocks.to_parquet(path=source, filesystem=fsys)
+        to_parquet(stocks, path=source, filesystem=fsys)
         source = ParquetSource(
             "myparquet",
             path=source,
@@ -1493,7 +1497,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_with_steps_drop_features(self):
         key = "patient_id"
-        base_path = self.test_output_subdir_path()
+        base_path = self.get_test_output_subdir_path()
         csv_path_spark = f"{base_path}_spark"
         csv_path_storey = f"{base_path}_storey.csv"
 
@@ -1553,7 +1557,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_ingest_with_steps_onehot(self):
         key = "patient_id"
-        base_path = self.test_output_subdir_path()
+        base_path = self.get_test_output_subdir_path()
         csv_path_spark = f"{base_path}_spark"
         csv_path_storey = f"{base_path}_storey.csv"
 
@@ -1594,7 +1598,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @pytest.mark.parametrize("with_original_features", [True, False])
     def test_ingest_with_steps_mapvalues(self, with_original_features):
         key = "patient_id"
-        base_path = self.test_output_subdir_path()
+        base_path = self.get_test_output_subdir_path()
         csv_path_spark = f"{base_path}_spark"
         csv_path_storey = f"{base_path}_storey.csv"
 
@@ -1651,7 +1655,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     def test_mapvalues_with_partial_mapping(self):
         # checks partial mapping -> only part of the values in field are replaced.
         key = "patient_id"
-        csv_path_spark = self.test_output_subdir_path()
+        csv_path_spark = self.get_test_output_subdir_path()
         original_df = pd.read_parquet(self.get_pq_source_path())
         measurements = fstore.FeatureSet(
             "measurements_spark",
@@ -1689,7 +1693,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
 
     def test_mapvalues_with_mixed_types(self):
         key = "patient_id"
-        csv_path_spark = self.test_output_subdir_path()
+        csv_path_spark = self.get_test_output_subdir_path()
         measurements = fstore.FeatureSet(
             "measurements_spark",
             entities=[fstore.Entity(key)],
@@ -1727,7 +1731,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @pytest.mark.parametrize("timestamp_col", [None, "timestamp"])
     def test_ingest_with_steps_extractor(self, timestamp_col):
         key = "patient_id"
-        base_path = self.test_output_subdir_path()
+        base_path = self.get_test_output_subdir_path()
         out_path_spark = f"{base_path}_spark"
         out_path_storey = f"{base_path}_storey"
 
@@ -2232,7 +2236,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
                 "f2": ["newest", "only-value"],
             }
         )
-        base_path = self.test_output_subdir_path(url=False)
+        base_path = self.get_test_output_subdir_path(url=False)
         left_path = f"{base_path}/df_left.parquet"
         right_path = f"{base_path}/df_right.parquet"
 
@@ -2240,15 +2244,15 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
         fsys.makedirs(base_path, exist_ok=True)
-        df_left.to_parquet(path=left_path, filesystem=fsys)
-        df_right.to_parquet(path=right_path, filesystem=fsys)
+        to_parquet(df_left, path=left_path, filesystem=fsys)
+        to_parquet(df_right, path=right_path, filesystem=fsys)
 
         fset1 = fstore.FeatureSet("fs1-as-of", entities=["ent"], timestamp_key="ts")
         self.set_targets(fset1, also_in_remote=True)
         fset2 = fstore.FeatureSet("fs2-as-of", entities=["ent"], timestamp_key=ts_r)
         self.set_targets(fset2, also_in_remote=True)
 
-        base_url = self.test_output_subdir_path()
+        base_url = self.get_test_output_subdir_path()
         left_url = f"{base_url}/df_left.parquet"
         right_url = f"{base_url}/df_right.parquet"
 
@@ -2302,14 +2306,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             }
         )
 
-        base_path = self.test_output_subdir_path(url=False)
+        base_path = self.get_test_output_subdir_path(url=False)
         path = f"{base_path}/df_for_filter.parquet"
 
         fsys = fsspec.filesystem(
             "file" if self.run_local else v3iofs.fs.V3ioFS.protocol
         )
         fsys.makedirs(base_path, exist_ok=True)
-        df.to_parquet(path=path, filesystem=fsys)
+        to_parquet(df, path=path, filesystem=fsys)
         source = ParquetSource("pq1", path=path)
 
         fset1 = fstore.FeatureSet(

@@ -909,6 +909,39 @@ def test_projects_crud(
     _list_project_names_and_assert(client, [name2])
 
 
+def test_project_with_parameters(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # validate that leading/trailing whitespaces in the keys and values are removed
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.params = {"aa": "1", "aa ": "1", "aa   ": "1", " bb ": "   2"}
+    expected_params = {"aa": "1", "bb": "2"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project request
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # validate that the parameters are as expected
+    assert response_body["spec"]["params"] == expected_params
+
+
 def _create_resources_of_all_kinds(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,

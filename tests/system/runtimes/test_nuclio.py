@@ -378,6 +378,9 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             filename=str(self.assets_path / "map_avro.py"),
         )
 
+        func.spec.min_replicas = 1
+        func.spec.max_replicas = 1
+
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )

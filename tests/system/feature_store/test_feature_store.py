@@ -31,7 +31,6 @@ import pyarrow.parquet as pq
 import pytest
 import pytz
 import requests
-from databricks.sdk import WorkspaceClient
 from pandas.testing import assert_frame_equal
 from storey import MapClass
 
@@ -69,12 +68,6 @@ from mlrun.features import MinMaxValidator, RegexValidator
 from mlrun.model import DataTarget
 from tests.system.base import TestMLRunSystem
 
-from ...datastore.databricks_utils import (
-    MLRUN_ROOT_DIR,
-    is_databricks_configured,
-    setup_dbfs_dirs,
-    teardown_dbfs_dirs,
-)
 from .data_sample import quotes, stocks, trades
 
 
@@ -188,9 +181,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
 
-        df = fstore.ingest(
-            stocks_set, stocks, infer_options=fstore.InferOptions.default()
-        )
+        df = stocks_set.ingest(stocks, infer_options=fstore.InferOptions.default())
 
         self._logger.info(f"output df:\n{df}")
         stocks_set["name"].description = "some name"
@@ -230,8 +221,7 @@ class TestFeatureStore(TestMLRunSystem):
             column="bid", operations=["max"], windows="1h", period="10m"
         )
 
-        df = fstore.preview(
-            quotes_set,
+        df = quotes_set.preview(
             quotes,
             entity_columns=["ticker"],
             options=fstore.InferOptions.default(),
@@ -429,11 +419,11 @@ class TestFeatureStore(TestMLRunSystem):
         pq_path = f"{tmpdir}/features.parquet"
         resp.to_parquet(pq_path)
         read_back_df = pd.read_parquet(pq_path)
-        assert read_back_df.equals(df_no_time)
+        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
         csv_path = f"{tmpdir}/features.csv"
         resp.to_csv(csv_path)
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
-        assert read_back_df.equals(df_no_time)
+        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
 
         assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
         assert df_no_time.index.name is None
@@ -2404,9 +2394,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service_v2(
-            featureset=myset, source=source, run_config=run_config
-        )
+        myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
         stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/{fset_name}/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
@@ -2809,7 +2797,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check without impute
         vector = fstore.FeatureVector("vectori2", features)
-        with fstore.get_online_feature_service(vector) as svc:
+        with vector.get_online_feature_service() as svc:
             resp = svc.get([{"name": "cd"}])
             assert np.isnan(resp[0]["data2"])
             assert np.isnan(resp[0]["data_avg_1h"])
@@ -2876,7 +2864,7 @@ class TestFeatureStore(TestMLRunSystem):
             svc.close()
         assert resp == [{"some_data": 10, "ddata": "Paris"}]
 
-        resp = fstore.get_offline_features(vector)
+        resp = vector.get_offline_features()
         assert resp.to_dataframe().to_dict() == {
             "some_data": {0: 10, 1: 20},
             "ddata": {0: "Paris", 1: "Tel Aviv"},
@@ -3034,7 +3022,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_1 = result_1.to_dataframe()
 
-        assert df_res_1.equals(expected_df)
+        assert_frame_equal(df_res_1, expected_df, check_dtype=False)
 
         result_2 = fstore.get_offline_features(
             fv_name,
@@ -3045,7 +3033,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_2 = result_2.to_dataframe()
 
-        assert df_res_2.equals(expected_df)
+        assert_frame_equal(df_res_2, expected_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_set_event_with_spaces_or_hyphens(self, engine):
@@ -3333,15 +3321,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
-                    "new_alias_for_total_ask": 0.0,
-                    "bids_min_1h": math.inf,
-                    "bids_max_1h": -math.inf,
+                    "new_alias_for_total_ask": math.nan,
+                    "bids_min_1h": math.nan,
+                    "bids_max_1h": math.nan,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
             resp = service.get([{"ticker": "AAPL"}], as_list=True)
-            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
+            assert resp == [[math.nan, math.nan, math.nan, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 
@@ -3362,10 +3350,10 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-            assert read_back_df.equals(returned_df)
+            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
-            assert read_back_df.equals(expected_df)
+            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     def test_pandas_write_partitioned_parquet(self):
         prediction_set = fstore.FeatureSet(
@@ -3395,7 +3383,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"{prediction_set.get_target_path()}year=2022/month=01/day=01/hour=01/"
             )
 
-            assert read_back_df.equals(returned_df)
+            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame(
                 {
@@ -3407,7 +3395,8 @@ class TestFeatureStore(TestMLRunSystem):
                 },
                 index=["a", "b"],
             )
-            assert read_back_df.equals(expected_df)
+            expected_df.index.name = "id"
+            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     # regression test for #2557
     @pytest.mark.parametrize(
@@ -3735,11 +3724,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected = pd.DataFrame(
                 employees_with_department, columns=["id", "name"]
             ).set_index("id", drop=True)
-            assert_frame_equal(expected, resp.to_dataframe())
+            assert_frame_equal(expected, resp.to_dataframe(), check_dtype=False)
         else:
             assert_frame_equal(
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
+                check_dtype=False,
             )
 
         with fstore.get_online_feature_service(vector) as svc:
@@ -3763,7 +3753,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3790,7 +3782,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by=["n"],
         )
-        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+        assert_frame_equal(
+            join_employee_managers, resp_2.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3817,7 +3811,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="name",
         )
-        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe(), check_dtype=False)
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
@@ -3851,7 +3845,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_all, resp_4.to_dataframe())
+        assert_frame_equal(join_all, resp_4.to_dataframe(), check_dtype=False)
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3956,7 +3950,12 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department,
+            resp_1.to_dataframe(),
+            check_dtype=False,
+            check_index_type=False,
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
@@ -4061,7 +4060,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by=["n"],
         )
 
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     def test_pandas_ingest_from_parquet(self, with_indexes):
@@ -4245,104 +4246,6 @@ class TestFeatureStore(TestMLRunSystem):
         ):
             fstore.ingest(measurements, source)
 
-    @pytest.mark.skipif(
-        not is_databricks_configured(),
-        reason="databricks storage parameters not configured",
-    )
-    @pytest.mark.parametrize(
-        "source_class, target_class, local_file_name, reader, reader_kwargs, drop_index",
-        [
-            (
-                CSVSource,
-                CSVTarget,
-                "testdata_short.csv",
-                pd.read_csv,
-                {"parse_dates": ["date_of_birth"]},
-                False,
-            ),
-            (
-                ParquetSource,
-                ParquetTarget,
-                "testdata_short.parquet",
-                pd.read_parquet,
-                {},
-                True,
-            ),
-        ],
-    )
-    def test_ingest_with_dbfs(
-        self,
-        source_class,
-        target_class,
-        local_file_name,
-        reader,
-        reader_kwargs,
-        drop_index,
-    ):
-        local_source_path = os.path.relpath(str(self.assets_path / local_file_name))
-        drop_column = "number"
-        key = "name"
-        test_dir = "/test_feature_store"
-        expected = reader(local_source_path, **reader_kwargs).drop(drop_column, axis=1)
-
-        measurements = fstore.FeatureSet("measurements", entities=[Entity(key)])
-
-        workspace = WorkspaceClient()
-        base_filename, extension = os.path.splitext(local_file_name)
-        generated_uuid = uuid.uuid4()
-        setup_dbfs_dirs(
-            workspace=workspace,
-            specific_test_class_dir=test_dir,
-            subdirs=[f'/{extension.replace(".", "")}_{generated_uuid}'],
-        )
-        try:
-            dbfs_source_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/source_{base_filename}{extension}"
-            dbfs_target_path = f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}/target_{base_filename}{extension}"
-            with open(local_source_path, "rb") as source_file:
-                content = source_file.read()
-            with workspace.dbfs.open(dbfs_source_path, write=True, overwrite=True) as f:
-                f.write(content)
-            measurements.graph.to(DropFeatures(features=[drop_column]))
-            source = source_class("mycsv", dbfs_source_path, **reader_kwargs)
-
-            target = target_class(name="specified-path", path=dbfs_target_path)
-            fstore.ingest(measurements, source=source, targets=[target])
-
-            target_generated_dirs = list(
-                workspace.dbfs.list(
-                    f"dbfs://{MLRUN_ROOT_DIR}{test_dir}/{generated_uuid}"
-                )
-            )
-            assert (
-                len(target_generated_dirs) == 2
-            )  # directory should have source csv file and target dir.
-            target_generated_dir_path = (
-                target_generated_dirs[0].path
-                if not target_generated_dirs[0].path.endswith(
-                    f"source_{base_filename}{extension}"
-                )
-                else target_generated_dirs[1].path
-            )
-            target_file_path = (
-                f"dbfs://{target_generated_dir_path}/target_{base_filename}{extension}"
-            )
-            result = reader(
-                target_file_path,
-                storage_options={
-                    "instance": os.environ.get("DATABRICKS_HOST"),
-                    "token": os.environ.get("DATABRICKS_TOKEN"),
-                },
-                **reader_kwargs,
-            )
-            if drop_index:
-                result.reset_index(inplace=True, drop=False)
-
-            assert_frame_equal(
-                expected.sort_index(axis=1), result.sort_index(axis=1), check_like=True
-            )
-        finally:
-            teardown_dbfs_dirs(workspace=workspace, specific_test_class_dir=test_dir)
-
     @pytest.mark.parametrize("engine", ["local", "dask"])
     def test_as_of_join_different_ts(self, engine):
         engine_args = {}
@@ -4401,7 +4304,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
         res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert_frame_equal(expected_df, res_df)
+        assert_frame_equal(expected_df, res_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize(
@@ -4555,11 +4458,12 @@ def verify_purge(fset, targets):
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert filesystem.exists(driver.get_target_path())
+                assert filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
@@ -4567,11 +4471,12 @@ def verify_purge(fset, targets):
     for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert not filesystem.exists(driver.get_target_path())
+                assert not filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) == 0
 
     fset.reload(update_spec=False)

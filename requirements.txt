@@ -1,14 +1,13 @@
 # >=1.26.9, <1.27 from botocore 1.19.28 inside boto3 1.16.28 inside nuclio-jupyter 0.8.8
 urllib3>=1.26.9, <1.27
 GitPython~=3.1, >= 3.1.30
-aiohttp~=3.8
+# 3.8.4 and 3.9 breaks our unit tests. blacklist for now until we fix it
+aiohttp~=3.8, <3.8.4
 aiohttp-retry~=2.8
 click~=8.1
 # 3.0/3.2 iguazio system uses 1.0.1, but we needed >=1.6.0 to be compatible with k8s>=12.0 to fix scurity issue
 # since the sdk is still mark as beta (and not stable) I'm limiting to only patch changes
-# 1.8.14 introduced new features related to ParallelFor, while our actual kfp server is 1.8.1, which isn't compatible
-# with the new features, therefore limiting to 1.8.13
-kfp~=1.8.0, <1.8.14
+kfp~=1.8
 nest-asyncio~=1.0
 ipython~=8.10
 nuclio-jupyter~=0.9.13
@@ -17,8 +16,8 @@ numpy>=1.16.5, <1.23.0
 pandas>=1.2, <3
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
-# <13 to prevent bugs due to major upgrading
-pyarrow>=10.0, <13
+# <15 to prevent bugs due to major upgrading
+pyarrow>=10.0, <15
 pyyaml~=5.1
 requests~=2.31
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
@@ -33,7 +32,7 @@ semver~=3.0
 dependency-injector~=4.41
 fsspec>=2023.1,<2023.7
 v3iofs~=0.1.17
-storey~=1.6.5
+storey~=1.6.10
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above

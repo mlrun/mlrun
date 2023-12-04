@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import enum
+
 import hashlib
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Optional
 
 import mlrun.common.helpers
+from mlrun.common.types import StrEnum
 
 
 class EventFieldType:
@@ -75,7 +75,6 @@ class EventFieldType:
     VALUE = "value"
     DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
     POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
-
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
 
 
@@ -84,21 +83,28 @@ class ApplicationEvent:
     CURRENT_STATS = "current_stats"
     FEATURE_STATS = "feature_stats"
     SAMPLE_PARQUET_PATH = "sample_parquet_path"
-    SCHEDULE_TIME = "schedule_time"
+    START_INFER_TIME = "start_infer_time"
+    END_INFER_TIME = "end_infer_time"
     LAST_REQUEST = "last_request"
     ENDPOINT_ID = "endpoint_id"
     OUTPUT_STREAM_URI = "output_stream_uri"
 
 
-class WriterEvent:
+class WriterEvent(StrEnum):
     APPLICATION_NAME = "application_name"
     ENDPOINT_ID = "endpoint_id"
-    SCHEDULE_TIME = "schedule_time"
+    START_INFER_TIME = "start_infer_time"
+    END_INFER_TIME = "end_infer_time"
     RESULT_NAME = "result_name"
     RESULT_VALUE = "result_value"
     RESULT_KIND = "result_kind"
     RESULT_STATUS = "result_status"
     RESULT_EXTRA_DATA = "result_extra_data"
+    CURRENT_STATS = "current_stats"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -139,21 +145,25 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
+class SchedulingKeys:
+    LAST_ANALYZED = "last_analyzed"
+
+
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
     STREAM = "stream"
     PARQUET = "parquet"
-    BATCH_CONTROLLER_PARQUET = "batch_controller_parquet"
+    APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
 
 
-class ModelMonitoringMode(str, enum.Enum):
+class ModelMonitoringMode(str, Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class EndpointType(enum.IntEnum):
+class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
@@ -171,7 +181,7 @@ class PrometheusMetric:
 class MonitoringFunctionNames:
     WRITER = "model-monitoring-writer"
     BATCH = "model-monitoring-batch"
-    BATCH_APPLICATION = "model-monitoring-batch-application"
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
     STREAM = None
 
     @staticmethod
@@ -180,7 +190,7 @@ class MonitoringFunctionNames:
             MonitoringFunctionNames.WRITER,
             MonitoringFunctionNames.STREAM,
             MonitoringFunctionNames.BATCH,
-            MonitoringFunctionNames.BATCH_APPLICATION,
+            MonitoringFunctionNames.APPLICATION_CONTROLLER,
         ]
 
 
@@ -251,7 +261,7 @@ class DriftStatus(Enum):
     POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
 
 
-class ResultKindApp(enum.Enum):
+class ResultKindApp(Enum):
     """
     Enum for the result kind values
     """
@@ -262,7 +272,7 @@ class ResultKindApp(enum.Enum):
     system_performance = 3
 
 
-class ResultStatusApp(enum.IntEnum):
+class ResultStatusApp(IntEnum):
     """
     Enum for the result status values, detected means that the app detected some problem.
     """
@@ -276,3 +286,7 @@ class ResultStatusApp(enum.IntEnum):
 class ModelMonitoringAppLabel:
     KEY = "mlrun__type"
     VAL = "mlrun__model-monitoring-application"
+
+
+class ControllerPolicy:
+    BASE_PERIOD = "base_period"

@@ -22,6 +22,7 @@ import pandas as pd
 
 import mlrun.common.helpers
 import mlrun.common.schemas.model_monitoring
+import mlrun.common.schemas.model_monitoring.constants as mm_constant
 import mlrun.utils.v3io_clients
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
@@ -35,25 +36,28 @@ class ModelMonitoringApplicationResult:
     """
     Class representing the result of a custom model monitoring application.
 
-    :param application_name:     (str) Name of the model monitoring application.
-    :param endpoint_id:          (str) ID of the monitored model endpoint.
-    :param schedule_time:        (pd.Timestamp)Timestamp of the monitoring schedule.
-    :param result_name:          (str) Name of the application result.
-    :param result_value:         (float) Value of the application result.
-    :param result_kind:          (ResultKindApp) Kind of application result.
-    :param result_status:        (ResultStatusApp) Status of the application result.
-    :param result_extra_data:    (dict) Extra data associated with the application result.
+    :param application_name:      (str) Name of the model monitoring application.
+    :param endpoint_id:           (str) ID of the monitored model endpoint.
+    :param start_infer_time:      (pd.Timestamp) Start time of the monitoring schedule.
+    :param end_infer_time:        (pd.Timestamp) End time of the monitoring schedule.
+    :param result_name:           (str) Name of the application result.
+    :param result_value:          (float) Value of the application result.
+    :param result_kind:           (ResultKindApp) Kind of application result.
+    :param result_status:         (ResultStatusApp) Status of the application result.
+    :param result_extra_data:     (dict) Extra data associated with the application result.
 
     """
 
     application_name: str
     endpoint_id: str
-    schedule_time: pd.Timestamp
+    start_infer_time: pd.Timestamp
+    end_infer_time: pd.Timestamp
     result_name: str
     result_value: float
-    result_kind: mlrun.common.schemas.model_monitoring.constants.ResultKindApp
-    result_status: mlrun.common.schemas.model_monitoring.constants.ResultStatusApp
+    result_kind: mm_constant.ResultKindApp
+    result_status: mm_constant.ResultStatusApp
     result_extra_data: dict = dataclasses.field(default_factory=dict)
+    _current_stats: dict = None
 
     def to_dict(self):
         """
@@ -62,18 +66,22 @@ class ModelMonitoringApplicationResult:
         :returns:    (dict) Dictionary representation of the result.
         """
         return {
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.APPLICATION_NAME: self.application_name,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.ENDPOINT_ID: self.endpoint_id,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.SCHEDULE_TIME: self.schedule_time.isoformat(
+            mm_constant.WriterEvent.APPLICATION_NAME: self.application_name,
+            mm_constant.WriterEvent.ENDPOINT_ID: self.endpoint_id,
+            mm_constant.WriterEvent.START_INFER_TIME: self.start_infer_time.isoformat(
                 sep=" ", timespec="microseconds"
             ),
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_NAME: self.result_name,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_VALUE: self.result_value,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_KIND: self.result_kind.value,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_STATUS: self.result_status.value,
-            mlrun.common.schemas.model_monitoring.constants.WriterEvent.RESULT_EXTRA_DATA: json.dumps(
+            mm_constant.WriterEvent.END_INFER_TIME: self.end_infer_time.isoformat(
+                sep=" ", timespec="microseconds"
+            ),
+            mm_constant.WriterEvent.RESULT_NAME: self.result_name,
+            mm_constant.WriterEvent.RESULT_VALUE: self.result_value,
+            mm_constant.WriterEvent.RESULT_KIND: self.result_kind,
+            mm_constant.WriterEvent.RESULT_STATUS: self.result_status,
+            mm_constant.WriterEvent.RESULT_EXTRA_DATA: json.dumps(
                 self.result_extra_data
             ),
+            mm_constant.WriterEvent.CURRENT_STATS: json.dumps(self._current_stats),
         }
 
 
@@ -89,7 +97,8 @@ class ModelMonitoringApplication(StepToDict):
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
-                sample_df: pd.DataFrame,
+                start_infer_time: pd.Timestamp,
+                end_infer_time: pd.Timestamp,
                 schedule_time: pd.Timestamp,
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
@@ -103,8 +112,8 @@ class ModelMonitoringApplication(StepToDict):
                     schedule_time,
                     result_name="data_drift_test",
                     result_value=0.5,
-                    result_kind=mlrun.common.schemas.model_monitoring.constants.ResultKindApp.data_drift,
-                    result_status = mlrun.common.schemas.model_monitoring.constants.ResultStatusApp.detected,
+                    result_kind=mm_constant.ResultKindApp.data_drift,
+                    result_status = mm_constant.ResultStatusApp.detected,
                     result_extra_data={})
 
         # mlrun: end-code
@@ -124,7 +133,11 @@ class ModelMonitoringApplication(StepToDict):
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        return self.run_application(*resolved_event)
+        # Run application and get the result in the required `ModelMonitoringApplicationResult` format
+        result = self.run_application(*resolved_event)
+        # Add current stats to the result as provided in the event
+        result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
+        return result
 
     def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
@@ -135,7 +148,8 @@ class ModelMonitoringApplication(StepToDict):
         sample_df_stats: pd.DataFrame,
         feature_stats: pd.DataFrame,
         sample_df: pd.DataFrame,
-        schedule_time: pd.Timestamp,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
@@ -145,17 +159,18 @@ class ModelMonitoringApplication(StepToDict):
         """
         Implement this method with your custom monitoring logic.
 
-        :param application_name     (str) the app name
-        :param sample_df_stats:     (pd.DataFrame) The new sample distribution DataFrame.
-        :param feature_stats:       (pd.DataFrame) The train sample distribution DataFrame.
-        :param sample_df:           (pd.DataFrame) The new sample DataFrame.
-        :param schedule_time:       (pd.Timestamp) Timestamp of the monitoring schedule.
-        :param latest_request:      (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
-        :param endpoint_id:         (str) ID of the monitored model endpoint
-        :param output_stream_uri:   (str) URI of the output stream for results
+        :param application_name:         (str) the app name
+        :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
+        :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
+        :param sample_df:               (pd.DataFrame) The new sample DataFrame.
+        :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+        :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
+        :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+        :param endpoint_id:             (str) ID of the monitored model endpoint
+        :param output_stream_uri:       (str) URI of the output stream for results
 
-        :returns:                   (ModelMonitoringApplicationResult) or
-                                    (List[ModelMonitoringApplicationResult]) of the application results.
+        :returns:                       (ModelMonitoringApplicationResult) or
+                                        (List[ModelMonitoringApplicationResult]) of the application results.
         """
         raise NotImplementedError
 
@@ -169,11 +184,12 @@ class ModelMonitoringApplication(StepToDict):
         pd.DataFrame,
         pd.Timestamp,
         pd.Timestamp,
+        pd.Timestamp,
         str,
         str,
     ]:
         """
-        Converting the event into a single tuple that will be be used for passing the event arguments to the running
+        Converting the event into a single tuple that will be used for passing the event arguments to the running
         application
 
         :param event: dictionary with all the incoming data
@@ -183,50 +199,30 @@ class ModelMonitoringApplication(StepToDict):
                      [1] = (pd.DataFrame) current input statistics
                      [2] = (pd.DataFrame) train statistics
                      [3] = (pd.DataFrame) current input data
-                     [4] = (pd.Timestamp) timestamp of batch schedule time
-                     [5] = (pd.Timestamp) timestamp of the latest request
-                     [6] = (str) endpoint id
-                     [7] = (str) output stream uri
+                     [4] = (pd.Timestamp) start time of the monitoring schedule
+                     [5] = (pd.Timestamp) end time of the monitoring schedule
+                     [6] = (pd.Timestamp) timestamp of the latest request
+                     [7] = (str) endpoint id
+                     [8] = (str) output stream uri
         """
+        start_time = pd.Timestamp(event[mm_constant.ApplicationEvent.START_INFER_TIME])
+        end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
-            event[
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.APPLICATION_NAME
-            ],
+            event[mm_constant.ApplicationEvent.APPLICATION_NAME],
             ModelMonitoringApplication._dict_to_histogram(
-                json.loads(
-                    event[
-                        mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.CURRENT_STATS
-                    ]
-                )
+                json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
             ),
             ModelMonitoringApplication._dict_to_histogram(
-                json.loads(
-                    event[
-                        mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.FEATURE_STATS
-                    ]
-                )
+                json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
             ),
             ParquetTarget(
-                path=event[
-                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SAMPLE_PARQUET_PATH
-                ]
-            ).as_df(),
-            pd.Timestamp(
-                event[
-                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.SCHEDULE_TIME
-                ]
-            ),
-            pd.Timestamp(
-                event[
-                    mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.LAST_REQUEST
-                ]
-            ),
-            event[
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.ENDPOINT_ID
-            ],
-            event[
-                mlrun.common.schemas.model_monitoring.constants.ApplicationEvent.OUTPUT_STREAM_URI
-            ],
+                path=event[mm_constant.ApplicationEvent.SAMPLE_PARQUET_PATH]
+            ).as_df(start_time=start_time, end_time=end_time, time_column="timestamp"),
+            start_time,
+            end_time,
+            pd.Timestamp(event[mm_constant.ApplicationEvent.LAST_REQUEST]),
+            event[mm_constant.ApplicationEvent.ENDPOINT_ID],
+            event[mm_constant.ApplicationEvent.OUTPUT_STREAM_URI],
         )
 
     @staticmethod

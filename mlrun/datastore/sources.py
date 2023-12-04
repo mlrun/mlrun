@@ -177,9 +177,14 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
+        if self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            path = store.url + path
+        else:
+            path = data_item.url
 
         return storey.CSVSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=path,  # unlike self.path, it already has store:// replaced
             build_dict=True,
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
@@ -323,9 +328,14 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
+        if self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(self.path)
+            path = store.url + path
+        else:
+            path = data_item.url
 
         return storey.ParquetSource(
-            paths=data_item.url,  # unlike self.path, it already has store:// replaced
+            paths=path,  # unlike self.path, it already has store:// replaced
             key_field=self.key_field or key_field,
             storage_options=data_item.store.get_storage_options(),
             end_filter=self.end_time,
@@ -953,11 +963,8 @@ class KafkaSource(OnlineSource):
             explicit_ack_mode=explicit_ack_mode,
             extra_attributes=extra_attributes,
         )
-        func = function.add_trigger("kafka", trigger)
-        replicas = 1 if not partitions else len(partitions)
-        func.spec.min_replicas = replicas
-        func.spec.max_replicas = replicas
-        return func
+        function = function.add_trigger("kafka", trigger)
+        return function
 
 
 class SQLSource(BaseSourceDriver):

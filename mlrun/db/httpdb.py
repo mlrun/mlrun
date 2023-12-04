@@ -2845,26 +2845,25 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. Note that the values should be
-                           from type string or from a valid numerical type such as int or float.
-                            More details about the model endpoint available attributes can be found under
-                           :py:class:`~mlrun.common.schemas.ModelEndpoint`.
+            of this dictionary should exist in the target table. Note that the values should be from type string or from
+            a valid numerical type such as int or float. More details about the model endpoint available attributes can
+            be found under :py:class:`~mlrun.common.schemas.ModelEndpoint`.
 
-                           Example::
+        Example::
 
-                                # Generate current stats for two features
-                                current_stats = {'tvd_sum': 2.2,
-                                                 'tvd_mean': 0.5,
-                                                 'hellinger_sum': 3.6,
-                                                 'hellinger_mean': 0.9,
-                                                 'kld_sum': 24.2,
-                                                 'kld_mean': 6.0,
-                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+            # Generate current stats for two features
+            current_stats = {'tvd_sum': 2.2,
+                             'tvd_mean': 0.5,
+                             'hellinger_sum': 3.6,
+                             'hellinger_mean': 0.9,
+                             'kld_sum': 24.2,
+                             'kld_mean': 6.0,
+                             'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                             'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
 
-                                # Create attributes dictionary according to the required format
-                                attributes = {`current_stats`: json.dumps(current_stats),
-                                              `drift_status`: "DRIFT_DETECTED"}
+            # Create attributes dictionary according to the required format
+            attributes = {`current_stats`: json.dumps(current_stats),
+                          `drift_status`: "DRIFT_DETECTED"}
 
         """
 
@@ -2901,6 +2900,36 @@ class HTTPRunDB(RunDBInterface):
             "with_schedule": with_schedule,
         }
         path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
+    def create_model_monitoring_controller(
+        self,
+        project: str = "",
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 10,
+    ):
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        :param project:                  Project name.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_controller_image": default_controller_image,
+            "base_period": base_period,
+        }
+        path = f"projects/{project}/jobs/model-monitoring-controller"
 
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
@@ -3143,6 +3172,21 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
+    def list_api_gateways(self, project=None):
+        """
+        Returns a list of Nuclio api gateways
+        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+
+        :return: json with the list of Nuclio Api Gateways
+            (json example is here
+            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        """
+        project = project or config.default_project
+        error = "list api gateways"
+        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        resp = self.api_call("GET", endpoint_path, error)
+        return resp.json()
+
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
@@ -3331,15 +3375,15 @@ class HTTPRunDB(RunDBInterface):
     ) -> str:
         """
         Loading a project remotely from the given source.
-        :param name:            project name
-        :param url:             git or tar.gz or .zip sources archive path e.g.:
-                                git://github.com/mlrun/demo-xgb-project.git
-                                http://mysite/archived-project.zip
-                                The git project should include the project yaml file.
-        :param secrets:         Secrets to store in project in order to load it from the provided url.
-                                For more information see :py:func:`mlrun.load_project` function.
-        :param save_secrets:    Whether to store secrets in the loaded project.
-                                Setting to False will cause waiting for the process completion.
+        :param name:    project name
+        :param url:     git or tar.gz or .zip sources archive path e.g.:
+        git://github.com/mlrun/demo-xgb-project.git
+        http://mysite/archived-project.zip
+        The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url. For more
+        information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project. Setting to False will cause waiting
+        for the process completion.
 
         :returns:               The terminal state of load project process.
         """

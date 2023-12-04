@@ -127,6 +127,7 @@ if result:
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
         **launcher_kwargs,
     ) -> RunObject:
         if local:
@@ -153,6 +154,7 @@ if result:
             param_file_secrets=param_file_secrets,
             notifications=notifications,
             returns=returns,
+            state_thresholds=state_thresholds,
             **launcher_kwargs,
         )
 

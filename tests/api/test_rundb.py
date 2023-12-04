@@ -50,7 +50,7 @@ def db(request):
         db_session = create_session()
         db = sqldb.SQLRunDB(dsn, session=db_session)
     else:
-        assert False, f"unknown db type - {request.param}"
+        assert False, f"Unknown db type - {request.param}"
 
     db.connect()
     if request.param == "sql":

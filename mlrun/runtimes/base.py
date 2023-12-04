@@ -196,6 +196,9 @@ class BaseRuntime(ModelObj):
         self.metadata.labels[key] = str(value)
         return self
 
+    def set_categories(self, categories: List[str]):
+        self.metadata.categories = mlrun.utils.helpers.as_list(categories)
+
     @property
     def uri(self):
         return self._function_uri()
@@ -796,6 +799,14 @@ class BaseRuntime(ModelObj):
 
         self.spec.build = {}
         return self
+
+    def requires_build(self) -> bool:
+        build = self.spec.build
+        return (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
+        )
 
     def prepare_image_for_deploy(self):
         """

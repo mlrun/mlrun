@@ -261,8 +261,7 @@ class NumPyNDArrayPackager(DefaultPackager):
     # method:
     _ARRAY_SIZE_AS_RESULT = 10
 
-    @classmethod
-    def get_default_packing_artifact_type(cls, obj: np.ndarray) -> str:
+    def get_default_packing_artifact_type(self, obj: np.ndarray) -> str:
         """
         Get the default artifact type. Will be a result if the array size is less than 10, otherwise file.
 
@@ -270,12 +269,11 @@ class NumPyNDArrayPackager(DefaultPackager):
 
         :return: The default artifact type.
         """
-        if obj.size < cls._ARRAY_SIZE_AS_RESULT:
+        if obj.size < self._ARRAY_SIZE_AS_RESULT:
             return ArtifactType.RESULT
         return ArtifactType.FILE
 
-    @classmethod
-    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+    def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         """
         Get the default artifact type used for unpacking. Returns dataset if the data item represents a
         `DatasetArtifact` and otherwise, file.
@@ -289,8 +287,7 @@ class NumPyNDArrayPackager(DefaultPackager):
             return ArtifactType.DATASET
         return ArtifactType.FILE
 
-    @classmethod
-    def pack_result(cls, obj: np.ndarray, key: str) -> dict:
+    def pack_result(self, obj: np.ndarray, key: str) -> dict:
         """
         Pack an array as a result.
 
@@ -307,9 +304,8 @@ class NumPyNDArrayPackager(DefaultPackager):
 
         return super().pack_result(obj=obj, key=key)
 
-    @classmethod
     def pack_file(
-        cls,
+        self,
         obj: np.ndarray,
         key: str,
         file_format: str = DEFAULT_NUMPY_ARRAY_FORMAT,
@@ -328,19 +324,21 @@ class NumPyNDArrayPackager(DefaultPackager):
         # Save to file:
         formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
         temp_directory = pathlib.Path(tempfile.mkdtemp())
-        cls.add_future_clearing_path(path=temp_directory)
+        self.add_future_clearing_path(path=temp_directory)
         file_path = temp_directory / f"{key}.{file_format}"
         formatter.save(obj=obj, file_path=str(file_path), **save_kwargs)
 
-        # Create the artifact and instructions:
+        # Create the artifact and instructions (Note: only 'npy' format support saving object arrays and that will
+        # require pickling, hence we set the required instruction):
         artifact = Artifact(key=key, src_path=os.path.abspath(file_path))
         instructions = {"file_format": file_format}
+        if file_format == NumPySupportedFormat.NPY and obj.dtype == np.object_:
+            instructions["allow_pickle"] = True
 
         return artifact, instructions
 
-    @classmethod
     def pack_dataset(
-        cls,
+        self,
         obj: np.ndarray,
         key: str,
         file_format: str = "",
@@ -372,20 +370,22 @@ class NumPyNDArrayPackager(DefaultPackager):
 
         return artifact, {}
 
-    @classmethod
-    def unpack_file(cls, data_item: DataItem, file_format: str = None) -> np.ndarray:
+    def unpack_file(
+        self, data_item: DataItem, file_format: str = None, allow_pickle: bool = False
+    ) -> np.ndarray:
         """
         Unpack a numppy array from file.
 
-        :param data_item:   The data item to unpack.
-        :param file_format: The file format to use for reading the array. Default is None - will be read by the file
-                            extension.
+        :param data_item:    The data item to unpack.
+        :param file_format:  The file format to use for reading the array. Default is None - will be read by the file
+                             extension.
+        :param allow_pickle: Whether to allow loading pickled arrays in case of object type arrays. Only relevant to
+                             'npy' format. Default is False for security reasons.
 
         :return: The unpacked array.
         """
         # Get the file:
-        file_path = data_item.local()
-        cls.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:
@@ -401,12 +401,14 @@ class NumPyNDArrayPackager(DefaultPackager):
 
         # Read the object:
         formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
-        obj = formatter.load(file_path=file_path)
+        load_kwargs = {}
+        if file_format == NumPySupportedFormat.NPY:
+            load_kwargs["allow_pickle"] = allow_pickle
+        obj = formatter.load(file_path=file_path, **load_kwargs)
 
         return obj
 
-    @classmethod
-    def unpack_dataset(cls, data_item: DataItem) -> np.ndarray:
+    def unpack_dataset(self, data_item: DataItem) -> np.ndarray:
         """
         Unpack a numppy array from a dataset artifact.
 
@@ -434,9 +436,8 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.FILE
     PRIORITY = 4
 
-    @classmethod
     def pack_file(
-        cls,
+        self,
         obj: NumPyArrayCollectionType,
         key: str,
         file_format: str = DEFAULT_NUMPPY_ARRAY_COLLECTION_FORMAT,
@@ -455,31 +456,40 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
         # Save to file:
         formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
         temp_directory = pathlib.Path(tempfile.mkdtemp())
-        cls.add_future_clearing_path(path=temp_directory)
+        self.add_future_clearing_path(path=temp_directory)
         file_path = temp_directory / f"{key}.{file_format}"
         formatter.save(obj=obj, file_path=str(file_path), **save_kwargs)
 
-        # Create the artifact and instructions:
+        # Create the artifact and instructions (Note: only 'npz' format support saving object arrays and that will
+        # require pickling, hence we set the required instruction):
         artifact = Artifact(key=key, src_path=os.path.abspath(file_path))
+        instructions = {"file_format": file_format}
+        if file_format == NumPySupportedFormat.NPZ and self._is_any_object_dtype(
+            array_collection=obj
+        ):
+            instructions["allow_pickle"] = True
 
-        return artifact, {"file_format": file_format}
+        return artifact, instructions
 
-    @classmethod
     def unpack_file(
-        cls, data_item: DataItem, file_format: str = None
+        self,
+        data_item: DataItem,
+        file_format: str = None,
+        allow_pickle: bool = False,
     ) -> Dict[str, np.ndarray]:
         """
         Unpack a numppy array collection from file.
 
-        :param data_item:   The data item to unpack.
-        :param file_format: The file format to use for reading the array collection. Default is None - will be read by
-                            the file extension.
+        :param data_item:    The data item to unpack.
+        :param file_format:  The file format to use for reading the array collection. Default is None - will be read by
+                             the file extension.
+        :param allow_pickle: Whether to allow loading pickled arrays in case of object type arrays. Only relevant to
+                             'npz' format. Default is False for security reasons.
 
         :return: The unpacked array collection.
         """
         # Get the file:
-        file_path = data_item.local()
-        cls.add_future_clearing_path(path=file_path)
+        file_path = self.get_data_item_local_path(data_item=data_item)
 
         # Get the archive format by the file extension if needed:
         if file_format is None:
@@ -495,9 +505,39 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
 
         # Read the object:
         formatter = NumPySupportedFormat.get_format_handler(fmt=file_format)
-        obj = formatter.load(file_path=file_path)
+        load_kwargs = {}
+        if file_format == NumPySupportedFormat.NPZ:
+            load_kwargs["allow_pickle"] = allow_pickle
+        obj = formatter.load(file_path=file_path, **load_kwargs)
 
         return obj
+
+    @staticmethod
+    def _is_any_object_dtype(
+        array_collection: Union[np.ndarray, NumPyArrayCollectionType]
+    ):
+        """
+        Check if any of the arrays in a collection is of type `object`.
+
+        :param array_collection: The collection to check fo `object` dtype.
+
+        :return: True if at least one array in the collection is an `object` array.
+        """
+        if isinstance(array_collection, list):
+            return any(
+                _NumPyNDArrayCollectionPackager._is_any_object_dtype(
+                    array_collection=array
+                )
+                for array in array_collection
+            )
+        elif isinstance(array_collection, dict):
+            return any(
+                _NumPyNDArrayCollectionPackager._is_any_object_dtype(
+                    array_collection=array
+                )
+                for array in array_collection.values()
+            )
+        return array_collection.dtype == np.object_
 
 
 class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
@@ -507,9 +547,8 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = Dict[str, np.ndarray]
 
-    @classmethod
     def is_packable(
-        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
     ) -> bool:
         """
         Check if the object provided is a dictionary of numpy arrays.
@@ -531,7 +570,7 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
             return False
 
         # Check the artifact type is supported:
-        if artifact_type and artifact_type not in cls.get_supported_artifact_types():
+        if artifact_type and artifact_type not in self.get_supported_artifact_types():
             return False
 
         # Check an edge case where the dictionary is empty (this packager will pack empty dictionaries only if given
@@ -539,13 +578,12 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
         if not obj:
             return (
                 configurations.get("file_format", None)
-                in NumPySupportedFormat.get_multi_array_formats()
+                in NumPySupportedFormat().get_multi_array_formats()
             )
 
         return True
 
-    @classmethod
-    def pack_result(cls, obj: Dict[str, np.ndarray], key: str) -> dict:
+    def pack_result(self, obj: Dict[str, np.ndarray], key: str) -> dict:
         """
         Pack a dictionary of numpy arrays as a result.
 
@@ -561,21 +599,27 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
             }
         }
 
-    @classmethod
     def unpack_file(
-        cls, data_item: DataItem, file_format: str = None
+        self,
+        data_item: DataItem,
+        file_format: str = None,
+        allow_pickle: bool = False,
     ) -> Dict[str, np.ndarray]:
         """
         Unpack a numppy array dictionary from file.
 
-        :param data_item:   The data item to unpack.
-        :param file_format: The file format to use for reading the arrays dictionary. Default is None - will be read by
-                            the file extension.
+        :param data_item:    The data item to unpack.
+        :param file_format:  The file format to use for reading the arrays dictionary. Default is None - will be read by
+                             the file extension.
+        :param allow_pickle: Whether to allow loading pickled arrays in case of object type arrays. Only relevant to
+                             'npz' format. Default is False for security reasons.
 
         :return: The unpacked array.
         """
         # Load the object:
-        obj = super().unpack_file(data_item=data_item, file_format=file_format)
+        obj = super().unpack_file(
+            data_item=data_item, file_format=file_format, allow_pickle=allow_pickle
+        )
 
         # The returned object is a mapping of type NpzFile, so we cast it to a dictionary:
         return {key: array for key, array in obj.items()}
@@ -588,9 +632,8 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
 
     PACKABLE_OBJECT_TYPE = List[np.ndarray]
 
-    @classmethod
     def is_packable(
-        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
     ) -> bool:
         """
         Check if the object provided is a list of numpy arrays.
@@ -609,7 +652,7 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
             return False
 
         # Check the artifact type is supported:
-        if artifact_type and artifact_type not in cls.get_supported_artifact_types():
+        if artifact_type and artifact_type not in self.get_supported_artifact_types():
             return False
 
         # Check an edge case where the list is empty (this packager will pack empty lists only if given specific file
@@ -617,13 +660,12 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
         if not obj:
             return (
                 configurations.get("file_format", None)
-                in NumPySupportedFormat.get_multi_array_formats()
+                in NumPySupportedFormat().get_multi_array_formats()
             )
 
         return True
 
-    @classmethod
-    def pack_result(cls, obj: List[np.ndarray], key: str) -> dict:
+    def pack_result(self, obj: List[np.ndarray], key: str) -> dict:
         """
         Pack a list of numpy arrays as a result.
 
@@ -634,21 +676,27 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
         """
         return {key: [array.tolist() for array in obj]}
 
-    @classmethod
     def unpack_file(
-        cls, data_item: DataItem, file_format: str = None
+        self,
+        data_item: DataItem,
+        file_format: str = None,
+        allow_pickle: bool = False,
     ) -> List[np.ndarray]:
         """
         Unpack a numppy array list from file.
 
-        :param data_item:   The data item to unpack.
-        :param file_format: The file format to use for reading the arrays list. Default is None - will be read by the
-                            file extension.
+        :param data_item:    The data item to unpack.
+        :param file_format:  The file format to use for reading the arrays list. Default is None - will be read by the
+                             file extension.
+        :param allow_pickle: Whether to allow loading pickled arrays in case of object type arrays. Only relevant to
+                             'npz' format. Default is False for security reasons.
 
         :return: The unpacked array.
         """
         # Load the object:
-        obj = super().unpack_file(data_item=data_item, file_format=file_format)
+        obj = super().unpack_file(
+            data_item=data_item, file_format=file_format, allow_pickle=allow_pickle
+        )
 
         # The returned object is a mapping of type NpzFile, so we cast it to a list:
         return list(obj.values())
@@ -663,8 +711,7 @@ class NumPyNumberPackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
     PACK_SUBCLASSES = True  # To include all dtypes ('float32', 'uint8', ...)
 
-    @classmethod
-    def pack_result(cls, obj: np.number, key: str) -> dict:
+    def pack_result(self, obj: np.number, key: str) -> dict:
         """
         Pack a numpy number as a result.
 

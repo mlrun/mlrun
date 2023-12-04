@@ -15,8 +15,9 @@ import collections
 import logging
 import typing
 from copy import copy
+from datetime import datetime
 from enum import Enum
-from typing import List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -36,6 +37,7 @@ from ..features import Entity, Feature
 from ..model import (
     DataSource,
     DataTarget,
+    DataTargetBase,
     ModelObj,
     ObjectDict,
     ObjectList,
@@ -44,6 +46,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
+from .common import RunConfig
 
 
 class FeatureVectorSpec(ModelObj):
@@ -463,6 +466,25 @@ class _JoinStep(ModelObj):
         return [], []
 
 
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError("storey not installed, use pip install storey") from exc
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )
+
+
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
@@ -721,6 +743,60 @@ class FeatureVector(ModelObj):
             feature_set_relations = self.spec.relations[name]
         return feature_set_relations
 
+    def get_offline_features(
+        self,
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: List[str] = None,
+        start_time: Union[str, datetime] = None,
+        end_time: Union[str, datetime] = None,
+        with_indexes: bool = False,
+        update_stats: bool = False,
+        engine: str = None,
+        engine_args: dict = None,
+        query: str = None,
+        order_by: Union[str, List[str]] = None,
+        spark_service: str = None,
+        timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+    ):
+        return mlrun.feature_store.api.get_offline_features(
+            self,
+            entity_rows,
+            entity_timestamp_column,
+            target,
+            run_config,
+            drop_columns,
+            start_time,
+            end_time,
+            with_indexes,
+            update_stats,
+            engine,
+            engine_args,
+            query,
+            order_by,
+            spark_service,
+            timestamp_for_filtering,
+        )
+
+    def get_online_feature_service(
+        self,
+        run_config: RunConfig = None,
+        fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+        impute_policy: dict = None,
+        update_stats: bool = False,
+        entity_keys: List[str] = None,
+    ):
+        return mlrun.feature_store.api.get_online_feature_service(
+            self,
+            run_config,
+            fixed_window_type,
+            impute_policy,
+            update_stats,
+            entity_keys,
+        )
+
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
@@ -911,22 +987,3 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
-
-
-class FixedWindowType(Enum):
-    CurrentOpenWindow = 1
-    LastClosedWindow = 2
-
-    def to_qbk_fixed_window_type(self):
-        try:
-            from storey import FixedWindowType as QueryByKeyFixedWindowType
-        except ImportError as exc:
-            raise ImportError("storey not installed, use pip install storey") from exc
-        if self == FixedWindowType.LastClosedWindow:
-            return QueryByKeyFixedWindowType.LastClosedWindow
-        elif self == FixedWindowType.CurrentOpenWindow:
-            return QueryByKeyFixedWindowType.CurrentOpenWindow
-        else:
-            raise NotImplementedError(
-                f"Provided fixed window type is not supported. fixed_window_type={self}"
-            )

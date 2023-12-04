@@ -88,7 +88,7 @@ class LLMJudgeSingleGrading(ModelObj):
         """
         self.name = name
         self.model_judge = model_judge
-        self.model_judge_config = model_config
+        self.model_judge_config = model_judge_config
         self.prompt_template = prompt_template
         self.prompt_config = prompt_config
 

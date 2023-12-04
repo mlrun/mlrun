@@ -108,8 +108,8 @@ class LLMJudgeSingleGrading(ModelObj):
         """
         Prepare the judge model
         """
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.name)
-        model = transformers.AutoModelForCausalLM.from_pretrained(self.name)
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
+        model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge)
 
         return tokenizer, model
 

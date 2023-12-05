@@ -16,6 +16,8 @@ msrest~=0.6.21
 azure-core~=1.24
 # Excluding 12.18.0 due to https://github.com/Azure/azure-sdk-for-python/issues/32056
 azure-storage-blob>=12.13, !=12.18.0
+# This version is required in order to support the self._strip_protocol
+# function in Azure Blob File System functions (such as _ls and more).
 adlfs==2023.9.0
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2

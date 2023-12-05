@@ -310,6 +310,25 @@ class BaseMerger(abc.ABC):
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
+
+        if entity_timestamp_column and entity_rows_keys and len(dfs) > 1:
+            entity_rows_timestamp_type = dfs[0][entity_timestamp_column].dtype.name
+            featureset_df_timestamp_type = dfs[1][entity_timestamp_column].dtype.name
+            if (
+                entity_rows_timestamp_type.startswith("datetime64[")
+                and featureset_df_timestamp_type.startswith("datetime64[")
+                and entity_rows_timestamp_type != featureset_df_timestamp_type
+            ):
+                logger.info(
+                    f"Merger detected timestamp resolution incompatibility between feature sets (type "
+                    f"{featureset_df_timestamp_type}) and entity rows (type {entity_rows_timestamp_type}). "
+                    f"Converting entity rows timestamp column '{entity_timestamp_column}' to type "
+                    f"{featureset_df_timestamp_type}."
+                )
+                dfs[0][entity_timestamp_column] = dfs[0][
+                    entity_timestamp_column
+                ].astype(featureset_df_timestamp_type)
+
         # join the feature data frames
         result_timestamp = self.merge(
             entity_timestamp_column=entity_timestamp_column,

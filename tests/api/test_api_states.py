@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import http
+import itertools
 import unittest.mock
 
 import fastapi.testclient
@@ -95,90 +96,19 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         "_perform_schema_migrations",
         perform_schema_migrations_mock,
     )
-    perform_database_migration_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        server.api.initial_data,
-        "_perform_database_migration",
-        perform_database_migration_mock,
-    )
     perform_data_migrations_mock = unittest.mock.Mock()
     monkeypatch.setattr(
         server.api.initial_data,
         "_perform_data_migrations",
         perform_data_migrations_mock,
     )
+    for product in itertools.product([True, False], repeat=3):
+        case = {
+            "schema_migration": product[0],
+            "data_migration": product[1],
+            "from_scratch": product[2],
+        }
 
-    for case in [
-        # All 4 schema and data combinations with database and not from scratch
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        # All 4 schema and data combinations with database and from scratch
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": True,
-        },
-        {
-            "database_migration": True,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": True,
-        },
-        # No database, not from scratch, at least of schema and data 3 combinations
-        {
-            "database_migration": False,
-            "schema_migration": True,
-            "data_migration": False,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": False,
-            "schema_migration": False,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-        {
-            "database_migration": False,
-            "schema_migration": True,
-            "data_migration": True,
-            "from_scratch": False,
-        },
-    ]:
         alembic_util_mock.return_value.is_migration_from_scratch.return_value = (
             case.get("from_scratch", False)
         )
@@ -197,5 +127,4 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         # assert the api just changed state and no operation was done
         assert db_backup_util_mock.call_count == 0, failure_message
         assert perform_schema_migrations_mock.call_count == 0, failure_message
-        assert perform_database_migration_mock.call_count == 0, failure_message
         assert perform_data_migrations_mock.call_count == 0, failure_message

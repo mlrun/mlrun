@@ -115,7 +115,7 @@ def test_requirement_specifiers_convention():
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
         "fsspec": {">=2023.9,<=2023.9.1"},
-        "adlfs": {">=2023.9,<=2023.9.1"},
+        "adlfs": {"==2023.9.0"},
         "s3fs": {"==2023.9.0"},
         "gcsfs": {"==2023.9.0"},
         "distributed": {"~=2023.9.0"},

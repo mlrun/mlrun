@@ -16,7 +16,7 @@ msrest~=0.6.21
 azure-core~=1.24
 # Excluding 12.18.0 due to https://github.com/Azure/azure-sdk-for-python/issues/32056
 azure-storage-blob>=12.13, !=12.18.0
-adlfs>=2023.9,<=2023.9.1
+adlfs==2023.9.0
 azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get

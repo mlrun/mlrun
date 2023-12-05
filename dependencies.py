@@ -40,7 +40,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
             "msrest~=0.6.21",
             "azure-core~=1.24",
             "azure-storage-blob>=12.13, !=12.18.0",
-            "adlfs>=2023.9,<=2023.9.1",
+            "adlfs==2023.9.0",
             "pyopenssl>=23",
         ],
         "azure-key-vault": [

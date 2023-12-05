@@ -63,7 +63,82 @@ class LLMBaseMetric(ModelObj):
         return self.metric.compute(predictions, references, **kwargs)
 
 
-class LLMJudgeSingleGrading(ModelObj):
+class LLMJudgeBaseMetric(ModelObj):
+    _dict_fields = [
+        "name",
+        "model_judge",
+        "model_judge_config",
+        "prompt_template",
+        "prompt_config",
+    ]
+    kind = "llm_judge_metric"
+    default_name: ClassVar[str] = "llm_judge_metric"
+
+    def __init__(
+        self,
+        name: str,
+        model_judge: str,
+        model_judge_config: Dict[str, str],
+        prompt_template: str,
+        prompt_config: Dict[str, str],
+    ):
+        """
+        Base class for LLM as a judge metrics.
+        These metrics are used for more open-ended question for the model
+        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        """
+        self.name = name or self.default_name
+        self.model_judge = model_judge
+        self.model_judge_config = model_judge_config
+        self.prompt_template = prompt_template
+        self.prompt_config = prompt_config
+
+    def fill_prompt(self) -> str:
+        """
+        Fill the prompt template with the prompt config
+        :param prompt_template: the prompt template to fill
+        :param prompt_config: the prompt config to fill the template with
+        :return: the filled prompt
+        """
+        prompt = self.prompt_template
+        for key, value in self.prompt_config.items():
+            prompt = prompt.replace(f"{{{key}}}", value)
+        return prompt
+
+    def prepare_judge(self) -> None:
+        """
+        Prepare the judge model
+        """
+
+    def compute_over_one_data(self, question, response) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param kwargs: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+
+    def compute_over_all_data(self, questions, responses) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param kwargs: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+
+    def abstract_score(self, result: str) -> int:
+        """
+        Abstract the store of the result
+        :param result: the result to store
+        :return: the stored result
+        """
+
+    def agg_score(self, scores: List[int]) -> Dict[str, Any]:
+        """
+        Aggregate the scores
+        :param scores: the scores to aggregate
+        :return: the aggregated score
+        """
+
+class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
     _dict_fields = [
         "name",
         "model_judge",
@@ -86,23 +161,13 @@ class LLMJudgeSingleGrading(ModelObj):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.name = name
-        self.model_judge = model_judge
-        self.model_judge_config = model_judge_config
-        self.prompt_template = prompt_template
-        self.prompt_config = prompt_config
-
-    def fill_prompt(self) -> str:
-        """
-        Fill the prompt template with the prompt config
-        :param prompt_template: the prompt template to fill
-        :param prompt_config: the prompt config to fill the template with
-        :return: the filled prompt
-        """
-        prompt = self.prompt_template
-        for key, value in self.prompt_config.items():
-            prompt = prompt.replace(f"{{{key}}}", value)
-        return prompt
+        self.__super.__init__(
+            name,
+            model_judge,
+            model_judge_config,
+            prompt_template,
+            prompt_config,
+        )
 
     def prepare_judge(self) -> None:
         """
@@ -125,10 +190,9 @@ class LLMJudgeSingleGrading(ModelObj):
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
 
-        return response
+        return {"response": response}
 
-
-class LLMJudgePairwiseGrading(ModelObj):
+class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
     _dict_fields = [
         "name",
         "model_judge",
@@ -155,14 +219,15 @@ class LLMJudgePairwiseGrading(ModelObj):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.name = name
-        self.model_judge = model_judge
-        self.model_judge_config = model_config
+        self.__super.__init__(
+            name,
+            model_judge,
+            model_judge_config,
+            prompt_template,
+            prompt_config,
+        )
         self.bench_mark_model = bench_mark_model
         self.bench_mark_model_config = bench_mark_model_config
-        self.prompt_template = prompt_template
-        self.prompt_config = prompt_config
-
 
 class LLMJudgeReferenceGrading(ModelObj):
     _dict_fields = [

@@ -16,10 +16,12 @@
 # This is the base classes of using evluate to compute the metrics score and
 # Using LLM as a Judge to compute the metrics score
 import uuid
+import torch
 from typing import Union, List, Optional, Dict, Any, ClassVar
-
 from mlrun.model import ModelObj
 import transformers
+
+
 
 """
 @misc{zheng2023judging,
@@ -135,7 +137,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         pass
 
-    def agg_score(self, scores: List[int]) -> Dict[str, Any]:
+    def agg_score(self, scores: List[int]) -> float:
         """
         Aggregate the scores
         :param scores: the scores to aggregate
@@ -179,8 +181,12 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         Prepare the judge model
         """
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
-        self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge)
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge).to(device)
 
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """

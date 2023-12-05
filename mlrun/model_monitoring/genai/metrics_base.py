@@ -108,19 +108,19 @@ class LLMJudgeSingleGrading(ModelObj):
         """
         Prepare the judge model
         """
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
-        model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge)
 
-        return tokenizer, model
-
-    def compute_over_one_data(self, model, tokenizer) -> Dict[str, Any]:
+    def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
-        input_ids = tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        outputs = model.generate(input_ids, **self.model_judge_config)
+        self.prompt_config["question"] = question
+        self.prompt_config["response"] = response
+        input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
+        outputs = self.model.generate(input_ids, **self.model_judge_config)
 
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)

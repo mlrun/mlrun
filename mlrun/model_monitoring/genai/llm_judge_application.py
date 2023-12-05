@@ -20,6 +20,7 @@ from mlrun.model_monitoring.application import (
     ModelMonitoringApplication,
     ModelMonitoringApplicationResult,
 )
+from mlrun.model_monitoring.metrics_base import LLMJudgeSingleGrading
 
 
 class LlmJudgeMonitoringApp(ModelObj):

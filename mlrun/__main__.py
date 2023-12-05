@@ -547,7 +547,7 @@ def build(
     archive = archive or mlconf.default_archive
     if archive:
         src = b.source or "./"
-        logger.info(f"uploading data from {src} to {archive}")
+        logger.info(f"Uploading data from {src} to {archive}")
         target = archive if archive.endswith("/") else archive + "/"
         target += f"src-{meta.project}-{meta.name}-{meta.tag or 'latest'}.tar.gz"
         mlrun.datastore.utils.upload_tarball(src, target)
@@ -582,7 +582,7 @@ def build(
                 fp.write(image)
             with open("/tmp/fullimage", "w") as fp:
                 fp.write(full_image)
-            print("full image path = ", full_image)
+            print("Full image path = ", full_image)
 
         print(f"Function built, state={state} image={image}")
     else:

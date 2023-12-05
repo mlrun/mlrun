@@ -62,7 +62,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             self.crdapi = client.CustomObjectsApi()
         except Exception as exc:
             logger.warning(
-                "cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
+                "Cannot initialize kubernetes client", exc=mlrun.errors.err_to_str(exc)
             )
             if not silent:
                 raise
@@ -75,16 +75,16 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             config.load_incluster_config()
             self.running_inside_kubernetes_cluster = True
             if log:
-                logger.info("using in-cluster config.")
+                logger.info("Using in-cluster config.")
         except Exception:
             try:
                 config.load_kube_config(self.config_file)
                 self.running_inside_kubernetes_cluster = True
                 if log:
-                    logger.info("using local kubernetes config.")
+                    logger.info("Using local kubernetes config.")
             except Exception:
                 raise RuntimeError(
-                    "cannot find local kubernetes config file,"
+                    "Cannot find local kubernetes config file,"
                     " place it in ~/.kube/config or specify it in "
                     "KUBECONFIG env var"
                 )
@@ -98,7 +98,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 self.resolve_namespace(namespace), label_selector=selector
             )
         except ApiException as exc:
-            logger.error(f"failed to list pods: {mlrun.errors.err_to_str(exc)}")
+            logger.error(f"Failed to list pods: {mlrun.errors.err_to_str(exc)}")
             raise exc
 
         items = []
@@ -120,7 +120,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
 
                 if retry_count > max_retry:
                     logger.error(
-                        "failed to create pod after max retries",
+                        "Failed to create pod after max retries",
                         retry_count=retry_count,
                         exc=mlrun.errors.err_to_str(exc),
                         pod=pod,
@@ -128,13 +128,13 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     raise exc
 
                 logger.error(
-                    "failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod
+                    "Failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod
                 )
 
                 # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
                 if "gke-resource-quotas" in mlrun.errors.err_to_str(exc):
                     logger.warning(
-                        "failed to create pod due to gke resource error, "
+                        "Failed to create pod due to gke resource error, "
                         f"sleeping {retry_interval} seconds and retrying"
                     )
                     retry_count += 1

@@ -32,7 +32,7 @@ semver~=3.0
 dependency-injector~=4.41
 # upper limit due to version 2023.9.2 fsspec removing the "auto_mkdir" in the open() function.
 # TODO to address this differently
-# lower limit due to versions 2023.9 of adlfs, gcsfs and s3fs
+# lower limit due to versions 2023.9 of adlfs, gcsfs and s3fs.
 fsspec>=2023.9,<=2023.9.1
 v3iofs~=0.1.17
 storey~=1.6.10

@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import click
+
 import mlrun.utils
 
 logger = mlrun.utils.create_logger(level="debug", name="automation")

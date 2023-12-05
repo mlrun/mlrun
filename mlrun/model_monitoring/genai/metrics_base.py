@@ -109,6 +109,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         Prepare the judge model
         """
+        pass
 
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
@@ -116,6 +117,7 @@ class LLMJudgeBaseMetric(ModelObj):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        pass
 
     def compute_over_all_data(self, questions, responses) -> Dict[str, Any]:
         """
@@ -123,6 +125,7 @@ class LLMJudgeBaseMetric(ModelObj):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        pass
 
     def abstract_score(self, result: str) -> int:
         """
@@ -130,6 +133,7 @@ class LLMJudgeBaseMetric(ModelObj):
         :param result: the result to store
         :return: the stored result
         """
+        pass
 
     def agg_score(self, scores: List[int]) -> Dict[str, Any]:
         """
@@ -137,6 +141,8 @@ class LLMJudgeBaseMetric(ModelObj):
         :param scores: the scores to aggregate
         :return: the aggregated score
         """
+        pass
+
 
 class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
     _dict_fields = [
@@ -185,12 +191,18 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         self.prompt_config["question"] = question
         self.prompt_config["response"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        outputs = self.model.generate(input_ids, **self.model_judge_config)
+        outputs = self.model.generate(
+            input_ids,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            **self.model_judge_config,
+        )
 
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
 
         return {"response": response}
+
 
 class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
     _dict_fields = [
@@ -228,6 +240,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         )
         self.bench_mark_model = bench_mark_model
         self.bench_mark_model_config = bench_mark_model_config
+
 
 class LLMJudgeReferenceGrading(ModelObj):
     _dict_fields = [

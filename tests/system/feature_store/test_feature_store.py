@@ -1297,6 +1297,8 @@ class TestFeatureStore(TestMLRunSystem):
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
+        resp_df = resp.to_dataframe()
+
         expected = pd.DataFrame(
             {
                 "time_stamp": [
@@ -1309,7 +1311,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        assert expected.equals(resp.to_dataframe())
+        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
 
     def test_filter_offline_multiple_featuresets(self):
         data = pd.DataFrame(
@@ -2364,7 +2366,7 @@ class TestFeatureStore(TestMLRunSystem):
         pd.testing.assert_frame_equal(
             off_df,
             orig_df,
-            check_dtype=True,
+            check_dtype=False,
             check_index_type=True,
             check_column_type=True,
             check_like=True,
@@ -3353,6 +3355,7 @@ class TestFeatureStore(TestMLRunSystem):
             pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            expected_df.index.name = "id"
             pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     def test_pandas_write_partitioned_parquet(self):

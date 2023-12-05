@@ -17,8 +17,7 @@ import datetime
 import json
 import os
 import re
-import time
-from typing import Any, Callable, Iterator, Optional, Tuple, Union, cast
+from typing import Any, Iterator, Optional, Tuple, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -43,7 +42,7 @@ class _BatchWindow:
         endpoint: str,
         application: str,
         timedelta_seconds: int,
-        last_updated: int,
+        last_updated: Optional[int],
         first_request: Optional[int],
     ) -> None:
         """
@@ -107,7 +106,7 @@ class _BatchWindow:
         self,
     ) -> Iterator[Tuple[datetime.datetime, datetime.datetime]]:
         """Generate the batch interval time ranges."""
-        if self._start is not None:
+        if self._start is not None and self._stop is not None:
             entered = False
             for timestamp in range(self._start, self._stop, self._step):
                 entered = True
@@ -176,24 +175,24 @@ class _BatchWindowGenerator:
             datetime.timedelta(minutes=minutes, hours=hours, days=days).total_seconds()
         )
 
-    @staticmethod
-    def _get_last_updated_time(now_func: Callable[[], float] = time.time) -> int:
+    @classmethod
+    def _get_last_updated_time(cls, last_request: Optional[str]) -> Optional[int]:
         """
         Get the last updated time of a model endpoint.
-        Note: this is an approximation of this time. Once we save it in the DB,
-        we will have the exact time and won't use now_func.
         """
+        if not last_request:
+            return None
         return int(
-            now_func()
+            cls._date_string2timestamp(last_request)
             - cast(
                 float,
                 mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
             )
         )
 
-    @staticmethod
+    @classmethod
     def _normalize_first_request(
-        first_request: Optional[str], endpoint: str
+        cls, first_request: Optional[str], endpoint: str
     ) -> Optional[int]:
         if not first_request:
             logger.warn(
@@ -203,7 +202,12 @@ class _BatchWindowGenerator:
             )
             return None
         # See mm_constants.EventFieldType.TIME_FORMAT
-        return int(datetime.datetime.fromisoformat(first_request).timestamp())
+        return cls._date_string2timestamp(first_request)
+
+    @staticmethod
+    def _date_string2timestamp(date_string: str) -> int:
+        # See mm_constants.EventFieldType.TIME_FORMAT
+        return int(datetime.datetime.fromisoformat(date_string).timestamp())
 
     def get_batch_window(
         self,
@@ -211,6 +215,7 @@ class _BatchWindowGenerator:
         endpoint: str,
         application: str,
         first_request: Optional[str],
+        last_request: Optional[str],
     ) -> _BatchWindow:
         """
         Get the batch window for a specific endpoint and application.
@@ -222,7 +227,7 @@ class _BatchWindowGenerator:
             endpoint=endpoint,
             application=application,
             timedelta_seconds=self._timedelta,
-            last_updated=self._get_last_updated_time(),
+            last_updated=self._get_last_updated_time(last_request),
             first_request=self._normalize_first_request(first_request, endpoint),
         )
 
@@ -400,6 +405,7 @@ class MonitoringApplicationController:
                     endpoint=endpoint_id,
                     application=application,
                     first_request=endpoint[mm_constants.EventFieldType.FIRST_REQUEST],
+                    last_request=endpoint[mm_constants.EventFieldType.LAST_REQUEST],
                 )
 
                 for start_infer_time, end_infer_time in batch_window.get_intervals():

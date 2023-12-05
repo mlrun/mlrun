@@ -95,6 +95,19 @@ class S3Store(DataStore):
                 "choose-signer.s3.*", disable_signing
             )
 
+    def get_spark_options(self):
+        res = {}
+        st = self.get_storage_options()
+        if st.get("key"):
+            res["spark.hadoop.fs.s3.access.key"] = st.get("key")
+        if st.get("secret"):
+            res["spark.hadoop.fs.s3a.secret.key"] = st.get("secret")
+        if st.get("endpoint_url"):
+            res["spark.hadoop.fs.s3a.endpoint"] = st.get("endpoint_url")
+        if st.get("profile"):
+            res["spark.hadoop.fs.s3a.aws.profile"] = st.get("profile")
+        return res
+
     def get_filesystem(self, silent=False):
         """return fsspec file system object, if supported"""
         if self._filesystem:

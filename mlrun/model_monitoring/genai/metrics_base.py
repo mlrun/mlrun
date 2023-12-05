@@ -77,9 +77,9 @@ class LLMJudgeSingleGrading(ModelObj):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str,str],
+        model_judge_config: Dict[str, str],
         prompt_template: str,
-        prompt_config: Dict[str,str],
+        prompt_config: Dict[str, str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -120,7 +120,7 @@ class LLMJudgeSingleGrading(ModelObj):
         :return: the metrics score and the explanation
         """
         input_ids = tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        ouputs = model.generate(input_ids, **self.model_judge_config)
+        outputs = model.generate(input_ids, **self.model_judge_config)
 
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
@@ -147,8 +147,8 @@ class LLMJudgePairwiseGrading(ModelObj):
         model_judge_config: Dict[str, str],
         prompt_template: str,
         bench_mark_model: str,
-        bench_mark_model_config: Dict[str,str],
-        prompt_config: Dict[str,str],
+        bench_mark_model_config: Dict[str, str],
+        prompt_config: Dict[str, str],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -180,11 +180,11 @@ class LLMJudgeReferenceGrading(ModelObj):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str,str],
+        model_judge_config: Dict[str, str],
         prompt_template: str,
         bench_mark_model: str,
-        bench_mark_model_config: Dict[str,str],
-        prompt_config: Dict[str,str],
+        bench_mark_model_config: Dict[str, str],
+        prompt_config: Dict[str, str],
     ):
         """
         Base class for LLM as a judge metrics.

@@ -24,7 +24,6 @@ import server.api.initial_data
 import server.api.utils.auth.verifier
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
-import server.api.utils.db.sqlite_migration
 
 
 def test_offline_state(
@@ -82,12 +81,6 @@ def test_api_states(
 
 
 def test_init_data_migration_required_recognition(monkeypatch) -> None:
-    sqlite_migration_util_mock = unittest.mock.Mock()
-    monkeypatch.setattr(
-        server.api.utils.db.sqlite_migration,
-        "SQLiteMigrationUtil",
-        sqlite_migration_util_mock,
-    )
     alembic_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
@@ -186,9 +179,6 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
             "from_scratch": False,
         },
     ]:
-        sqlite_migration_util_mock.return_value.is_database_migration_needed.return_value = case.get(
-            "database_migration", False
-        )
         alembic_util_mock.return_value.is_migration_from_scratch.return_value = (
             case.get("from_scratch", False)
         )

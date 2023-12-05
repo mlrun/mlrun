@@ -891,6 +891,16 @@ class ParquetTarget(BaseStoreTarget):
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,
+            dict_fields=[
+                "path",
+                "columns",
+                "index_cols",
+                "partition_cols",
+                "time_field",
+                "storage_options",
+                "max_events",
+                "flush_after_seconds",
+            ],  # update_last_written is not serializable, so we must exclude it (ML-5108)
             **self.attributes,
         )
 

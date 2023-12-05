@@ -311,23 +311,26 @@ class BaseMerger(abc.ABC):
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
 
-        if entity_timestamp_column and entity_rows_keys and len(dfs) > 1:
-            entity_rows_timestamp_type = dfs[0][entity_timestamp_column].dtype.name
-            featureset_df_timestamp_type = dfs[1][entity_timestamp_column].dtype.name
-            if (
-                entity_rows_timestamp_type.startswith("datetime64[")
-                and featureset_df_timestamp_type.startswith("datetime64[")
-                and entity_rows_timestamp_type != featureset_df_timestamp_type
-            ):
+        if entity_timestamp_column:
+            timestamp_types = []
+            for df in dfs:
+                if entity_timestamp_column in df:
+                    timestamp_type = df[entity_timestamp_column].dtype.name
+                    timestamp_types.append(timestamp_type)
+
+            timestamp_types_unique = list(set(timestamp_types))
+            if len(timestamp_types_unique) > 1:
+                target_timestamp_type = timestamp_types[0]
                 logger.info(
-                    f"Merger detected timestamp resolution incompatibility between feature sets (type "
-                    f"{featureset_df_timestamp_type}) and entity rows (type {entity_rows_timestamp_type}). "
-                    f"Converting entity rows timestamp column '{entity_timestamp_column}' to type "
-                    f"{featureset_df_timestamp_type}."
+                    f"Merger detected timestamp resolution incompatibility between feature sets, with the "
+                    f"following types present: {', '.join(timestamp_types_unique)}. Attempting to convert all "
+                    f"to type {target_timestamp_type}."
                 )
-                dfs[0][entity_timestamp_column] = dfs[0][
-                    entity_timestamp_column
-                ].astype(featureset_df_timestamp_type)
+                for df in dfs:
+                    if entity_timestamp_column in df:
+                        df[entity_timestamp_column] = df[
+                            entity_timestamp_column
+                        ].astype(target_timestamp_type)
 
         # join the feature data frames
         result_timestamp = self.merge(

@@ -241,6 +241,51 @@ class DatastoreProfileGCS(DatastoreProfile):
         return res if res else None
 
 
+class DatastoreProfileAzureBlob(DatastoreProfile):
+    type: str = pydantic.Field("az")
+    _private_attributes = (
+        "connection_string",
+        "account_key",
+        "client_secret",
+        "sas_token",
+        "credential",
+    )
+    connection_string: typing.Optional[str] = None
+    account_name: typing.Optional[str] = None
+    account_key: typing.Optional[str] = None
+    tenant_id: typing.Optional[str] = None
+    client_id: typing.Optional[str] = None
+    client_secret: typing.Optional[str] = None
+    sas_token: typing.Optional[str] = None
+    credential: typing.Optional[str] = None
+
+    def url(self, subpath) -> str:
+        if subpath.startswith("/"):
+            #  in azure the path after schema is starts with bucket, wherefore it should not start with "/".
+            subpath = subpath[1:]
+        return f"az://{subpath}"
+
+    def secrets(self) -> dict:
+        res = {}
+        if self.connection_string:
+            res["connection_string"] = self.connection_string
+        if self.account_name:
+            res["account_name"] = self.account_name
+        if self.account_key:
+            res["account_key"] = self.account_key
+        if self.tenant_id:
+            res["tenant_id"] = self.tenant_id
+        if self.client_id:
+            res["client_id"] = self.client_id
+        if self.client_secret:
+            res["client_secret"] = self.client_secret
+        if self.sas_token:
+            res["sas_token"] = self.sas_token
+        if self.credential:
+            res["credential"] = self.credential
+        return res if res else None
+
+
 class DatastoreProfile2Json(pydantic.BaseModel):
     @staticmethod
     def _to_json(attributes):

@@ -26,6 +26,7 @@ from mlrun.common.model_monitoring.helpers import (
     Histogram,
     pad_features_hist,
 )
+from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
 
 
@@ -129,8 +130,11 @@ class TestBatchWindowGenerator:
 
     @staticmethod
     def test_last_updated_is_in_the_past() -> None:
-        time = datetime.datetime(2023, 11, 16, 12, 0, 0).timestamp()
+        last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            now_func=lambda: time
+            last_request=last_request.strftime(EventFieldType.TIME_FORMAT),
         )
-        assert last_updated < time, "The last updated time should be in the past"
+        assert last_updated
+        assert (
+            last_updated < last_request.timestamp()
+        ), "The last updated time should be before the last request"

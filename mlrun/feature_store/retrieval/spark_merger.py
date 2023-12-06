@@ -181,7 +181,7 @@ class SparkFeatureMerger(BaseMerger):
                                 field.name,
                                 pyspark_functions.date_format(
                                     pyspark_functions.to_timestamp(field.name),
-                                    "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                                    "yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS",
                                 ),
                             )
                             type_conversion_dict[field.name] = "datetime64[ns]"

@@ -460,8 +460,10 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 one_hot_encoding[
                     f"{feature}_{OneHotEncoder._sanitized_category(value)}"
                 ] = 1
-            else:
-                print(f"Warning, {value} is not a known value by the encoding")
+            elif self.logger:
+                self.logger.warn(
+                    f"OneHotEncoder does not have an encoding for value '{value}' of feature '{feature}'"
+                )
             return one_hot_encoding
 
         return {feature: value}

@@ -313,7 +313,7 @@ class KubeResourceSpec(FunctionSpec):
         k8s_api = k8s_client.ApiClient()
         if strip:
             if field_name == "env":
-                # we first try to pull from struct because the field might been already serialized and if not,
+                # we first try to pull from struct because the field might have been already serialized and if not,
                 # we pull from self
                 envs = struct.get(field_name, None) or getattr(self, field_name, None)
                 if envs:

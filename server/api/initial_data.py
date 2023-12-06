@@ -130,18 +130,15 @@ def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
     force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
-    is_database_migration_needed = False
-    # the util checks whether the target DB has data, when database migration needed, it obviously does not have data
-    # but in that case it's not really a migration from scratch
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
-    ) and not is_database_migration_needed
+    )
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
-    is_migration_needed = is_database_migration_needed or (
+    is_migration_needed = (
         not is_migration_from_scratch
         and (is_schema_migration_needed or is_data_migration_needed)
     )
@@ -149,14 +146,12 @@ def _resolve_needed_operations(
         config.httpdb.db.backup.mode == "enabled"
         and is_migration_needed
         and not is_migration_from_scratch
-        and not is_database_migration_needed
     )
     logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
-        is_database_migration_needed=is_database_migration_needed,
         is_backup_needed=is_backup_needed,
         is_migration_needed=is_migration_needed,
     )

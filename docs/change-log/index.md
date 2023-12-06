@@ -35,7 +35,7 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |ML-3379|New `state_thresholds` used to identify pod status and abort a run. See [Preventing stuck pods](../runtimes/configuring-job-resources.html#preventing-stuck-pods).
-|ML-3728|Add MLRun labels to pods that mediate job execution with KFP, to facilitate monitoring. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
+|ML-3728|Add MLRun labels to pods that mediate job execution with KFP, to facilitate monitoring. Tech-Preview. [View in Git](https://github.com/mlrun/mlrun/pull/4485/).  |
 |ML-4032|You can now disable the automatic HTTP trigger creation in Nuclio and MLRun. See [Serving/Nuclio triggers](../cheat-sheet.html#serving-nuclio-triggers). |
 |ML-4205|Support for asynchronous notifications on remote pipelines. See [Configuring Notifications For Pipelines](../concepts/notifications.html#configuring-notifications-for-pipelines).|
 
@@ -49,6 +49,19 @@
 |ML-4506|You can now delete artifacts , models, and datasets in the UI.                                        |
 |ML-4667|**Project monitoring** is now the default project view. The previous default page is now named **Quick actions**, and is the second tab in the **Projects** page.|
 |ML-4687|The scrollbar color was changed, improving the browser search results. |
+
+### Infrastructure
+
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|ML-3618|Integrate MLflow: seamleassly integrate and transfer logs from MLflow to MLRun. Tech Preview. See [MLflow tracker tutorial](../tutorials/mlflow.html). |
+
+
+### Documentation
+| ID     |Description                                                                                         |
+|---------|-----------------------------------------------------------------------------------------------------|
+|NA|New: Building a docker image externally using a dockerfile and then using it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
+
 
 ###  Closed issues
 | ID          |Description                                                               |
@@ -115,7 +128,7 @@
 |ML-2815|New Batch Run wizard that replaces the previous New job page.                                       |
 |ML-3584|The Model Endpoints page now displays the Function Tag.                                             |
 |ML-4066|The Online types list of the Target Store now includes Redis.                                       |
-|ML-4167|The Projects page now supports downloading the .yaml file.                                          |
+|ML-4167|The Projects page now supports downloading the .yaml file. Tech Preview.                          |
 |ML-4571|The Model Endpoints page now displays the drift threshold and the drift actual value.               |
 |ML-4756|The Recents list in Jobs and Workflows (Projects pane) now displays a maximum of the last 48 hours. |
 |ML-4511|You can now change the image and add new requirements (such as xgboost) in the Batch Infer wizard.  |

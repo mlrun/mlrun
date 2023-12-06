@@ -68,7 +68,7 @@ class Spark3JobSpec(KubeResourceSpec):
         "driver_cores",
         "executor_cores",
     ]
-    _default_fields_to_strip = AbstractSparkJobSpec._default_fields_to_strip + [
+    _default_fields_to_strip = KubeResourceSpec._default_fields_to_strip + [
         "driver_node_selector",
         "executor_node_selector",
         "driver_tolerations",
@@ -80,7 +80,7 @@ class Spark3JobSpec(KubeResourceSpec):
         "driver_cores",
         "executor_cores",
     ]
-    _k8s_fields_to_serialize = AbstractSparkJobSpec._k8s_fields_to_serialize + [
+    _k8s_fields_to_serialize = KubeResourceSpec._k8s_fields_to_serialize + [
         "driver_volume_mounts",
         "executor_volume_mounts",
         "driver_node_selector",
@@ -91,7 +91,7 @@ class Spark3JobSpec(KubeResourceSpec):
         "driver_tolerations",
     ]
     _fields_to_serialize = (
-        AbstractSparkJobSpec._fields_to_serialize + _k8s_fields_to_serialize
+        KubeResourceSpec._fields_to_serialize + _k8s_fields_to_serialize
     )
 
     def __init__(

@@ -1005,7 +1005,7 @@ class SQLDB(DBInterface):
 
         # in earlier versions, the uid actually stored the producer id of the artifacts, so in case we didn't find
         # any artifacts we should try to look for artifacts with the given uid as producer id
-        if not artifacts and identifier.uid:
+        if not artifacts and identifier.uid and not identifier.producer_id:
             artifacts = self.list_artifacts(
                 session,
                 project=project_name,

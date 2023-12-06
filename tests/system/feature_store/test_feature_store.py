@@ -1130,6 +1130,33 @@ class TestFeatureStore(TestMLRunSystem):
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
+    def test_merge_with_different_timestamp_resolutions(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
+        trades_microseconds = trades.copy()
+        trades_microseconds["time"] = trades_microseconds["time"].astype(
+            "datetime64[us]"
+        )
+        prepare_feature_set(
+            "left", "ticker", trades_microseconds, timestamp_key="time", targets=targets
+        )
+        prepare_feature_set(
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+
+        features = ["left.*", "right.*"]
+        feature_vector = fstore.FeatureVector(
+            "test_fv",
+            features,
+            with_indexes=True,
+        )
+        res = fstore.get_offline_features(
+            feature_vector,
+            entity_rows=trades.set_index("ticker"),
+            entity_timestamp_column="time",
+        )
+        res = res.to_dataframe()
+        assert res["time"].dtype.name == "datetime64[ns]"
+
     def test_left_not_ordered_pandas_asof_merge(self):
         left = trades.sort_values(by="price")
 

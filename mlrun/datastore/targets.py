@@ -912,7 +912,7 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
@@ -1054,7 +1054,7 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )

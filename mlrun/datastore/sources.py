@@ -177,7 +177,7 @@ class CSVSource(BaseSourceDriver):
             parse_dates.append(time_field)
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
         else:
@@ -193,7 +193,7 @@ class CSVSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
             result = {
@@ -340,7 +340,7 @@ class ParquetSource(BaseSourceDriver):
             attributes["context"] = context
 
         data_item = mlrun.store_manager.object(self.path)
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
         else:
@@ -357,7 +357,7 @@ class ParquetSource(BaseSourceDriver):
         )
 
     def get_spark_options(self):
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(self.path)
             path = store.url + path
             result = {

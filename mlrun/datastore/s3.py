@@ -15,6 +15,7 @@
 import time
 
 import boto3
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
@@ -121,9 +122,9 @@ class S3Store(DataStore):
                     "AWS s3fs not installed, run pip install s3fs"
                 ) from exc
             return None
-
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
-            s3fs.S3FileSystem,
+            filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
         )

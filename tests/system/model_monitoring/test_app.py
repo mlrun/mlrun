@@ -49,10 +49,54 @@ class _AppData:
         self.abs_path = str(path.absolute())
 
 
+class _V3IORecordsChecker:
+    _logger: Logger
+    apps_data: list[_AppData]
+    app_interval: int
+
+    @classmethod
+    def custom_setup_class(cls, project_name: str) -> None:
+        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
+        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
+        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
+            cls._v3io_container
+        )
+
+    @classmethod
+    def _test_kv_record(cls, ep_id: str) -> None:
+        for app_data in cls.apps_data:
+            app_name = app_data.class_.name
+            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+                container=cls._v3io_container, table_path=ep_id, key=app_name
+            )
+            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
+
+    @classmethod
+    def _test_tsdb_record(cls, ep_id: str) -> None:
+        df: pd.DataFrame = cls._tsdb_storage.read(
+            backend=_TSDB_BE,
+            table=_TSDB_TABLE,
+            start=f"now-{5 * cls.app_interval}m",
+        )
+        assert not df.empty, "No TSDB data"
+        assert (
+            df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+        assert set(df.application_name) == {
+            app_data.class_.name for app_data in cls.apps_data
+        }, "The application names are different than expected"
+
+    @classmethod
+    def _test_v3io_records(cls, ep_id: str) -> None:
+        cls._test_kv_record(ep_id)
+        cls._test_tsdb_record(ep_id)
+
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestMonitoringAppFlow(TestMLRunSystem):
-    project_name = "test-monitoring-app-flow"
+class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
+    project_name = "test-mm-app-0"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
 
@@ -90,11 +134,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls.infer_input = cls._generate_infer_input()
         cls.next_window_input = cls._generate_infer_input(num_events=1)
 
-        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(cls.project_name)
-        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
-        )
+        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring(
@@ -165,36 +205,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         if num_events is None:
             num_events = cls.max_events
         return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
-
-    @classmethod
-    def _test_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data:
-            app_name = app_data.class_.name
-            cls._logger.debug("Checking the KV record of app", app_name=app_name)
-            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
-                container=cls._v3io_container, table_path=ep_id, key=app_name
-            )
-            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
-
-    @classmethod
-    def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.read(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
-            start=f"now-{5 * cls.app_interval}m",
-        )
-        assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
-        assert set(df.application_name) == {
-            app_data.class_.name for app_data in cls.apps_data
-        }, "The application names are different than expected"
-
-    @classmethod
-    def _test_v3io_records(cls, ep_id: str) -> None:
-        cls._test_kv_record(ep_id)
-        cls._test_tsdb_record(ep_id)
 
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)

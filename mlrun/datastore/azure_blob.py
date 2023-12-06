@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 from azure.storage.blob import BlobServiceClient
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 from mlrun.errors import err_to_str
@@ -51,8 +52,10 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
                 )
             return None
+        # in order to support az and wasbs kinds.
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
-            adlfs.spec.AzureBlobFileSystem,
+            filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
         )

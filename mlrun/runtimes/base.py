@@ -92,6 +92,7 @@ class FunctionStatus(ModelObj):
 
 class FunctionSpec(ModelObj):
     _dict_fields = spec_fields
+    _default_fields_to_strip = []
 
     def __init__(
         self,
@@ -147,6 +148,10 @@ class BaseRuntime(ModelObj):
     _is_nested = False
     _is_remote = False
     _dict_fields = ["kind", "metadata", "spec", "status", "verbose"]
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "status",  # when stripping, we don't want to leave the status in the function as it describes the state rather
+        # than configuration
+    ]
 
     def __init__(self, metadata=None, spec=None):
         self._metadata = None
@@ -854,13 +859,6 @@ class BaseRuntime(ModelObj):
         return launcher.save_function(
             self, tag=tag, versioned=versioned, refresh=refresh
         )
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude=exclude)
-        if strip:
-            if "status" in struct:
-                del struct["status"]
-        return struct
 
     def doc(self):
         print("function:", self.metadata.name)

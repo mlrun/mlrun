@@ -44,6 +44,16 @@ RUN_ID_PLACE_HOLDER = "{run_id}"  # IMPORTANT: shouldn't be changed.
 
 class ModelObj:
     _dict_fields = []
+    # bellow attributes are used in to_dict method
+    # _default_fields_to_strip - fields to strip from the object by default if strip=True
+    # _fields_to_serialize - fields that will be serialized by the object's _serialize_field method
+    # _fields_to_enrich - fields that will be enriched by the object's _enrich_field method
+    # _fields_to_skip_validation - fields that will be ignored by the object's _is_valid_field_value_for_serialization
+    # method
+    _default_fields_to_strip = []
+    _fields_to_serialize = []
+    _fields_to_enrich = []
+    _fields_to_skip_validation = []
 
     @staticmethod
     def _verify_list(param, name):
@@ -62,26 +72,142 @@ class ModelObj:
             return new_type.from_dict(param)
         return param
 
-    def to_dict(self, fields=None, exclude=None):
-        """convert the object to a python dictionary
-
-        :param fields:  list of fields to include in the dict
-        :param exclude: list of fields to exclude from the dict
+    def to_dict(
+        self, fields: list = None, exclude: list = None, strip: bool = False
+    ) -> dict:
+        """
+        convert the object to a dict
+        :param fields:  A list of fields to include in the dictionary. If not provided, the default value is taken
+        from `self._dict_fields` or from the object __init__ params.
+        :param exclude: A list of fields to exclude from the dictionary. If not provided, the default value is taken
+        from `self._dict_fields` or from the object __init__ params.
+        :param strip:  If True, the object's `_default_fields_to_strip` attribute is appended to the exclude list.
+         Strip purpose is to remove fields that are context / environment specific and not required for actually define
+         the object.
+        :return: A dictionary representation of the object.
         """
         struct = {}
-        fields = fields or self._dict_fields
-        if not fields:
-            fields = list(inspect.signature(self.__init__).parameters.keys())
-        for t in fields:
-            if not exclude or t not in exclude:
-                val = getattr(self, t, None)
-                if val is not None and not (isinstance(val, dict) and not val):
-                    if hasattr(val, "to_dict"):
-                        val = val.to_dict()
-                        if val:
-                            struct[t] = val
-                    else:
-                        struct[t] = val
+
+        fields = self._resolve_initial_to_dict_fields(fields)
+        fields_to_exclude = exclude or []
+        if strip:
+            fields_to_exclude += self._default_fields_to_strip
+
+        # fields_to_save are built from the fields list minus the fields to exclude minus the fields that requires
+        # serialization and enrichment (because they will be added later to the struct)
+        fields_to_save = (
+            set(fields)
+            - set(fields_to_exclude)
+            - set(self._fields_to_serialize)
+            - set(self._fields_to_enrich)
+        )
+
+        # iterating over the fields to save and adding them to the struct
+        for field_name in fields_to_save:
+            field_value = getattr(self, field_name, None)
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
+                # if the field value has attribute to_dict, we call it.
+                # if one of the attributes is a third party object that has to_dict method (such as k8s objects), then
+                # add it to the object's _fields_to_serialize attribute and handle it in the _serialize_field method.
+                if hasattr(field_value, "to_dict"):
+                    field_value = field_value.to_dict(strip=strip)
+                    if self._is_valid_field_value_for_serialization(
+                        field_name, field_value, strip
+                    ):
+                        struct[field_name] = field_value
+                else:
+                    struct[field_name] = field_value
+
+        # subtracting the fields_to_exclude from the fields_to_serialize because if we want to exclude a field there
+        # is no need to serialize it.
+        fields_to_serialize = list(
+            set(self._fields_to_serialize) - set(fields_to_exclude)
+        )
+        self._resolve_field_value_by_method(
+            struct, self._serialize_field, fields_to_serialize, strip
+        )
+
+        # subtracting the fields_to_exclude from the fields_to_enrich because if we want to exclude a field there
+        # is no need to enrich it.
+        fields_to_enrich = list(set(self._fields_to_enrich) - set(fields_to_exclude))
+        self._resolve_field_value_by_method(
+            struct, self._enrich_field, fields_to_enrich, strip
+        )
+
+        self._apply_enrichment_before_to_dict_completion(struct, strip=strip)
+        return struct
+
+    def _resolve_initial_to_dict_fields(self, fields: list = None) -> list:
+        """
+        Resolve fields to be used in to_dict method.
+        If fields is None, use `_dict_fields` attribute of the object.
+        If fields is None and `_dict_fields` is empty, use the object's __init__ parameters.
+        :param fields: List of fields to iterate over.
+        :return: List of fields to iterate over.
+        """
+        return (
+            fields
+            or self._dict_fields
+            or list(inspect.signature(self.__init__).parameters.keys())
+        )
+
+    def _is_valid_field_value_for_serialization(
+        self, field_name: str, field_value: str, strip: bool = False
+    ) -> bool:
+        """
+        Check if the field value is valid for serialization.
+        If field name is in `_fields_to_skip_validation` attribute, skip validation and return True.
+        If strip is False skip validation and return True.
+        If field value is None or empty dict, then no need to store it.
+        :param field_name: Field name.
+        :param field_value: Field value.
+        :return: True if the field value is valid for serialization, False otherwise.
+        """
+        if field_name in self._fields_to_skip_validation:
+            return True
+        # TODO: remove when Runtime initialization will be refactored and enrichment will be moved to BE
+        # if not strip:
+        #     return True
+
+        return field_value is not None and not (
+            (isinstance(field_value, dict) or isinstance(field_value, list))
+            and not field_value
+        )
+
+    def _resolve_field_value_by_method(
+        self,
+        struct: dict,
+        method: typing.Callable,
+        fields: typing.Union[list, set] = None,
+        strip: bool = False,
+    ) -> dict:
+        for field_name in fields:
+            field_value = method(struct=struct, field_name=field_name, strip=strip)
+            if self._is_valid_field_value_for_serialization(
+                field_name, field_value, strip
+            ):
+                struct[field_name] = field_value
+        return struct
+
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # we pull the field from self and not from struct because it was excluded from the struct when looping over
+        # the fields to save.
+        return getattr(self, field_name, None)
+
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        # we first try to pull from struct because the field might have been already serialized and if not,
+        # we pull from self
+        return struct.get(field_name, None) or getattr(self, field_name, None)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ) -> dict:
         return struct
 
     @classmethod
@@ -110,19 +236,21 @@ class ModelObj:
 
         return new_obj
 
-    def to_yaml(self, exclude=None) -> str:
+    def to_yaml(self, exclude=None, strip: bool = False) -> str:
         """convert the object to yaml
 
         :param exclude: list of fields to exclude from the yaml
+        :param strip:   if True, strip fields that are not required for actually define the object
         """
-        return dict_to_yaml(self.to_dict(exclude=exclude))
+        return dict_to_yaml(self.to_dict(exclude=exclude, strip=strip))
 
-    def to_json(self, exclude=None):
+    def to_json(self, exclude=None, strip: bool = False):
         """convert the object to json
 
         :param exclude: list of fields to exclude from the json
+        :param strip:   if True, strip fields that are not required for actually define the object
         """
-        return dict_to_json(self.to_dict(exclude=exclude))
+        return dict_to_json(self.to_dict(exclude=exclude, strip=strip))
 
     def to_str(self):
         """convert the object to string (with dict layout)"""
@@ -174,8 +302,8 @@ class ObjectDict:
         self._children[key] = child
         return child
 
-    def to_dict(self):
-        return {k: v.to_dict() for k, v in self._children.items()}
+    def to_dict(self, strip: bool = False):
+        return {k: v.to_dict(strip=strip) for k, v in self._children.items()}
 
     @classmethod
     def from_dict(cls, classes_map: dict, children=None, default_kind=""):
@@ -257,9 +385,9 @@ class ObjectList:
     def __delitem__(self, key):
         del self._children[key]
 
-    def to_dict(self):
+    def to_dict(self, strip: bool = False):
         # method used by ModelObj class to serialize the object to nested dict
-        return [t.to_dict() for t in self._children.values()]
+        return [t.to_dict(strip=strip) for t in self._children.values()]
 
     @classmethod
     def from_list(cls, child_class, children=None):
@@ -304,6 +432,17 @@ class Credentials(ModelObj):
 
 
 class BaseMetadata(ModelObj):
+    _default_fields_to_strip = ModelObj._default_fields_to_strip + [
+        "tag",
+        "hash",
+        "namespace",  # namespace is an environment specific field, no need to keep when stripping
+        "project",  # project is an environment specific field, no need to keep when stripping
+        "labels",  # labels are an environment specific field, no need to keep when stripping
+        "annotations",  # annotations are an environment specific field, no need to keep when stripping
+        "updated",  # updated is a state field, no need to keep when stripping
+        "credentials",  # credentials are an environment specific field, no need to keep when stripping
+    ]
+
     def __init__(
         self,
         name=None,
@@ -686,6 +825,10 @@ class HyperParamOptions(ModelObj):
 class RunSpec(ModelObj):
     """Run specification"""
 
+    _fields_to_serialize = ModelObj._fields_to_serialize + [
+        "handler",
+    ]
+
     def __init__(
         self,
         parameters=None,
@@ -746,11 +889,15 @@ class RunSpec(ModelObj):
         self._notifications = notifications or []
         self.state_thresholds = state_thresholds or {}
 
-    def to_dict(self, fields=None, exclude=None):
-        struct = super().to_dict(fields, exclude=["handler"])
-        if self.handler and isinstance(self.handler, str):
-            struct["handler"] = self.handler
-        return struct
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> str:
+        # we pull the field from self and not from struct because it was excluded from the struct
+        if field_name == "handler":
+            if self.handler and isinstance(self.handler, str):
+                return self.handler
+            return None
+        return super()._serialize_field(struct, field_name, strip)
 
     def is_hyper_job(self):
         param_file = self.param_file or self.hyper_param_options.param_file

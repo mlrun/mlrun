@@ -105,6 +105,44 @@ class KubeResourceSpec(FunctionSpec):
         "security_context",
         "state_thresholds",
     ]
+    _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "replicas",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "priority_class_name",
+        "tolerations",
+        "preemption_mode",
+        "security_context",
+    ]
+    _k8s_fields_to_serialize = [
+        "volumes",
+        "volume_mounts",
+        "resources",
+        "env",
+        "image_pull_policy",
+        "service_account",
+        "image_pull_secret",
+        "node_name",
+        "node_selector",
+        "affinity",
+        "tolerations",
+        "security_context",
+    ]
+    _fields_to_serialize = FunctionSpec._fields_to_serialize + _k8s_fields_to_serialize
+    _fields_to_enrich = FunctionSpec._fields_to_enrich + [
+        "env",  # removing sensitive data from env
+    ]
+    # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+    #     "preemption_mode",  # preemption_mode has a valid value of None there for we want to skip the validation on it
+    #     "affinity"
+    # ]
 
     def __init__(
         self,
@@ -257,15 +295,42 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    def to_dict(self, fields=None, exclude=None):
-        exclude = exclude or []
-        _exclude = ["affinity", "tolerations", "security_context"]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = k8s_client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
+    def _serialize_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        """
+        Serialize a field to a dict, list, or primitive type.
+        If field_name is in _k8s_fields_to_serialize, we will apply k8s serialization
+        """
+        k8s_api = k8s_client.ApiClient()
+        if field_name in self._k8s_fields_to_serialize:
+            return k8s_api.sanitize_for_serialization(getattr(self, field_name))
+        return super()._serialize_field(struct, field_name, strip)
+
+    def _enrich_field(
+        self, struct: dict, field_name: str = None, strip: bool = False
+    ) -> typing.Any:
+        k8s_api = k8s_client.ApiClient()
+        if strip:
+            if field_name == "env":
+                # we first try to pull from struct because the field might been already serialized and if not,
+                # we pull from self
+                envs = struct.get(field_name, None) or getattr(self, field_name, None)
+                if envs:
+                    serialized_envs = k8s_api.sanitize_for_serialization(envs)
+                    for env in serialized_envs:
+                        if env["name"].startswith("V3IO_"):
+                            env["value"] = ""
+                    return serialized_envs
+        return super()._enrich_field(struct=struct, field_name=field_name, strip=strip)
+
+    def _apply_enrichment_before_to_dict_completion(
+        self, struct: dict, strip: bool = False
+    ):
+        if strip:
+            # Reset this, since mounts and env variables were cleared.
+            struct["disable_auto_mount"] = False
+        return super()._apply_enrichment_before_to_dict_completion(struct, strip)
 
     def update_vols_and_mounts(
         self, volumes, volume_mounts, volume_mounts_field_name="_volume_mounts"
@@ -681,8 +746,20 @@ class KubeResourceSpec(FunctionSpec):
             node_selector.node_selector_terms += new_node_selector_terms
 
     def _initialize_affinity(self, affinity_field_name: str):
+        logger.info(
+            "initialize affinity",
+            affinity_field_name=affinity_field_name,
+            value=getattr(self, affinity_field_name),
+            preemption_mode=self._preemption_mode,
+        )
         if not getattr(self, affinity_field_name):
             setattr(self, affinity_field_name, k8s_client.V1Affinity())
+            logger.info(
+                "initialized affinity",
+                affinity_field_name=affinity_field_name,
+                value=getattr(self, affinity_field_name),
+                preemption_mode=self._preemption_mode,
+            )
 
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):
@@ -921,28 +998,6 @@ class KubeResource(BaseRuntime):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", KubeResourceSpec)
-
-    def to_dict(self, fields=None, exclude=None, strip=False):
-        struct = super().to_dict(fields, exclude, strip=strip)
-        api = k8s_client.ApiClient()
-        struct = api.sanitize_for_serialization(struct)
-        if strip:
-            spec = struct["spec"]
-            for attr in [
-                "volumes",
-                "volume_mounts",
-                "driver_volume_mounts",
-                "executor_volume_mounts",
-            ]:
-                if attr in spec:
-                    del spec[attr]
-            if "env" in spec and spec["env"]:
-                for ev in spec["env"]:
-                    if ev["name"].startswith("V3IO_"):
-                        ev["value"] = ""
-            # Reset this, since mounts and env variables were cleared.
-            spec["disable_auto_mount"] = False
-        return struct
 
     def apply(self, modify):
         """

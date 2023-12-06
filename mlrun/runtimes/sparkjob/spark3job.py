@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import typing
 
 import kubernetes.client
@@ -69,6 +68,31 @@ class Spark3JobSpec(KubeResourceSpec):
         "driver_cores",
         "executor_cores",
     ]
+    _default_fields_to_strip = AbstractSparkJobSpec._default_fields_to_strip + [
+        "driver_node_selector",
+        "executor_node_selector",
+        "driver_tolerations",
+        "executor_tolerations",
+        "driver_affinity",
+        "executor_affinity",
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_cores",
+        "executor_cores",
+    ]
+    _k8s_fields_to_serialize = AbstractSparkJobSpec._k8s_fields_to_serialize + [
+        "driver_volume_mounts",
+        "executor_volume_mounts",
+        "driver_node_selector",
+        "executor_node_selector",
+        "executor_affinity",
+        "executor_tolerations",
+        "driver_affinity",
+        "driver_tolerations",
+    ]
+    _fields_to_serialize = (
+        AbstractSparkJobSpec._fields_to_serialize + _k8s_fields_to_serialize
+    )
 
     def __init__(
         self,
@@ -189,24 +213,6 @@ class Spark3JobSpec(KubeResourceSpec):
         self.executor_java_options = executor_java_options
         self.driver_cores = driver_cores
         self.executor_cores = executor_cores
-
-    def to_dict(self, fields=None, exclude=None):
-        exclude = exclude or []
-        _exclude = [
-            "affinity",
-            "tolerations",
-            "security_context",
-            "executor_affinity",
-            "executor_tolerations",
-            "driver_affinity",
-            "driver_tolerations",
-        ]
-        struct = super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-        api = kubernetes.client.ApiClient()
-        for field in _exclude:
-            if field not in exclude:
-                struct[field] = api.sanitize_for_serialization(getattr(self, field))
-        return struct
 
     @property
     def executor_tolerations(self) -> typing.List[kubernetes.client.V1Toleration]:

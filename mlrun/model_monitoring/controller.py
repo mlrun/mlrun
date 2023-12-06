@@ -433,7 +433,7 @@ class MonitoringApplicationController:
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                             )
-                            return
+                            continue
 
                     # Continue if not enough events provided since the deployment of the model endpoint
                     except FileNotFoundError:
@@ -442,7 +442,7 @@ class MonitoringApplicationController:
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                             min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         )
-                        return
+                        continue
 
                     # Get the timestamp of the latest request:
                     latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]

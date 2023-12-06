@@ -383,7 +383,7 @@ class RunDBMock:
     def assert_no_mount_or_creds_configured(self, function_name=None):
         function = self._get_function_internal(function_name)
 
-        env_list = function["spec"]["env"]
+        env_list = function["spec"].get("env", [])
         env_params = [item["name"] for item in env_list]
         for env_variable in [
             "V3IO_USERNAME",
@@ -393,8 +393,8 @@ class RunDBMock:
         ]:
             assert env_variable not in env_params
 
-        volume_mounts = function["spec"]["volume_mounts"]
-        volumes = function["spec"]["volumes"]
+        volume_mounts = function["spec"].get("volume_mounts", [])
+        volumes = function["spec"].get("volumes", [])
         assert len(volumes) == 0
         assert len(volume_mounts) == 0
 
@@ -413,8 +413,8 @@ class RunDBMock:
         result.pop("dictionary_item_removed")
         assert result == {}
 
-        volume_mounts = function["spec"]["volume_mounts"]
-        volumes = function["spec"]["volumes"]
+        volume_mounts = function["spec"].get("volume_mounts", [])
+        volumes = function["spec"].get("volumes", [])
 
         if cred_only:
             assert len(volumes) == 0

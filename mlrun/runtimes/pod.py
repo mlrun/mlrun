@@ -137,12 +137,12 @@ class KubeResourceSpec(FunctionSpec):
     ]
     _fields_to_serialize = FunctionSpec._fields_to_serialize + _k8s_fields_to_serialize
     _fields_to_enrich = FunctionSpec._fields_to_enrich + [
-        "env",  # removing sensitive data from env
+        "env",  # Removing sensitive data from env
     ]
-    # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
-    #     "preemption_mode",  # preemption_mode has a valid value of None there for we want to skip the validation on it
-    #     "affinity"
-    # ]
+    _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+        "preemption_mode",  # preemption_mode has a valid value of None therefore we want to skip the validation on it
+        #     "affinity"
+    ]
 
     def __init__(
         self,
@@ -295,6 +295,13 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
+    # def to_dict(
+    #         self, fields: list = None, exclude: list = None, strip: bool = False
+    # ) -> dict:
+    #     exclude = exclude or []
+    #     _exclude = ["affinity", "tolerations", "security_context"]
+    #     return super().to_dict(fields, exclude=list(set(exclude + _exclude)))
+
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:
@@ -313,7 +320,7 @@ class KubeResourceSpec(FunctionSpec):
         k8s_api = k8s_client.ApiClient()
         if strip:
             if field_name == "env":
-                # we first try to pull from struct because the field might have been already serialized and if not,
+                # We first try to pull from struct because the field might have been already serialized and if not,
                 # we pull from self
                 envs = struct.get(field_name, None) or getattr(self, field_name, None)
                 if envs:
@@ -746,20 +753,8 @@ class KubeResourceSpec(FunctionSpec):
             node_selector.node_selector_terms += new_node_selector_terms
 
     def _initialize_affinity(self, affinity_field_name: str):
-        logger.info(
-            "initialize affinity",
-            affinity_field_name=affinity_field_name,
-            value=getattr(self, affinity_field_name),
-            preemption_mode=self._preemption_mode,
-        )
         if not getattr(self, affinity_field_name):
             setattr(self, affinity_field_name, k8s_client.V1Affinity())
-            logger.info(
-                "initialized affinity",
-                affinity_field_name=affinity_field_name,
-                value=getattr(self, affinity_field_name),
-                preemption_mode=self._preemption_mode,
-            )
 
     def _initialize_node_affinity(self, affinity_field_name: str):
         if not getattr(getattr(self, affinity_field_name), "node_affinity"):

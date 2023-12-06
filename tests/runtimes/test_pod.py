@@ -209,11 +209,11 @@ def test_to_dict():
         mount_path="some-path", name="volume-name"
     )
     function = mlrun.new_function(kind=mlrun.runtimes.RuntimeKinds.job)
-    # for sanitization
+    # For sanitization
     function.spec.volume_mounts = [volume_mount]
-    # for enrichment
+    # For enrichment
     function.set_env(name="V3IO_ACCESS_KEY", value="123")
-    # for apply enrichment before to_dict completion
+    # For apply enrichment before to_dict completion
     function.spec.disable_auto_mount = True
 
     function_dict = function.to_dict()

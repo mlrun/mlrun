@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from ast import FunctionDef, parse, unparse
 from base64 import b64decode, b64encode
 from typing import Callable, Dict, List, Optional, Union
 
@@ -22,61 +23,79 @@ from mlrun.model import HyperParamOptions, RunObject
 from mlrun.runtimes.kubejob import KubejobRuntime
 
 
+def get_log_artifacts_code(runobj: RunObject, task_parameters: dict):
+    artifact_json_dir = task_parameters.get(
+        "artifact_json_dir",
+        mlrun.mlconf.function.databricks.artifact_directory_path,
+    )
+    artifact_json_path = (
+        f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"
+    )
+    return (
+        log_artifacts_code_template.format(f"/dbfs{artifact_json_path}"),
+        artifact_json_path,
+    )
+
+
+def replace_log_artifact_function(code: str, log_artifacts_code: str):
+    #  user can use a dummy function in oder to avoid edit his code.
+    #  replace mlrun_log_artifact function if already exist.
+    is_replaced = False
+    parsed_code = parse(code)
+    for node in parsed_code.body:
+        if isinstance(node, FunctionDef) and node.name == "mlrun_log_artifact":
+            new_function_ast = parse(log_artifacts_code)
+            node.args = new_function_ast.body[0].args
+            node.body = parse(log_artifacts_code_template).body[0].body
+            is_replaced = True
+            break
+    return unparse(parsed_code), is_replaced
+
+
 class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
 
-    def _get_log_artifacts_code(self, runobj: RunObject, task_parameters: dict):
-        artifact_json_dir = task_parameters.get(
-            "artifact_json_dir",
-            mlrun.mlconf.function.databricks.artifact_directory_path,
+    def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
+        encoded_code = (
+            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
         )
-        artifact_json_path = (
-            f"{artifact_json_dir}/mlrun_artifact_{runobj.metadata.uid}.json"
+        if not encoded_code:
+            raise ValueError("Databricks function must be provided with user code")
+
+        decoded_code = b64decode(encoded_code).decode("utf-8")
+        decoded_code, is_replaced = replace_log_artifact_function(
+            code=decoded_code, log_artifacts_code=log_artifacts_code
         )
-        return (
-            artifacts_code_template.format(f"/dbfs{artifact_json_path}"),
-            artifact_json_path,
-        )
+        if is_replaced:
+            decoded_code = _logger_code + _databricks_script_code + decoded_code
+        else:
+            decoded_code = (
+                _logger_code
+                + log_artifacts_code
+                + _databricks_script_code
+                + decoded_code
+            )
+        if original_handler:
+            decoded_code += f"\nresult = {original_handler}(**handler_arguments)\n"
+            decoded_code += _return_artifacts_code
+        return b64encode(decoded_code.encode("utf-8")).decode("utf-8")
 
     def get_internal_parameters(self, runobj: RunObject):
         """
-        Return the internal function code.
+        Return the internal function parameters + code.
         """
         task_parameters = runobj.spec.parameters.get("task_parameters", {})
         if "original_handler" in task_parameters:
             original_handler = task_parameters["original_handler"]
         else:
             original_handler = runobj.spec.handler or ""
-        encoded_code = (
-            self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
-        )
-        if not encoded_code:
-            raise ValueError("Databricks function must be provided with user code")
-        decoded_code = b64decode(encoded_code).decode("utf-8")
-        artifacts_code, artifact_json_path = self._get_log_artifacts_code(
+        log_artifacts_code, artifact_json_path = get_log_artifacts_code(
             runobj=runobj, task_parameters=task_parameters
         )
-        code = artifacts_code + _databricks_script_code + decoded_code
-        if original_handler:
-            code += f"\nresult = {original_handler}(**handler_arguments)\n"
-            code += """\n
-default_key_template = 'mlrun_return_value_'
-if result:
-    if isinstance(result, dict):
-        for key, path in result.items():
-            mlrun_log_artifact(name=key, path=path)
-    elif isinstance(result, (list, tuple, set)):
-        for index, value in enumerate(result):
-            key = f'{default_key_template}{index+1}'
-            mlrun_log_artifact(name=key, path=value)
-    elif isinstance(result, str):
-        mlrun_log_artifact(name=f'{default_key_template}1', path=result)
-    else:
-        mlrun_logger.warning(f'cannot log artifacts with the result of handler function \
-- result in unsupported type. {type(result)}')
-"""
-        code = b64encode(code.encode("utf-8")).decode("utf-8")
+        code = self._get_modified_user_code(
+            original_handler=original_handler, log_artifacts_code=log_artifacts_code
+        )
         updated_task_parameters = {
             "original_handler": original_handler,
             "artifact_json_path": artifact_json_path,
@@ -159,6 +178,12 @@ if result:
         )
 
 
+_logger_code = """ \n
+import logging
+mlrun_logger = logging.getLogger('mlrun_logger')
+mlrun_logger.setLevel(logging.DEBUG)
+"""
+
 _databricks_script_code = """
 
 import argparse
@@ -170,11 +195,7 @@ handler_arguments = json.loads(handler_arguments)
 
 """
 
-artifacts_code_template = """\n
-import logging
-mlrun_logger = logging.getLogger('mlrun_logger')
-mlrun_logger.setLevel(logging.DEBUG)
-
+log_artifacts_code_template = """\n
 def mlrun_log_artifact(name, path):
     if not name or not path:
         mlrun_logger.error(f'name and path required for logging an mlrun artifact - {{name}} : {{path}}')
@@ -203,4 +224,21 @@ def mlrun_log_artifact(name, path):
             json.dump(new_data, json_file)
     mlrun_logger.info(f'successfully wrote artifact details to the artifact JSON file in DBFS - {{name}} : {{path}}')
 \n
+"""
+
+_return_artifacts_code = """\n
+default_key_template = 'mlrun_return_value_'
+if result:
+    if isinstance(result, dict):
+        for key, path in result.items():
+            mlrun_log_artifact(name=key, path=path)
+    elif isinstance(result, (list, tuple, set)):
+        for index, value in enumerate(result):
+            key = f'{default_key_template}{index+1}'
+            mlrun_log_artifact(name=key, path=value)
+    elif isinstance(result, str):
+        mlrun_log_artifact(name=f'{default_key_template}1', path=result)
+    else:
+        mlrun_logger.warning(f'cannot log artifacts with the result of handler function \
+- result in unsupported type. {type(result)}')
 """

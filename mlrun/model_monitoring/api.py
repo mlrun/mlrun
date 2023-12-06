@@ -132,6 +132,7 @@ def record_results(
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
+    mark_monitoring_window_completed: bool = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -164,6 +165,14 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
+    :param mark_monitoring_window_completed: This flag is relevant when the model endpoint does not have a model
+                                             monitoring infrastructure in place (i.e. stream path is empty), and the
+                                             `trigger_monitoring_job` flag is set to True.
+                                             If True, mark the current monitoring window as completed - meaning that
+                                             the current data will be used in the monitoring, without waiting for the
+                                             next monitoring window to start.
+                                             You may want to set it to False if you have multiple results to record.
+                                             In that case, pass True only for the last call to this function.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 

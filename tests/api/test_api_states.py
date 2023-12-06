@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 import http
-import itertools
 import unittest.mock
 
 import fastapi.testclient
@@ -25,6 +24,7 @@ import server.api.initial_data
 import server.api.utils.auth.verifier
 import server.api.utils.db.alembic
 import server.api.utils.db.backup
+from mlrun.utils import logger
 
 
 def test_offline_state(
@@ -81,7 +81,18 @@ def test_api_states(
     ), f"Expected message: {expected_message}, actual: {response.text}"
 
 
-def test_init_data_migration_required_recognition(monkeypatch) -> None:
+@pytest.mark.parametrize("schema_migration", [True, False])
+@pytest.mark.parametrize("data_migration", [True, False])
+@pytest.mark.parametrize("from_scratch", [True, False])
+def test_init_data_migration_required_recognition(
+    monkeypatch, schema_migration, data_migration, from_scratch
+) -> None:
+    logger.info(
+        "Testing init data migration required recognition",
+        schema_migration=schema_migration,
+        data_migration=data_migration,
+        from_scratch=from_scratch,
+    )
     alembic_util_mock = unittest.mock.Mock()
     monkeypatch.setattr(server.api.utils.db.alembic, "AlembicUtil", alembic_util_mock)
     is_latest_data_version_mock = unittest.mock.Mock()
@@ -102,29 +113,34 @@ def test_init_data_migration_required_recognition(monkeypatch) -> None:
         "_perform_data_migrations",
         perform_data_migrations_mock,
     )
-    for product in itertools.product([True, False], repeat=3):
-        case = {
-            "schema_migration": product[0],
-            "data_migration": product[1],
-            "from_scratch": product[2],
-        }
 
-        alembic_util_mock.return_value.is_migration_from_scratch.return_value = (
-            case.get("from_scratch", False)
-        )
-        alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
-            case.get("schema_migration", False)
-        )
-        is_latest_data_version_mock.return_value = not case.get("data_migration", False)
+    # this specific case means mlrun is fresh installed and no migrations are needed
+    # thus it will just put some initial data and move to online state
 
-        mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
-        server.api.initial_data.init_data()
-        failure_message = f"Failed in case: {case}"
-        assert (
-            mlrun.mlconf.httpdb.state
-            == mlrun.common.schemas.APIStates.waiting_for_migrations
-        ), failure_message
-        # assert the api just changed state and no operation was done
-        assert db_backup_util_mock.call_count == 0, failure_message
-        assert perform_schema_migrations_mock.call_count == 0, failure_message
-        assert perform_data_migrations_mock.call_count == 0, failure_message
+    alembic_util_mock.return_value.is_migration_from_scratch.return_value = from_scratch
+    alembic_util_mock.return_value.is_schema_migration_needed.return_value = (
+        schema_migration
+    )
+    is_latest_data_version_mock.return_value = not data_migration
+
+    mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.online
+    server.api.initial_data.init_data()
+
+    expected_state = (
+        mlrun.common.schemas.APIStates.online
+        if from_scratch
+        else mlrun.common.schemas.APIStates.waiting_for_migrations
+    )
+
+    # remain online if nothing is needed
+    if not (schema_migration or data_migration or from_scratch):
+        expected_state = mlrun.common.schemas.APIStates.online
+
+    assert expected_state == mlrun.mlconf.httpdb.state
+    # assert the api just changed state and no operation was done
+    assert db_backup_util_mock.call_count == 0
+
+    # we bound the execution to 1 if from_scratch because during startup the migration is run inplace
+    # and not waiting for trigger migration to occur
+    assert perform_schema_migrations_mock.call_count == (1 if from_scratch else 0)
+    assert perform_data_migrations_mock.call_count == (1 if from_scratch else 0)

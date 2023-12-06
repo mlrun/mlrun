@@ -562,28 +562,6 @@ def test_list_artifacts_exact_name_match(db: DBInterface, db_session: Session):
     _list_and_assert_count("~key", iter=666, count=0)
 
 
-def _generate_artifact_with_iterations(
-    db, db_session, key, tree, num_iters, best_iter, kind, project=""
-):
-    # using reversed so the link artifact will be created last, after all the iterations
-    # are already stored
-    for iter in reversed(range(num_iters)):
-        artifact_body = _generate_artifact(
-            key, kind=kind.value if iter != 0 else "link", tree=tree
-        )
-        if iter == 0:
-            artifact_body["spec"]["link_iteration"] = best_iter
-        artifact_body["spec"]["iter"] = iter
-        db.store_artifact(
-            db_session,
-            key,
-            artifact_body,
-            iter=iter,
-            project=project,
-            producer_id=tree,
-        )
-
-
 def test_list_artifacts_best_iter_with_tagged_iteration(
     db: DBInterface, db_session: Session
 ):
@@ -766,6 +744,40 @@ def test_list_artifacts_best_iteration(db: DBInterface, db_session: Session):
                 assert not result["metadata"]["tag"]
 
 
+def test_list_artifact_for_tagging_fallback(db: DBInterface, db_session: Session):
+    # create an artifact
+    project = "artifact_project"
+    artifact_key = "artifact_key_1"
+    artifact_tree = "artifact_tree"
+    artifact_body = _generate_artifact(
+        artifact_key, tree=artifact_tree, kind=ArtifactCategories.model
+    )
+    artifact_tag_1 = "artifact-tag-1"
+    db.store_artifact(
+        db_session, artifact_key, artifact_body, tag=artifact_tag_1, project=project
+    )
+
+    # append artifact tag, but put the `tree` in the `uid` field of the identifier, like older clients do
+    identifier = mlrun.common.schemas.ArtifactIdentifier(
+        kind=ArtifactCategories.model,
+        key=artifact_key,
+        uid=artifact_tree,
+    )
+    artifact_tag_2 = "artifact-tag-2"
+    db.append_tag_to_artifacts(db_session, project, artifact_tag_2, [identifier])
+
+    # verify that the artifact has both tags
+    artifacts = db.list_artifacts(
+        db_session, artifact_key, project=project, tag=artifact_tag_1
+    )
+    assert len(artifacts) == 1
+
+    artifacts = db.list_artifacts(
+        db_session, artifact_key, project=project, tag=artifact_tag_2
+    )
+    assert len(artifacts) == 1
+
+
 def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     artifact_key = "artifact1"
     artifact_uid = "uid1"
@@ -869,6 +881,28 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             db.read_artifact_v1(
                 db_session, expected["key"], project=expected["project"]
             )
+
+
+def _generate_artifact_with_iterations(
+    db, db_session, key, tree, num_iters, best_iter, kind, project=""
+):
+    # using reversed so the link artifact will be created last, after all the iterations
+    # are already stored
+    for iter in reversed(range(num_iters)):
+        artifact_body = _generate_artifact(
+            key, kind=kind.value if iter != 0 else "link", tree=tree
+        )
+        if iter == 0:
+            artifact_body["spec"]["link_iteration"] = best_iter
+        artifact_body["spec"]["iter"] = iter
+        db.store_artifact(
+            db_session,
+            key,
+            artifact_body,
+            iter=iter,
+            project=project,
+            producer_id=tree,
+        )
 
 
 def _generate_artifact(name, uid=None, kind="artifact", tree=None, project=None):

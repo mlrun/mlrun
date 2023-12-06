@@ -114,8 +114,7 @@ class S3Store(DataStore):
         if self._filesystem:
             return self._filesystem
         try:
-            # noqa
-            import s3fs
+            import s3fs  # noqa
         except ImportError as exc:
             if not silent:
                 raise ImportError(

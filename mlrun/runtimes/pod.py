@@ -139,10 +139,6 @@ class KubeResourceSpec(FunctionSpec):
     _fields_to_enrich = FunctionSpec._fields_to_enrich + [
         "env",  # Removing sensitive data from env
     ]
-    # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
-    # "preemption_mode",  # preemption_mode has a valid value of None therefore we want to skip the validation on it
-    #     "affinity"
-    # ]
 
     def __init__(
         self,
@@ -283,7 +279,6 @@ class KubeResourceSpec(FunctionSpec):
     @preemption_mode.setter
     def preemption_mode(self, mode):
         self._preemption_mode = mode or mlconf.function_defaults.preemption_mode
-        self.enrich_function_preemption_spec()
 
     @property
     def security_context(self) -> k8s_client.V1SecurityContext:
@@ -294,13 +289,6 @@ class KubeResourceSpec(FunctionSpec):
         self._security_context = transform_attribute_to_k8s_class_instance(
             "security_context", security_context
         )
-
-    # def to_dict(
-    #         self, fields: list = None, exclude: list = None, strip: bool = False
-    # ) -> dict:
-    #     exclude = exclude or []
-    #     _exclude = ["affinity", "tolerations", "security_context"]
-    #     return super().to_dict(fields, exclude=list(set(exclude + _exclude)))
 
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
@@ -597,8 +585,7 @@ class KubeResourceSpec(FunctionSpec):
             return
 
         if not getattr(self, preemption_mode_field_name):
-            # We're not supposed to get here, but if we do, we'll set the private attribute to
-            # avoid triggering circular enrichment.
+            # set the private attribute to avoid triggering circular enrichment.
             setattr(
                 self,
                 f"_{preemption_mode_field_name}",

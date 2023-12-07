@@ -133,13 +133,11 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    @staticmethod
-    def assert_print_kwargs(print_kwargs_run):
+    @classmethod
+    def assert_print_kwargs(cls, print_kwargs_run):
         assert print_kwargs_run.status.state == "completed"
-        assert (
-            print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
-            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
-        )
+        logs = cls._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
+        assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
@@ -243,10 +241,7 @@ def import_mlrun():
             params=default_test_params,
         )
         assert run.status.state == "completed"
-        assert (
-            run.status.results["databricks_runtime_task"]["logs"]
-            == "{'param1': 'value1', 'param2': 'value2'}\n"
-        )
+        self.assert_print_kwargs(print_kwargs_run=run)
 
     @pytest.mark.parametrize(
         "handler, function_name",

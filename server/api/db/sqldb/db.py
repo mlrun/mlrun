@@ -992,7 +992,7 @@ class SQLDB(DBInterface):
         project_name: str,
         identifier: mlrun.common.schemas.ArtifactIdentifier,
     ):
-        return self.list_artifacts(
+        artifacts = self.list_artifacts(
             session,
             project=project_name,
             name=identifier.key,
@@ -1002,6 +1002,21 @@ class SQLDB(DBInterface):
             producer_id=identifier.producer_id,
             as_records=True,
         )
+
+        # in earlier versions, the uid actually stored the producer id of the artifacts, so in case we didn't find
+        # any artifacts we should try to look for artifacts with the given uid as producer id
+        if not artifacts and identifier.uid and not identifier.producer_id:
+            artifacts = self.list_artifacts(
+                session,
+                project=project_name,
+                name=identifier.key,
+                kind=identifier.kind,
+                iter=identifier.iter,
+                producer_id=identifier.uid,
+                as_records=True,
+            )
+
+        return artifacts
 
     @staticmethod
     def _set_tag_in_artifact_struct(artifact, tag):

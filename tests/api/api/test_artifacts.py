@@ -44,14 +44,21 @@ def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     assert resp.json()["project"] == PROJECT, "project"
 
 
-def _create_project(client: TestClient, project_name: str = PROJECT):
+def _create_project(
+    client: TestClient, project_name: str = PROJECT, prefix: str = None
+):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
-    resp = client.post(LEGACY_API_PROJECTS_PATH, json=project.dict())
+    url = (
+        LEGACY_API_PROJECTS_PATH
+        if prefix is None
+        else f"{prefix}/{LEGACY_API_PROJECTS_PATH}"
+    )
+    resp = client.post(url, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
 
@@ -161,6 +168,38 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
 
     resp = client.get(f"{LEGACY_API_PROJECTS_PATH}/{PROJECT}/artifact/{KEY}?tag={TAG}")
     assert resp.status_code == HTTPStatus.OK.value
+
+
+def test_create_artifact(db: Session, client_v2: TestClient):
+    _create_project(client_v2, prefix="v1")
+    data = {
+        "kind": "artifact",
+        "metadata": {
+            "description": "",
+            "labels": {},
+            "key": "some-key",
+            "project": PROJECT,
+            "tree": "some-tree",
+        },
+        "spec": {
+            "db_key": "some-key",
+            "producer": {"kind": "api", "uri": "my-uri:3000"},
+            "target_path": "s3://aaa/aaa",
+        },
+        "status": {},
+    }
+    url = "v2/projects/{project}/artifacts".format(project=PROJECT)
+    resp = client_v2.post(
+        url,
+        json=data,
+    )
+
+    response_data = resp.json()
+
+    assert resp.status_code == HTTPStatus.CREATED.value
+    assert response_data["metadata"]["key"] == data["metadata"]["key"]
+    assert response_data["metadata"]["tree"] == data["metadata"]["tree"]
+    assert response_data["spec"]["target_path"] == data["spec"]["target_path"]
 
 
 def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClient):

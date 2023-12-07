@@ -31,7 +31,7 @@ from server.api.api.utils import artifact_project_and_resource_name_extractor
 router = APIRouter()
 
 
-@router.post("/projects/{project}/artifacts")
+@router.post("/projects/{project}/artifacts", status_code=HTTPStatus.CREATED.value)
 async def create_artifact(
     project: str,
     artifact: mlrun.common.schemas.Artifact,

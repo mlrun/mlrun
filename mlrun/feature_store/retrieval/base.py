@@ -393,7 +393,8 @@ class BaseMerger(abc.ABC):
         if reference_df_timestamp_type != featureset_df_timestamp_type:
             logger.info(
                 f"Merger detected timestamp resolution incompatibility between feature set {featureset_name} and "
-                f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}."
+                f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}. Converting feature set "
+                f"timestamp column '{entity_timestamp_column}' to type {reference_df_timestamp_type}."
             )
             featureset_df[entity_timestamp_column] = featureset_df[
                 entity_timestamp_column

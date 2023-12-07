@@ -208,21 +208,24 @@ def mlrun_log_artifact(name, path):
         mlrun_logger.error(f'path for an mlrun artifact must start with /dbfs or dbfs:/ - {{name}} : {{path}}')
         return
     mlrun_artifacts_path = '{}'
-
-    new_data = {{name:path}}
-    if os.path.exists(mlrun_artifacts_path):
-        with open(mlrun_artifacts_path, 'r+') as json_file:
-            existing_data = json.load(json_file)
-            existing_data.update(new_data)
-            json_file.seek(0)
-            json.dump(existing_data, json_file)
-    else:
-        parent_dir = os.path.dirname(mlrun_artifacts_path)
-        if parent_dir != '/dbfs':
-            os.makedirs(parent_dir, exist_ok=True)
-        with open(mlrun_artifacts_path, 'w') as json_file:
-            json.dump(new_data, json_file)
-    mlrun_logger.info(f'successfully wrote artifact details to the artifact JSON file in DBFS - {{name}} : {{path}}')
+    try:
+        new_data = {{name:path}}
+        if os.path.exists(mlrun_artifacts_path):
+            with open(mlrun_artifacts_path, 'r+') as json_file:
+                existing_data = json.load(json_file)
+                existing_data.update(new_data)
+                json_file.seek(0)
+                json.dump(existing_data, json_file)
+        else:
+            parent_dir = os.path.dirname(mlrun_artifacts_path)
+            if parent_dir != '/dbfs':
+                os.makedirs(parent_dir, exist_ok=True)
+            with open(mlrun_artifacts_path, 'w') as json_file:
+                json.dump(new_data, json_file)
+        success_log = f'successfully wrote artifact details to the artifact JSON file in DBFS - {{name}} : {{path}}'
+        mlrun_logger.info(success_log)
+    except Exception as unknown_exception:
+        mlrun_logger.error(f'log mlrun artifact failed - {{name}} : {{path}}. error: {{unknown_exception}}')
 \n
 """
 

@@ -489,7 +489,9 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
             assert diff_result == {}
 
     @staticmethod
-    def _assert_pod_env(pod_env, expected_variables, expected_secrets=None):
+    def _assert_pod_env(
+        pod_env, expected_variables, expected_secrets=None, camel_case=False
+    ):
         expected_secrets = expected_secrets or {}
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
@@ -500,14 +502,24 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
                     assert expected_variables[name] == env_variable["value"]
                 expected_variables.pop(name)
             elif name in expected_secrets:
-                assert (
-                    env_variable["value_from"]["secret_key_ref"]["name"]
-                    == expected_secrets[name]["name"]
-                )
-                assert (
-                    env_variable["value_from"]["secret_key_ref"]["key"]
-                    == expected_secrets[name]["key"]
-                )
+                if not camel_case:
+                    assert (
+                        env_variable["value_from"]["secret_key_ref"]["name"]
+                        == expected_secrets[name]["name"]
+                    )
+                    assert (
+                        env_variable["value_from"]["secret_key_ref"]["key"]
+                        == expected_secrets[name]["key"]
+                    )
+                else:
+                    assert (
+                        env_variable["valueFrom"]["secretKeyRef"]["name"]
+                        == expected_secrets[name]["name"]
+                    )
+                    assert (
+                        env_variable["valueFrom"]["secretKeyRef"]["key"]
+                        == expected_secrets[name]["key"]
+                    )
                 expected_secrets.pop(name)
 
         # Make sure all variables were accounted for

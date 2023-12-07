@@ -85,7 +85,11 @@ def test_api_states(
 @pytest.mark.parametrize("data_migration", [True, False])
 @pytest.mark.parametrize("from_scratch", [True, False])
 def test_init_data_migration_required_recognition(
-    monkeypatch, schema_migration, data_migration, from_scratch
+    db: sqlalchemy.orm.Session,
+    monkeypatch,
+    schema_migration,
+    data_migration,
+    from_scratch,
 ) -> None:
     logger.info(
         "Testing init data migration required recognition",

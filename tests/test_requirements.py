@@ -97,13 +97,12 @@ def test_requirement_specifiers_convention():
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
-        "aiobotocore": {">=2.4.2,<2.6"},
+        "aiobotocore": {">=2.5.0,<2.8"},
         "storey": {"~=1.6.10"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
         "sphinx-book-theme": {"~=1.0.1"},
-        "setuptools": {"~=65.5"},
         "transformers": {"~=4.11.3"},
         # These 2 are used in a tests that is purposed to test requirement without specifiers
         "faker": {""},
@@ -114,17 +113,17 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {">=2023.1,<2023.7"},
-        "adlfs": {">=2022.2,<2023.5"},
-        "s3fs": {">=2023.1,<2023.7"},
-        "gcsfs": {">=2023.1,<2023.7"},
+        "fsspec": {">=2023.9,<=2023.9.1"},
+        "adlfs": {"==2023.9.0"},
+        "s3fs": {"==2023.9.0"},
+        "gcsfs": {"==2023.9.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
         # TODO: make test smart enough to understand that
         "urllib3": {">=1.26.9, <1.27"},
         "numpy": {">=1.16.5, <1.23.0"},
-        "boto3": {">=1.24.59,<1.27"},
+        "boto3": {">=1.28.0,<1.29.0"},
         "dask-ml": {"~=1.4,<1.9.0"},
         "pyarrow": {">=10.0, <15"},
         "nbclassic": {">=0.2.8"},

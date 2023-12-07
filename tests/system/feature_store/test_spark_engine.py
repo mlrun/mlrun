@@ -102,14 +102,14 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
     @classmethod
     def get_remote_path_prefix(cls, without_prefix):
         if cls.use_s3_as_remote:
-            cls.profile = DatastoreProfileS3(
+            cls.ds_profile = DatastoreProfileS3(
                 name="s3ds_profile",
                 access_key=os.environ["AWS_ACCESS_KEY_ID"],
                 secret_key=os.environ["AWS_SECRET_ACCESS_KEY"],
             )
-            register_temporary_client_datastore_profile(cls.profile)
+            register_temporary_client_datastore_profile(cls.ds_profile)
             bucket = os.environ["AWS_BUCKET_NAME"]
-            path = f"ds://{cls.profile.name}/{bucket}"
+            path = f"ds://{cls.ds_profile.name}/{bucket}"
             if without_prefix:
                 path = f"{bucket}"
         else:
@@ -262,8 +262,8 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
         super().setup_method(method)
         if self.run_local:
             self._tmpdir = tempfile.TemporaryDirectory()
-        if self.profile:
-            self.project.register_datastore_profile(self.profile)
+        if self.ds_profile:
+            self.project.register_datastore_profile(self.ds_profile)
 
     def teardown_method(self, method):
         super().teardown_method(method)

@@ -25,6 +25,7 @@ import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
+import server.api.runtime_handlers
 import server.api.utils.singletons.db
 from mlrun.utils import logger
 
@@ -168,6 +169,40 @@ class Runs(
         project: str = mlrun.mlconf.default_project,
     ):
         project = project or mlrun.mlconf.default_project
+        try:
+            run = server.api.utils.singletons.db.get_db().read_run(
+                db_session, uid, project, iter
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.debug(
+                "Run not found, nothing to delete",
+                project=project,
+                uid=uid,
+                iter=iter,
+            )
+            return
+
+        runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
+        if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
+            runtime_handler = server.api.runtime_handlers.get_runtime_handler(
+                runtime_kind
+            )
+            if runtime_handler.are_resources_coupled_to_run_object():
+                runtime_handler.delete_runtime_object_resources(
+                    server.api.utils.singletons.db.get_db(),
+                    db_session,
+                    object_id=uid,
+                    label_selector=f"mlrun/project={project}",
+                    force=True,
+                )
+
+        logger.debug(
+            "Deleting run",
+            project=project,
+            uid=uid,
+            iter=iter,
+            runtime_kind=runtime_kind,
+        )
         server.api.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
 
     def delete_runs(

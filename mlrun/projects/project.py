@@ -1931,7 +1931,7 @@ class MlrunProject(ModelObj):
 
         return resolved_function_name, function_object, func
 
-    def enable_model_monitoring_controller(
+    def enable_model_monitoring(
         self,
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
@@ -1955,7 +1955,7 @@ class MlrunProject(ModelObj):
             base_period=base_period,
         )
 
-    def disable_model_monitoring_controller(self):
+    def disable_model_monitoring(self):
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.delete_function(
             project=self.name,

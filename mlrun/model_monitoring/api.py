@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import datetime
 import hashlib
@@ -30,6 +29,7 @@ from mlrun.utils import logger
 
 from .batch import VirtualDrift
 from .features_drift_table import FeaturesDriftTablePlot
+from .helpers import bump_model_endpoint_last_request
 from .model_endpoint import ModelEndpoint
 
 # A union of all supported dataset types:
@@ -195,6 +195,7 @@ def record_results(
         monitoring_mode=monitoring_mode,
         db_session=db,
     )
+    logger.debug("Model endpoint", endpoint=model_endpoint.to_dict())
 
     if infer_results_df is not None:
         # Write the monitoring parquet to the relevant model endpoint context
@@ -213,6 +214,26 @@ def record_results(
             db_session=db,
         )
 
+        if mark_monitoring_window_completed:
+            if model_endpoint.spec.stream_path == "":
+                logger.info(
+                    "Updating the last request time to mark the current monitoring window as completed",
+                    project=project,
+                    endpoint_id=model_endpoint.metadata.uid,
+                )
+                bump_model_endpoint_last_request(
+                    project=project, model_endpoint=model_endpoint, db=db
+                )
+            else:
+                logger.warning(
+                    "`mark_monitoring_window_completed` is True, but the model endpoint has a stream path. "
+                    "Ignoring `mark_monitoring_window_completed`, as it is relevant only when the model "
+                    "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
+                    " empty).",
+                    project=project,
+                    endpoint_id=model_endpoint.metadata.uid,
+                )
+
         # Getting drift thresholds if not provided
         drift_threshold, possible_drift_threshold = get_drift_thresholds_if_not_none(
             model_endpoint=model_endpoint,
@@ -229,6 +250,15 @@ def record_results(
             artifacts_tag=artifacts_tag,
             endpoint_id=model_endpoint.metadata.uid,
             db_session=db,
+        )
+
+    if mark_monitoring_window_completed and not trigger_monitoring_job:
+        logger.warning(
+            "`mark_monitoring_window_completed` is True, but `trigger_monitoring_job` is False. "
+            "Ignoring `mark_monitoring_window_completed`, as it is relevant only when "
+            "`trigger_monitoring_job` is True.",
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
         )
 
     return model_endpoint

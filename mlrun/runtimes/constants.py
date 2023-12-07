@@ -134,6 +134,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
+    aborting = "aborting"
 
     @staticmethod
     def all():
@@ -145,6 +146,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
+            RunStates.aborting,
         ]
 
     @staticmethod

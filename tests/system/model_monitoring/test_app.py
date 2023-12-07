@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import pickle
 import time
 import typing
 import uuid
@@ -21,17 +22,27 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 import mlrun
+import mlrun.feature_store
+import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplication
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
+from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
-from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
+from .assets.application import (
+    EXPECTED_EVENTS_COUNT,
+    DemoMonitoringApp,
+    NoCheckDemoMonitoringApp,
+)
 from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 
@@ -228,3 +239,113 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         time.sleep(1.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
+    project_name = "test-mm-record-12"  # DONTTRACK
+    name_prefix = "infer-monitoring"
+
+    # TODO - remove this when TSDB future time issue is resolved
+    tsdb_query_end = "now+3h"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        # model
+        cls.classif = SVC()
+        cls.model_name = "svc"
+        cls.columns = ["a1", "a2", "b"]
+        cls.y_name = "t"
+        cls.num_rows = 15
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 2
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        # cls.infer_results_df[EventFieldType.TIMESTAMP] = datetime.utcnow()  # TODO - add timestamp
+        cls.endpoint_id = "58d42fdd76ad999c377fad1adcafd2790b5a89b9"
+        cls.function_name = f"{cls.name_prefix}-function"
+        cls._train()
+
+        # model monitoring app
+        cls.app_data = _AppData(
+            class_=NoCheckDemoMonitoringApp, rel_path="assets/application.py"
+        )
+
+        # model monitoring infra
+        cls.app_interval: int = 1  # every 1 minute
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.apps_data = [cls.app_data]
+        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+
+    @classmethod
+    def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
+        rng = np.random.default_rng(seed=1)
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
+        return train_test_split(x, y, train_size=0.75, random_state=1)
+
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+        )
+
+    def _log_model(self) -> None:
+        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            body=pickle.dumps(self.classif),
+            model_file="classif.pkl",
+            framework="sklearn",
+            training_set=self.training_set,
+            label_column=self.y_name,
+        )
+
+    def _deploy_monitoring_app(self) -> None:
+        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        fn = self.project.set_model_monitoring_function(
+            func=self.app_data.abs_path,
+            application_class=self.app_data.class_.__name__,
+            name=self.app_data.class_.name,
+            requirements=self.app_data.requirements,
+            **self.app_data.kwargs,
+        )
+        self.project.deploy_function(fn)
+
+    def _record_results(self) -> None:
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
+                key=self.model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name=f"{self.name_prefix}-test",
+            function_name=self.function_name,
+            endpoint_id=self.endpoint_id,
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
+            infer_results_df=self.infer_results_df,
+            trigger_monitoring_job=True,
+            mark_monitoring_window_completed=True,
+        )
+
+    def _deploy_monitoring_infra(self) -> None:
+        self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
+            base_period=self.app_interval,
+            default_controller_image="jonathandaniel503/mlrun:mm-fix",  # DONTTRACK
+        )
+
+    def test_inference_feature_set(self) -> None:
+        self._log_model()
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(self._deploy_monitoring_app)
+            executor.submit(self._deploy_monitoring_infra)
+            executor.submit(self._record_results)
+
+        time.sleep(2.2 * self.app_interval_seconds)
+
+        self._test_v3io_records(self.endpoint_id)

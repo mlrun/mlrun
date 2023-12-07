@@ -46,7 +46,7 @@ def replace_log_artifact_function(code: str, log_artifacts_code: str):
         if isinstance(node, FunctionDef) and node.name == "mlrun_log_artifact":
             new_function_ast = parse(log_artifacts_code)
             node.args = new_function_ast.body[0].args
-            node.body = parse(log_artifacts_code_template).body[0].body
+            node.body = new_function_ast.body[0].body
             is_replaced = True
             break
     return unparse(parsed_code), is_replaced
@@ -179,6 +179,7 @@ class DatabricksRuntime(KubejobRuntime):
 
 
 _logger_code = """ \n
+import os
 import logging
 mlrun_logger = logging.getLogger('mlrun_logger')
 mlrun_logger.setLevel(logging.DEBUG)
@@ -207,8 +208,7 @@ def mlrun_log_artifact(name, path):
         mlrun_logger.error(f'path for an mlrun artifact must start with /dbfs or dbfs:/ - {{name}} : {{path}}')
         return
     mlrun_artifacts_path = '{}'
-    import json
-    import os
+
     new_data = {{name:path}}
     if os.path.exists(mlrun_artifacts_path):
         with open(mlrun_artifacts_path, 'r+') as json_file:

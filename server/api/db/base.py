@@ -171,7 +171,7 @@ class DBInterface(ABC):
         tag="",
         uid=None,
         iteration=None,
-        tree="",
+        producer_id="",
         best_iteration=False,
     ):
         pass

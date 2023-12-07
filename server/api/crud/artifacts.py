@@ -89,7 +89,7 @@ class Artifacts(
             key,
             tag,
             iteration=iter,
-            tree=producer_id,
+            producer_id=producer_id,
             best_iteration=best_iteration,
         )
 

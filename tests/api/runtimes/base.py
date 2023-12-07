@@ -1389,15 +1389,18 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         self.execute_function(runtime)
         self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
-        logger.info("prevent -> none, expecting anti affinity to be removed")
+        logger.info("prevent -> none, expecting to stay the same")
         runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.none.value)
         self.execute_function(runtime)
-        self.assert_node_selection()
+        self.assert_node_selection(affinity=self._generate_preemptible_anti_affinity())
 
-        logger.info("none, enrich with tolerations expecting tolerations to be added")
+        logger.info(
+            "none, enrich with tolerations expecting anti-affinity to stay and tolerations to be added"
+        )
         runtime.with_node_selection(tolerations=self._generate_tolerations())
         self.execute_function(runtime)
         self.assert_node_selection(
+            affinity=self._generate_preemptible_anti_affinity(),
             tolerations=self._generate_tolerations(),
         )
 
@@ -1414,11 +1417,12 @@ class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
         )
 
         logger.info(
-            "constrain -> none, expecting preemptible affinity to be removed and user's tolerations to stay"
+            "constrain -> none, expecting preemptible affinity to stay and user's tolerations"
         )
         runtime.with_preemption_mode(mlrun.common.schemas.PreemptionModes.none.value)
         self.execute_function(runtime)
         self.assert_node_selection(
+            affinity=self._generate_preemptible_affinity(),
             tolerations=self._generate_tolerations(),
         )
 

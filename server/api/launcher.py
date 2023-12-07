@@ -239,8 +239,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         server.api.api.utils.ensure_function_security_context(runtime, self._auth_info)
 
-        runtime.spec.enrich_function_preemption_spec()
-
     def _save_notifications(self, runobj):
         if not self._run_has_valid_notifications(runobj):
             return

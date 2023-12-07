@@ -275,6 +275,12 @@ class Spark3JobSpec(KubeResourceSpec):
         self._driver_preemption_mode = (
             mode or mlrun.mlconf.function_defaults.preemption_mode
         )
+        self.enrich_function_preemption_spec(
+            preemption_mode_field_name="driver_preemption_mode",
+            tolerations_field_name="driver_tolerations",
+            affinity_field_name="driver_affinity",
+            node_selector_field_name="driver_node_selector",
+        )
 
     @property
     def executor_preemption_mode(self) -> str:
@@ -285,21 +291,7 @@ class Spark3JobSpec(KubeResourceSpec):
         self._executor_preemption_mode = (
             mode or mlrun.mlconf.function_defaults.preemption_mode
         )
-
-    def enrich_function_preemption_spec(
-        self,
-        preemption_mode_field_name: str = "preemption_mode",
-        tolerations_field_name: str = "tolerations",
-        affinity_field_name: str = "affinity",
-        node_selector_field_name: str = "node_selector",
-    ):
-        super().enrich_function_preemption_spec(
-            preemption_mode_field_name="driver_preemption_mode",
-            tolerations_field_name="driver_tolerations",
-            affinity_field_name="driver_affinity",
-            node_selector_field_name="driver_node_selector",
-        )
-        super().enrich_function_preemption_spec(
+        self.enrich_function_preemption_spec(
             preemption_mode_field_name="executor_preemption_mode",
             tolerations_field_name="executor_tolerations",
             affinity_field_name="executor_affinity",

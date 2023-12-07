@@ -1437,6 +1437,7 @@ def test_load_project_from_yaml_with_function(context):
     project.save()
     loaded_project = mlrun.load_project(context=str(context))
     for function_name in ["my-func", "my-other-func"]:
+        print(function_name)
         assert (
             deepdiff.DeepDiff(
                 project.get_function(function_name).to_dict(),

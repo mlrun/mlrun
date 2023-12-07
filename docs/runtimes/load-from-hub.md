@@ -35,7 +35,9 @@ Read [CONTRIBUTING.md](https://github.com/mlrun/functions) to learn how to creat
 Make sure your hub source is accessible via github (private is also possible).
 ```
 
-To create a function hub from scratch, the hub structure must be the same as the [MLRun hub](https://github.com/mlrun/marketplace):
+To create a function hub from scratch, the hub structure must be the same as the [MLRun hub](https://github.com/mlrun/marketplace).
+
+The hierarchy must be:
 
 - functions directory
 	- channels directories

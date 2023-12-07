@@ -228,7 +228,7 @@ def mask_notification_params_on_task(
             masked_notifications.append(
                 mask_op(project, run_uid, notification_object).to_dict()
             )
-    task.setdefault("spec", {})["notifications"] = masked_notifications
+        task.setdefault("spec", {})["notifications"] = masked_notifications
 
 
 def _notification_params_mask_op(

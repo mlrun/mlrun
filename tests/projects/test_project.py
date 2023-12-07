@@ -1364,23 +1364,19 @@ def test_init_function_from_dict_function_in_spec():
                 "name": "sparkjob-from-github",
                 "tag": "latest",
                 "project": project_name,
-                "categories": [],
             },
             "spec": {
                 "command": "simple_job.py",
-                "args": [],
                 "image": ".sparkjob-from-github:latest",
                 "build": {
                     "source": "./",
                     "base_image": "iguazio/spark-app:3.5.5-b697",
-                    "commands": [],
                     "load_source_on_run": False,
                     "requirements": ["pyspark==3.2.3"],
                 },
                 "description": "",
                 "disable_auto_mount": False,
                 "clone_target_dir": "/home/mlrun_code/",
-                "env": [],
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",
@@ -1410,17 +1406,6 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "driver_preemption_mode": "prevent",
                 "executor_preemption_mode": "prevent",
-                "affinity": None,
-                "tolerations": None,
-                "security_context": {},
-                "executor_affinity": None,
-                "executor_tolerations": None,
-                "driver_affinity": None,
-                "driver_tolerations": None,
-                "volume_mounts": [],
-                "volumes": [],
-                "driver_volume_mounts": [],
-                "executor_volume_mounts": [],
                 "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
             },
             "verbose": False,
@@ -1452,6 +1437,7 @@ def test_load_project_from_yaml_with_function(context):
     project.save()
     loaded_project = mlrun.load_project(context=str(context))
     for function_name in ["my-func", "my-other-func"]:
+        print(function_name)
         assert (
             deepdiff.DeepDiff(
                 project.get_function(function_name).to_dict(),
@@ -1459,7 +1445,6 @@ def test_load_project_from_yaml_with_function(context):
                 ignore_order=True,
                 exclude_paths=[
                     "root['spec']['build']['code_origin']",
-                    "root['metadata']['categories']",
                 ],
             )
             == {}

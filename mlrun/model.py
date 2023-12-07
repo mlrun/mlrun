@@ -435,7 +435,6 @@ class Credentials(ModelObj):
 
 class BaseMetadata(ModelObj):
     _default_fields_to_strip = ModelObj._default_fields_to_strip + [
-        "tag",
         "hash",
         # Below are environment specific fields, no need to keep when stripping
         "namespace",

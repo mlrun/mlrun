@@ -140,8 +140,8 @@ class KubeResourceSpec(FunctionSpec):
         "env",  # Removing sensitive data from env
     ]
     # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
-        # "preemption_mode",  # preemption_mode has a valid value of None therefore we want to skip the validation on it
-        #     "affinity"
+    # "preemption_mode",  # preemption_mode has a valid value of None therefore we want to skip the validation on it
+    #     "affinity"
     # ]
 
     def __init__(

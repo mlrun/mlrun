@@ -97,6 +97,19 @@ class Spark3JobSpec(KubeResourceSpec):
     _fields_to_serialize = (
         KubeResourceSpec._fields_to_serialize + __k8s_fields_to_serialize
     )
+    _fields_to_skip_validation = KubeResourceSpec._fields_to_skip_validation + [
+        # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
+        #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
+        #  When we allow 'None' values for these attributes we get their true values and they will undo the default
+        #  enrichment when creating the runtime from dict.
+        #  The enrichment should move to the server side and then this can be removed.
+        "driver_node_selector",
+        "executor_node_selector",
+        "executor_affinity",
+        "executor_tolerations",
+        "driver_affinity",
+        "driver_tolerations",
+    ]
 
     def __init__(
         self,

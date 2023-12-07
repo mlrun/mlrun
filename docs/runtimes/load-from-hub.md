@@ -30,7 +30,7 @@ You can create your own function hub, and connect it to MLRun. Then you can impo
 ### Create a custom hub
 
 You can either fork the [MLRun function hub repo](https://github.com/mlrun/functions) and add to it your Git repo, or create a hub from scratch.
-Read [CONTRIBUTING.md](https://github.com/mlrun/functions) to learn how to reate a function.
+Read [CONTRIBUTING.md](https://github.com/mlrun/functions) to learn how to create a function.
 ```{Note}
 Make sure your hub source is accessible via github (private is also possible).
 ```

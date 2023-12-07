@@ -186,8 +186,8 @@ mlrun_logger.setLevel(logging.DEBUG)
 
 mlrun_console_handler = logging.StreamHandler()
 mlrun_console_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-mlrun_console_handler.setFormatter(formatter)
+mlrun_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+mlrun_console_handler.setFormatter(mlrun_formatter)
 mlrun_logger.addHandler(mlrun_console_handler)
 """
 

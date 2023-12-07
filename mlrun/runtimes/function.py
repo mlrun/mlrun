@@ -550,6 +550,11 @@ class RemoteRuntime(KubeResource):
         """
         # todo: verify that the function name is normalized
 
+        old_http_session = getattr(self, "_http_session", None)
+        if old_http_session:
+            old_http_session.close()
+        self._http_session = None
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -939,7 +944,7 @@ class RemoteRuntime(KubeResource):
                 http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            if not hasattr(self, "_http_session"):
+            if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
             resp = self._http_session.request(
                 method, path, headers=headers, **http_client_kwargs

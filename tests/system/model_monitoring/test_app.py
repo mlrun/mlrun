@@ -244,7 +244,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-mm-record-12"  # DONTTRACK
+    project_name = "test-monitoring-record-results"
     name_prefix = "infer-monitoring"
 
     # TODO - remove this when TSDB future time issue is resolved
@@ -335,7 +335,6 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
-            default_controller_image="jonathandaniel503/mlrun:mm-fix",  # DONTTRACK
         )
 
     def test_inference_feature_set(self) -> None:

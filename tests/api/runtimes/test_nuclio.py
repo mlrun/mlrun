@@ -36,7 +36,6 @@ import server.api.crud.runtimes.nuclio.function
 import server.api.crud.runtimes.nuclio.helpers
 import server.api.utils.runtimes.nuclio
 from mlrun import code_to_function, mlconf
-from mlrun.common.db.sql_session import create_session
 from mlrun.platforms.iguazio import split_path
 from mlrun.runtimes.constants import NuclioIngressAddTemplatedIngressModes
 from mlrun.utils import logger
@@ -119,13 +118,10 @@ class TestNuclioRuntime(TestRuntimeBase):
         }
 
     def _execute_run(self, runtime, **kwargs):
-        # _build_function doesn't accept watch, so we need to remove it
+        # deploy_nuclio_function doesn't accept watch, so we need to remove it
         kwargs.pop("watch", None)
-        _build_function(
-            create_session(),
-            mlrun.common.schemas.AuthInfo(),
-            runtime,
-            **kwargs,
+        server.api.crud.runtimes.nuclio.function.deploy_nuclio_function(
+            runtime, **kwargs
         )
 
     def _generate_runtime(
@@ -275,19 +271,12 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         env_config = deploy_spec["env"]
         expected_env = {
+            "V3IO_ACCESS_KEY": self.v3io_access_key,
             "V3IO_USERNAME": self.v3io_user,
             "V3IO_API": None,
             "MLRUN_NAMESPACE": self.namespace,
         }
-        expected_secrets = {
-            "V3IO_ACCESS_KEY": {
-                "name": f"secret-ref-{self.v3io_user}-{self.v3io_access_key}",
-                "key": "accessKey",
-            },
-        }
-        self._assert_pod_env(
-            env_config, expected_env, expected_secrets, camel_case=True
-        )
+        self._assert_pod_env(env_config, expected_env)
         if cred_only:
             assert len(deploy_spec["volumes"]) == 0
             return
@@ -299,12 +288,10 @@ class TestNuclioRuntime(TestRuntimeBase):
                 "flexVolume": {
                     "driver": "v3io/fuse",
                     "options": {
+                        "accessKey": self.v3io_access_key,
                         "container": container,
                         "subPath": path,
                         "dirsToCreate": f'[{{"name": "users//{self.v3io_user}", "permissions": 488}}]',
-                    },
-                    "secretRef": {
-                        "name": f"secret-ref-{self.v3io_user}-{self.v3io_access_key}"
                     },
                 },
                 "name": "v3io",
@@ -610,9 +597,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         mlconf.function.spec.service_account.default = None
 
-    def test_deploy_basic_function(
-        self, db: Session, client: TestClient, k8s_secrets_mock
-    ):
+    def test_deploy_basic_function(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 
         self.execute_function(function)
@@ -649,9 +634,9 @@ class TestNuclioRuntime(TestRuntimeBase):
         nuclio.deploy.deploy_config.side_effect = [
             nuclio.utils.DeployError("Deployment failed", response)
         ]
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
             self.execute_function(function)
-        assert "custom message from nuclio" in exc.value.detail["reason"]
+        assert "custom message from nuclio" in str(exc.value)
 
     def test_deploy_image_name_and_build_base_image(
         self, db: Session, k8s_secrets_mock: K8sSecretsMock
@@ -697,7 +682,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_build_flags: list,
         db: Session,
         client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
     ):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.extra_args = extra_args
@@ -706,9 +690,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name, expected_build_args=expected_build_flags
         )
 
-    def test_deploy_image_with_enrich_registry_prefix(
-        self, k8s_secrets_mock: K8sSecretsMock
-    ):
+    def test_deploy_image_with_enrich_registry_prefix(self):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.image = ".my/image:latest"
 
@@ -750,7 +732,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         expected_commands: list,
         db: Session,
         client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
     ):
         function = self._generate_runtime(self.runtime_kind)
         function.with_requirements(requirements)
@@ -760,10 +741,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_function_with_commands_and_requirements(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
+        self, db: Session, client: TestClient
     ):
         function = self._generate_runtime(self.runtime_kind)
         function.with_commands(["python -m pip install scikit-learn"])
@@ -777,12 +755,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_class=self.class_name, expected_build_commands=expected_commands
         )
 
-    def test_deploy_function_with_labels(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_deploy_function_with_labels(self, db: Session, client: TestClient):
         labels = {
             "key": "value",
             "key-2": "value-2",
@@ -794,12 +767,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             expected_labels=labels, expected_class=self.class_name
         )
 
-    def test_deploy_with_triggers(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_deploy_with_triggers(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 
         http_trigger = {
@@ -826,12 +794,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_triggers(http_trigger, v3io_trigger)
 
-    def test_deploy_with_v3io(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_deploy_with_v3io(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
         local_path = "/local/path"
         remote_path = "/container/and/path"
@@ -841,12 +804,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
         self._assert_nuclio_v3io_mount(local_path, remote_path)
 
-    def test_deploy_with_node_selection(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_deploy_with_node_selection(self, db: Session, client: TestClient):
         mlconf.nuclio_version = "1.6.10"
         function = self._generate_runtime(self.runtime_kind)
 
@@ -927,12 +885,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             tolerations=tolerations,
         )
 
-    def test_deploy_with_priority_class_name(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_deploy_with_priority_class_name(self, db: Session, client: TestClient):
 
         mlconf.nuclio_version = "1.5.20"
         default_priority_class_name = "default-priority"
@@ -995,12 +948,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
         assert deploy_spec["priorityClassName"] == medium_priority_class_name
 
-    def test_set_metadata_annotations(
-        self,
-        db: Session,
-        client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
-    ):
+    def test_set_metadata_annotations(self, db: Session, client: TestClient):
 
         function = self._generate_runtime(self.runtime_kind)
         function.with_annotations({"annotation-key": "annotation-value"})
@@ -1035,7 +983,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         db: Session,
         client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
         client_version,
         client_python_version,
         nuclio_version,
@@ -1054,7 +1001,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
 
     def test_deploy_python_decode_string_env_var_enrichment(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         mlconf.default_nuclio_runtime = "python:3.7"
         decode_event_strings_env_var_name = "NUCLIO_PYTHON_DECODE_EVENT_STRINGS"
@@ -1075,9 +1022,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.nuclio_runtime = "python:3.7"
         server.api.utils.runtimes.nuclio.cached_nuclio_version = "1.5.13"
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"(.*)Nuclio version does not support(.*)",
+        ):
             self.execute_function(function)
-        assert "Nuclio version does not support" in exc.value.detail["reason"]
 
         logger.info(
             "Function runtime is default to python:3.7, nuclio is <1.6.0 - change to 3.6"
@@ -1491,38 +1440,36 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert fn.spec.preemption_mode == "allow"
 
     def test_preemption_mode_without_preemptible_configuration(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_with_preemption_mode_without_preemptible_configuration()
 
     def test_preemption_mode_with_preemptible_node_selector_without_tolerations(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations()
 
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations()
 
     def test_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_and_tolerations_with_extra_settings()
 
     def test_with_preemption_mode_none_transitions(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_with_preemption_mode_none_transitions()
 
     def test_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         self.assert_run_preemption_mode_with_preemptible_node_selector_without_preemptible_tolerations_with_extra_settings()  # noqa: E501
 
-    def test_deploy_with_security_context(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
-    ):
+    def test_deploy_with_security_context(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 
         self.execute_function(function)
@@ -1628,7 +1575,6 @@ class TestNuclioRuntime(TestRuntimeBase):
         self,
         db: Session,
         client: TestClient,
-        k8s_secrets_mock: K8sSecretsMock,
         service_type,
         default_service_type,
         expected_service_type,
@@ -1667,7 +1613,7 @@ class TestNuclioRuntime(TestRuntimeBase):
             assert ingresses[0]["hostTemplate"] == expected_ingress_host_template
 
     def test_deploy_with_readiness_timeout_params(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.readiness_timeout = 501
@@ -1681,7 +1627,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert deploy_spec["waitReadinessTimeoutBeforeFailure"]
 
     def test_deploy_with_disabled_http_trigger_creation(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
         mlconf.nuclio_version = "1.12.8"
@@ -1695,7 +1641,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert deploy_spec["disableDefaultHTTPTrigger"]
 
     def test_deploy_with_enabled_http_trigger_creation(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
         mlconf.nuclio_version = "1.12.8"
@@ -1709,7 +1655,7 @@ class TestNuclioRuntime(TestRuntimeBase):
         assert not deploy_spec["disableDefaultHTTPTrigger"]
 
     def test_invoke_with_disabled_http_trigger_creation(
-        self, db: Session, client: TestClient, k8s_secrets_mock: K8sSecretsMock
+        self, db: Session, client: TestClient
     ):
         # TODO: delete version mocking as soon as we release it in nuclio
         mlconf.nuclio_version = "1.12.8"

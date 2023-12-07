@@ -284,4 +284,6 @@ class LLMJudgeReferenceGrading(ModelObj):
         self.prompt_config = prompt_config
 
 
-# TODO figure out a way to viz the different metrics in a Radar plot
+# TODO figure out a way to viz the different metrics in a Radar plot this should
+# be inside of the application class. since the application class has mutiple 
+# metrics

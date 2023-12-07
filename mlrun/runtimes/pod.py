@@ -301,13 +301,6 @@ class KubeResourceSpec(FunctionSpec):
             "security_context", security_context
         )
 
-    # def to_dict(
-    #         self, fields: list = None, exclude: list = None, strip: bool = False
-    # ) -> dict:
-    #     exclude = exclude or []
-    #     _exclude = ["affinity", "tolerations", "security_context"]
-    #     return super().to_dict(fields, exclude=list(set(exclude + _exclude)))
-
     def _serialize_field(
         self, struct: dict, field_name: str = None, strip: bool = False
     ) -> typing.Any:

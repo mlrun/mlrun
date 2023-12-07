@@ -53,6 +53,7 @@ class _V3IORecordsChecker:
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
+    tsdb_query_end: str = "now"
 
     @classmethod
     def custom_setup_class(cls, project_name: str) -> None:
@@ -78,6 +79,7 @@ class _V3IORecordsChecker:
             backend=_TSDB_BE,
             table=_TSDB_TABLE,
             start=f"now-{5 * cls.app_interval}m",
+            end=cls.tsdb_query_end,
         )
         assert not df.empty, "No TSDB data"
         assert (

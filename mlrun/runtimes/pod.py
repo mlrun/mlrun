@@ -139,10 +139,16 @@ class KubeResourceSpec(FunctionSpec):
     _fields_to_enrich = FunctionSpec._fields_to_enrich + [
         "env",  # Removing sensitive data from env
     ]
-    # _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
-    # "preemption_mode",  # preemption_mode has a valid value of None therefore we want to skip the validation on it
-    #     "affinity"
-    # ]
+    _fields_to_skip_validation = FunctionSpec._fields_to_skip_validation + [
+        # TODO: affinity, tolerations and node_selector are skipped due to preemption mode transitions.
+        #  Preemption mode 'none' depends on the previous mode while the default mode may enrich these values.
+        #  When we allow 'None' values for these attributes we get their true values and they will undo the default
+        #  enrichment when creating the runtime from dict.
+        #  The enrichment should move to the server side and then this can be removed.
+        "affinity",
+        "tolerations",
+        "node_selector",
+    ]
 
     def __init__(
         self,

@@ -311,27 +311,6 @@ class BaseMerger(abc.ABC):
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
 
-        if entity_timestamp_column:
-            timestamp_types = []
-            for df in dfs:
-                if entity_timestamp_column in df:
-                    timestamp_type = df[entity_timestamp_column].dtype.name
-                    timestamp_types.append(timestamp_type)
-
-            timestamp_types_unique = list(set(timestamp_types))
-            if len(timestamp_types_unique) > 1:
-                target_timestamp_type = timestamp_types[0]
-                logger.info(
-                    f"Merger detected timestamp resolution incompatibility between feature sets, with the "
-                    f"following types present: {', '.join(timestamp_types_unique)}. Attempting to convert all "
-                    f"to type {target_timestamp_type}."
-                )
-                for df in dfs:
-                    if entity_timestamp_column in df:
-                        df[entity_timestamp_column] = df[
-                            entity_timestamp_column
-                        ].astype(target_timestamp_type)
-
         # join the feature data frames
         result_timestamp = self.merge(
             entity_timestamp_column=entity_timestamp_column,
@@ -404,6 +383,23 @@ class BaseMerger(abc.ABC):
 
     def _unpersist_df(self, df):
         pass
+
+    def _normalize_timestamp_column(
+        self, entity_timestamp_column, reference_df, featureset_df, featureset_name
+    ):
+        reference_df_timestamp_type = reference_df[entity_timestamp_column].dtype.name
+        featureset_df_timestamp_type = featureset_df[entity_timestamp_column].dtype.name
+
+        if reference_df_timestamp_type != featureset_df_timestamp_type:
+            logger.info(
+                f"Merger detected timestamp resolution incompatibility between feature set {featureset_name} and "
+                f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}."
+            )
+            featureset_df[entity_timestamp_column] = featureset_df[
+                entity_timestamp_column
+            ].astype(reference_df_timestamp_type)
+
+        return featureset_df
 
     def merge(
         self,

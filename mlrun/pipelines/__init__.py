@@ -17,14 +17,27 @@ import sys
 from importlib.abc import MetaPathFinder
 from importlib.util import spec_from_file_location
 
-# TODO: Fetch currently installed KFP version to determine what package to enable
-pipeline_compatibility_mode = "kfp-v1.8"
+import kfp
+
+
+def resolve_pipeline_engine():
+    if kfp.__version__.startswith("2.0"):
+        return "kfp-v2.0"
+    return "kfp-v1.8"
+
+
+PIPELINE_COMPATIBILITY_MODE = resolve_pipeline_engine()
+_pipeline_module_locations = {
+    "kfp-v1.8": "mlrun/pipelines/kfp/v1_8",
+}
 
 
 class PipelineEngineModuleFinder(MetaPathFinder):
     @staticmethod
     def __resolve_module_path(fullname, path):
-        path_prefix = path[0].replace("mlrun/pipelines", "mlrun/pipelines/kfp/v1_8")
+        path_prefix = path[0].replace("mlrun/pipelines", _pipeline_module_locations.get(
+            PIPELINE_COMPATIBILITY_MODE
+        ))
         path_suffix = fullname.replace("mlrun.pipelines", "")
         if path_suffix:
             return f"{path_prefix}{path_suffix.replace('.', '/')}.py"
@@ -35,7 +48,7 @@ class PipelineEngineModuleFinder(MetaPathFinder):
             return spec_from_file_location(
                 fullname, self.__resolve_module_path(fullname, path)
             )
-        return None  # we don't need to interfere with the current import request
+        return None  # don't interfere with the current import request
 
 
 sys.meta_path.insert(0, PipelineEngineModuleFinder())

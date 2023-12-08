@@ -17,7 +17,7 @@ import time
 import mlrun.common.schemas
 import mlrun.db
 import mlrun.errors
-from mlrun.pipelines import build_op
+from mlrun.pipelines.ops import build_op
 
 from ..model import RunObject
 from ..utils import get_in, logger

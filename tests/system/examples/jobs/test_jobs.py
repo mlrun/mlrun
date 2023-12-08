@@ -24,7 +24,7 @@ from mlrun import (
     new_task,
     wait_for_pipeline_completion,
 )
-from mlrun.platforms.other import mount_v3io
+from mlrun.pipelines.iguazio import mount_v3io
 from tests.system.base import TestMLRunSystem
 
 

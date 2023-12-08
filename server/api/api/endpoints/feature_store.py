@@ -26,11 +26,11 @@ import mlrun.feature_store
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
-from mlrun import v3io_cred
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import get_default_prefix_for_target
 from mlrun.feature_store.api import RunConfig, ingest
 from mlrun.model import DataSource, DataTargetBase
+from mlrun.pipelines.iguazio import v3io_cred
 from server.api.api import deps
 from server.api.api.utils import log_and_raise, parse_reference
 

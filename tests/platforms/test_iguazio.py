@@ -22,6 +22,7 @@ import requests
 
 import mlrun
 import mlrun.errors
+import mlrun.pipelines.iguazio
 from mlrun.platforms import add_or_refresh_credentials
 
 
@@ -108,10 +109,10 @@ def test_mount_v3io_multiple_user():
 
     os.environ["V3IO_USERNAME"] = username_1
     os.environ["V3IO_ACCESS_KEY"] = access_key_1
-    function.apply(mlrun.mount_v3io())
+    function.apply(mlrun.pipelines.iguazio.mount_v3io())
     os.environ["V3IO_USERNAME"] = username_2
     os.environ["V3IO_ACCESS_KEY"] = access_key_2
-    function.apply(mlrun.mount_v3io())
+    function.apply(mlrun.pipelines.iguazio.mount_v3io())
 
     user_volume_mounts = list(
         filter(
@@ -236,9 +237,9 @@ def test_mount_v3io():
 
         if case.get("expect_failure"):
             with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-                function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+                function.apply(mlrun.pipelines.iguazio.mount_v3io(**mount_v3io_kwargs))
         else:
-            function.apply(mlrun.mount_v3io(**mount_v3io_kwargs))
+            function.apply(mlrun.pipelines.iguazio.mount_v3io(**mount_v3io_kwargs))
 
             assert (
                 deepdiff.DeepDiff(

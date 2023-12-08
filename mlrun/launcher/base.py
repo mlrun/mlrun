@@ -23,7 +23,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.lists
 import mlrun.model
-import mlrun.pipelines
+import mlrun.pipelines.ops
 import mlrun.runtimes
 import mlrun.utils.regex
 from mlrun.utils import logger
@@ -387,7 +387,7 @@ class BaseLauncher(abc.ABC):
             return
 
         if result and runtime.kfp and err is None:
-            mlrun.pipelines.write_kfpmeta(result)
+            mlrun.pipelines.ops.write_kfpmeta(result)
 
         self._log_track_results(runtime.is_child, result, run)
 

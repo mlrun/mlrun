@@ -23,7 +23,7 @@ from mlrun.config import config
 
 from ...execution import MLClientCtx
 from ...model import RunObject
-from ...platforms.iguazio import mount_v3io, mount_v3iod
+from ...pipelines.iguazio import mount_v3io, mount_v3iod
 from ...utils import update_in, verify_field_regex
 from ..kubejob import KubejobRuntime
 from ..pod import KubeResourceSpec

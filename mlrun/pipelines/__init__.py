@@ -13,17 +13,29 @@
 # limitations under the License.
 #
 
+import sys
+from importlib.abc import MetaPathFinder
+from importlib.util import spec_from_file_location
+
 # TODO: Fetch currently installed KFP version to determine what package to enable
 pipeline_compatibility_mode = "kfp-v1.8"
 
-# fmt: off
-if pipeline_compatibility_mode == "kfp-v1.8":
-    import mlrun.pipelines.kfp.v1_8.patcher  # noqa
 
-    # TODO: encapsulate import list in the __init__ of the target module
-    from mlrun.pipelines.kfp.v1_8 import *  # noqa
+class PipelineEngineModuleFinder(MetaPathFinder):
+    @staticmethod
+    def __resolve_module_path(fullname, path):
+        path_prefix = path[0].replace("mlrun/pipelines", "mlrun/pipelines/kfp/v1_8")
+        path_suffix = fullname.replace("mlrun.pipelines", "")
+        if path_suffix:
+            return f"{path_prefix}{path_suffix.replace('.', '/')}.py"
+        return path_prefix + "/__init__.py"
 
-    # TODO: we need to namespace the following imports
-    from mlrun.pipelines.kfp.v1_8.helpers import *  # noqa
-    from mlrun.pipelines.kfp.v1_8.ops import *  # noqa
-# fmt: on
+    def find_spec(self, fullname, path, target=None):
+        if "mlrun.pipelines" in fullname:
+            return spec_from_file_location(
+                fullname, self.__resolve_module_path(fullname, path)
+            )
+        return None  # we don't need to participate on the current import
+
+
+sys.meta_path.insert(0, PipelineEngineModuleFinder())

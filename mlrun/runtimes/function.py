@@ -34,19 +34,14 @@ import mlrun.k8s_utils
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo
-from mlrun.pipelines import deploy_op
+from mlrun.pipelines.ops import deploy_op
 
 from ..config import config as mlconf
 from ..errors import err_to_str
 from ..lists import RunList
 from ..model import RunObject
-from ..platforms.iguazio import (
-    VolumeMount,
-    mount_v3io,
-    parse_path,
-    split_path,
-    v3io_cred,
-)
+from ..pipelines.iguazio import mount_v3io, v3io_cred
+from ..platforms.iguazio import VolumeMount, parse_path, split_path
 from ..utils import get_in, logger, update_in
 from .base import FunctionStatus, RunError
 from .pod import KubeResource, KubeResourceSpec

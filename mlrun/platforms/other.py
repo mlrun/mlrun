@@ -23,7 +23,7 @@ from mlrun.config import config
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils.helpers import logger
 
-from .iguazio import mount_v3io
+from ..pipelines.iguazio import mount_v3io
 
 
 def mount_pvc(pvc_name=None, volume_name="pipeline", volume_mount_path="/mnt/pipeline"):

@@ -34,7 +34,7 @@ from mlrun.utils import (
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
-from ..pipelines import new_pipe_metadata
+from ..pipelines.helpers import new_pipe_metadata
 from ..run import _run_pipeline, wait_for_pipeline_completion
 from ..runtimes.pod import AutoMountType
 

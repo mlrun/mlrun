@@ -23,10 +23,10 @@ import mlrun.utils
 from mlrun import (
     _run_pipeline,
     code_to_function,
-    mount_v3io,
     new_task,
     wait_for_pipeline_completion,
 )
+from mlrun.pipelines.iguazio import mount_v3io
 from mlrun.run import RunStatuses
 from tests.system.base import TestMLRunSystem
 

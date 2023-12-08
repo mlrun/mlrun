@@ -23,6 +23,7 @@ import kfp.dsl
 import kubernetes.client as k8s_client
 
 import mlrun.errors
+import mlrun.pipelines.iguazio
 import mlrun.utils.regex
 from mlrun.common.schemas import (
     NodeSelectorOperator,
@@ -863,8 +864,8 @@ class AutoMountType(str, Enum):
     @classmethod
     def all_mount_modifiers(cls):
         return [
-            mlrun.v3io_cred.__name__,
-            mlrun.mount_v3io.__name__,
+            mlrun.pipelines.iguazio.v3io_cred.__name__,
+            mlrun.pipelines.iguazio.mount_v3io.__name__,
             mlrun.platforms.other.mount_pvc.__name__,
             mlrun.auto_mount.__name__,
             mlrun.platforms.mount_s3.__name__,
@@ -885,7 +886,7 @@ class AutoMountType(str, Enum):
     def _get_auto_modifier():
         # If we're running on Iguazio - use v3io_cred
         if mlconf.igz_version != "":
-            return mlrun.v3io_cred
+            return mlrun.pipelines.iguazio.v3io_cred
         # Else, either pvc mount if it's configured or do nothing otherwise
         pvc_configured = (
             "MLRUN_PVC_MOUNT" in os.environ
@@ -897,8 +898,8 @@ class AutoMountType(str, Enum):
 
         return {
             AutoMountType.none: None,
-            AutoMountType.v3io_credentials: mlrun.v3io_cred,
-            AutoMountType.v3io_fuse: mlrun.mount_v3io,
+            AutoMountType.v3io_credentials: mlrun.pipelines.iguazio.v3io_cred,
+            AutoMountType.v3io_fuse: mlrun.pipelines.iguazio.mount_v3io,
             AutoMountType.pvc: mlrun.platforms.other.mount_pvc,
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.platforms.mount_s3,

@@ -35,9 +35,10 @@ _pipeline_module_locations = {
 class PipelineEngineModuleFinder(MetaPathFinder):
     @staticmethod
     def __resolve_module_path(fullname, path):
-        path_prefix = path[0].replace("mlrun/pipelines", _pipeline_module_locations.get(
-            PIPELINE_COMPATIBILITY_MODE
-        ))
+        path_prefix = path[0].replace(
+            "mlrun/pipelines",
+            _pipeline_module_locations.get(PIPELINE_COMPATIBILITY_MODE),
+        )
         path_suffix = fullname.replace("mlrun.pipelines", "")
         if path_suffix:
             return f"{path_prefix}{path_suffix.replace('.', '/')}.py"

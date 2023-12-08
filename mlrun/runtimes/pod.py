@@ -41,13 +41,13 @@ from ..k8s_utils import (
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
-    apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
     set_named_item,
     verify_limits,
     verify_requests,
 )
+from ..pipelines.utils import apply_kfp
 
 # TODO: add env attribute to the sanitized types
 sanitized_types = {

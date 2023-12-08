@@ -35,7 +35,7 @@ class PipelineEngineModuleFinder(MetaPathFinder):
             return spec_from_file_location(
                 fullname, self.__resolve_module_path(fullname, path)
             )
-        return None  # we don't need to participate on the current import
+        return None  # we don't need to interfere with the current import request
 
 
 sys.meta_path.insert(0, PipelineEngineModuleFinder())

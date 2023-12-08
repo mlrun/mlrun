@@ -23,6 +23,7 @@ from kfp.compiler import compiler
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.pipelines.patcher  # patch KFP functionality, if needed
 import mlrun.utils.notifications
 from mlrun.errors import err_to_str
 from mlrun.utils import (

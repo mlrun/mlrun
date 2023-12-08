@@ -248,7 +248,7 @@ def test_resolve_pipeline_project():
             "template": {
                 "metadata": {
                     "annotations": {
-                        mlrun.pipelines.project_annotation: "project-from-annotation"
+                        mlrun.pipelines.ops.project_annotation: "project-from-annotation"
                     }
                 }
             },

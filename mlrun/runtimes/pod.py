@@ -38,6 +38,7 @@ from ..k8s_utils import (
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
 )
+from ..pipelines.utils import apply_kfp
 from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
@@ -47,7 +48,6 @@ from .utils import (
     verify_limits,
     verify_requests,
 )
-from ..pipelines.utils import apply_kfp
 
 # TODO: add env attribute to the sanitized types
 sanitized_types = {

@@ -578,6 +578,32 @@ class BaseRuntimeHandler(ABC):
                     debounce_period=debounce_period,
                 )
             else:
+                # search for the resource once again for mitigation
+                label_selector = self.resolve_label_selector(
+                    project=project,
+                    object_id=run_uid,
+                    class_mode=RuntimeClassMode.run,
+                )
+                namespace = (
+                    server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+                )
+                crd_group, crd_version, crd_plural = self._get_crd_info()
+                if crd_group and crd_version and crd_plural:
+                    runtime_resources = self._list_crd_objects(
+                        namespace, label_selector
+                    )
+                else:
+                    runtime_resources = self._list_pods(namespace, label_selector)
+                if runtime_resources:
+                    logger.debug(
+                        "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                        "non-terminal state. but resource was discovered on second attempt. Debouncing",
+                        project=project,
+                        uid=run_uid,
+                        db_run_state=db_run_state,
+                    )
+                    return
+
                 logger.info(
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
@@ -1550,6 +1576,8 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run["status"]["last_update"] = now_date().isoformat()
+        run["status"]["reason"] = ""
+        run["status"]["error"] = ""
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run

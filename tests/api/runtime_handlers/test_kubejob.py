@@ -707,8 +707,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     @pytest.mark.asyncio
     async def test_monitor_stale_run(self, db: Session, client: TestClient):
-        # since we can't change the run updated time to be stale, we change the list run time period to be negative
-        # so that list runs will not find the run
+        # set list run time period to be negative so that list runs will not find the run
         config.monitoring.runs.list_runs_time_period_in_days = -1
         list_namespaced_pods_calls = [
             [self.completed_job_pod],
@@ -761,6 +760,31 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             mock_read_run.assert_not_called()
         self._assert_run_reached_state(
             db, self.project, self.run_uid, RunStates.completed
+        )
+
+    @pytest.mark.asyncio
+    async def test_monitor_run_debouncing_resource_not_found(
+        self, db: Session, client: TestClient
+    ):
+        config.monitoring.runs.missing_runtime_resources_debouncing_interval = 0
+        self.run["status"]["state"] = RunStates.running
+
+        server.api.crud.Runs().store_run(
+            db, self.run, self.run_uid, project=self.project
+        )
+
+        # Mocking once that the pod is not found, and then that it is found
+        list_namespaced_pods_calls = [[], [self.completed_job_pod]]
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+        self.runtime_handler.monitor_runs(get_db(), db)
+
+        # verifying monitoring was debounced
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.running
+        )
+
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler, len(list_namespaced_pods_calls)
         )
 
     def _mock_list_resources_pods(self, pod=None):

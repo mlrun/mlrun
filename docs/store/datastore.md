@@ -35,7 +35,7 @@ Therefore, before executing jobs that require access to storage credentials, the
 by assigning environment variables to the MLRun runtime itself, assigning secrets to it, or placing 
 the variables in project-secrets.
 
-You can also use [data store profiles](#using-data-store-profiles) to provide credentials for Redis.
+You can also use [data store profiles](#using-data-store-profiles) to provide credentials.
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
@@ -167,6 +167,25 @@ redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
+```{admonition}
+Datastore profile does not support: v3io (datastore, or source/target) , snowflake source, DBFS for spark runtimes, Dask runtime.
+
+azure and gcsfs datastore-profiles are missing spark-runtime support 
+
+```
+
+
+### Azure data store profile
+
+
+
+### DBFS data store profile
+
+
+### GCS data store profile
+
+
+
 
 ### Kafka data store profile
 

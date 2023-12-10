@@ -638,8 +638,8 @@ def _migrate_artifacts_batch(
         last_migrated_artifact_id = artifact.id
 
         # save the artifact's tags and labels to migrate them later
-        tag = artifact_metadata.get("tag", "")
-        if tag:
+        tags = _get_tag_names(db, db_session, artifact, artifact_metadata)
+        for tag in tags:
             artifacts_tags_to_migrate.append((new_artifact, tag))
         labels = artifact_metadata.get("labels", {})
         if labels:
@@ -648,16 +648,31 @@ def _migrate_artifacts_batch(
     # add the new artifacts to the db session
     db_session.add_all(new_artifacts)
 
+    # commit the new artifacts first, so they will get an id
+    db._commit(db_session, new_artifacts)
+
     # migrate artifact labels to the new table ("artifact_v2_labels")
     new_labels = _migrate_artifact_labels(db_session, artifacts_labels_to_migrate)
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
     new_tags = _migrate_artifact_tags(db_session, artifacts_tags_to_migrate)
 
-    # commit the changes
-    db._commit(db_session, new_artifacts + new_labels + new_tags)
+    # commit the new labels and tags
+    db._commit(db_session, new_labels + new_tags)
 
     return last_migrated_artifact_id, link_artifact_ids
+
+
+def _get_tag_names(db, db_session, artifact, artifact_metadata):
+    # the tag might not be set in the artifact metadata, so we need to get it from the db
+    query = db._query(
+        db_session,
+        artifact.Tag,
+        project=artifact_metadata.get("project", None),
+        obj_id=artifact.id,
+    )
+    tags = query.all()
+    return [tag.name for tag in tags]
 
 
 def _migrate_artifact_labels(

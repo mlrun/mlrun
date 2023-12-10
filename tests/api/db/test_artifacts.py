@@ -781,6 +781,7 @@ def test_list_artifact_for_tagging_fallback(db: DBInterface, db_session: Session
 def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     artifact_key = "artifact1"
     artifact_uid = "uid1"
+    artifact_tag = "artifact-tag-1"
     project = "project1"
 
     # create project
@@ -799,15 +800,23 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     artifact_body["metadata"]["key"] = artifact_key
     artifact_body["metadata"]["iter"] = 2
     artifact_body["metadata"]["project"] = project
+    artifact_body["metadata"]["tag"] = artifact_tag
     db.store_artifact_v1(
-        db_session, artifact_key, artifact_body, artifact_uid, project=project
+        db_session,
+        artifact_key,
+        artifact_body,
+        artifact_uid,
+        project=project,
+        tag=artifact_tag,
     )
 
     # create a legacy artifact in the old format
     legacy_artifact_key = "legacy-dataset-artifact1"
     legacy_artifact_uid = "legacy-uid1"
+    legacy_artifact_tag = "legacy-tag-1"
     legacy_artifact = {
         "key": legacy_artifact_key,
+        "tag": legacy_artifact_tag,
         "src_path": "/some/other/path",
         "kind": "dataset",
         "tree": legacy_artifact_uid,
@@ -820,6 +829,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
         legacy_artifact,
         legacy_artifact_uid,
         project=project,
+        tag=legacy_artifact_tag,
     )
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -839,18 +849,28 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
     new_artifacts = query_all.all()
     assert len(new_artifacts) == 2
 
+    # validate there are 4 tags in total - the specific tag and the latest tag for each artifact
+    query_all_tags = db._query(
+        db_session,
+        new_artifacts[0].Tag,
+    )
+    new_artifact_tags = query_all_tags.all()
+    assert len(new_artifact_tags) == 4
+
     for expected in [
         {
             "key": artifact_key,
             "uid": artifact_uid,
             "project": project,
             "iter": 2,
+            "tag": artifact_tag,
         },
         {
             "key": legacy_artifact_key,
             "uid": legacy_artifact_uid,
             "project": None,
             "iter": None,
+            "tag": legacy_artifact_tag,
         },
     ]:
         # TODO: remove this query once the v2 db layer methods are implemented. This is just a temporary workaround
@@ -873,6 +893,7 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             assert artifact_dict["metadata"]["project"] == expected["project"]
         else:
             assert "project" not in artifact_dict["metadata"]
+
         # the uid should be the generated uid and not the original one
         assert artifact_dict["metadata"]["uid"] != expected["uid"]
 
@@ -881,6 +902,78 @@ def test_migrate_artifacts_to_v2(db: DBInterface, db_session: Session):
             db.read_artifact_v1(
                 db_session, expected["key"], project=expected["project"]
             )
+
+
+def test_migrate_artifact_v2_tag(db: DBInterface, db_session: Session):
+    artifact_key = "artifact1"
+    artifact_uid = "uid1"
+    artifact_tag = "artifact-tag-1"
+    project = "project1"
+
+    # create project
+    db.create_project(
+        db_session,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project,
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(description="some-description"),
+        ),
+    )
+
+    # create an artifact in the old format
+    artifact_body = _generate_artifact(artifact_key, artifact_uid, "artifact")
+    artifact_body["metadata"]["key"] = artifact_key
+    artifact_body["metadata"]["iter"] = 2
+    artifact_body["metadata"]["project"] = project
+    db.store_artifact_v1(
+        db_session,
+        artifact_key,
+        artifact_body,
+        artifact_uid,
+        project=project,
+        tag=artifact_tag,
+    )
+
+    query_all = db._query(
+        db_session,
+        server.api.db.sqldb.models.Artifact,
+    )
+    old_artifacts = query_all.all()
+    assert len(old_artifacts) == 1
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # change the state file path to the temp directory for the test only
+        mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+            temp_dir + "/_artifact_migration_state.json"
+        )
+
+        # perform the migration
+        server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+
+    # validate the migration succeeded
+    query_all = db._query(
+        db_session,
+        server.api.db.sqldb.models.ArtifactV2,
+    )
+    new_artifacts = query_all.all()
+    assert len(new_artifacts) == 1
+
+    # validate there are 2 tags in total - the specific tag and the latest
+    query_all_tags = db._query(
+        db_session,
+        new_artifacts[0].Tag,
+    )
+    new_artifact_tags = query_all_tags.all()
+    assert len(new_artifact_tags) == 2
+
+    # list artifacts with the tags
+    for tag in [artifact_tag, "latest"]:
+        artifacts = db.list_artifacts(db_session, tag=tag, project=project)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+        assert artifacts[0]["metadata"]["project"] == project
+        assert artifacts[0]["metadata"]["uid"] != artifact_uid
 
 
 def _generate_artifact_with_iterations(

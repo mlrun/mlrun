@@ -97,7 +97,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         )
 
     def _submit_controller_and_deploy_writer(self) -> None:
-        self.project.enable_model_monitoring_controller(
+        self.project.enable_model_monitoring(
             base_period=self.app_interval,
             **({} if self.image is None else {"default_controller_image": self.image}),
         )

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import mlrun
 from mlrun.model_monitoring.controller import MonitoringApplicationController
@@ -29,4 +28,4 @@ def handler(context: mlrun.run.MLClientCtx):
     )
     monitor_app_controller.run()
     if monitor_app_controller.endpoints_exceptions:
-        print(monitor_app_controller.endpoints_exceptions)
+        context.logger.error(monitor_app_controller.endpoints_exceptions)

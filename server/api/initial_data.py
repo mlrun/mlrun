@@ -663,7 +663,12 @@ def _migrate_artifacts_batch(
     return last_migrated_artifact_id, link_artifact_ids
 
 
-def _get_tag_names(db, db_session, artifact, artifact_metadata):
+def _get_tag_names(
+    db: server.api.db.sqldb.db.SQLDB,
+    db_session: sqlalchemy.orm.Session,
+    artifact: server.api.db.sqldb.models.Artifact,
+    artifact_metadata: dict,
+):
     # the tag might not be set in the artifact metadata, so we need to get it from the db
     query = db._query(
         db_session,

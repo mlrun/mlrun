@@ -20,5 +20,5 @@ def init_context(context):
     nuclio_init_hook(context, globals(), "serving_v2")
 
 
-def handler(context, event):
+async def handler(context, event):
     return context.mlrun_handler(context, event)

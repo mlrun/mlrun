@@ -28,7 +28,6 @@ from nuclio.config import split_path
 import mlrun
 from mlrun.secrets import SecretsStore
 
-from ..config import config
 from ..model import DataSource
 from ..platforms.iguazio import parse_path
 from ..utils import get_class, is_explicit_ack_supported
@@ -796,16 +795,11 @@ class OnlineSource(BaseSourceDriver):
     def to_step(self, key_field=None, time_field=None, context=None):
         import storey
 
-        source_class = (
-            storey.AsyncEmitSource
-            if config.datastore.async_source_mode == "enabled"
-            else storey.SyncEmitSource
-        )
         source_args = self.attributes.get("source_args", {})
         explicit_ack = (
             is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
         )
-        src_class = source_class(
+        src_class = storey.AsyncEmitSource(
             context=context,
             key_field=self.key_field,
             full_event=True,

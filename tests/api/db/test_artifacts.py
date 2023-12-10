@@ -254,7 +254,7 @@ def test_store_artifact_latest_tag(db: DBInterface, db_session: Session):
     artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
     assert len(artifacts) == 2
     for artifact in artifacts:
-        if artifact["metadata"]["tag"] == "latest":
+        if artifact["metadata"].get("tag") == "latest":
             assert artifact["spec"]["something"] == "different"
         else:
             assert artifact["spec"]["something"] == "same"

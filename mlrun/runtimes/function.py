@@ -552,8 +552,10 @@ class RemoteRuntime(KubeResource):
 
         old_http_session = getattr(self, "_http_session", None)
         if old_http_session:
+            # ensure existing http session is terminated prior to (re)deploy to ensure that a connection to an old
+            # replica will not be reused
             old_http_session.close()
-        self._http_session = None
+            self._http_session = None
 
         verbose = verbose or self.verbose
         if verbose:

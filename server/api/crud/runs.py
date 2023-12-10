@@ -229,6 +229,7 @@ class Runs(
         run: typing.Optional[dict] = None,
     ):
         project = project or mlrun.mlconf.default_project
+        run_updates = run_updates or {}
         logger.debug("Aborting run", project=project, uid=uid, iter=iter)
 
         if not run:

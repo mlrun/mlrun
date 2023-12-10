@@ -12,8 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
+import datetime
+import http
+import select
+import time
 import unittest.mock
+import uuid
 
+import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
@@ -77,3 +84,77 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             server.api.crud.Runs().get_run(db, "uid", 0, project)
+
+    def test_run_abortion_failure(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+            },
+            run_uid,
+            project=project,
+        )
+        with unittest.mock.patch.object(
+            server.api.crud.RuntimeResources(),
+            "delete_runtime_resources",
+            side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
+        ):
+            server.api.crud.Runs().abort_run(db, project, run_uid, 0)
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
+        assert run["status"]["error"] == "Failed to abort run, error: BOOM"
+
+    @unittest.mock.patch.object(
+        server.api.crud.RuntimeResources, "delete_runtime_resources"
+    )
+    def test_multiple_abortions_on_same_run(
+        self,
+        delete_runtime_resources_mock: unittest.mock.Mock,
+        db: sqlalchemy.orm.Session,
+        client: fastapi.testclient.TestClient,
+    ):
+        project = "default"
+        run_uid = str(uuid.uuid4())
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+            },
+            run_uid,
+            project=project,
+        )
+
+        def release_thread(*args, **kwargs):
+            time.sleep(0)
+
+        # delete_runtime_resources_mock = unittest.mock.AsyncMock()
+        delete_runtime_resources_mock.side_effect = release_thread
+
+        response = client.post(f"projects/{project}/runs/{run_uid}/abort", json={})
+        assert response.status_code == http.HTTPStatus.ACCEPTED.value
+        background_task = response.json()
+        print(background_task)
+        print(datetime.datetime.now())
+        assert background_task["status"]["state"] == "running"
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborting
+
+        response = client.post(f"projects/{project}/runs/{run_uid}/abort", json={})
+        assert response.status_code == http.HTTPStatus.ACCEPTED.value
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted

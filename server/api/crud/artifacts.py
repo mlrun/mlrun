@@ -13,8 +13,10 @@
 # limitations under the License.
 #
 import typing
+from http import HTTPStatus
 
 import sqlalchemy.orm
+from fastapi import HTTPException
 
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
@@ -22,11 +24,15 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
+from mlrun.utils import logger
 
 
 class Artifacts(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
+    def __init__(self, auth_info: mlrun.common.schemas.AuthInfo = None):
+        self._auth_info = auth_info
+
     def store_artifact(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -47,6 +53,10 @@ class Artifacts(
                 f"Artifact with conflicting project name - {data['project']} while request project : {project}."
                 f"key={key}, uid={uid}, data={data}"
             )
+
+        # calculate the size of the artifact
+        self._resolve_artifact_size(data)
+
         server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
@@ -56,6 +66,22 @@ class Artifacts(
             tag,
             project,
         )
+
+    def _resolve_artifact_size(self, data):
+        if "spec" in data and "size" not in data["spec"]:
+            if "target_path" in data["spec"]:
+                path = data["spec"].get("target_path")
+                try:
+                    file_stat = server.api.crud.Files().get_filestat(
+                        self._auth_info, path=path
+                    )
+                    data["spec"]["size"] = file_stat["size"]
+                except HTTPException as exc:
+                    if (
+                        exc.status_code == HTTPStatus.NOT_FOUND.value
+                    ):  # if the path was not found the size will be N/A
+                        logger.debug("Path was not found", path=path)
+                        pass
 
     def get_artifact(
         self,

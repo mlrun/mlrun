@@ -877,7 +877,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -891,18 +891,14 @@ class ParquetTarget(BaseStoreTarget):
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
             update_last_written=featureset_status.update_last_written_for_target,
-            dict_fields=[
-                "path",
-                "columns",
-                "index_cols",
-                "partition_cols",
-                "time_field",
-                "storage_options",
-                "max_events",
-                "flush_after_seconds",
-            ],  # update_last_written is not serializable, so we must exclude it (ML-5108)
             **self.attributes,
         )
+
+        def do_nothing(*arg, **kargs):
+            return None
+
+        # avoid serialization, because update_last_written is not serializable (ML-5108)
+        step.to_dict = do_nothing
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []

@@ -19,7 +19,7 @@ import pathlib
 import traceback
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import List, Union
+from typing import Union
 
 import mlrun
 
@@ -802,7 +802,6 @@ class FlowStep(BaseStep):
         full_event: bool = None,
         input_path: str = None,
         result_path: str = None,
-        dict_fields: List[str] = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
@@ -852,8 +851,6 @@ class FlowStep(BaseStep):
         after_list = after if isinstance(after, list) else [after]
         for after in after_list:
             self.insert_step(name, step, after, before)
-        if dict_fields:
-            step._dict_fields = dict_fields
         return step
 
     def insert_step(self, key, step, after, before=None):

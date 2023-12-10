@@ -505,7 +505,10 @@ class TestRuntimeHandlerBase:
         assert (
             get_k8s_helper().v1api.list_namespaced_pod.call_count
             == expected_number_of_calls
-        ), f"Unexpected number of calls to list_namespaced_pod {get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
+        ), (
+            f"Unexpected number of calls to list_namespaced_pod "
+            f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
+        )
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()
         )

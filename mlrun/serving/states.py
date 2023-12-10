@@ -1527,7 +1527,13 @@ def _init_async_objects(context, steps):
 
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
 
-    default_source = storey.SyncEmitSource(
+    source_class = (
+        storey.AsyncEmitSource
+        if config.datastore.async_source_mode == "enabled"
+        else storey.SyncEmitSource
+    )
+
+    default_source = source_class(
         context=context,
         explicit_ack=explicit_ack,
         **source_args,

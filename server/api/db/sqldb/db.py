@@ -525,29 +525,26 @@ class SQLDB(DBInterface):
                 or always_overwrite
             ):
                 db_artifact = existing_artifact
-            else:
-                db_artifact = ArtifactV2(project=project, key=key)
-
-            self._update_artifact_record_from_dict(
-                db_artifact,
-                artifact_dict,
-                project,
-                key,
-                uid,
-                iter,
-                best_iteration,
-                producer_id,
-            )
-            self._upsert(session, [db_artifact])
-            if tag:
-                self.tag_objects_v2(
-                    session,
-                    [db_artifact],
+                self._update_artifact_record_from_dict(
+                    db_artifact,
+                    artifact_dict,
                     project,
-                    tag,
-                    obj_name_attribute="key",
+                    key,
+                    uid,
+                    iter,
+                    best_iteration,
+                    producer_id,
                 )
-            return uid
+                self._upsert(session, [db_artifact])
+                if tag:
+                    self.tag_objects_v2(
+                        session,
+                        [db_artifact],
+                        project,
+                        tag,
+                        obj_name_attribute="key",
+                    )
+                return uid
 
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by the resolved uid only
@@ -557,7 +554,7 @@ class SQLDB(DBInterface):
             return uid
 
         return self.create_artifact(
-            session, project, artifact, key, tag, uid, iter, producer_id, best_iteration
+            session, project, artifact_dict, key, tag, uid, iter, producer_id, best_iteration
         )
 
     def list_artifacts(
@@ -1884,7 +1881,7 @@ class SQLDB(DBInterface):
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name=obj.__getattribute__(obj_name_attribute),
+                obj_name=getattr(obj, obj_name_attribute),
             )
 
             tag = query.one_or_none()
@@ -1892,7 +1889,7 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name=obj.__getattribute__(obj_name_attribute),
+                    obj_name=getattr(obj, obj_name_attribute),
                 )
             tag.obj_id = obj.id
             tags.append(tag)

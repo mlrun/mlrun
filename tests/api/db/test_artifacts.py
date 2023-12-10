@@ -364,6 +364,58 @@ def test_store_artifact_with_different_labels(db: DBInterface, db_session: Sessi
     )
 
 
+def test_store_artifact_replace_tag(db: DBInterface, db_session: Session):
+    project = "artifact_project"
+    artifact_1_key = "artifact_key_1"
+    artifact_1_tree = "artifact_tree"
+    artifact_1_body = _generate_artifact(
+        artifact_1_key, tree=artifact_1_tree, project=project
+    )
+    artifact_1_tag = "artifact-tag-1"
+
+    artifact_1_uid = db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_1_body,
+        tag=artifact_1_tag,
+        project=project,
+    )
+
+    # verify that the artifact has the tag
+    artifacts = db.list_artifacts(
+        db_session, artifact_1_key, project=project, tag=artifact_1_tag
+    )
+    assert len(artifacts) == 1
+    assert artifacts[0]["metadata"]["uid"] == artifact_1_uid
+    assert artifacts[0]["metadata"]["tree"] == artifact_1_tree
+
+    # create a new artifact with the same key and tag, but a different tree
+    artifact_2_tree = "artifact_tree_2"
+    artifact_2_body = _generate_artifact(
+        artifact_1_key, tree=artifact_2_tree, project=project
+    )
+
+    artifact_2_uid = db.store_artifact(
+        db_session,
+        artifact_1_key,
+        artifact_2_body,
+        tag=artifact_1_tag,
+        project=project,
+    )
+
+    # verify that only the new artifact has the tag
+    artifacts = db.list_artifacts(
+        db_session, artifact_1_key, project=project, tag=artifact_1_tag
+    )
+    assert len(artifacts) == 1
+    assert artifacts[0]["metadata"]["uid"] == artifact_2_uid
+    assert artifacts[0]["metadata"]["tree"] == artifact_2_tree
+
+    # verify that the old artifact is still there, but without the tag
+    artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
+    assert len(artifacts) == 3
+
+
 def test_read_artifact_tag_resolution(db: DBInterface, db_session: Session):
     """
     We had a bug in which when we got a tag filter for read/list artifact, we were transforming this tag to list of

@@ -55,7 +55,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/{mlrun.get_run_db().get_api_path_prefix()}"
             r"\/projects(.*): Failed creating project some_p"
             r"roject details: MLRunInvalidArgumentError\(\"Field \'project\.metadata\.name\' is malformed"
-            rf"\. {invalid_project_name} does not match required pattern: (.*)\"\)",
+            rf"\. \'{invalid_project_name}\' does not match required pattern: (.*)\"\)",
         ):
             mlrun.get_run_db().create_project(project)
 

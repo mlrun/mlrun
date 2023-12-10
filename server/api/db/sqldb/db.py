@@ -545,6 +545,13 @@ class SQLDB(DBInterface):
                         obj_name_attribute="key",
                     )
                 return uid
+            logger.debug(
+                "A similar artifact exists, but some values have changed - creating a new artifact",
+                project=project,
+                key=key,
+                iteration=iter,
+                producer_id=producer_id,
+            )
 
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by the resolved uid only
@@ -1189,7 +1196,7 @@ class SQLDB(DBInterface):
         uid=None,
         iteration=None,
     ):
-        # we should create a new artifact if we got a new iteration or tag,
+        # we should create a new artifact if we got a new iteration or the calculated uid is different.
         # otherwise we should update the existing artifact
         if uid is not None and existing_artifact.uid != uid:
             return False

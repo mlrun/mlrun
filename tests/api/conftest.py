@@ -131,9 +131,9 @@ def client(db) -> Generator:
 
 
 @pytest.fixture()
-def client_v2(db) -> Generator:
+def unprefixed_client(db) -> Generator:
     """
-    client_v2 is a test client that doesn't have the version prefix in the url.
+    unprefixed_client is a test client that doesn't have the version prefix in the url.
     When using this client, the version prefix must be added to the url manually.
     This is useful when tests use several endpoints that are not under the same version prefix.
     """

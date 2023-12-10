@@ -170,8 +170,8 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.OK.value
 
 
-def test_create_artifact(db: Session, client_v2: TestClient):
-    _create_project(client_v2, prefix="v1")
+def test_create_artifact(db: Session, unprefixed_client: TestClient):
+    _create_project(unprefixed_client, prefix="v1")
     data = {
         "kind": "artifact",
         "metadata": {
@@ -189,7 +189,7 @@ def test_create_artifact(db: Session, client_v2: TestClient):
         "status": {},
     }
     url = "v2/projects/{project}/artifacts".format(project=PROJECT)
-    resp = client_v2.post(
+    resp = unprefixed_client.post(
         url,
         json=data,
     )

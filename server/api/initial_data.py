@@ -543,7 +543,7 @@ def _migrate_artifacts_batch(
     batch_size: int,
 ):
     new_artifacts = []
-    artifacts_tags_to_migrate = []
+    old_id_to_artifact = {}
     artifacts_labels_to_migrate = []
     link_artifact_ids = []
 
@@ -637,10 +637,10 @@ def _migrate_artifacts_batch(
 
         last_migrated_artifact_id = artifact.id
 
-        # save the artifact's tags and labels to migrate them later
-        tags = _get_tag_names(db, db_session, artifact, artifact_metadata)
-        for tag in tags:
-            artifacts_tags_to_migrate.append((new_artifact, tag))
+        # keep the old tag to artifact mapping, so we can migrate the tags later
+        old_id_to_artifact[artifact.id] = new_artifact
+
+        # save the artifact's labels to migrate them later
         labels = artifact_metadata.get("labels", {})
         if labels:
             artifacts_labels_to_migrate.append((new_artifact, labels))
@@ -655,29 +655,12 @@ def _migrate_artifacts_batch(
     new_labels = _migrate_artifact_labels(db_session, artifacts_labels_to_migrate)
 
     # migrate artifact tags to the new table ("artifact_v2_tags")
-    new_tags = _migrate_artifact_tags(db_session, artifacts_tags_to_migrate)
+    new_tags = _migrate_artifact_tags(db_session, old_id_to_artifact)
 
     # commit the new labels and tags
     db._commit(db_session, new_labels + new_tags)
 
     return last_migrated_artifact_id, link_artifact_ids
-
-
-def _get_tag_names(
-    db: server.api.db.sqldb.db.SQLDB,
-    db_session: sqlalchemy.orm.Session,
-    artifact: server.api.db.sqldb.models.Artifact,
-    artifact_metadata: dict,
-):
-    # the tag might not be set in the artifact metadata, so we need to get it from the db
-    query = db._query(
-        db_session,
-        artifact.Tag,
-        project=artifact_metadata.get("project", None),
-        obj_id=artifact.id,
-    )
-    tags = query.all()
-    return [tag.name for tag in tags]
 
 
 def _migrate_artifact_labels(
@@ -702,23 +685,38 @@ def _migrate_artifact_labels(
 
 def _migrate_artifact_tags(
     db_session: sqlalchemy.orm.Session,
-    artifacts_tags_to_migrate: list,
+    old_id_to_artifact: dict[typing.Any, server.api.db.sqldb.models.ArtifactV2],
 ):
-    # iterate over all the artifacts, and create a new tag for each one
     logger.info("Aligning artifact tags")
-    tags = []
-    for artifact, tag in artifacts_tags_to_migrate:
-        if tag:
-            new_tag = artifact.Tag(
-                project=artifact.project,
-                name=tag,
-                obj_name=artifact.key,
-                obj_id=artifact.id,
+    new_tags = []
+
+    # get all tags that are attached to the artifacts we migrated
+    old_tags = (
+        db_session.query(server.api.db.sqldb.models.Artifact.Tag)
+        .filter(
+            server.api.db.sqldb.models.Artifact.Tag.obj_id.in_(
+                old_id_to_artifact.keys()
             )
-            tags.append(new_tag)
-    if tags:
-        db_session.add_all(tags)
-    return tags
+        )
+        .all()
+    )
+
+    for old_tag in old_tags:
+        new_artifact = old_id_to_artifact[old_tag.obj_id]
+
+        # create a new tag object
+        new_tag = server.api.db.sqldb.models.ArtifactV2.Tag(
+            project=new_artifact.project,
+            name=old_tag.name,
+            obj_name=new_artifact.key,
+            obj_id=new_artifact.id,
+        )
+        new_tags.append(new_tag)
+
+    if new_tags:
+        db_session.add_all(new_tags)
+
+    return new_tags
 
 
 def _mark_best_iteration_artifacts(

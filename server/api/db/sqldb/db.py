@@ -3415,6 +3415,7 @@ class SQLDB(DBInterface):
             )
 
         for tag in query:
+            # TODO: query db in a single call
             obj = self._query(session, cls).get(tag.obj_id)
             if obj:
                 uids.append(obj.uid)

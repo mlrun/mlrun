@@ -956,13 +956,12 @@ def test_migrate_artifact_v2_tag(db: DBInterface, db_session: Session):
         db_session,
         server.api.db.sqldb.models.ArtifactV2,
     )
-    new_artifacts = query_all.all()
-    assert len(new_artifacts) == 1
+    new_artifact = query_all.one()
 
     # validate there are 2 tags in total - the specific tag and the latest
     query_all_tags = db._query(
         db_session,
-        new_artifacts[0].Tag,
+        new_artifact.Tag,
     )
     new_artifact_tags = query_all_tags.all()
     assert len(new_artifact_tags) == 2

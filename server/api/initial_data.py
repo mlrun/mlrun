@@ -648,7 +648,7 @@ def _migrate_artifacts_batch(
     # add the new artifacts to the db session
     db_session.add_all(new_artifacts)
 
-    # commit the new artifacts first, so they will get an id
+    # commit the new artifacts first, so they will get an id that can be used when creating tags and labels
     db._commit(db_session, new_artifacts)
 
     # migrate artifact labels to the new table ("artifact_v2_labels")

@@ -1,4 +1,4 @@
-(configuring-job-resources)=
+(configuring-job-spec)=
 # Configuring runs and functions
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
@@ -302,5 +302,8 @@ func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute a
 ```
 
 See:
-- {py:meth}`~mlrun.runtimes.DaskCluster.set_state_thresholds`
 - {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
+
+```{admonition} Note
+State thresholds are not supported for Nuclio runtimes as nuclio provides it's own monitoring and for dask runtime which can be monitored by the client.
+```

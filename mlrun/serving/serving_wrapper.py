@@ -21,4 +21,4 @@ def init_context(context):
 
 
 async def handler(context, event):
-    return context.mlrun_handler(context, event)
+    return await context.mlrun_handler(context, event)

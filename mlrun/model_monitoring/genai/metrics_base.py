@@ -43,7 +43,7 @@ import transformers
 """
 
 
-class LLMBaseMetric(ModelObj):
+class LLMEvaluateMetric(ModelObj):
     _dict_fields = ["name"]
     kind = "llm_metric"
     default_name: ClassVar[str] = "llm_metric"

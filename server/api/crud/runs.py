@@ -15,6 +15,7 @@
 import typing
 
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.config
@@ -273,4 +274,8 @@ class Runs(
             await server.api.crud.Logs().stop_logs_for_run(project, uid)
             await server.api.crud.Logs().delete_run_logs(project, uid)
         else:
-            server.api.crud.Logs().delete_run_logs_legacy(project, uid)
+            await run_in_threadpool(
+                server.api.crud.Logs().delete_run_logs_legacy,
+                project,
+                uid,
+            )

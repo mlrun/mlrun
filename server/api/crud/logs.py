@@ -355,9 +355,16 @@ class Logs(
             # fallback to deleting logs explicitly if the log collector failed
             if run_uids:
                 for run_uid in run_uids:
-                    self.delete_run_logs_legacy(project, run_uid)
+                    await run_in_threadpool(
+                        self.delete_run_logs_legacy,
+                        project,
+                        run_uid,
+                    )
             else:
-                self.delete_project_logs_legacy(project)
+                await run_in_threadpool(
+                    self.delete_project_logs_legacy,
+                    project,
+                )
 
         logger.debug(
             f"Successfully deleted {resource} logs", project=project, runs=run_uids

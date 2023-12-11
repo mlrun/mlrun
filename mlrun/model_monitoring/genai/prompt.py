@@ -51,9 +51,6 @@ Examples could be included beblow for your reference. Make sure you understand t
 [Grading Rubric]:
 {rubric}
 
-[Context Information]:
-{context}
-
 [Examples]:
 {examples}
 
@@ -62,52 +59,64 @@ You must return the following fields in your output:
 - explaination: a explaination about how did you determine the score step-by-step
 """
 
-
 PAIR_GRADE_PROMPT = """
 Task:
-Please act as an impartial judge and evaluate the quality of the responses provided by two
-AI assistants to the user question displayed below. Your evaluation should consider
-correctness and helpfulness. You will be given assistant A’s answer, and assistant B’s
-answer. Your job is to evaluate which assistant’s answer is better. You should
-independently solve the user question step-by-step first. Then compare both assistants’
-answers with your answer. Identify and correct any mistakes. Avoid any position biases and
-ensure that the order in which the responses were presented does not influence your
-decision. Do not allow the length of the responses to influence your evaluation. Do not
-favor certain names of the assistants. Be as objective as possible. After providing your
-explanation, output your final verdict by strictly following this format: "[[A]]" if
-assistant A is better, "[[B]]" if assistant B is better, and "[[C]]" for a tie.
-[User Question]
+
+Your task is to determine two numerical score of {name} for the responses from two AI assistants. You must use the grading rubric to determine your scores. You must also give a explaination about how did you determine the scores step-by-step. Please using chain of thinking.
+
+Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+
+[User Question]:
 {question}
-[The Start of Assistant A’s Answer]
-{answer_a}
-[The End of Assistant A’s Answer]
-[The Start of Assistant B’s Answer]
-{answer_b}
-[The End of Assistant B’s Answer]
+
+[Response]:
+{answerA}
+{answerB}
+
+[Definition of {name}]:
+{definition}
+
+[Grading Rubric]:
+{rubric}
+
+[Examples]:
+{examples}
+
+You must return the following fields in your output:
+- score of assistant A: a numerical score of {name} for the response
+- explaination of assistant A: a explaination about how did you determine the score step-by-step
+- score of assistant B: a numerical score of {name} for the response
+- explaination of assistant B: a explaination about how did you determine the score step-by-step
 """
 
 REF_GRADE_PROMPT = """
-[System]
-Please act as an impartial judge and evaluate the quality of the responses provided by two
-AI assistants to the user question displayed below. Your evaluation should consider
-correctness and helpfulness. You will be given a reference answer, assistant A’s answer,
-and assistant B’s answer. Your job is to evaluate which assistant’s answer is better.
-Begin your evaluation by comparing both assistants’ answers with the reference answer.
-Identify and correct any mistakes. Avoid any position biases and ensure that the order in
-which the responses were presented does not influence your decision. Do not allow the
-length of the responses to influence your evaluation. Do not favor certain names of the
-assistants. Be as objective as possible. After providing your explanation, output your
-final verdict by strictly following this format: "[[A]]" if assistant A is better, "[[B]]"
-if assistant B is better, and "[[C]]" for a tie.
-[User Question]
+Task:
+
+Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. You must use the grading rubric to determine your scores. You must use the ground truth of the response. You need to give a explaination about how did you compare with the ground truth of the response to determine the scores step-by-step. Please using chain of thinking.
+
+Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+
+[User Question]:
 {question}
-[The Start of Reference Answer]
+
+[Response]:
+{answerA}
+{answerB}
 {answer_ref}
-[The End of Reference Answer]
-[The Start of Assistant A’s Answer]
-{answer_a}
-[The End of Assistant A’s Answer]
-[The Start of Assistant B’s Answer]
-{answer_b}
-[The End of Assistant B’s Answer]
+
+[Definition of {name}]:
+{definition}
+
+[Grading Rubric]:
+{rubric}
+
+[Examples]:
+{examples}
+
+You must return the following fields in your output:
+- score of assistant A: a numerical score of {name} for the response
+- explaination of assistant A: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+- score of assistant B: a numerical score of {name} for the response
+- explaination of assistant B: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+
 """

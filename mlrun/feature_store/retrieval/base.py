@@ -310,6 +310,7 @@ class BaseMerger(abc.ABC):
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
+
         # join the feature data frames
         result_timestamp = self.merge(
             entity_timestamp_column=entity_timestamp_column,
@@ -382,6 +383,29 @@ class BaseMerger(abc.ABC):
 
     def _unpersist_df(self, df):
         pass
+
+    def _normalize_timestamp_column(
+        self,
+        entity_timestamp_column,
+        reference_df,
+        featureset_timestamp,
+        featureset_df,
+        featureset_name,
+    ):
+        reference_df_timestamp_type = reference_df[entity_timestamp_column].dtype.name
+        featureset_df_timestamp_type = featureset_df[featureset_timestamp].dtype.name
+
+        if reference_df_timestamp_type != featureset_df_timestamp_type:
+            logger.info(
+                f"Merger detected timestamp resolution incompatibility between feature set {featureset_name} and "
+                f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}. Converting feature set "
+                f"timestamp column '{featureset_timestamp}' to type {reference_df_timestamp_type}."
+            )
+            featureset_df[featureset_timestamp] = featureset_df[
+                featureset_timestamp
+            ].astype(reference_df_timestamp_type)
+
+        return featureset_df
 
     def merge(
         self,

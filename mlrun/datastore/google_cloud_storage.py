@@ -15,6 +15,8 @@ import os
 import tempfile
 from pathlib import Path
 
+from fsspec.registry import get_filesystem_class
+
 import mlrun.errors
 from mlrun.utils import logger
 
@@ -73,8 +75,9 @@ class GoogleCloudStorageStore(DataStore):
                     "Google gcsfs not installed, run pip install gcsfs"
                 ) from exc
             return None
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
-            gcsfs.core.GCSFileSystem,
+            filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
         )

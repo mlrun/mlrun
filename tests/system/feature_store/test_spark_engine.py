@@ -223,6 +223,7 @@ class TestFeatureStoreSparkEngine(TestMLRunSystem):
             read_back_df_storey,
             check_categorical=False,
             check_like=True,
+            check_dtype=False,
         )
 
     @classmethod

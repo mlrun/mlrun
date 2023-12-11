@@ -877,7 +877,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -893,6 +893,16 @@ class ParquetTarget(BaseStoreTarget):
             update_last_written=featureset_status.update_last_written_for_target,
             **self.attributes,
         )
+
+        original_to_dict = step.to_dict
+
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            del result["class_args"]["update_last_written"]
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
@@ -912,7 +922,7 @@ class ParquetTarget(BaseStoreTarget):
                     if unit == time_partitioning_granularity:
                         break
 
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
@@ -1054,7 +1064,7 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        if self.path.startswith("ds://"):
+        if self.path and self.path.startswith("ds://"):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )

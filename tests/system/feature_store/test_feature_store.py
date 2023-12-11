@@ -4563,6 +4563,7 @@ class TestFeatureStore(TestMLRunSystem):
             "basic_party.party_establishment",
         ]
         vector = fstore.FeatureVector(featurevector_name, features)
+        vector.save()
         df = fstore.get_offline_features(vector).to_dataframe()
         expected_all = pd.merge(
             expected_transaction,
@@ -4571,6 +4572,18 @@ class TestFeatureStore(TestMLRunSystem):
             right_on=["party_id"],
         ).drop(columns=["account_id", "party_id"])
         assert_frame_equal(expected_all, df, check_dtype=False)
+
+        # online test - disabled for now because bug in storey
+
+        # with fstore.get_online_feature_service(
+        #     vector, entity_keys=["party_id", "account_id"]
+        # ) as svc:
+        #     resp = svc.get({"party_id": "10", "account_id": "1"})
+        #     assert resp[0] == {
+        #         "transaction_value": "100",
+        #         "account_state": "a",
+        #         "party_establishment": "1970",
+        #     }
 
         featurevector_name = "vector_all_entity_df"
         features = [

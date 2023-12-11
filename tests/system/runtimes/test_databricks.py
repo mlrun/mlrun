@@ -105,10 +105,10 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             assert artifact.spec.src_path == f"dbfs://{expected_dbfs_path}"
             artifact_df = artifact.to_dataitem().as_df()
             if expected_dbfs_path.endswith(".parquet"):
-                local_path = str(self.assets_path / f"test_data.parquet")
+                local_path = str(self.assets_path / "test_data.parquet")
                 expected_df = pd.read_parquet(local_path)
             elif expected_dbfs_path.endswith(".csv"):
-                local_path = str(self.assets_path / f"test_data.csv")
+                local_path = str(self.assets_path / "test_data.csv")
                 expected_df = pd.read_csv(local_path)
             else:
                 raise ValueError(

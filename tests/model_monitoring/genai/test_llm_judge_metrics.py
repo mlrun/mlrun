@@ -5,6 +5,12 @@ from mlrun.model_monitoring.genai.metrics_base import (
     LLMJudgeReferenceGrading,
 )
 
+from mlrun.model_monitoring.genai.prompt import (
+    SINGLE_GRADE_PROMPT,
+    PAIR_GRADE_PROMPT,
+    REF_GRADE_PROMPT,
+)
+
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
 JUDGE_CONFIG = {"max_length": 300}
 

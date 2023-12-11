@@ -1130,12 +1130,19 @@ class FlowStep(BaseStep):
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
-            resp_awaitable = self._controller.emit(
-                event, await_result=self._wait_for_result
-            )
-            if self._wait_for_result:
-                return resp_awaitable
-            return self._await_and_return_id(resp_awaitable, event)
+            if self.context.is_mock:
+                resp = self._controller.emit(
+                    event, return_awaitable_result=self._wait_for_result
+                )
+                if self._wait_for_result and resp:
+                    return resp.await_result()
+            else:
+                resp_awaitable = self._controller.emit(
+                    event, await_result=self._wait_for_result
+                )
+                if self._wait_for_result:
+                    return resp_awaitable
+                return self._await_and_return_id(resp_awaitable, event)
             event = copy(event)
             event.body = {"id": event.id}
             return event
@@ -1518,7 +1525,13 @@ def _init_async_objects(context, steps):
 
     source_args = context.get_param("source_args", {})
     explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
-    default_source = storey.AsyncEmitSource(
+
+    if context.is_mock:
+        source_class = storey.SyncEmitSource
+    else:
+        source_class = storey.AsyncEmitSource
+
+    default_source = source_class(
         context=context,
         explicit_ack=explicit_ack,
         **source_args,

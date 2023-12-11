@@ -97,7 +97,7 @@ def test_invalid_name():
         # name cannot have / in it
         new_function().run(name="asd/asd", handler=my_func)
     assert (
-        "Field 'run.metadata.name' is malformed. asd/asd does not match required pattern"
+        "Field 'run.metadata.name' is malformed. 'asd/asd' does not match required pattern"
         in str(excinfo.value)
     )
 

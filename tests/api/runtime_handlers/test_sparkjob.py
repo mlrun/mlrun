@@ -383,20 +383,23 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         stale_run_name = "my-spark-stale"
         new_run_name = "my-spark-new"
 
+        threshold_in_seconds = server.api.utils.helpers.time_string_to_seconds(
+            getattr(
+                mlrun.mlconf.function.spec.state_thresholds.default,
+                threshold_state,
+            )
+        )
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            threshold_in_seconds * 2
+        )
+
         # create the runs
         for uid, name, start_time in [
             (
                 stale_job_uid,
                 stale_run_name,
-                datetime.now(timezone.utc)
-                - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
-                        getattr(
-                            mlrun.mlconf.function.spec.state_thresholds.default,
-                            threshold_state,
-                        )
-                    )
-                ),
+                datetime.now(timezone.utc) - timedelta(seconds=threshold_in_seconds),
             ),
             (new_job_uid, new_run_name, datetime.now(timezone.utc)),
         ]:

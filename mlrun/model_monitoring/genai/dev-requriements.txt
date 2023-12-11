@@ -1,7 +1,7 @@
 evaluate
 transformers
 torch==2.0.0
-torchvision==0.10.0
+torchvision
 nltk
 rouge_score
 

@@ -12,9 +12,12 @@ from mlrun.model_monitoring.genai.prompt import (
 )
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
-JUDGE_CONFIG = {"max_length": 300}
-BENCHMARK_MODEL = "distilgpt2"
+JUDGE_CONFIG = {"device_map":"auto", revision="main"}
+JUDGE_INFER_CONFIG = {"max_length": 300}
+TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
+BENCHMARK_MODEL = "google/flan-t5-small"
 BENCHMARK_CONFIG = {"max_length": 300}
+
 
 
 @pytest.fixture
@@ -62,7 +65,11 @@ def test_single_grading_score(prompt_fixture):
     q = "What is 2 + 2?"
     a = "2 + 2 equals 4"
     single_grading = LLMJudgeSingleGrading(
+        name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
+        model_judge_config = JUDGE_CONFIG,
+        model_judge_infer_config = JUDGE_INFER_CONFIG,
+        tokenizer_judge_config = TOKENIZER_JUDGE_CONFIG,
         prompt_template=prompt_template,
         prompt_config=prompt_config,
     )

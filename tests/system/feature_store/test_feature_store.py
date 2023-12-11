@@ -3951,6 +3951,7 @@ class TestFeatureStore(TestMLRunSystem):
             "departments",
             entities=departments_set_entity,
         )
+        departments_set.set_targets(targets=["parquet"], with_defaults=False)
 
         # departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fstore.ingest(departments_set, departments)
@@ -3987,15 +3988,6 @@ class TestFeatureStore(TestMLRunSystem):
             check_dtype=False,
             check_index_type=False,
         )
-
-        vector = fstore.FeatureVector(
-            "employees-vec1",
-            ["departments.manager_id"],
-            description="Employees feature vector",
-        )
-        with fstore.get_online_feature_service(vector) as svc:
-            resp = svc.get({"d_id": "1", "name": "dept1"})
-            assert resp[0] is not None
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])

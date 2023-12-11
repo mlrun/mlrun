@@ -1,5 +1,5 @@
 <a id="top"></a>
-[![Build Status](https://github.com/mlrun/mlrun/workflows/CI/badge.svg)](https://github.com/mlrun/mlrun/actions)
+[![Build Status](https://github.com/mlrun/mlrun/actions/workflows/build.yaml/badge.svg?branch=development)](https://github.com/mlrun/mlrun/actions/workflows/build.yaml?query=branch%3Adevelopment)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)

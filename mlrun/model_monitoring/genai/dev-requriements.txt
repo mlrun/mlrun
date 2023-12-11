@@ -1,0 +1,7 @@
+evaluate
+transformers
+torch==2.0.0
+torchvision==0.10.0
+nltk
+rouge_score
+

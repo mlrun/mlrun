@@ -69,8 +69,9 @@ Examples could be included beblow for your reference. Make sure you understand t
 [User Question]:
 {question}
 
-[Response]:
+[Response of assistant A]:
 {answerA}
+[Response of assistant B]:
 {answerB}
 
 [Definition of {name}]:
@@ -99,9 +100,11 @@ Examples could be included beblow for your reference. Make sure you understand t
 [User Question]:
 {question}
 
-[Response]:
+[Response of assistant A]:
 {answerA}
+[Response of assistant B]:
 {answerB}
+[Ground truth of the response]:
 {answer_ref}
 
 [Definition of {name}]:

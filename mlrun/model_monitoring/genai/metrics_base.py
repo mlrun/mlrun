@@ -15,12 +15,11 @@
 
 # This is the base classes of using evluate to compute the metrics score and
 # Using LLM as a Judge to compute the metrics score
-import uuid
+import re
 import torch
 from typing import Union, List, Optional, Dict, Any, ClassVar
 from mlrun.model import ModelObj
 import transformers
-
 
 
 """
@@ -129,7 +128,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         pass
 
-    def abstract_score(self, result: str) -> int:
+    def extract_score_explanation(self, result: str) -> int:
         """
         Abstract the store of the result
         :param result: the result to store
@@ -186,7 +185,9 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         else:
             device = torch.device("cpu")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
-        self.model = transformers.AutoModelForCausalLM.from_pretrained(self.model_judge).to(device)
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(
+            self.model_judge
+        ).to(device)
 
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
@@ -207,7 +208,24 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
 
-        return {"response": response}
+        return self.extract_score_explanation(response)
+
+    def extract_score_explanation(self, result: str) -> int:
+        """
+        Abstract the store of the result
+        :param result: the result to store
+        :return: the stored result
+        """
+        score_pattern = r"\bScore:\s*(\d+)\b"
+        explanation_pattern = r"Explanation:\s*(.*?)\s*(?=\bScore:|$)"
+
+        score_match = re.search(score_pattern, text)
+        score = int(score_match.group(1)) if score_match else None
+
+        explanation_match = re.search(explanation_pattern, text, re.DOTALL)
+        explanation = explanation_match.group(1).strip() if explanation_match else None
+
+        return {"score": score, "explanation": explanation}
 
 
 class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
@@ -247,6 +265,104 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         self.bench_mark_model = bench_mark_model
         self.bench_mark_model_config = bench_mark_model_config
 
+    def prepare_judge(self) -> None:
+        """
+        Prepare the judge model
+        """
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
+        self.model = transformers.AutoModelForCausalLM.from_pretrained(
+            self.model_judge
+        ).to(device)
+
+    def prepare_bench_mark_model(self) -> None:
+        """
+        Prepare the base model
+        """
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        else:
+            device = torch.device("cpu")
+        self.bench_mark_tokenizer = transformers.AutoTokenizer.from_pretrained(
+            self.bench_mark_model
+        )
+        self.bench_mark_model = transformers.AutoModelForCausalLM.from_pretrained(
+            self.bench_mark_model
+        ).to(device)
+
+    def compute_bench_mark_response(self, question) -> str:
+        """
+        Compute the response of the bench mark model
+        :param question: the question to ask the model
+        :return: the response
+        """
+        input_ids = self.bench_mark_tokenizer(question, return_tensors="pt").input_ids
+        outputs = self.bench_mark_model.generate(
+            input_ids,
+            pad_token_id=self.bench_mark_tokenizer.pad_token_id,
+            eos_token_id=self.bench_mark_tokenizer.eos_token_id,
+            **self.bench_mark_model_config,
+        )
+
+        response_ids = outputs[0]
+        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+
+        return response
+
+    def compute_over_one_data(self, question, response) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param kwargs: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+        self.prompt_config["question"] = question
+        self.prompt_config["answerA"] = response
+        self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
+        input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
+        outputs = self.model.generate(
+            input_ids,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            **self.model_judge_config,
+        )
+
+        response_ids = outputs[0]
+        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+
+        return {"response": response}
+
+    def extract_scores_and_explanations(self, response):
+        """
+        Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
+
+        Args:
+        response (str): The combined response containing scores and explanations for both assistants.
+
+        Returns:
+        dict: A dictionary containing the scores and explanations for both assistants.
+        """
+        # Regex pattern to extract scores and explanations
+        pattern = r"Score of Assistant ([AB]): (\d)\s*Explanation of Assistant \1: (.*?)\n(?=Score of Assistant|$)"
+
+        # Find all matches
+        matches = re.findall(pattern, response, re.DOTALL)
+
+        if matches:
+            # Extracting scores and explanations into a dictionary
+            result_dict = {}
+            for match in matches:
+                assistant, score, explanation = match
+                result_dict[f"score_of_assistant_{assistant.lower()}"] = int(score)
+                result_dict[
+                    f"explanation_of_assistant_{assistant.lower()}"
+                ] = explanation.strip()
+            return result_dict
+        else:
+            return "No matches found"
+
 
 class LLMJudgeReferenceGrading(ModelObj):
     _dict_fields = [
@@ -285,5 +401,5 @@ class LLMJudgeReferenceGrading(ModelObj):
 
 
 # TODO figure out a way to viz the different metrics in a Radar plot this should
-# be inside of the application class. since the application class has mutiple 
+# be inside of the application class. since the application class has mutiple
 # metrics

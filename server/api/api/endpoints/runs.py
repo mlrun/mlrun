@@ -338,6 +338,7 @@ async def delete_runs(
                 auth_info,
             )
 
+    # TODO: make a background task?
     await run_in_threadpool(
         server.api.crud.Runs().delete_runs,
         db_session,

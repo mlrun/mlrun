@@ -17,8 +17,14 @@
 # Using LLM as a Judge to compute the metrics score
 import re
 import torch
+from abc import ABC, abstractmethod
 from typing import Union, List, Optional, Dict, Any, ClassVar
 from mlrun.model import ModelObj
+from mlrun.model_monitoring.genai.prompt import (
+    SINGLE_GRADE_PROMPT,
+    PAIR_GRADE_PROMPT,
+    REF_GRADE_PROMPT,
+)
 import transformers
 
 
@@ -64,7 +70,7 @@ class LLMBaseMetric(ModelObj):
         return self.metric.compute(predictions, references, **kwargs)
 
 
-class LLMJudgeBaseMetric(ModelObj):
+class LLMJudgeBaseMetric(ModelObj, ABC):
     _dict_fields = [
         "name",
         "model_judge",
@@ -101,17 +107,16 @@ class LLMJudgeBaseMetric(ModelObj):
         :param prompt_config: the prompt config to fill the template with
         :return: the filled prompt
         """
-        prompt = self.prompt_template
-        for key, value in self.prompt_config.items():
-            prompt = prompt.replace(f"{{{key}}}", value)
-        return prompt
+        return self.prompt_template.format(**self.prompt_config)
 
+    @abstractmethod
     def prepare_judge(self) -> None:
         """
         Prepare the judge model
         """
         pass
 
+    @abstractmethod
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
@@ -120,6 +125,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         pass
 
+    @abstractmethod
     def compute_over_all_data(self, questions, responses) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
@@ -128,6 +134,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         pass
 
+    @abstractmethod
     def extract_score_explanation(self, result: str) -> int:
         """
         Abstract the store of the result
@@ -136,6 +143,7 @@ class LLMJudgeBaseMetric(ModelObj):
         """
         pass
 
+    @abstractmethod
     def agg_score(self, scores: List[int]) -> float:
         """
         Aggregate the scores
@@ -246,7 +254,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         model_judge: str,
         model_judge_config: Dict[str, str],
         prompt_template: str,
-        bench_mark_model: str,
+        bench_mark_model_name: str,
         bench_mark_model_config: Dict[str, str],
         prompt_config: Dict[str, str],
     ):
@@ -262,7 +270,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             prompt_template,
             prompt_config,
         )
-        self.bench_mark_model = bench_mark_model
+        self.bench_mark_model_name = bench_mark_model_name
         self.bench_mark_model_config = bench_mark_model_config
 
     def prepare_judge(self) -> None:
@@ -287,10 +295,10 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         else:
             device = torch.device("cpu")
         self.bench_mark_tokenizer = transformers.AutoTokenizer.from_pretrained(
-            self.bench_mark_model
+            self.bench_mark_model_name
         )
         self.bench_mark_model = transformers.AutoModelForCausalLM.from_pretrained(
-            self.bench_mark_model
+            self.bench_mark_model_name
         ).to(device)
 
     def compute_bench_mark_response(self, question) -> str:
@@ -334,7 +342,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         return {"response": response}
 
-    def extract_scores_and_explanations(self, response):
+    def extract_score_and_explanation(self, response):
         """
         Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
 
@@ -364,12 +372,12 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             return "No matches found"
 
 
-class LLMJudgeReferenceGrading(ModelObj):
+class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
     _dict_fields = [
         "name",
         "model_judge",
         "model_judge_config",
-        "bench_mark_model",
+        "bench_mark_model_name",
         "bench_mark_model_config",
         "prompt_template",
         "prompt_config",
@@ -382,7 +390,7 @@ class LLMJudgeReferenceGrading(ModelObj):
         model_judge: str,
         model_judge_config: Dict[str, str],
         prompt_template: str,
-        bench_mark_model: str,
+        bench_mark_model_name: str,
         bench_mark_model_config: Dict[str, str],
         prompt_config: Dict[str, str],
     ):
@@ -391,15 +399,35 @@ class LLMJudgeReferenceGrading(ModelObj):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.name = name
-        self.model_judge = model_judge
-        self.model_judge_config = model_config
-        self.bench_mark_model = bench_mark_model
-        self.bench_mark_model_config = bench_mark_model_config
-        self.prompt_template = prompt_template
-        self.prompt_config = prompt_config
+        self.__super.__init__(
+            name,
+            model_judge,
+            model_judge_config,
+            prompt_template,
+            prompt_config,
+            bench_mark_model_name,
+            bench_mark_model_config,
+        )
 
+    def compute_over_one_data(self, question, response, reference) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param kwargs: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+        self.prompt_config["question"] = question
+        self.prompt_config["reference"] = reference
+        self.prompt_config["answerA"] = response
+        self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
+        input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
+        outputs = self.model.generate(
+            input_ids,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            **self.model_judge_config,
+        )
 
-# TODO figure out a way to viz the different metrics in a Radar plot this should
-# be inside of the application class. since the application class has mutiple
-# metrics
+        response_ids = outputs[0]
+        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+
+        return {"response": response}

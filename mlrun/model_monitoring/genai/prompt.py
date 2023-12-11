@@ -105,7 +105,7 @@ Examples could be included beblow for your reference. Make sure you understand t
 [Response of assistant B]:
 {answerB}
 [Ground truth of the response]:
-{answer_ref}
+{reference}
 
 [Definition of {name}]:
 {definition}

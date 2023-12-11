@@ -68,7 +68,9 @@ class LLMEvaluateMetric(ModelObj):
         self, predictions: Union[List, Dict], references: Union[List, Dict], **kwargs
     ) -> Dict[str, Any]:
         if kwargs:
-            return self.metric.compute(predictions=predictions, references=references, **kwargs)
+            return self.metric.compute(
+                predictions=predictions, references=references, **kwargs
+            )
         return self.metric.compute(predictions=predictions, references=references)
 
 
@@ -77,6 +79,8 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         "name",
         "model_judge",
         "model_judge_config",
+        "tokenizer_judge_config",
+        "model_judge_infer_config",
         "prompt_template",
         "prompt_config",
     ]
@@ -87,9 +91,11 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str, str],
+        model_judge_config: Dict[str, Any],
+        tokenizer_judge_config: Dict[str, Any],
+        model_judge_infer_config: Dict[str, Any],
         prompt_template: str,
-        prompt_config: Dict[str, str],
+        prompt_config: Dict[str, Any],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -99,6 +105,8 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         self.name = name or self.default_name
         self.model_judge = model_judge
         self.model_judge_config = model_judge_config
+        self.tokenizer_judge_config = tokenizer_judge_config
+        self.model_judge_infer_config = model_judge_infer_config
         self.prompt_template = prompt_template
         self.prompt_config = prompt_config
 
@@ -160,6 +168,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         "name",
         "model_judge",
         "model_judge_config",
+        "tokenizer_judge_config",
+        "model_judge_infer_config",
         "prompt_template",
         "prompt_config",
     ]
@@ -169,9 +179,11 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str, str],
+        model_judge_config: Dict[str, Any],
+        tokenizer_judge_config: Dict[str, Any],
+        model_judge_infer_config: Dict[str, Any],
         prompt_template: str,
-        prompt_config: Dict[str, str],
+        prompt_config: Dict[str, Any],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -182,6 +194,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
             name,
             model_judge,
             model_judge_config,
+            judge_tokenizer_config,
+            model_judge_infer_config,
             prompt_template,
             prompt_config,
         )
@@ -194,9 +208,11 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
             device = torch.device("cuda")
         else:
             device = torch.device("cpu")
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+            self.model_judge, **self.judge_tokenizer_config
+        )
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
-            self.model_judge
+            self.model_judge, **self.model_judge_config
         ).to(device)
 
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
@@ -212,7 +228,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
             input_ids,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
-            **self.model_judge_config,
+            **self.model_judge_infer_config,
         )
 
         response_ids = outputs[0]
@@ -242,9 +258,13 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
     _dict_fields = [
         "name",
         "model_judge",
+        "tokenizer_judge_config",
         "model_judge_config",
-        "bench_mark_model",
-        "bench_mark_model_config",
+        "model_judge_infer_config",
+        "model_bench_mark",
+        "model_bench_mark_config",
+        "model_bench_mark_infer_config",
+        "tokenizer_bench_mark_config",
         "prompt_template",
         "prompt_config",
     ]
@@ -254,11 +274,15 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str, str],
+        tokenizer_judge_config: Dict[str, Any],
+        model_judge_config: Dict[str, Any],
+        model_judge_infer_config: Dict[str, Any],
+        model_bench_mark: str,
+        model_bench_mark_config: Dict[str, Any],
+        model_bench_mark_infer_config: Dict[str, Any],
+        tokenizer_bench_mark_config: Dict[str, Any],
         prompt_template: str,
-        bench_mark_model_name: str,
-        bench_mark_model_config: Dict[str, str],
-        prompt_config: Dict[str, str],
+        prompt_config: Dict[str, Any],
     ):
         """
         Base class for LLM as a judge metrics.
@@ -269,11 +293,15 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             name,
             model_judge,
             model_judge_config,
+            tokenizer_judge_config,
+            model_judge_infer_config,
             prompt_template,
             prompt_config,
         )
-        self.bench_mark_model_name = bench_mark_model_name
-        self.bench_mark_model_config = bench_mark_model_config
+        self.model_bench_mark = model_bench_mark
+        self.model_bench_mark_config = model_bench_mark_config
+        self.model_bench_mark_infer_config = model_bench_mark_infer_config
+        self.tokenizer_bench_mark_config = tokenizer_bench_mark_config
 
     def prepare_judge(self) -> None:
         """
@@ -283,9 +311,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             device = torch.device("cuda")
         else:
             device = torch.device("cpu")
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_judge)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(
+            self.model_judge, **self.judge_tokenizer_config
+        )
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
-            self.model_judge
+            self.model_judge, **self.model_judge_config
         ).to(device)
 
     def prepare_bench_mark_model(self) -> None:
@@ -296,11 +326,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             device = torch.device("cuda")
         else:
             device = torch.device("cpu")
-        self.bench_mark_tokenizer = transformers.AutoTokenizer.from_pretrained(
-            self.bench_mark_model_name
+        self.tokenizer_bench_mark = transformers.AutoTokenizer.from_pretrained(
+            self.model_bench_mark, **self.tokenizer_bench_mark_config
         )
-        self.bench_mark_model = transformers.AutoModelForCausalLM.from_pretrained(
-            self.bench_mark_model_name
+        self.model_bench_mark = transformers.AutoModelForCausalLM.from_pretrained(
+            self.bench_mark_model_name, **self.model_bench_mark_config
         ).to(device)
 
     def compute_bench_mark_response(self, question) -> str:
@@ -309,12 +339,12 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param question: the question to ask the model
         :return: the response
         """
-        input_ids = self.bench_mark_tokenizer(question, return_tensors="pt").input_ids
-        outputs = self.bench_mark_model.generate(
+        input_ids = self.tokenizer_bench_mark(question, return_tensors="pt").input_ids
+        outputs = self.model_bench_mark.generate(
             input_ids,
             pad_token_id=self.bench_mark_tokenizer.pad_token_id,
             eos_token_id=self.bench_mark_tokenizer.eos_token_id,
-            **self.bench_mark_model_config,
+            **self.model_bench_mark_infer_config,
         )
 
         response_ids = outputs[0]
@@ -332,11 +362,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         self.prompt_config["answerA"] = response
         self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        outputs = self.model.generate(
+        outputs = self.model_judge.generate(
             input_ids,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
-            **self.model_judge_config,
+            **self.model_judge_infer_config,
         )
 
         response_ids = outputs[0]
@@ -347,12 +377,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
     def extract_score_and_explanation(self, response):
         """
         Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
-
-        Args:
-        response (str): The combined response containing scores and explanations for both assistants.
-
-        Returns:
-        dict: A dictionary containing the scores and explanations for both assistants.
+        param response: The combined response containing scores and explanations for both assistants.
+        return: A dictionary containing the scores and explanations for both assistants.
         """
         pattern = r"Score of Assistant ([AB]): (\d)\s*Explanation of Assistant \1: (.*?)\n(?=Score of Assistant|$)"
 
@@ -376,8 +402,11 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         "name",
         "model_judge",
         "model_judge_config",
-        "bench_mark_model_name",
-        "bench_mark_model_config",
+        "model_judge_infer_config",
+        "tokenizer_judge_config",
+        "model_bench_mark",
+        "model_bench_mark_config",
+        "model_bench_mark_infer_config",
         "prompt_template",
         "prompt_config",
     ]
@@ -387,10 +416,14 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         self,
         name: str,
         model_judge: str,
-        model_judge_config: Dict[str, str],
+        model_judge_config: Dict[str, Any],
+        model_judge_infer_config: Dict[str, Any],
+        tokenizer_judge_config: Dict[str, Any],
+        model_bench_mark: str,
+        model_bench_mark_config: Dict[str, Any],
+        tokenizer_bench_mark_config: Dict[str, Any],
+        model_bench_mark_infer_config: Dict[str, Any],
         prompt_template: str,
-        bench_mark_model_name: str,
-        bench_mark_model_config: Dict[str, str],
         prompt_config: Dict[str, str],
     ):
         """
@@ -402,10 +435,14 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
             name,
             model_judge,
             model_judge_config,
+            model_judge_infer_config,
+            tokenizer_judge_config,
+            model_bench_mark,
+            model_bench_mark_config,
+            tokenizer_bench_mark_config,
+            model_bench_mark_infer_config,
             prompt_template,
             prompt_config,
-            bench_mark_model_name,
-            bench_mark_model_config,
         )
 
     def compute_over_one_data(self, question, response, reference) -> Dict[str, Any]:

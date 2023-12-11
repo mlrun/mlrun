@@ -894,11 +894,15 @@ class ParquetTarget(BaseStoreTarget):
             **self.attributes,
         )
 
-        def do_nothing(*arg, **kargs):
-            return None
+        original_to_dict = step.to_dict
 
-        # avoid serialization, because update_last_written is not serializable (ML-5108)
-        step.to_dict = do_nothing
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            del result["class_args"]["update_last_written"]
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []

@@ -31,7 +31,7 @@ def test_single_grading_score(single_grading):
     q = "What is 2 + 2?"
     a = "2 + 2 equals 4"
     result = single_grading.compute_over_one_data(q, a)
-    assert 0 <= result["score"] <= 10
+    assert 0 <= result["score"] <= 5
 
 
 def test_pairwise_grading_scores():
@@ -50,8 +50,8 @@ def test_pairwise_grading_scores():
 
     result = metric.compute_over_one_data(q, a1, a2)
     scores = metric.extract_score_and_explanation(result["response"])
-    assert 0 <= scores["score_of_assistant_a"] <= 10
-    assert 0 <= scores["score_of_assistant_b"] <= 10
+    assert 0 <= scores["score_of_assistant_a"] <= 5
+    assert 0 <= scores["score_of_assistant_b"] <= 5
 
 
 def test_reference_grading_scores():
@@ -67,5 +67,5 @@ def test_reference_grading_scores():
     result = metric.compute_over_one_data(q, a1, a2, ref)
     scores = metric.extract_score_and_explanation(result["response"])
 
-    assert 0 <= scores["score_of_assistant_a"] <= 10
-    assert 0 <= scores["score_of_assistant_b"] <= 10
+    assert 0 <= scores["score_of_assistant_a"] <= 5
+    assert 0 <= scores["score_of_assistant_b"] <= 5

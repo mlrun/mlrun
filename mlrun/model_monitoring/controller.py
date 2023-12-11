@@ -371,7 +371,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ):
+    ) -> Optional[Tuple[str, Exception]]:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -433,7 +433,7 @@ class MonitoringApplicationController:
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                             )
-                            return
+                            continue
 
                     # Continue if not enough events provided since the deployment of the model endpoint
                     except FileNotFoundError:
@@ -442,7 +442,7 @@ class MonitoringApplicationController:
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
                             min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         )
-                        return
+                        continue
 
                     # Get the timestamp of the latest request:
                     latest_request = df[mm_constants.EventFieldType.TIMESTAMP].iloc[-1]
@@ -470,9 +470,10 @@ class MonitoringApplicationController:
                         model_monitoring_access_key=model_monitoring_access_key,
                         parquet_target_path=parquet_target_path,
                     )
-        except FileNotFoundError as e:
+        except Exception as e:
             logger.error(
-                f"Exception for endpoint {endpoint[mm_constants.EventFieldType.UID]}"
+                "Encountered an exception",
+                endpoint_id=endpoint[mm_constants.EventFieldType.UID],
             )
             return endpoint_id, e
 

@@ -134,7 +134,7 @@ class KubejobRuntime(KubeResource):
         if not overwrite:
             # TODO: change overwrite default to True in 1.8.0
             warnings.warn(
-                "The `overwrite` parameter defaults will change from 'False' to 'True in 1.8.0.",
+                "The `overwrite` parameter default will change from 'False' to 'True in 1.8.0.",
                 mlrun.utils.OverwriteBuildParamsWarning,
             )
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)

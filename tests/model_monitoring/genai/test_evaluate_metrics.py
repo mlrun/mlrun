@@ -1,14 +1,13 @@
 import pytest
 from mlrun.model_monitoring.genai.metrics_base import LLMEvaluateMetric
 
-
 def test_bleu_metric():
     metric = LLMEvaluateMetric(name="bleu")
     predictions = ["the cat is on the mat"]
     references = ["the cat is playing on the mat"]
     score = metric.compute_over_data(predictions, references)
-    assert score > 0
-    assert score <= 1
+    assert score['bleu'] > 0
+    assert score['bleu'] <= 1
 
 
 def test_rouge_metric():
@@ -16,9 +15,10 @@ def test_rouge_metric():
     predictions = ["cat on the mat"]
     references = ["the cat is playing on the blue mat"]
     score = metric.compute_over_data(predictions, references)
-    assert score > 0
-    assert score <= 1
-
+    assert score['rouge1'] > 0
+    assert score['rouge1'] <= 1
+    assert score['rouge2'] > 0
+    assert score['rouge2'] <= 1
 
 def test_invalid_metric():
     with pytest.raises(ImportError):

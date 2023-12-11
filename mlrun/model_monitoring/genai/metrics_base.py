@@ -68,8 +68,8 @@ class LLMEvaluateMetric(ModelObj):
         self, predictions: Union[List, Dict], references: Union[List, Dict], **kwargs
     ) -> Dict[str, Any]:
         if kwargs:
-            return self.metric.compute(predictions, references, **kwargs)
-        return self.metric.compute(predictions, references)
+            return self.metric.compute(predictions=predictions, references=references, **kwargs)
+        return self.metric.compute(predictions=predictions, references=references)
 
 
 class LLMJudgeBaseMetric(ModelObj, ABC):

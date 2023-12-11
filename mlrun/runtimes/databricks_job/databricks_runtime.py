@@ -56,6 +56,14 @@ class DatabricksRuntime(KubejobRuntime):
     kind = "databricks"
     _is_remote = True
 
+    @staticmethod
+    def _verify_returns(returns):
+        # TODO complete returns feature
+        if returns:
+            raise MLRunInvalidArgumentError(
+                "Databricks function does not support returns."
+            )
+
     def _get_modified_user_code(self, original_handler: str, log_artifacts_code: str):
         encoded_code = (
             self.spec.build.functionSourceCode if hasattr(self.spec, "build") else None
@@ -68,10 +76,12 @@ class DatabricksRuntime(KubejobRuntime):
             code=decoded_code, log_artifacts_code=log_artifacts_code
         )
         if is_replaced:
-            decoded_code = _logger_code + _databricks_script_code + decoded_code
+            decoded_code = (
+                logger_and_consts_code + _databricks_script_code + decoded_code
+            )
         else:
             decoded_code = (
-                _logger_code
+                logger_and_consts_code
                 + log_artifacts_code
                 + _databricks_script_code
                 + decoded_code
@@ -93,8 +103,11 @@ class DatabricksRuntime(KubejobRuntime):
         log_artifacts_code, artifact_json_path = get_log_artifacts_code(
             runobj=runobj, task_parameters=task_parameters
         )
+        returns = runobj.spec.returns or []
+        self._verify_returns(returns=returns)
         code = self._get_modified_user_code(
-            original_handler=original_handler, log_artifacts_code=log_artifacts_code
+            original_handler=original_handler,
+            log_artifacts_code=log_artifacts_code,
         )
         updated_task_parameters = {
             "original_handler": original_handler,
@@ -178,7 +191,7 @@ class DatabricksRuntime(KubejobRuntime):
         )
 
 
-_logger_code = """ \n
+logger_and_consts_code = """ \n
 import os
 import logging
 mlrun_logger = logging.getLogger('mlrun_logger')
@@ -189,6 +202,9 @@ mlrun_console_handler.setLevel(logging.DEBUG)
 mlrun_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 mlrun_console_handler.setFormatter(mlrun_formatter)
 mlrun_logger.addHandler(mlrun_console_handler)
+
+mlrun_default_artifact_template = 'mlrun_return_value_'
+mlrun_artifact_index = 0
 """
 
 _databricks_script_code = """
@@ -200,12 +216,17 @@ parser.add_argument('handler_arguments')
 handler_arguments = parser.parse_args().handler_arguments
 handler_arguments = json.loads(handler_arguments)
 
+
 """
 
 log_artifacts_code_template = """\n
-def mlrun_log_artifact(name, path):
-    if not name or not path:
-        mlrun_logger.error(f'name and path required for logging an mlrun artifact - {{name}} : {{path}}')
+def mlrun_log_artifact(name='', path=''):
+    global mlrun_artifact_index
+    mlrun_artifact_index+=1  #  by how many artifacts we tried to log, not how many succeed.
+    if name is None or name == '':
+        name = f'{{mlrun_default_artifact_template}}{{mlrun_artifact_index}}'
+    if not path:
+        mlrun_logger.error(f'path required for logging an mlrun artifact - {{name}} : {{path}}')
         return
     if not isinstance(name, str) or not isinstance(path, str):
         mlrun_logger.error(f'name and path must be in string type for logging an mlrun artifact - {{name}} : {{path}}')
@@ -236,18 +257,16 @@ def mlrun_log_artifact(name, path):
 """
 
 _return_artifacts_code = """\n
-default_key_template = 'mlrun_return_value_'
 if result:
     if isinstance(result, dict):
         for key, path in result.items():
             mlrun_log_artifact(name=key, path=path)
     elif isinstance(result, (list, tuple, set)):
-        for index, value in enumerate(result):
-            key = f'{default_key_template}{index+1}'
-            mlrun_log_artifact(name=key, path=value)
+        for artifact_path in result:
+            mlrun_log_artifact(path=artifact_path)
     elif isinstance(result, str):
-        mlrun_log_artifact(name=f'{default_key_template}1', path=result)
+        mlrun_log_artifact(path=result)
     else:
-        mlrun_logger.warning(f'cannot log artifacts with the result of handler function \
+        mlrun_logger.warning(f'can not log artifacts with the result of handler function \
 - result in unsupported type. {type(result)}')
 """

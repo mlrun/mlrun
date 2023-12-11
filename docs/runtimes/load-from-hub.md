@@ -61,19 +61,26 @@ The hierarchy must be:
 
 
 ### Add a custom hub to the MLRun database
-To add your hub to your MLRun database, run:
+When you add a hub, specify `order=-1` to add it to the top of the list. 
+The list order is relevant when [loading a function](#load-function-example-omit-in-toc):
+if you don't specify a source name, MLRun starts searching for the function with the last added hub.
+If you want to add a source but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
+The MLRun function hub is always the last in the list (and cannot be modified). 
+
+
+To add a source, run:
 ```python
 import mlrun.common.schemas
 
-# Add a private source as the last one (will be #1 in the list)
+# Add a private source to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
     order=-1,
 	source=mlrun.common.schemas.HubSource(
 		metadata=mlrun.common.schemas.HubObjectMetadata(
-		name="priv", description="a private source"
+		name="private", description="a private source"
 		),
 		spec=mlrun.common.schemas.HubSourceSpec(
-		path="/local/path/to/source", channel="development"
+		path="https://mlrun.github.io/marketplace", channel="development"
 		),
 	)
 )

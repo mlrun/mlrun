@@ -65,6 +65,10 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
+class OverwriteBuildParamsWarning(FutureWarning):
+    pass
+
+
 # TODO: remove in 1.7.0
 @deprecated(
     version="1.5.0",

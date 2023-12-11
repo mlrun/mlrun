@@ -67,7 +67,9 @@ class LLMEvaluateMetric(ModelObj):
     def compute_over_data(
         self, predictions: Union[List, Dict], references: Union[List, Dict], **kwargs
     ) -> Dict[str, Any]:
-        return self.metric.compute(predictions, references, **kwargs)
+        if kwargs:
+            return self.metric.compute(predictions, references, **kwargs)
+        return self.metric.compute(predictions, references)
 
 
 class LLMJudgeBaseMetric(ModelObj, ABC):
@@ -352,14 +354,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         Returns:
         dict: A dictionary containing the scores and explanations for both assistants.
         """
-        # Regex pattern to extract scores and explanations
         pattern = r"Score of Assistant ([AB]): (\d)\s*Explanation of Assistant \1: (.*?)\n(?=Score of Assistant|$)"
 
-        # Find all matches
         matches = re.findall(pattern, response, re.DOTALL)
 
         if matches:
-            # Extracting scores and explanations into a dictionary
             result_dict = {}
             for match in matches:
                 assistant, score, explanation = match

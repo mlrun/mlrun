@@ -230,9 +230,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-        # quotes_set.plot(
-        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        # )
+        quotes_set.plot(
+            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        )
         df = fstore.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
@@ -1261,9 +1261,9 @@ class TestFeatureStore(TestMLRunSystem):
             options=fstore.InferOptions.default(),
         )
 
-        # data_set.plot(
-        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        # )
+        data_set.plot(
+            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        )
         fstore.ingest(data_set, data, return_df=True)
 
         features = [
@@ -1712,7 +1712,7 @@ class TestFeatureStore(TestMLRunSystem):
             default_final_step="FeaturesetValidator",
         )
 
-        # quotes_set.plot(with_targets=True)
+        quotes_set.plot(with_targets=True)
 
         inf_out = fstore.preview(quotes_set, quotes)
         ing_out = fstore.ingest(quotes_set, quotes, return_df=True)

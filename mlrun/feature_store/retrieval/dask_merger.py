@@ -53,7 +53,11 @@ class DaskFeatureMerger(BaseMerger):
         from dask.dataframe.multi import merge_asof
 
         featureset_df = self._normalize_timestamp_column(
-            entity_timestamp_column, entity_df, featureset_df, featureset_name
+            entity_timestamp_column,
+            entity_df,
+            featureset_timestamp,
+            featureset_df,
+            featureset_name,
         )
 
         def sort_partition(partition, timestamp):

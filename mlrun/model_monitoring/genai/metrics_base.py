@@ -154,7 +154,7 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
     #    pass
 
     @abstractmethod
-    def extract_score_explanation(self, result: str) -> int:
+    def extract_score_explanation(self, result: str) -> Dict[str, Any]:
         """
         Abstract the store of the result
         :param result: the result to store
@@ -236,7 +236,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
 
         return self.extract_score_explanation(response)
 
-    def extract_score_explanation(self, result: str) -> int:
+    def extract_score_explanation(self, result: str) -> Dict[str, Any]:
         """
         Abstract the store of the result
         :param result: the result to store
@@ -374,7 +374,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         return {"response": response}
 
-    def extract_score_explanation(self, response):
+    def extract_score_explanation(self, response): -> Dict[str, Any]:
         """
         Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
         param response: The combined response containing scores and explanations for both assistants.

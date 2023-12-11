@@ -1030,6 +1030,56 @@ class FeatureSet(ModelObj):
             self, source, targets, name, run_config, verbose
         )
 
+    def check_relation(
+        self,
+        relation: Dict[str, Union[str, Entity]],
+        right_fset_fields,
+        ordered: bool = True,
+    ):
+        right_feature_set_entity_list = right_fset_fields.spec.entities
+
+        if (
+            all(ent in self.spec.entities for ent in right_feature_set_entity_list)
+            and len(right_feature_set_entity_list) == len(self.spec.entities)
+            and ordered
+        ):
+            # entities wise
+            return list(self.spec.entities.keys()), list(
+                right_feature_set_entity_list.keys()
+            )
+        elif all(ent in self.spec.entities for ent in right_feature_set_entity_list):
+            # entities wise when the right fset have lower number of entities
+            return list(right_feature_set_entity_list.keys()), list(
+                right_feature_set_entity_list.keys()
+            )
+
+        else:
+            # relation wise
+            curr_col_relation_list = list(
+                map(
+                    lambda ent: (
+                        list(relation.keys())[list(relation.values()).index(ent)]
+                        if ent in list(relation.values())
+                        else False
+                    ),
+                    right_feature_set_entity_list,
+                )
+            )
+
+            if all(curr_col_relation_list):
+                return curr_col_relation_list, list(
+                    right_feature_set_entity_list.keys()
+                )
+
+        return [], []
+
+    def check_connection_to_df(self, df_columns: list[str]):
+        if df_columns is not None and all(
+            ent in df_columns for ent in list(self.spec.entities.keys())
+        ):
+            return list(self.spec.entities.keys()), list(self.spec.entities.keys())
+        return [], []
+
 
 class SparkAggregateByKey(StepToDict):
     _supported_operations = [

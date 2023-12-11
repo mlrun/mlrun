@@ -230,9 +230,9 @@ class TestFeatureStore(TestMLRunSystem):
         assert df["zz"].mean() == 9, "map didnt set the zz column properly"
         quotes_set["bid"].validator = MinMaxValidator(min=52, severity="info")
 
-        quotes_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # quotes_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         df = fstore.ingest(quotes_set, quotes, return_df=True)
         self._logger.info(f"output df:\n{df}")
         assert quotes_set.status.stats.get("asks1_sum_1h"), "stats not created"
@@ -1234,9 +1234,9 @@ class TestFeatureStore(TestMLRunSystem):
             options=fstore.InferOptions.default(),
         )
 
-        data_set.plot(
-            str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
-        )
+        # data_set.plot(
+        #     str(self.results_path / "pipe.png"), rankdir="LR", with_targets=True
+        # )
         fstore.ingest(data_set, data, return_df=True)
 
         features = [
@@ -1685,7 +1685,7 @@ class TestFeatureStore(TestMLRunSystem):
             default_final_step="FeaturesetValidator",
         )
 
-        quotes_set.plot(with_targets=True)
+        # quotes_set.plot(with_targets=True)
 
         inf_out = fstore.preview(quotes_set, quotes)
         ing_out = fstore.ingest(quotes_set, quotes, return_df=True)
@@ -4448,6 +4448,113 @@ class TestFeatureStore(TestMLRunSystem):
         offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
         assert offline_features_df.equals(inspect_result)
         assert offline_features_df.equals(expected_result)
+
+    def test_merge_different_amount_of_entities(self):
+
+        feature_name = "basic_party"
+        feature_set = fstore.FeatureSet(
+            feature_name, entities=[fstore.Entity("party_id")], engine="storey"
+        )
+        feature_set.set_targets()
+        data = {
+            "party_id": ["1", "2", "3"],
+            "party_establishment": ["1970", "1980", "1990"],
+        }
+        basic_party_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_party_df)
+
+        feature_name = "basic_account"
+        feature_set = fstore.FeatureSet(
+            feature_name,
+            entities=[fstore.Entity("party_id"), fstore.Entity("account_id")],
+            engine="storey",
+        )
+
+        feature_set.set_targets()
+        data = {
+            "party_id": ["1", "2", "3"],
+            "account_id": ["10", "20", "30"],
+            "account_state": ["a", "b", "c"],
+        }
+        basic_account_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_account_df)
+
+        feature_name = "basic_transaction"
+        feature_set = fstore.FeatureSet(
+            feature_name, entities=[fstore.Entity("account_id")], engine="storey"
+        )
+        feature_set.set_targets()
+        data = {
+            "account_id": ["10", "20", "30"],
+            "transaction_value": ["100", "200", "300"],
+        }
+        basic_transaction_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_transaction_df, overwrite=False)
+
+        featurevector_name = "vector_partyaccount"
+        features = ["basic_party.party_establishment", "basic_account.account_state"]
+        join_graph = fstore.JoinGraph(first_feature_set="basic_account").inner(
+            "basic_party"
+        )
+        vec = fstore.FeatureVector(featurevector_name, features, join_graph=join_graph)
+        df = fstore.get_offline_features(vec).to_dataframe()
+        expected_party = pd.merge(
+            basic_account_df,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        )
+        assert_frame_equal(
+            expected_party.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        featurevector_name = "vector_acounttransaction"
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+        ]
+        vector = fstore.FeatureVector(featurevector_name, features)
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_transaction = pd.merge(
+            basic_account_df,
+            basic_transaction_df,
+            left_on=["account_id"],
+            right_on=["account_id"],
+        )
+        assert_frame_equal(
+            expected_transaction.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        featurevector_name = "vector_all"
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector(featurevector_name, features)
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_all = pd.merge(
+            expected_transaction,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        ).drop(columns=["account_id", "party_id"])
+        assert_frame_equal(expected_all, df, check_dtype=False)
+
+        featurevector_name = "vector_all_entity_df"
+        features = [
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector(featurevector_name, features)
+        df = fstore.get_offline_features(
+            vector, entity_rows=basic_account_df
+        ).to_dataframe()
+        assert_frame_equal(expected_all, df, check_dtype=False)
 
 
 def verify_purge(fset, targets):

@@ -62,7 +62,7 @@ def test_get_internal_parameters(user_code):
     #  test code:
     code = b64decode(encoded_formatted_code).decode("utf-8")
     parsed_code = ast.parse(code)
-    expected_hash = "e928f248e133470695346aaeef39037fb58f000e8bf120a51f50dd72d8093ff9"
+    expected_hash = "a67e065523171f407006611dbbcbb2a94b246af0bfb73e262a738e418354dc8a"
     already_found = False
 
     for node in ast.walk(parsed_code):

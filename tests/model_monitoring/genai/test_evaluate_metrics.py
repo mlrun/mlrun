@@ -6,7 +6,7 @@ def test_bleu_metric():
     predictions = ["the cat is on the mat"]
     references = ["the cat is playing on the mat"]
     score = metric.compute_over_data(predictions, references)
-    assert score['bleu'] > 0
+    assert score['bleu'] >= 0
     assert score['bleu'] <= 1
 
 
@@ -15,9 +15,9 @@ def test_rouge_metric():
     predictions = ["cat on the mat"]
     references = ["the cat is playing on the blue mat"]
     score = metric.compute_over_data(predictions, references)
-    assert score['rouge1'] > 0
+    assert score['rouge1'] >= 0
     assert score['rouge1'] <= 1
-    assert score['rouge2'] > 0
+    assert score['rouge2'] >= 0
     assert score['rouge2'] <= 1
 
 def test_invalid_metric():

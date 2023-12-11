@@ -374,7 +374,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         return {"response": response}
 
-    def extract_score_and_explanation(self, response):
+    def extract_score_explanation(self, response):
         """
         Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
         param response: The combined response containing scores and explanations for both assistants.

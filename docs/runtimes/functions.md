@@ -2,7 +2,7 @@
 # Functions
 
 All the executions in MLRun are based on **Serverless functions**. The functions allow specifying code and 
-all the operational aspects (image, required packages, [cpu/mem/gpu resources](../runtimes/configuring-job-spec.html#cpu-gpu-and-memory-limits-for-user-jobs), [storage](../runtimes/function-storage.html), environment, etc.). 
+all the operational aspects (image, required packages, [cpu/mem/gpu resources](../runtimes/configuring-job-resources.html#cpu-gpu-and-memory-limits-for-user-jobs), [storage](../runtimes/function-storage.html), environment, etc.). 
 The [different function runtimes](../concepts/functions-overview.html) take care of automatically transforming the code and spec to fully 
 managed and elastic services over Kubernetes, which saves significant operational overhead, 
 addresses scalability and reduces infrastructure costs.

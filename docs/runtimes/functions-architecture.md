@@ -3,7 +3,7 @@
 
 MLRun supports:
 - [Multiple types of runtimes](../concepts/functions-overview.html).
-- Configuring the function resources (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity). See details in [Managing job resources](configuring-job-spec.html). 
+- Configuring the function resources (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity). See details in [Managing job resources](configuring-job-resources.html). 
 - Iterative tasks for automatic and distributed execution of many tasks with variable parameters (hyperparams). See [Hyperparam and iterative jobs](../hyper-params.html).
 - Horizontal scaling of functions across multiple containers. See [Distributed and Parallel Jobs](./distributed.html).
 

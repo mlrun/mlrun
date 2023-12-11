@@ -215,6 +215,7 @@ def init_ctx(
             spec["graph"]["class_args"][extra_class_args_names[i]] = extra_class_args[i]
     os.environ["SERVING_SPEC_ENV"] = json.dumps(spec)
     context = context or GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
     return context
 

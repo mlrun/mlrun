@@ -190,7 +190,7 @@ class GraphServer(ModelObj):
 
     def init_object(self, namespace):
         self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
-        return v2_serving_async_handler
+        return v2_serving_async_handler if self.context.is_mock else v2_serving_handler
 
     def test(
         self,

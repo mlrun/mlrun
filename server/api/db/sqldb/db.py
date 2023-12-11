@@ -525,29 +525,33 @@ class SQLDB(DBInterface):
                 or always_overwrite
             ):
                 db_artifact = existing_artifact
-            else:
-                db_artifact = ArtifactV2(project=project, key=key)
-
-            self._update_artifact_record_from_dict(
-                db_artifact,
-                artifact_dict,
-                project,
-                key,
-                uid,
-                iter,
-                best_iteration,
-                producer_id,
-            )
-            self._upsert(session, [db_artifact])
-            if tag:
-                self.tag_objects_v2(
-                    session,
-                    [db_artifact],
+                self._update_artifact_record_from_dict(
+                    db_artifact,
+                    artifact_dict,
                     project,
-                    tag,
-                    obj_name_attribute="key",
+                    key,
+                    uid,
+                    iter,
+                    best_iteration,
+                    producer_id,
                 )
-            return uid
+                self._upsert(session, [db_artifact])
+                if tag:
+                    self.tag_objects_v2(
+                        session,
+                        [db_artifact],
+                        project,
+                        tag,
+                        obj_name_attribute="key",
+                    )
+                return uid
+            logger.debug(
+                "A similar artifact exists, but some values have changed - creating a new artifact",
+                project=project,
+                key=key,
+                iteration=iter,
+                producer_id=producer_id,
+            )
 
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by the resolved uid only
@@ -557,8 +561,68 @@ class SQLDB(DBInterface):
             return uid
 
         return self.create_artifact(
-            session, project, artifact, key, tag, uid, iter, producer_id, best_iteration
+            session,
+            project,
+            artifact_dict,
+            key,
+            tag,
+            uid,
+            iter,
+            producer_id,
+            best_iteration,
         )
+
+    def create_artifact(
+        self,
+        session,
+        project,
+        artifact,
+        key,
+        tag="",
+        uid=None,
+        iteration=None,
+        producer_id="",
+        best_iteration=False,
+    ):
+        if not uid:
+            uid = fill_artifact_object_hash(artifact, iteration, producer_id)
+
+        # check if the object already exists
+        query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
+        existing_object = query.one_or_none()
+        if existing_object:
+            object_uri = generate_object_uri(project, key, tag)
+            raise mlrun.errors.MLRunConflictError(
+                f"Adding an already-existing {ArtifactV2.__name__} - {object_uri}"
+            )
+
+        validate_artifact_key_name(key, "artifact.key")
+
+        db_artifact = ArtifactV2(project=project, key=key)
+        self._update_artifact_record_from_dict(
+            db_artifact,
+            artifact,
+            project,
+            key,
+            uid,
+            iteration,
+            best_iteration,
+            producer_id,
+        )
+
+        self._upsert(session, [db_artifact])
+        if tag:
+            self.tag_objects_v2(
+                session, [db_artifact], project, tag, obj_name_attribute="key"
+            )
+
+            # we want to tag the artifact also as "latest" if it's the first time we store it
+            if tag != "latest":
+                self.tag_objects_v2(
+                    session, [db_artifact], project, "latest", obj_name_attribute="key"
+                )
+
+        return uid
 
     def list_artifacts(
         self,
@@ -928,63 +992,14 @@ class SQLDB(DBInterface):
         if not db_key:
             artifact_dict.setdefault("spec", {})["db_key"] = key
 
+        # remove the tag from the metadata, as it is stored in a separate table
+        artifact_dict["metadata"].pop("tag", None)
+
         artifact_record.full_object = artifact_dict
 
         # labels are stored in a separate table
         labels = artifact_dict["metadata"].pop("labels", {}) or {}
         update_labels(artifact_record, labels)
-
-    def create_artifact(
-        self,
-        session,
-        project,
-        artifact,
-        key,
-        tag="",
-        uid=None,
-        iteration=None,
-        producer_id="",
-        best_iteration=False,
-    ):
-        if not uid:
-            uid = fill_artifact_object_hash(artifact, iteration, producer_id)
-
-        # check if the object already exists
-        query = self._query(session, ArtifactV2, key=key, project=project, uid=uid)
-        existing_object = query.one_or_none()
-        if existing_object:
-            object_uri = generate_object_uri(project, key, tag)
-            raise mlrun.errors.MLRunConflictError(
-                f"Adding an already-existing {ArtifactV2.__name__} - {object_uri}"
-            )
-
-        validate_artifact_key_name(key, "artifact.key")
-
-        db_artifact = ArtifactV2(project=project, key=key)
-        self._update_artifact_record_from_dict(
-            db_artifact,
-            artifact,
-            project,
-            key,
-            uid,
-            iteration,
-            best_iteration,
-            producer_id,
-        )
-
-        self._upsert(session, [db_artifact])
-        if tag:
-            self.tag_objects_v2(
-                session, [db_artifact], project, tag, obj_name_attribute="key"
-            )
-
-            # we want to tag the artifact also as "latest" if it's the first time we store it
-            if tag != "latest":
-                self.tag_objects_v2(
-                    session, [db_artifact], project, "latest", obj_name_attribute="key"
-                )
-
-        return uid
 
     def _list_artifacts_for_tagging(
         self,
@@ -1018,13 +1033,6 @@ class SQLDB(DBInterface):
 
         return artifacts
 
-    @staticmethod
-    def _set_tag_in_artifact_struct(artifact, tag):
-        if is_legacy_artifact(artifact):
-            artifact["tag"] = tag
-        else:
-            artifact["metadata"]["tag"] = tag
-
     def _add_tags_to_artifact_struct(
         self, session, artifact_struct, artifact_id, cls=Artifact, tag=None
     ):
@@ -1041,6 +1049,13 @@ class SQLDB(DBInterface):
                 self._set_tag_in_artifact_struct(artifact_with_tag, tag_object.name)
                 artifacts.append(artifact_with_tag)
         return artifacts
+
+    @staticmethod
+    def _set_tag_in_artifact_struct(artifact, tag):
+        if is_legacy_artifact(artifact):
+            artifact["tag"] = tag
+        else:
+            artifact["metadata"]["tag"] = tag
 
     def _get_link_artifacts_by_keys_and_uids(self, session, project, identifiers):
         # identifiers are tuples of (key, uid)
@@ -1181,7 +1196,7 @@ class SQLDB(DBInterface):
         uid=None,
         iteration=None,
     ):
-        # we should create a new artifact if we got a new iteration or tag,
+        # we should create a new artifact if we got a new iteration or the calculated uid is different.
         # otherwise we should update the existing artifact
         if uid is not None and existing_artifact.uid != uid:
             return False
@@ -1884,7 +1899,7 @@ class SQLDB(DBInterface):
                 obj.Tag,
                 name=name,
                 project=project,
-                obj_name=obj.__getattribute__(obj_name_attribute),
+                obj_name=getattr(obj, obj_name_attribute),
             )
 
             tag = query.one_or_none()
@@ -1892,7 +1907,7 @@ class SQLDB(DBInterface):
                 tag = obj.Tag(
                     project=project,
                     name=name,
-                    obj_name=obj.__getattribute__(obj_name_attribute),
+                    obj_name=getattr(obj, obj_name_attribute),
                 )
             tag.obj_id = obj.id
             tags.append(tag)

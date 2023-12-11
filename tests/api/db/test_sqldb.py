@@ -158,10 +158,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     assert result["metadata"]["tag"] == "tag2"
     result = db.read_artifact(db_session, k1, iter=1, project=prj)
     # When doing get without a tag, the returned object must not contain a tag.
-    assert "tag" not in result
-
-    result = db.read_artifact(db_session, k1, "tag2", iter=2, project=prj)
-    assert result["metadata"]["tag"] == "tag2"
+    assert "tag" not in result["metadata"]
 
     result = db.list_artifacts(db_session, k1, project=prj, tag="*")
     assert len(result) == 3
@@ -189,6 +186,7 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
     )
 
     # Add another tag to all objects (there are 2 at this point)
+    new_tag = "new-tag"
     expected_results = ArtifactList()
     for artifact in full_results:
         expected_results.append(artifact)
@@ -196,21 +194,36 @@ def test_read_and_list_artifacts_with_tags(db: SQLDB, db_session: Session):
             # We don't want to add a new tag to the "latest" object (it's the same object as the one with tag "tag2")
             continue
         artifact_with_new_tag = copy.deepcopy(artifact)
-        artifact_with_new_tag["metadata"]["tag"] = "new-tag"
+        artifact_with_new_tag["metadata"]["tag"] = new_tag
         expected_results.append(artifact_with_new_tag)
 
     artifacts = db_session.query(ArtifactV2).all()
     db.tag_objects_v2(
-        db_session, artifacts, prj, name="new-tag", obj_name_attribute="key"
+        db_session, artifacts, prj, name=new_tag, obj_name_attribute="key"
     )
     result = db.list_artifacts(db_session, k1, prj, tag="*")
     assert deepdiff.DeepDiff(result, expected_results, ignore_order=True) == {}
 
+    # Add another tag to the art1
     db.store_artifact(
         db_session, k1, art1, producer_id=t1, iter=1, project=prj, tag="tag3"
     )
+    # this makes it the latest object of this key, so we need to remove the artifact
+    # with tag "latest" from the expected results
+    expected_results = ArtifactList(
+        [
+            artifact
+            for artifact in expected_results
+            if artifact["metadata"]["tag"] != "latest"
+        ]
+    )
+
     result = db.read_artifact(db_session, k1, "tag3", iter=1, project=prj)
     assert result["metadata"]["tag"] == "tag3"
+    expected_results.append(copy.deepcopy(result))
+
+    # add it again but with the "latest" tag
+    result["metadata"]["tag"] = "latest"
     expected_results.append(result)
 
     result = db.list_artifacts(db_session, k1, prj, tag="*")

@@ -21,7 +21,6 @@ import mlrun.common.schemas
 import mlrun.utils.singleton
 import server.api.crud
 import server.api.utils.clients.log_collector
-from mlrun.utils import logger
 
 
 class Member(abc.ABC):
@@ -158,56 +157,5 @@ class Member(abc.ABC):
             mlrun.mlconf.log_collector.mode
             != mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            await self._stop_logs_for_project(project_name)
-            await self._delete_project_logs(project_name)
-
-    @staticmethod
-    async def _stop_logs_for_project(
-        project_name: str,
-    ) -> None:
-
-        logger.debug("Stopping logs for project", project=project_name)
-
-        try:
-            log_collector_client = (
-                server.api.utils.clients.log_collector.LogCollectorClient()
-            )
-            await log_collector_client.stop_logs(
-                project=project_name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed stopping logs for project's runs. Ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-                project=project_name,
-            )
-
-        logger.debug(
-            "Successfully stopped logs for project's runs", project=project_name
-        )
-
-    @staticmethod
-    async def _delete_project_logs(
-        project_name: str,
-    ) -> None:
-
-        logger.debug("Deleting logs for project", project=project_name)
-
-        try:
-            log_collector_client = (
-                server.api.utils.clients.log_collector.LogCollectorClient()
-            )
-            await log_collector_client.delete_logs(
-                project=project_name,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Failed deleting project logs via the log collector. Falling back to deleting logs explicitly",
-                exc=mlrun.errors.err_to_str(exc),
-                project=project_name,
-            )
-
-            # fallback to deleting logs explicitly if the project logs deletion failed
-            server.api.crud.Logs().delete_logs(project_name)
-
-        logger.debug("Successfully deleted project logs", project=project_name)
+            await server.api.crud.Logs().stop_logs_for_project(project_name)
+            await server.api.crud.Logs().delete_project_logs(project_name)

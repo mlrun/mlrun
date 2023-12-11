@@ -170,8 +170,7 @@ async def delete_run(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_run,
+    await server.api.crud.Runs().delete_run(
         db_session,
         uid,
         iter,

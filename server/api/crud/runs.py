@@ -26,6 +26,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
 import server.api.runtime_handlers
+import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
 from mlrun.utils import logger
 
@@ -161,7 +162,7 @@ class Runs(
             with_notifications=with_notifications,
         )
 
-    def delete_run(
+    async def delete_run(
         self,
         db_session: sqlalchemy.orm.Session,
         uid: str,
@@ -204,6 +205,8 @@ class Runs(
             runtime_kind=runtime_kind,
         )
         server.api.utils.singletons.db.get_db().del_run(db_session, uid, project, iter)
+
+        await self._post_delete_run(project, uid)
 
     def delete_runs(
         self,
@@ -260,3 +263,14 @@ class Runs(
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter
         )
+
+    @staticmethod
+    async def _post_delete_run(project, uid):
+        if (
+            mlrun.mlconf.log_collector.mode
+            != mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
+            await server.api.crud.Logs().stop_logs_for_run(project, uid)
+            await server.api.crud.Logs().delete_run_logs(project, uid)
+        else:
+            server.api.crud.Logs().delete_run_logs_legacy(project, uid)

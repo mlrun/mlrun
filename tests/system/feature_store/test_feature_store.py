@@ -3951,7 +3951,8 @@ class TestFeatureStore(TestMLRunSystem):
             "departments",
             entities=departments_set_entity,
         )
-        departments_set.set_targets(targets=["parquet"], with_defaults=False)
+
+        # departments_set.set_targets(targets=["parquet"], with_defaults=False)
         fstore.ingest(departments_set, departments)
 
         employees_set_entity = fstore.Entity("id")
@@ -3986,6 +3987,15 @@ class TestFeatureStore(TestMLRunSystem):
             check_dtype=False,
             check_index_type=False,
         )
+
+        vector = fstore.FeatureVector(
+            "employees-vec1",
+            ["departments.manager_id"],
+            description="Employees feature vector",
+        )
+        with fstore.get_online_feature_service(vector) as svc:
+            resp = svc.get({"d_id": "1", "name": "dept1"})
+            assert resp[0] is not None
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
@@ -4482,7 +4492,6 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set = fstore.FeatureSet(
             feature_name, entities=[fstore.Entity("party_id")], engine="storey"
         )
-        feature_set.set_targets()
         data = {
             "party_id": ["1", "2", "3"],
             "party_establishment": ["1970", "1980", "1990"],
@@ -4497,7 +4506,6 @@ class TestFeatureStore(TestMLRunSystem):
             engine="storey",
         )
 
-        feature_set.set_targets()
         data = {
             "party_id": ["1", "2", "3"],
             "account_id": ["10", "20", "30"],
@@ -4510,7 +4518,6 @@ class TestFeatureStore(TestMLRunSystem):
         feature_set = fstore.FeatureSet(
             feature_name, entities=[fstore.Entity("account_id")], engine="storey"
         )
-        feature_set.set_targets()
         data = {
             "account_id": ["10", "20", "30"],
             "transaction_value": ["100", "200", "300"],
@@ -4574,16 +4581,15 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
         # online test - disabled for now because bug in storey
-
-        # with fstore.get_online_feature_service(
-        #     vector, entity_keys=["party_id", "account_id"]
-        # ) as svc:
-        #     resp = svc.get({"party_id": "10", "account_id": "1"})
-        #     assert resp[0] == {
-        #         "transaction_value": "100",
-        #         "account_state": "a",
-        #         "party_establishment": "1970",
-        #     }
+        with fstore.get_online_feature_service(
+            vector, entity_keys=["party_id", "account_id"]
+        ) as svc:
+            resp = svc.get({"party_id": "1", "account_id": "10"})
+            assert resp[0] == {
+                "transaction_value": "100",
+                "account_state": "a",
+                "party_establishment": "1970",
+            }
 
         featurevector_name = "vector_all_entity_df"
         features = [

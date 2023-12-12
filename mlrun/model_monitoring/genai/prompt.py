@@ -35,7 +35,7 @@ Task:
 Please act as an impartial judge and evaluate the quality of the response provided by an
 AI assistant to the user question displayed below. You will be given the definition of {name}, grading rubric, context information.
 
-Your task is to determine a numerical score of {name} for the response. You must use the grading rubric to determine your score. You must also give a explaination about how did you determine the score step-by-step. Please using chain of thinking.
+Your task is to determine a numerical score of {name} for the response. You must use the grading rubric to determine your score. You must also give a explanation about how did you determine the score step-by-step. Please using chain of thinking.
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 
@@ -56,13 +56,13 @@ Examples could be included beblow for your reference. Make sure you understand t
 
 You must return the following fields in your output:
 - score: a numerical score of {name} for the response
-- explaination: a explaination about how did you determine the score step-by-step
+- explanation: a explanation about how did you determine the score step-by-step
 """
 
 PAIR_GRADE_PROMPT = """
 Task:
 
-Your task is to determine two numerical score of {name} for the responses from two AI assistants. You must use the grading rubric to determine your scores. You must also give a explaination about how did you determine the scores step-by-step. Please using chain of thinking.
+Your task is to determine two numerical score of {name} for the responses from two AI assistants. You must use the grading rubric to determine your scores. You must also give a explanation about how did you determine the scores step-by-step. Please using chain of thinking.
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 
@@ -85,15 +85,15 @@ Examples could be included beblow for your reference. Make sure you understand t
 
 You must return the following fields in your output:
 - score of assistant a: a numerical score of {name} for the response
-- explaination of assistant a: a explaination about how did you determine the score step-by-step
+- explanation of assistant a: a explanation about how did you determine the score step-by-step
 - score of assistant b: a numerical score of {name} for the response
-- explaination of assistant b: a explaination about how did you determine the score step-by-step
+- explanation of assistant b: a explanation about how did you determine the score step-by-step
 """
 
 REF_GRADE_PROMPT = """
 Task:
 
-Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. You must use the grading rubric to determine your scores. You must use the ground truth of the response. You need to give a explaination about how did you compare with the ground truth of the response to determine the scores step-by-step. Please using chain of thinking.
+Your task is to determine two numerical score of {name} for the responses from two AI assistants with the ground truth of the response. You must use the grading rubric to determine your scores. You must use the ground truth of the response. You need to give a explanation about how did you compare with the ground truth of the response to determine the scores step-by-step. Please using chain of thinking.
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 
@@ -118,8 +118,8 @@ Examples could be included beblow for your reference. Make sure you understand t
 
 You must return the following fields in your output:
 - score of assistant a: a numerical score of {name} for the response
-- explaination of assistant a: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+- explanation of assistant a: a explanation about how did you compare with the ground truth of the response to determine the score step-by-step
 - score of assistant b: a numerical score of {name} for the response
-- explaination of assistant b: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+- explanation of assistant b: a explanation about how did you compare with the ground truth of the response to determine the score step-by-step
 
 """

@@ -135,24 +135,6 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         """
         pass
 
-    # @abstractmethod
-    # def compute_over_all_data(self, questions, responses) -> Dict[str, Any]:
-    #    """
-    #    Compute the metrics over one data point
-    #    :param kwargs: the data to compute the metrics over
-    #    :return: the metrics score and the explanation
-    #    """
-    #    pass
-
-    # @abstractmethod
-    # def agg_score(self, scores: List[int]) -> float:
-    #    """
-    #    Aggregate the scores
-    #    :param scores: the scores to aggregate
-    #    :return: the aggregated score
-    #    """
-    #    pass
-
     @abstractmethod
     def extract_score_explanation(self, result: str) -> Dict[str, Any]:
         """

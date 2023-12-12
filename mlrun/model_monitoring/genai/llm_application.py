@@ -21,6 +21,7 @@ from mlrun.model import ModelObj, ObjectList
 from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 
+
 class LLMMonitoringApp(ModelObj):
     kind = "LLM_monitoring_app"
 
@@ -31,7 +32,7 @@ class LLMMonitoringApp(ModelObj):
         possible_drift_threshold: float = None,
         obvious_drift_threshold: float = None,
     ):
-
+        pass
 
     def do(
         self,
@@ -44,7 +45,7 @@ class LLMMonitoringApp(ModelObj):
         pass
 
     @property
-    def metrics(self) -> List[MonitoringMetric]:
+    def metrics(self) -> List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]:
         """list of all the metrics in current app"""
         return self._metrics
 
@@ -52,12 +53,8 @@ class LLMMonitoringApp(ModelObj):
     def metrics(self, metrics: List[Union[MonitoringMetric]]):
         self._metrics = ObjectList.from_list(MonitoringMetric, metrics)
 
-
     def compute_metrics_over_data(
-        self,
-        train_df: pd.DataFrame,
-        sample_df: pd.DataFrame,
-        metrics_names: List[str]
+        self, train_df: pd.DataFrame, sample_df: pd.DataFrame, metrics_names: List[str]
     ) -> Dict[str, float]:
         """
         Calculate metrics values - helper for the user .

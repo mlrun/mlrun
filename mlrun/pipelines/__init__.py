@@ -29,12 +29,13 @@ def resolve_pipeline_engine():
 PIPELINE_COMPATIBILITY_MODE = resolve_pipeline_engine()
 _pipeline_module_locations = {
     "kfp-v1.8": "mlrun/pipelines/kfp/v1_8",
+    "kfp-v2.0": "mlrun/pipelines/kfp/v2_0",
 }
 
 
 class PipelineEngineModuleFinder(MetaPathFinder):
     @staticmethod
-    def __resolve_module_path(fullname, path):
+    def _resolve_module_path(fullname, path):
         path_prefix = path[0].replace(
             "mlrun/pipelines",
             _pipeline_module_locations.get(PIPELINE_COMPATIBILITY_MODE),
@@ -47,7 +48,7 @@ class PipelineEngineModuleFinder(MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         if "mlrun.pipelines" in fullname:
             return spec_from_file_location(
-                fullname, self.__resolve_module_path(fullname, path)
+                fullname, self._resolve_module_path(fullname, path)
             )
         return None  # don't interfere with the current import request
 

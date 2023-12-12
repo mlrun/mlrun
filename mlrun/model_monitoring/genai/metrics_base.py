@@ -229,7 +229,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         )
 
         response_ids = outputs[0]
-        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+        response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
         return self.extract_score_explanation(response)
 
@@ -360,8 +360,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = tokenizer.decode(response_ids, skip_special_tokens=True)
+        return self.extract_score_explanation(response)
 
-        return {"response": response}
 
     def extract_score_explanation(self, response) -> Dict[str, Any]:
         """
@@ -453,6 +453,6 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         )
 
         response_ids = outputs[0]
-        response = tokenizer.decode(response_ids, skip_special_tokens=True)
+        response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
         return {"response": response}

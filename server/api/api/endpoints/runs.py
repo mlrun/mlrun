@@ -15,6 +15,7 @@
 import asyncio
 import datetime
 import threading
+import uuid
 from http import HTTPStatus
 from typing import List
 
@@ -421,12 +422,13 @@ async def abort_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    cache_ttl = (
+        float(mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion)
+        + 10.0
+    )
     with _abort_run_background_tasks_cache.get_or_create_locked(
         key=uid,
-        ttl=float(
-            mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion
-        )
-        + 10.0,
+        ttl=cache_ttl,
     ) as cached_background_task:
         background_task_indicator, created = cached_background_task
 
@@ -445,7 +447,7 @@ async def abort_run(
 
             if (
                 background_task
-                and background_task.state
+                and background_task.status.state
                 == mlrun.common.schemas.BackgroundTaskState.running
             ):
                 logger.warning(
@@ -455,6 +457,12 @@ async def abort_run(
                     background_task_id=background_task_indicator.background_task_id,
                 )
                 return background_task
+
+            # background task is not running, override it in cache with the same lock acquired,
+            # it will generate a new id for the background task
+            background_task_indicator = _abort_run_background_tasks_cache.create(
+                uid, cache_ttl, lock=background_task_indicator.lock
+            )
 
         background_task = await run_in_threadpool(
             server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
@@ -478,15 +486,16 @@ async def abort_run(
 class CachedAbortRunBackgroundTask(server.api.utils.cache.CachedObject):
     def __init__(
         self,
+        object_id: str,
         lock: threading.Lock = None,
         expiry_delayed_call: asyncio.Handle = None,
         background_task_id: str = None,
     ):
-        super().__init__(lock, expiry_delayed_call)
-        self.background_task_id = background_task_id
+        super().__init__(object_id, lock, expiry_delayed_call)
+        self.background_task_id = background_task_id or str(uuid.uuid4())
 
-    def matches(self, background_task_id: str):
-        return self.background_task_id == background_task_id
+    def matches(self, object_id: str):
+        return self.background_task_id == object_id
 
 
 _abort_run_background_tasks_cache = server.api.utils.cache.Cache(

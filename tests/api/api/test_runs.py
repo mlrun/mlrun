@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import copy
 import time
 import unittest.mock
@@ -19,12 +20,15 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
+import fastapi
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.constants
+import server.api.api.endpoints.runs
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
@@ -225,6 +229,127 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
     assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
     assert run["status"]["error"] == "Run was aborted by user"
+
+
+def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
+    project = "some-project"
+    run_in_progress = {
+        "metadata": {
+            "name": "run-name-1",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+    }
+    run_in_progress_uid = "in-progress-uid"
+    server.api.crud.Runs().store_run(
+        db, run_in_progress, run_in_progress_uid, project=project
+    )
+
+    # mock abortion already in progress
+    background_task_name = "background-task-name"
+    server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task(
+        db,
+        project,
+        fastapi.BackgroundTasks(),
+        asyncio.sleep,
+        timeout=100,
+        name=background_task_name,
+        delay=5,
+    )
+    kwargs = {
+        "background_task_id": background_task_name,
+    }
+    server.api.api.endpoints.runs._abort_run_background_tasks_cache.create(
+        run_in_progress_uid, 100, cls_kwargs=kwargs
+    )
+
+    with unittest.mock.patch.object(
+        server.api.crud.RuntimeResources, "delete_runtime_resources"
+    ):
+        # abort again should return the same background task
+        response = client.post(
+            f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.running
+        )
+        assert background_task.metadata.name == background_task_name
+
+
+def test_abort_aborted_run_with_background_task(
+    db: Session, client: TestClient
+) -> None:
+    project = "some-project"
+    run_in_progress = {
+        "metadata": {
+            "name": "run-name-1",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+    }
+    run_in_progress_uid = "in-progress-uid"
+    server.api.crud.Runs().store_run(
+        db, run_in_progress, run_in_progress_uid, project=project
+    )
+
+    with unittest.mock.patch.object(
+        server.api.crud.RuntimeResources, "delete_runtime_resources"
+    ):
+        response = client.post(
+            f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
+        background_task_1 = mlrun.common.schemas.BackgroundTask(**response.json())
+        background_task_1 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+            db, background_task_1.metadata.name, project
+        )
+        assert (
+            background_task_1.status.state
+            == mlrun.common.schemas.BackgroundTaskState.succeeded
+        )
+        assert (
+            len(server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache)
+            == 1
+        )
+        assert (
+            server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache[
+                run_in_progress_uid
+            ].background_task_id
+            == background_task_1.metadata.name
+        )
+
+        # abort again should return a new failed background task
+        response = client.post(
+            f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
+        background_task_2 = mlrun.common.schemas.BackgroundTask(**response.json())
+        background_task_2 = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+            db, background_task_2.metadata.name, project
+        )
+        assert (
+            background_task_2.status.state
+            == mlrun.common.schemas.BackgroundTaskState.failed
+        )
+        assert (
+            background_task_2.status.error
+            == "Run is already in terminal state, can not be aborted"
+        )
+
+        assert background_task_1.metadata.name != background_task_2.metadata.name
+        assert (
+            len(server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache)
+            == 1
+        )
+        assert (
+            server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache[
+                run_in_progress_uid
+            ].background_task_id
+            == background_task_2.metadata.name
+        )
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:

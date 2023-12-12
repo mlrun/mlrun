@@ -13,12 +13,12 @@ from mlrun.model_monitoring.genai.prompt import (
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
 JUDGE_CONFIG = {"device_map":"auto", "revision":"main", "trust_remote_code":False}
-JUDGE_INFER_CONFIG = {"max_length": 300}
+JUDGE_INFER_CONFIG = {"max_length": 1000}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
 BENCHMARK_MODEL = "google/flan-t5-small"
-BENCHMARK_CONFIG = {"max_length": 300}
+BENCHMARK_CONFIG = {"max_length": 1000}
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
-BENCHMARK_INFER_CONFIG = {"max_length": 300}
+BENCHMARK_INFER_CONFIG = {"max_length": 1000}
 
 
 

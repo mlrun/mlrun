@@ -329,6 +329,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param question: the question to ask the model
         :return: the response
         """
+        self.prepare_bench_mark_model()
         input_ids = self.tokenizer_bench_mark(question, return_tensors="pt").input_ids
         outputs = self.model_bench_mark.generate(
             input_ids,
@@ -348,6 +349,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        self.prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["answerA"] = response
         self.prompt_config["answerB"] = self.compute_bench_mark_response(question)

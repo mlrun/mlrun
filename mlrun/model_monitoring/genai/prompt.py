@@ -84,10 +84,10 @@ Examples could be included beblow for your reference. Make sure you understand t
 {examples}
 
 You must return the following fields in your output:
-- score of assistant A: a numerical score of {name} for the response
-- explaination of assistant A: a explaination about how did you determine the score step-by-step
-- score of assistant B: a numerical score of {name} for the response
-- explaination of assistant B: a explaination about how did you determine the score step-by-step
+- score of assistant a: a numerical score of {name} for the response
+- explaination of assistant a: a explaination about how did you determine the score step-by-step
+- score of assistant b: a numerical score of {name} for the response
+- explaination of assistant b: a explaination about how did you determine the score step-by-step
 """
 
 REF_GRADE_PROMPT = """
@@ -117,9 +117,9 @@ Examples could be included beblow for your reference. Make sure you understand t
 {examples}
 
 You must return the following fields in your output:
-- score of assistant A: a numerical score of {name} for the response
-- explaination of assistant A: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
-- score of assistant B: a numerical score of {name} for the response
-- explaination of assistant B: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+- score of assistant a: a numerical score of {name} for the response
+- explaination of assistant a: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
+- score of assistant b: a numerical score of {name} for the response
+- explaination of assistant b: a explaination about how did you compare with the ground truth of the response to determine the score step-by-step
 
 """

@@ -94,9 +94,9 @@ def test_pairwise_grading_scores(prompt_fixture):
     metric = LLMJudgePairwiseGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
+        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_judge_config=JUDGE_CONFIG,
         model_judge_infer_config=JUDGE_INFER_CONFIG,
-        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_bench_mark=BENCHMARK_MODEL,
         model_bench_mark_config=BENCHMARK_CONFIG,
         model_bench_mark_infer_config=BENCHMARK_INFER_CONFIG,
@@ -120,9 +120,9 @@ def test_reference_grading_scores(prompt_fixture):
     metric = LLMJudgeReferenceGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
+        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_judge_config=JUDGE_CONFIG,
         model_judge_infer_config=JUDGE_INFER_CONFIG,
-        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_bench_mark=BENCHMARK_MODEL,
         model_bench_mark_config=BENCHMARK_CONFIG,
         model_bench_mark_infer_config=BENCHMARK_INFER_CONFIG,

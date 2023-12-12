@@ -190,7 +190,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.__super.__init__(
+        super().__init__(
             name,
             model_judge,
             model_judge_config,
@@ -289,7 +289,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.__super.__init__(
+        super().__init__(
             name,
             model_judge,
             model_judge_config,
@@ -431,7 +431,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
-        self.__super.__init__(
+        super().__init__(
             name,
             model_judge,
             model_judge_config,
@@ -460,7 +460,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
             input_ids,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
-            **self.model_judge_config,
+            **self.model_infer_config,
         )
 
         response_ids = outputs[0]

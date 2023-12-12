@@ -194,7 +194,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
             name,
             model_judge,
             model_judge_config,
-            judge_tokenizer_config,
+            tokenizer_judge_config,
             model_judge_infer_config,
             prompt_template,
             prompt_config,

@@ -131,9 +131,9 @@ def test_reference_grading_scores(prompt_fixture):
         prompt_config=prompt_config,
     )
 
-    q = "Who wrote Hamlet?"
-    a1 = "Hamlet was written by Charles Dickens"
-    ref = "The author of the play Hamlet is William Shakespeare"
+    q = "What is the capital of France?"
+    a1 = "The capital of France is Seattle"
+    ref = "Paris"
 
     result = metric.compute_over_one_data(q, a1, ref)
 

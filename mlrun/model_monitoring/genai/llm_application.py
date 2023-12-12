@@ -14,6 +14,12 @@
 #
 # This is the application that can include mutiple metrcs from evaluat and llm_judge
 
+from typing import List, Optional, Union, Dict
+from mlrun.artifacts import Artifact
+from mlrun.datastore import DataItem
+from mlrun.model import ModelObj, ObjectList
+from mlrun.utils import logger
+from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 
 class LLMMonitoringApp(ModelObj):
     kind = "LLM_monitoring_app"
@@ -21,7 +27,7 @@ class LLMMonitoringApp(ModelObj):
     def __init__(
         self,
         name: Optional[str] = None,
-        metrics: Optional[List[Union[MonitoringMetric]]] = None,
+        metrics: Optional[List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]] = None,
         possible_drift_threshold: float = None,
         obvious_drift_threshold: float = None,
     ):
@@ -46,15 +52,6 @@ class LLMMonitoringApp(ModelObj):
     def metrics(self, metrics: List[Union[MonitoringMetric]]):
         self._metrics = ObjectList.from_list(MonitoringMetric, metrics)
 
-    def compute_metrics_over_features_histograms(
-        self,
-        base_histogram: pd.DataFrame,
-        latest_histogram: pd.DataFrame,
-        metrics_names: List[str]
-    ) -> Dict[str, Dict[str, float]]:
-        """
-        Calculate metrics values for each feature - helper for the user .
-        """
 
     def compute_metrics_over_data(
         self,

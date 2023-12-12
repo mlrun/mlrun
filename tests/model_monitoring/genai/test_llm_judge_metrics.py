@@ -12,7 +12,11 @@ from mlrun.model_monitoring.genai.prompt import (
 )
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
-JUDGE_CONFIG = {"device_map": "auto", "revision": "gptq-8bit-32g-actorder_True", "trust_remote_code": False}
+JUDGE_CONFIG = {
+    "device_map": "auto",
+    "revision": "main",
+    "trust_remote_code": False,
+}
 JUDGE_INFER_CONFIG = {"max_length": 1000}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
 BENCHMARK_MODEL = "microsoft/phi-1_5"
@@ -103,7 +107,6 @@ def test_pairwise_grading_scores(prompt_fixture):
 
     q = "What is the capital of France?"
     a1 = "The capital of France is Paris"
-    a2 = "France's capital city is Lyon"
 
     result = metric.compute_over_one_data(q, a1)
     assert 0 <= result["score_of_assistant_a"] <= 5
@@ -129,7 +132,6 @@ def test_reference_grading_scores(prompt_fixture):
 
     q = "Who wrote Hamlet?"
     a1 = "Hamlet was written by Charles Dickens"
-    a2 = "William Shakespeare wrote the play Hamlet"
     ref = "The author of the play Hamlet is William Shakespeare"
 
     result = metric.compute_over_one_data(q, a1, ref)

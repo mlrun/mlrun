@@ -237,18 +237,13 @@ class Runs(
                 db_session, uid, project, iter
             )
 
-        if (
-            run.get("status", {}).get("state")
-            in mlrun.runtimes.constants.RunStates.terminal_states()
-        ):
+        current_run_state = run.get("status", {}).get("state")
+        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )
 
-        if (
-            run.get("status", {}).get("state")
-            == mlrun.runtimes.constants.RunStates.aborting
-        ):
+        elif current_run_state == mlrun.runtimes.constants.RunStates.aborting:
             raise mlrun.errors.MLRunConflictError(
                 "Run is already aborting, can not be aborted again"
             )
@@ -259,7 +254,7 @@ class Runs(
                 f"Run of kind {runtime_kind} can not be aborted"
             )
 
-        # Mark run as aborting
+        # mark run as aborting
         aborting_updates = {"status.state": mlrun.runtimes.constants.RunStates.aborting}
         server.api.utils.singletons.db.get_db().update_run(
             db_session, aborting_updates, uid, project, iter

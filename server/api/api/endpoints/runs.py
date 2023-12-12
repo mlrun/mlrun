@@ -13,7 +13,9 @@
 # limitations under the License.
 #
 import datetime
+import uuid
 from http import HTTPStatus
+from threading import Lock
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Request, Response
@@ -25,11 +27,14 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.singletons.project_member
-from mlrun.utils.helpers import datetime_from_iso
+from mlrun.utils.helpers import datetime_from_iso, logger
 from server.api.api import deps
 from server.api.api.utils import log_and_raise
 
 router = APIRouter()
+
+_abort_run_background_tasks_lock = Lock()
+_abort_run_background_tasks = {}
 
 
 # TODO: remove /run/{project}/{uid} in 1.7.0
@@ -418,19 +423,66 @@ async def abort_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
-    background_task = await run_in_threadpool(
-        server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
-        db_session,
-        project,
-        background_tasks,
-        server.api.crud.Runs().abort_run,
-        mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
-        # args for abort_run
-        db_session,
-        project,
-        uid,
-        iter,
-        run_updates=data,
-    )
+    new_background_task_id = None
+    with _abort_run_background_tasks_lock:
+        current_background_task_id, lock = _abort_run_background_tasks.get(uid)
+        if not current_background_task_id:
+            new_background_task_id = str(uuid.uuid4())
+            lock = Lock()
+            _abort_run_background_tasks[uid] = (new_background_task_id, lock)
 
-    return background_task
+        # lock the run specific lock before releasing the global lock
+        lock.acquire()
+
+    try:
+        # check if abortion is already in progress
+        if current_background_task_id:
+            background_task = None
+            try:
+                background_task = await run_in_threadpool(
+                    server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+                    db_session,
+                    current_background_task_id,
+                    project,
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                pass
+
+            if (
+                background_task
+                and background_task.state
+                == mlrun.common.schemas.BackgroundTaskState.running
+            ):
+                logger.warning(
+                    "Abort run background task already in progress",
+                    project=project,
+                    run_uid=uid,
+                    background_task_id=current_background_task_id,
+                )
+                return background_task
+
+        if not new_background_task_id:
+            # if the current abortion background task is not in progress - create a new one
+            with _abort_run_background_tasks_lock:
+                new_background_task_id = str(uuid.uuid4())
+                _abort_run_background_tasks[uid] = (new_background_task_id, lock)
+
+        background_task = await run_in_threadpool(
+            server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
+            db_session,
+            project,
+            background_tasks,
+            server.api.crud.Runs().abort_run,
+            mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
+            new_background_task_id,
+            # args for abort_run
+            db_session,
+            project,
+            uid,
+            iter,
+            run_updates=data,
+        )
+
+        return background_task
+    finally:
+        lock.release()

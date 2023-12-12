@@ -408,6 +408,13 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         3. job in running state that should not be aborted
         4. job in succeeded state that should not be aborted
         """
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            server.api.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.running
+            )
+            * 2
+        )
         image_pull_backoff_job_uid = str(uuid.uuid4())
         running_long_uid = str(uuid.uuid4())
         running_short_uid = str(uuid.uuid4())
@@ -569,12 +576,19 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for state in ["image_pull_backoff", "running"]:
             expected_run_updates.append(
                 {
-                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                    "status.error": f"Run aborted due to exceeded state threshold: {state}",
                 }
             )
         assert stale_run_updates == expected_run_updates
 
     def test_state_thresholds_pending_states(self, db: Session, client: TestClient):
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            server.api.utils.helpers.time_string_to_seconds(
+                mlrun.mlconf.function.spec.state_thresholds.default.pending_scheduled
+            )
+            * 2
+        )
         pending_uid = str(uuid.uuid4())
         pending_scheduled_stale_uid = str(uuid.uuid4())
         pending_scheduled_uid = str(uuid.uuid4())
@@ -680,7 +694,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         for state in ["pending_scheduled"]:
             expected_run_updates.append(
                 {
-                    "status.status_text": f"Run aborted due to exceeded state threshold: {state}",
+                    "status.error": f"Run aborted due to exceeded state threshold: {state}",
                 }
             )
         assert stale_run_updates == expected_run_updates

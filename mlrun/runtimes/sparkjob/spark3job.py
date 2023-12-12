@@ -160,22 +160,6 @@ class Spark3JobSpec(KubeResourceSpec):
             state_thresholds=state_thresholds,
         )
 
-        self._driver_resources = self.enrich_resources_with_default_pod_resources(
-            "driver_resources", driver_resources
-        )
-        self._executor_resources = self.enrich_resources_with_default_pod_resources(
-            "executor_resources", executor_resources
-        )
-        self.spark_conf = spark_conf or {}
-        self.hadoop_conf = hadoop_conf or {}
-        self.job_type = job_type
-        self.python_version = python_version
-        self.spark_version = spark_version
-        self.restart_policy = restart_policy or {}
-        self.deps = deps or {}
-        self.main_class = main_class
-        self.use_default_image = use_default_image
-
         self.driver_resources = driver_resources or {}
         self.executor_resources = executor_resources or {}
         self.spark_conf = spark_conf or {}

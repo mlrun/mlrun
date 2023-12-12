@@ -151,7 +151,7 @@ See a full example of using the offline feature vector to create an ML model in 
 You can use `get_offline_features` for a feature vector whose data is not ingested. See 
 [Create a feature set without ingesting its data](./feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
-#### Using joins in an offline feature vector
+### Using joins in an offline feature vector
 
 You can create a join for:
 - Feature sets that have a common entity

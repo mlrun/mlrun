@@ -203,7 +203,9 @@ class RuntimeKinds(object):
     def requires_image_name_for_execution(kind):
         if RuntimeKinds.is_local_runtime(kind):
             return False
-        return kind not in [RuntimeKinds.spark]
+
+        # both spark and remote spark uses different mechanism for assigning images
+        return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
 
 def get_runtime_class(kind: str):

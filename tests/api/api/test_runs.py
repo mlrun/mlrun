@@ -157,7 +157,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
 
     abort_body = {
         "status.state": mlrun.runtimes.constants.RunStates.aborted,
-        "status.status_text": "Run was aborted by user",
+        "status.error": "Run was aborted by user",
     }
     runtime_resources = server.api.crud.RuntimeResources()
     runtime_resources.delete_runtime_resources = unittest.mock.Mock()
@@ -224,7 +224,7 @@ def test_abort_run(db: Session, client: TestClient) -> None:
 
     run = server.api.crud.Runs().get_run(db, run_in_progress_uid, 0, project)
     assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.aborted
-    assert run["status"]["status_text"] == "Run was aborted by user"
+    assert run["status"]["error"] == "Run was aborted by user"
 
 
 def test_list_runs_times_filters(db: Session, client: TestClient) -> None:

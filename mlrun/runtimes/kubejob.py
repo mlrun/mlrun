@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import time
+import warnings
 
 import mlrun.common.schemas
 import mlrun.db
@@ -130,7 +131,12 @@ class KubejobRuntime(KubeResource):
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}
         """
-
+        if not overwrite:
+            # TODO: change overwrite default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
         image = mlrun.utils.helpers.remove_image_protocol_prefix(image)
         self.spec.build.build_config(
             image=image,

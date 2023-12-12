@@ -497,7 +497,7 @@ with ctx:
         db.store_run(db_session, run, uid, project)
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

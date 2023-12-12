@@ -67,6 +67,7 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 	bufferPoolSize := 20
 	bufferSizeBytes := 100
 	clusterizationRole := "chief"
+	advancedLogLevel := 0
 
 	// create base dir
 	suite.baseDir = path.Join(os.TempDir(), "/log_collector_test")
@@ -86,7 +87,8 @@ func (suite *LogCollectorTestSuite) SetupSuite() {
 		bufferPoolSize,
 		bufferSizeBytes,
 		bufferSizeBytes,
-		common.LogTimeUpdateBytesInterval)
+		common.LogTimeUpdateBytesInterval,
+		advancedLogLevel)
 	suite.Require().NoError(err, "Failed to create log collector server")
 
 	suite.logger.InfoWith("Setup complete")

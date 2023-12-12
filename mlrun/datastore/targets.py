@@ -31,6 +31,7 @@ import mlrun.utils.helpers
 from mlrun.config import config
 from mlrun.model import DataSource, DataTarget, DataTargetBase, TargetPathObject
 from mlrun.utils import now_date
+from mlrun.utils.helpers import to_parquet
 from mlrun.utils.v3io_clients import get_frames_client
 
 from .. import errors
@@ -803,7 +804,8 @@ class ParquetTarget(BaseStoreTarget):
     def _write_dataframe(df, storage_options, target_path, partition_cols, **kwargs):
         # In order to save the DataFrame in parquet format, all of the column names must be strings:
         df.columns = [str(column) for column in df.columns.tolist()]
-        df.to_parquet(
+        to_parquet(
+            df,
             target_path,
             partition_cols=partition_cols,
             storage_options=storage_options,
@@ -867,15 +869,6 @@ class ParquetTarget(BaseStoreTarget):
         for key_column in key_columns:
             tuple_key_columns.append((key_column.name, key_column.value_type))
 
-        if self.attributes:
-            self.attributes[
-                "update_last_written"
-            ] = featureset_status.update_last_written_for_target
-        else:
-            self.attributes = {
-                "update_last_written": featureset_status.update_last_written_for_target
-            }
-
         store, target_path = self._get_store_and_path()
 
         storage_options = store.get_storage_options()
@@ -884,7 +877,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -897,8 +890,19 @@ class ParquetTarget(BaseStoreTarget):
             storage_options=storage_options,
             max_events=self.max_events,
             flush_after_seconds=self.flush_after_seconds,
+            update_last_written=featureset_status.update_last_written_for_target,
             **self.attributes,
         )
+
+        original_to_dict = step.to_dict
+
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            del result["class_args"]["update_last_written"]
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
@@ -917,10 +921,23 @@ class ParquetTarget(BaseStoreTarget):
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
-        result = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "parquet",
-        }
+
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path),
+                "format": "parquet",
+            }
+            storage_spark_options = store.get_spark_options()
+            result = {**result, **storage_spark_options}
+        else:
+            result = {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "parquet",
+            }
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
@@ -1047,11 +1064,24 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        return {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "csv",
-            "header": "true",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path),
+                "format": "csv",
+                "header": "true",
+            }
+            storage_spark_options = store.get_spark_options()
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "csv",
+                "header": "true",
+            }
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1256,7 +1286,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        if endpoint.startswith("ds"):
+        if endpoint.startswith("ds://"):
             datastore_profile = datastore_profile_read(endpoint)
             if not datastore_profile:
                 raise ValueError(f"Failed to load datastore profile '{endpoint}'")

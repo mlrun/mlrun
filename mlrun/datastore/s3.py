@@ -15,6 +15,7 @@
 import time
 
 import boto3
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
@@ -95,22 +96,34 @@ class S3Store(DataStore):
                 "choose-signer.s3.*", disable_signing
             )
 
+    def get_spark_options(self):
+        res = {}
+        st = self.get_storage_options()
+        if st.get("key"):
+            res["spark.hadoop.fs.s3.access.key"] = st.get("key")
+        if st.get("secret"):
+            res["spark.hadoop.fs.s3a.secret.key"] = st.get("secret")
+        if st.get("endpoint_url"):
+            res["spark.hadoop.fs.s3a.endpoint"] = st.get("endpoint_url")
+        if st.get("profile"):
+            res["spark.hadoop.fs.s3a.aws.profile"] = st.get("profile")
+        return res
+
     def get_filesystem(self, silent=False):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
         try:
-            # noqa
-            import s3fs
+            import s3fs  # noqa
         except ImportError as exc:
             if not silent:
                 raise ImportError(
                     "AWS s3fs not installed, run pip install s3fs"
                 ) from exc
             return None
-
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         self._filesystem = makeDatastoreSchemaSanitizer(
-            s3fs.S3FileSystem,
+            filesystem_class,
             using_bucket=self.using_bucket,
             **self.get_storage_options(),
         )

@@ -36,6 +36,7 @@ import mlrun.runtimes.pod
 import server.api.api.endpoints.functions
 import server.api.crud
 import tests.api.api.utils
+import tests.api.conftest
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
@@ -46,7 +47,7 @@ from server.api.utils.singletons.k8s import get_k8s_helper
 logger = create_logger(level="debug", name="test-runtime")
 
 
-class TestRuntimeBase:
+class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s_helper().namespace = self.namespace
@@ -91,15 +92,6 @@ class TestRuntimeBase:
     def setup_method_fixture(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
-        # We want this mock for every test, ideally we would have simply put it in the setup_method
-        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
-        # in order to be able to mock k8s stuff
-        get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(return_value=[])
-        get_k8s_helper().v1api = unittest.mock.Mock()
-        get_k8s_helper().crdapi = unittest.mock.Mock()
-        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
         self._create_project(client)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()

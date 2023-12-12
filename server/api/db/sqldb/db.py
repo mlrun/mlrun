@@ -612,6 +612,7 @@ class SQLDB(DBInterface):
 
         self._upsert(session, [db_artifact])
         if tag:
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_objects_v2(
                 session, [db_artifact], project, tag, obj_name_attribute="key"
             )

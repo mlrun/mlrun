@@ -79,7 +79,7 @@ def test_single_grading_score(prompt_fixture):
     assert 0 <= result["score"] <= 5
 
 
-def test_pairwise_grading_scores():
+def test_pairwise_grading_scores(prompt_fixture):
     prompt_template = PAIR_GRADE_PROMPT
     prompt_config = prompt_fixture
 
@@ -107,7 +107,7 @@ def test_pairwise_grading_scores():
     assert 0 <= scores["score_of_assistant_b"] <= 5
 
 
-def test_reference_grading_scores():
+def test_reference_grading_scores(prompt_fixture):
     prompt_template = REF_GRADE_PROMPT
     prompt_config = prompt_fixture
     metric = LLMJudgeReferenceGrading(

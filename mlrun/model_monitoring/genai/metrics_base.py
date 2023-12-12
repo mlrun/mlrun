@@ -221,6 +221,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        self.prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["response"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids

@@ -205,9 +205,9 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         Prepare the judge model
         """
         if torch.cuda.is_available():
-            device = torch.device("cuda")
+            device = "cuda"
         else:
-            device = torch.device("cpu")
+            device = "cpu"
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
         )
@@ -309,9 +309,9 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         Prepare the judge model
         """
         if torch.cuda.is_available():
-            device = torch.device("cuda")
+            device = "cuda"
         else:
-            device = torch.device("cpu")
+            device = "cpu"
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.judge_tokenizer_config
         )
@@ -324,9 +324,9 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         Prepare the base model
         """
         if torch.cuda.is_available():
-            device = torch.device("cuda")
+            device = "cuda"
         else:
-            device = torch.device("cpu")
+            device = "cpu"
         self.tokenizer_bench_mark = transformers.AutoTokenizer.from_pretrained(
             self.model_bench_mark, **self.tokenizer_bench_mark_config
         )

@@ -23,7 +23,7 @@ def test_rouge_metric():
 
 
 def test_invalid_metric():
-    with pytest.raises(ImportError):
+    with pytest.raises(FileNotFoundError):
         LLMEvaluateMetric(name="invalid")
 
 

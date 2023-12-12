@@ -12,14 +12,18 @@ from mlrun.model_monitoring.genai.prompt import (
 )
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
-JUDGE_CONFIG = {"device_map":"auto", "revision":"main", "trust_remote_code":False}
+JUDGE_CONFIG = {"device_map": "auto", "revision": "main", "trust_remote_code": False}
 JUDGE_INFER_CONFIG = {"max_length": 1000}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
 BENCHMARK_MODEL = "microsoft/phi-1_5"
-BENCHMARK_CONFIG = {"max_length": 1000, "device_map":"auto", "revision":"main", "trust_remote_code":True}
+BENCHMARK_CONFIG = {
+    "max_length": 1000,
+    "device_map": "auto",
+    "revision": "main",
+    "trust_remote_code": True,
+}
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
 BENCHMARK_INFER_CONFIG = {"max_length": 1000}
-
 
 
 @pytest.fixture
@@ -69,9 +73,9 @@ def test_single_grading_score(prompt_fixture):
     single_grading = LLMJudgeSingleGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
-        model_judge_config = JUDGE_CONFIG,
-        model_judge_infer_config = JUDGE_INFER_CONFIG,
-        tokenizer_judge_config = TOKENIZER_JUDGE_CONFIG,
+        model_judge_config=JUDGE_CONFIG,
+        model_judge_infer_config=JUDGE_INFER_CONFIG,
+        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         prompt_template=prompt_template,
         prompt_config=prompt_config,
     )
@@ -86,13 +90,13 @@ def test_pairwise_grading_scores(prompt_fixture):
     metric = LLMJudgePairwiseGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
-        model_judge_config = JUDGE_CONFIG,
-        model_judge_infer_config = JUDGE_INFER_CONFIG,
-        tokenizer_judge_config = TOKENIZER_JUDGE_CONFIG,
+        model_judge_config=JUDGE_CONFIG,
+        model_judge_infer_config=JUDGE_INFER_CONFIG,
+        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_bench_mark=BENCHMARK_MODEL,
-        model_bench_mark_config = BENCHMARK_CONFIG,
-        model_bench_mark_infer_config = BENCHMARK_INFER_CONFIG,
-        tokenizer_bench_mark_config = TOKENIZER_BENCHMARK_CONFIG,
+        model_bench_mark_config=BENCHMARK_CONFIG,
+        model_bench_mark_infer_config=BENCHMARK_INFER_CONFIG,
+        tokenizer_bench_mark_config=TOKENIZER_BENCHMARK_CONFIG,
         prompt_template=prompt_template,
         prompt_config=prompt_config,
     )
@@ -112,13 +116,13 @@ def test_reference_grading_scores(prompt_fixture):
     metric = LLMJudgeReferenceGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
-        model_judge_config = JUDGE_CONFIG,
-        model_judge_infer_config = JUDGE_INFER_CONFIG,
-        tokenizer_judge_config = TOKENIZER_JUDGE_CONFIG,
+        model_judge_config=JUDGE_CONFIG,
+        model_judge_infer_config=JUDGE_INFER_CONFIG,
+        tokenizer_judge_config=TOKENIZER_JUDGE_CONFIG,
         model_bench_mark=BENCHMARK_MODEL,
-        model_bench_mark_config = BENCHMARK_CONFIG,
-        model_bench_mark_infer_config = BENCHMARK_INFER_CONFIG,
-        tokenizer_bench_mark_config = TOKENIZER_BENCHMARK_CONFIG,
+        model_bench_mark_config=BENCHMARK_CONFIG,
+        model_bench_mark_infer_config=BENCHMARK_INFER_CONFIG,
+        tokenizer_bench_mark_config=TOKENIZER_BENCHMARK_CONFIG,
         prompt_template=prompt_template,
         prompt_config=prompt_config,
     )

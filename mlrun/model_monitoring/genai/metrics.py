@@ -385,6 +385,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         "model_bench_mark",
         "model_bench_mark_config",
         "model_bench_mark_infer_config",
+        "tokenizer_bench_mark_config",
         "prompt_template",
         "prompt_config",
     ]
@@ -429,7 +430,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
-        self.prepare_judge()
+        super().prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["reference"] = reference
         self.prompt_config["answerA"] = response

@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import typing
 from abc import ABC, abstractmethod
+from threading import Lock
 
 
 class CachedObject(ABC):
@@ -23,10 +24,8 @@ class CachedObject(ABC):
     Base class for objects that are cached in the Cache class.
     """
 
-    def __init__(
-        self, lock: asyncio.Lock = None, expiry_delayed_call: asyncio.Handle = None
-    ):
-        self.lock = lock or asyncio.Lock()
+    def __init__(self, lock: Lock = None, expiry_delayed_call: asyncio.Handle = None):
+        self.lock = lock or Lock()
         self._expiry_delayed_call: typing.Optional[asyncio.Handle] = expiry_delayed_call
 
     @abstractmethod
@@ -44,7 +43,7 @@ class Cache:
     """
 
     def __init__(self, cls):
-        self.lock = asyncio.Lock()
+        self.lock = Lock()
         self.cls = cls
         self.cache: typing.Dict[str, cls] = {}
 
@@ -68,7 +67,7 @@ class Cache:
                 obj = self._create(key, ttl, *args, **kwargs)
 
             # lock the run specific lock before releasing the global lock
-            obj.lock.aquire()
+            obj.lock.acquire()
 
         yield obj, created
         obj.lock.release()

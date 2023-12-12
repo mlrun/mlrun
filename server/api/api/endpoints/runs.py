@@ -14,6 +14,7 @@
 #
 import asyncio
 import datetime
+import threading
 from http import HTTPStatus
 from typing import List
 
@@ -422,9 +423,12 @@ async def abort_run(
 
     with _abort_run_background_tasks_cache.get_or_create_locked(
         key=uid,
-        ttl=mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
+        ttl=float(
+            mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion
+        )
+        + 10.0,
     ) as cached_background_task:
-        created, background_task_indicator = cached_background_task
+        background_task_indicator, created = cached_background_task
 
         # check if abortion is already in progress
         if not created:
@@ -474,7 +478,7 @@ async def abort_run(
 class CachedAbortRunBackgroundTask(server.api.utils.cache.CachedObject):
     def __init__(
         self,
-        lock: asyncio.Lock = None,
+        lock: threading.Lock = None,
         expiry_delayed_call: asyncio.Handle = None,
         background_task_id: str = None,
     ):

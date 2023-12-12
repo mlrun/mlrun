@@ -1,5 +1,5 @@
 import pytest
-from mlrun.model_monitoring.genai.metrics_base import (
+from mlrun.model_monitoring.genai.metrics import (
     LLMJudgeSingleGrading,
     LLMJudgePairwiseGrading,
     LLMJudgeReferenceGrading,

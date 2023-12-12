@@ -306,7 +306,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         Prepare the judge model
         """
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
-            self.model_judge, **self.judge_tokenizer_config
+            self.model_judge, **self.tokenizer_judge_config
         )
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
             self.model_judge, **self.model_judge_config

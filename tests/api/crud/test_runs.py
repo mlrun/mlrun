@@ -12,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import asyncio
-import datetime
-import http
-import select
-import time
 import unittest.mock
 import uuid
 
-import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client

@@ -20,7 +20,6 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import server.api.initial_data
-import server.api.main
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
 from mlrun.utils import logger
@@ -98,6 +97,9 @@ def _get_or_create_migration_background_task(
 
 
 async def _perform_migration():
+    # import here to prevent import cycle
+    import server.api.main
+
     await run_in_threadpool(
         server.api.initial_data.init_data, perform_migrations_if_needed=True
     )

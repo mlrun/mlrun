@@ -320,7 +320,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             self.model_bench_mark, **self.tokenizer_bench_mark_config
         )
         self.model_bench_mark = transformers.AutoModelForCausalLM.from_pretrained(
-            self.bench_mark_model_name, **self.model_bench_mark_config
+            self.model_bench_mark, **self.model_bench_mark_config
         )
 
     def compute_bench_mark_response(self, question) -> str:

@@ -204,16 +204,12 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         Prepare the judge model
         """
-        if torch.cuda.is_available():
-            device = "cuda"
-        else:
-            device = "cpu"
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
         )
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
             self.model_judge, **self.model_judge_config
-        ).to(device)
+        )
 
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
@@ -308,31 +304,23 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         """
         Prepare the judge model
         """
-        if torch.cuda.is_available():
-            device = "cuda"
-        else:
-            device = "cpu"
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.judge_tokenizer_config
         )
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
             self.model_judge, **self.model_judge_config
-        ).to(device)
+        )
 
     def prepare_bench_mark_model(self) -> None:
         """
         Prepare the base model
         """
-        if torch.cuda.is_available():
-            device = "cuda"
-        else:
-            device = "cpu"
         self.tokenizer_bench_mark = transformers.AutoTokenizer.from_pretrained(
             self.model_bench_mark, **self.tokenizer_bench_mark_config
         )
         self.model_bench_mark = transformers.AutoModelForCausalLM.from_pretrained(
             self.bench_mark_model_name, **self.model_bench_mark_config
-        ).to(device)
+        )
 
     def compute_bench_mark_response(self, question) -> str:
         """

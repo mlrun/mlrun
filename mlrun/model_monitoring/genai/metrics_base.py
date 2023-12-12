@@ -242,7 +242,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         score_pattern = r"\bScore:\s*(\d+)\b"
         explanation_pattern = r"Explanation:\s*(.*?)\s*(?=\bScore:|$)"
 
-        score_match = re.search(score_pattern, text)
+        score_match = re.search(score_pattern, result)
         score = int(score_match.group(1)) if score_match else None
 
         explanation_match = re.search(explanation_pattern, text, re.DOTALL)

@@ -354,7 +354,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         self.prompt_config["answerA"] = response
         self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        outputs = self.model_judge.generate(
+        outputs = self.model.generate(
             input_ids,
             pad_token_id=self.tokenizer.pad_token_id,
             eos_token_id=self.tokenizer.eos_token_id,

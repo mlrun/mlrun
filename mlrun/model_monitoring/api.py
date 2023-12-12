@@ -132,7 +132,7 @@ def record_results(
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
-    last_in_batch_set: bool = True,
+    last_in_batch_set: typing.Optional[bool] = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -173,6 +173,9 @@ def record_results(
                                      You may want to set it to False if you have multiple results to record, and this
                                      result is not the last one in the current batch set. In that case, pass True only
                                      for the last call to this function.
+                                     When the model endpoint has a model monitoring infrastructure in place, this flag
+                                     will produce a warning and will be ignored. Set `last_in_batch_set` to `None` to
+                                     resolve this warning.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 
@@ -205,8 +208,8 @@ def record_results(
             infer_results_df=infer_results_df,
         )
 
-    if last_in_batch_set:
-        if model_endpoint.spec.stream_path == "":
+    if model_endpoint.spec.stream_path == "":
+        if last_in_batch_set:
             logger.info(
                 "Updating the last request time to mark the current monitoring window as completed",
                 project=project,
@@ -215,12 +218,13 @@ def record_results(
             bump_model_endpoint_last_request(
                 project=project, model_endpoint=model_endpoint, db=db
             )
-        else:
+    else:
+        if last_in_batch_set is not None:
             logger.warning(
-                "`last_in_batch_set` is True, but the model endpoint has a stream path. "
+                "`last_in_batch_set` is not `None`, but the model endpoint has a stream path. "
                 "Ignoring `last_in_batch_set`, as it is relevant only when the model "
                 "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
-                " empty).",
+                " empty). Set `last_in_batch_set` to `None` to resolve this warning.",
                 project=project,
                 endpoint_id=model_endpoint.metadata.uid,
             )

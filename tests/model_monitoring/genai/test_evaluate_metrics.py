@@ -1,5 +1,5 @@
 import pytest
-from mlrun.model_monitoring.genai.metrics_base import LLMEvaluateMetric
+from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric
 
 def test_bleu_metric():
     metric = LLMEvaluateMetric(name="bleu")

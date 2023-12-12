@@ -50,7 +50,6 @@ def test_get_internal_parameters(user_code):
     databricks_runtime = DatabricksRuntime()
     runobj = RunObject()
     runobj.metadata.uid = "1"
-    print(runobj.spec.parameters)
     runobj.spec.handler = "handler"
     encoded_user_code = b64encode(user_code.encode("utf-8")).decode("utf-8")
     databricks_runtime.spec.build.functionSourceCode = encoded_user_code
@@ -75,9 +74,9 @@ def test_get_internal_parameters(user_code):
             )
             already_found = True
     assert already_found
-    artifact_dir = mlrun.mlconf.function.databricks.artifact_directory_path
 
     #  test task parameters:
+    artifact_dir = mlrun.mlconf.function.databricks.artifact_directory_path
     assert updated_task_parameters == {
         "artifact_json_path": f"{artifact_dir}/mlrun_artifact_1.json",
         "original_handler": "handler",

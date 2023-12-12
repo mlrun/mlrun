@@ -240,8 +240,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :return: the stored result
         """
         print(result)
-        score_pattern = r"\bScore:\s*(\d+)\b"
-        explanation_pattern = r"Explanation:\s*(.*?)\s*(?=\bScore:|$)"
+        score_pattern = r"\bscore:\s*(\d+)\b"
+        explanation_pattern = r"explanation:\s*(.*?)\s*(?=\bScore:|$)"
 
         score_match = re.search(score_pattern, result)
         score = int(score_match.group(1)) if score_match else None

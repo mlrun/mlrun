@@ -101,7 +101,7 @@ def test_pairwise_grading_scores():
     a1 = "The capital of France is Paris"
     a2 = "France's capital city is Lyon"
 
-    result = metric.compute_over_one_data(q, a1, a2)
+    result = metric.compute_over_one_data(q, a1)
     scores = metric.extract_score_and_explanation(result["response"])
     assert 0 <= scores["score_of_assistant_a"] <= 5
     assert 0 <= scores["score_of_assistant_b"] <= 5
@@ -129,7 +129,7 @@ def test_reference_grading_scores():
     a2 = "William Shakespeare wrote the play Hamlet"
     ref = "The author of the play Hamlet is William Shakespeare"
 
-    result = metric.compute_over_one_data(q, a1, a2, ref)
+    result = metric.compute_over_one_data(q, a1, ref)
     scores = metric.extract_score_and_explanation(result["response"])
 
     assert 0 <= scores["score_of_assistant_a"] <= 5

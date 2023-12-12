@@ -494,9 +494,6 @@ class CachedAbortRunBackgroundTask(server.api.utils.cache.CachedObject):
         super().__init__(object_id, lock, expiry_delayed_call)
         self.background_task_id = background_task_id or str(uuid.uuid4())
 
-    def matches(self, object_id: str):
-        return self.background_task_id == object_id
-
 
 _abort_run_background_tasks_cache = server.api.utils.cache.Cache(
     cls=CachedAbortRunBackgroundTask

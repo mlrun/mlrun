@@ -1944,7 +1944,7 @@ class MlrunProject(ModelObj):
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
-        :param base_period:              The frequency in minutes in which the model monitoring controller job
+        :param base_period:              The time period in minutes in which the model monitoring controller job
                                          runs. By default, the base period is 10 minutes. The schedule for the job
                                          will be the following cron expression: "*/{base_period} * * * *".
         :return: model monitoring controller job as a dictionary.

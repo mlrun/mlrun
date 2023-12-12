@@ -49,12 +49,45 @@ class Logs(
         with log_file.open(mode) as fp:
             fp.write(body)
 
-    def delete_logs(
+    async def stop_logs_for_project(
         self,
+        project_name: str,
+    ) -> None:
+        logger.debug("Stopping logs for project", project=project_name)
+        await self._stop_logs(project_name)
+
+    async def stop_logs_for_run(
+        self,
+        project_name: str,
+        run_uid: str,
+    ) -> None:
+        logger.debug("Stopping logs for run", project=project_name, run_uid=run_uid)
+        await self._stop_logs(project_name, [run_uid])
+
+    async def delete_project_logs(self, project: str):
+        logger.debug("Deleting logs for project", project=project)
+        await self._delete_logs(project)
+
+    async def delete_run_logs(self, project: str, uid: str):
+        logger.debug("Deleting logs for run", project=project, run_uid=uid)
+        await self._delete_logs(project, [uid])
+
+    @staticmethod
+    def delete_project_logs_legacy(
         project: str,
     ):
         project = project or mlrun.mlconf.default_project
         logs_path = server.api.api.utils.project_logs_path(project)
+        if logs_path.exists():
+            shutil.rmtree(str(logs_path))
+
+    @staticmethod
+    def delete_run_logs_legacy(
+        project: str,
+        run_uid: str,
+    ):
+        project = project or mlrun.mlconf.default_project
+        logs_path = server.api.api.utils.log_path(project, run_uid)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
 
@@ -272,3 +305,67 @@ class Logs(
             for file in os.listdir(str(logs_path))
             if os.path.isfile(os.path.join(str(logs_path), file))
         ]
+
+    @staticmethod
+    async def _stop_logs(
+        project_name: str,
+        run_uids: typing.List[str] = None,
+    ) -> None:
+        resource = "project" if not run_uids else "run"
+        try:
+            log_collector_client = (
+                server.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.stop_logs(
+                project=project_name,
+                run_uids=run_uids,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed stopping logs for {resource}, Ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project_name,
+                run_uids=run_uids,
+            )
+        else:
+            logger.debug(
+                f"Successfully stopped logs for {resource}",
+                project=project_name,
+                run_uids=run_uids,
+            )
+
+    async def _delete_logs(self, project: str, run_uids: typing.List[str] = None):
+        resource = "project" if not run_uids else "run"
+        try:
+            log_collector_client = (
+                server.api.utils.clients.log_collector.LogCollectorClient()
+            )
+            await log_collector_client.delete_logs(
+                project=project,
+                run_uids=run_uids,
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed deleting {resource} logs via the log collector. Falling back to deleting logs explicitly",
+                exc=mlrun.errors.err_to_str(exc),
+                project=project,
+                runs=run_uids,
+            )
+
+            # fallback to deleting logs explicitly if the log collector failed
+            if run_uids:
+                for run_uid in run_uids:
+                    await run_in_threadpool(
+                        self.delete_run_logs_legacy,
+                        project,
+                        run_uid,
+                    )
+            else:
+                await run_in_threadpool(
+                    self.delete_project_logs_legacy,
+                    project,
+                )
+
+        logger.debug(
+            f"Successfully deleted {resource} logs", project=project, runs=run_uids
+        )

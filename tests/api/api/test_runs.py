@@ -21,7 +21,6 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 import fastapi
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 

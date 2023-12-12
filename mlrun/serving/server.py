@@ -357,7 +357,7 @@ def v2_serving_init(context, namespace=None):
     if hasattr(context, "platform") and hasattr(
         context.platform, "set_termination_callback"
     ):
-        context.logger.debug(
+        context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
@@ -369,7 +369,7 @@ def v2_serving_init(context, namespace=None):
         context.platform.set_termination_callback(termination_callback)
 
     if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
-        context.logger.debug(
+        context.logger.info(
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
 

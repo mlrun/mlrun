@@ -329,7 +329,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             ),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
-            mark_monitoring_window_completed=True,
+            last_in_batch_set=True,
         )
 
     def _deploy_monitoring_infra(self) -> None:

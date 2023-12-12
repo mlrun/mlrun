@@ -132,7 +132,7 @@ def record_results(
     drift_threshold: typing.Optional[float] = None,
     possible_drift_threshold: typing.Optional[float] = None,
     trigger_monitoring_job: bool = False,
-    mark_monitoring_window_completed: bool = True,
+    last_in_batch_set: bool = True,
     artifacts_tag: str = "",
     default_batch_image="mlrun/mlrun",
 ) -> ModelEndpoint:
@@ -165,7 +165,7 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
-    :param mark_monitoring_window_completed: This flag is relevant when the model endpoint does not have a model
+    :param last_in_batch_set: This flag is relevant when the model endpoint does not have a model
                                              monitoring infrastructure in place (i.e. stream path is empty), and the
                                              `trigger_monitoring_job` flag is set to True.
                                              If True, mark the current monitoring window as completed - meaning that
@@ -214,7 +214,7 @@ def record_results(
             db_session=db,
         )
 
-        if mark_monitoring_window_completed:
+        if last_in_batch_set:
             if model_endpoint.spec.stream_path == "":
                 logger.info(
                     "Updating the last request time to mark the current monitoring window as completed",
@@ -226,8 +226,8 @@ def record_results(
                 )
             else:
                 logger.warning(
-                    "`mark_monitoring_window_completed` is True, but the model endpoint has a stream path. "
-                    "Ignoring `mark_monitoring_window_completed`, as it is relevant only when the model "
+                    "`last_in_batch_set` is True, but the model endpoint has a stream path. "
+                    "Ignoring `last_in_batch_set`, as it is relevant only when the model "
                     "endpoint does not have a model monitoring infrastructure in place (i.e. stream path is "
                     " empty).",
                     project=project,
@@ -252,10 +252,10 @@ def record_results(
             db_session=db,
         )
 
-    if mark_monitoring_window_completed and not trigger_monitoring_job:
+    if last_in_batch_set and not trigger_monitoring_job:
         logger.warning(
-            "`mark_monitoring_window_completed` is True, but `trigger_monitoring_job` is False. "
-            "Ignoring `mark_monitoring_window_completed`, as it is relevant only when "
+            "`last_in_batch_set` is True, but `trigger_monitoring_job` is False. "
+            "Ignoring `last_in_batch_set`, as it is relevant only when "
             "`trigger_monitoring_job` is True.",
             project=project,
             endpoint_id=model_endpoint.metadata.uid,

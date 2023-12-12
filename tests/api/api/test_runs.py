@@ -258,6 +258,8 @@ def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
     kwargs = {
         "background_task_id": background_task_name,
     }
+
+    server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache = {}
     server.api.api.endpoints.runs._abort_run_background_tasks_cache.create(
         run_in_progress_uid, 100, cls_kwargs=kwargs
     )
@@ -294,6 +296,7 @@ def test_abort_aborted_run_with_background_task(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
+    server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache = {}
     with unittest.mock.patch.object(
         server.api.crud.RuntimeResources, "delete_runtime_resources"
     ):

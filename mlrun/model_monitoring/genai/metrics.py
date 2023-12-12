@@ -368,26 +368,28 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
 
     def extract_score_explanation(self, response) -> Dict[str, Any]:
-        """
-        Extract the scores and explanations for the professionalism of two AI assistants' responses using regex and return them in a dictionary.
-        param response: The combined response containing scores and explanations for both assistants.
-        return: A dictionary containing the scores and explanations for both assistants.
-        """
-        pattern = r"score of assistant ([ab]): (\d)\s*explanation of assistant \1: (.*?)\n(?=score of assistant|$)"
-
-        matches = re.findall(pattern, response, re.DOTALL)
-
+        # Find the position of the "[Output]:" marker
+        output_marker_index = response.find("[Output]:")
+        if output_marker_index == -1:
+            return "No '[Output]:' marker found"
+    
+        # Extract the part of the response after the "[Output]:" marker
+        response_after_output = response[output_marker_index + len("[Output]:"):]
+    
+        # Adjusted pattern to match the text format and separate lines
+        pattern = r"- score of assistant ([ab]): (\d)\s*- explanation of assistant \1: (.*?)\s*(?=- score of assistant|$)"
+    
+        matches = re.findall(pattern, response_after_output, re.DOTALL)
+    
         if matches:
             result_dict = {}
             for match in matches:
                 assistant, score, explanation = match
-                result_dict[f"score_of_assistant_{assistant.lower()}"] = int(score)
-                result_dict[
-                    f"explanation_of_assistant_{assistant.lower()}"
-                ] = explanation.strip()
+                result_dict[f"score_of_assistant_{assistant}"] = int(score)
+                result_dict[f"explanation_of_assistant_{assistant}"] = explanation.strip()
             return result_dict
         else:
-            return "No matches found"
+            return "No matches found after '[Output]:' marker"
 
 
 class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):

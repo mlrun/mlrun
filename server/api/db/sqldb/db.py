@@ -612,15 +612,16 @@ class SQLDB(DBInterface):
 
         self._upsert(session, [db_artifact])
         if tag:
+            validate_tag_name(tag, "artifact.metadata.tag")
             self.tag_objects_v2(
                 session, [db_artifact], project, tag, obj_name_attribute="key"
             )
 
-            # we want to tag the artifact also as "latest" if it's the first time we store it
-            if tag != "latest":
-                self.tag_objects_v2(
-                    session, [db_artifact], project, "latest", obj_name_attribute="key"
-                )
+        # we want to tag the artifact also as "latest" if it's the first time we store it
+        if tag != "latest":
+            self.tag_objects_v2(
+                session, [db_artifact], project, "latest", obj_name_attribute="key"
+            )
 
         return uid
 

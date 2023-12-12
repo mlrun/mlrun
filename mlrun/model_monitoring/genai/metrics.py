@@ -373,7 +373,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         param response: The combined response containing scores and explanations for both assistants.
         return: A dictionary containing the scores and explanations for both assistants.
         """
-        pattern = r"Score of Assistant ([AB]): (\d)\s*Explanation of Assistant \1: (.*?)\n(?=Score of Assistant|$)"
+        pattern = r"score of assistant ([ab]): (\d)\s*explanation of assistant \1: (.*?)\n(?=score of assistant|$)"
 
         matches = re.findall(pattern, response, re.DOTALL)
 

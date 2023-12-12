@@ -239,6 +239,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param result: the result to store
         :return: the stored result
         """
+        print(result)
         score_pattern = r"\bScore:\s*(\d+)\b"
         explanation_pattern = r"Explanation:\s*(.*?)\s*(?=\bScore:|$)"
 

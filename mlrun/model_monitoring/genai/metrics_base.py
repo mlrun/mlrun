@@ -245,7 +245,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         score_match = re.search(score_pattern, result)
         score = int(score_match.group(1)) if score_match else None
 
-        explanation_match = re.search(explanation_pattern, text, re.DOTALL)
+        explanation_match = re.search(explanation_pattern, result, re.DOTALL)
         explanation = explanation_match.group(1).strip() if explanation_match else None
 
         return {"score": score, "explanation": explanation}

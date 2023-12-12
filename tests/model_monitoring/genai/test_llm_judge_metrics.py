@@ -13,7 +13,7 @@ from mlrun.model_monitoring.genai.prompt import (
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
 JUDGE_CONFIG = {
-    "device_map": "cuda",
+    "device_map": "auto",
     "revision": "main",
     "trust_remote_code": False,
 }

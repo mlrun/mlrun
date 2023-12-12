@@ -271,8 +271,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         super().__init__(
             name,
             model_judge,
-            model_judge_config,
             tokenizer_judge_config,
+            model_judge_config,
             model_judge_infer_config,
             prompt_template,
             prompt_config,

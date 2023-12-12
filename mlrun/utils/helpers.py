@@ -65,6 +65,10 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
+class OverwriteBuildParamsWarning(FutureWarning):
+    pass
+
+
 # TODO: remove in 1.7.0
 @deprecated(
     version="1.5.0",
@@ -183,7 +187,7 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -193,7 +197,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -333,7 +337,7 @@ def remove_image_protocol_prefix(image: str) -> str:
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"Field '{field_name}' should be of type '{expected_type.__name__}' "
             f"(got: {type(field_value).__name__} with value: {field_value})."
         )
 
@@ -357,14 +361,14 @@ def verify_dict_items_type(
     if dictionary:
         if type(dictionary) != dict:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+                f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
         try:
             verify_list_items_type(dictionary.keys(), expected_keys_types)
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -407,7 +411,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing {name} underscores with dashes.",
+                f"Replacing '{name}' underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")
@@ -669,7 +673,7 @@ def parse_artifact_uri(uri, default_project=""):
             iteration = int(iteration)
         except ValueError:
             raise ValueError(
-                f"illegal store path {uri}, iteration must be integer value"
+                f"illegal store path '{uri}', iteration must be integer value"
             )
     return (
         group_dict["project"] or default_project,
@@ -1199,7 +1203,7 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found"
+            f"state/function init failed, handler '{function}' not found"
         ) from exc
     return function_object
 
@@ -1383,7 +1387,7 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
 
         if raise_on_missing:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"artifact {artifact} is missing metadata/spec/status"
+                f"artifact '{artifact}' is missing metadata/spec/status"
             )
         return default
 
@@ -1419,7 +1423,7 @@ def is_running_in_jupyter_notebook() -> bool:
 
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
-        raise ValueError(f"{field_name} must be numeric (str/int types)")
+        raise ValueError(f"'{field_name}' must be numeric (str/int types)")
     return int(field_value)
 
 

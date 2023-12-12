@@ -616,11 +616,11 @@ class SQLDB(DBInterface):
                 session, [db_artifact], project, tag, obj_name_attribute="key"
             )
 
-            # we want to tag the artifact also as "latest" if it's the first time we store it
-            if tag != "latest":
-                self.tag_objects_v2(
-                    session, [db_artifact], project, "latest", obj_name_attribute="key"
-                )
+        # we want to tag the artifact also as "latest" if it's the first time we store it
+        if tag != "latest":
+            self.tag_objects_v2(
+                session, [db_artifact], project, "latest", obj_name_attribute="key"
+            )
 
         return uid
 

@@ -333,8 +333,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         input_ids = self.tokenizer_bench_mark(question, return_tensors="pt").input_ids
         outputs = self.model_bench_mark.generate(
             input_ids,
-            pad_token_id=self.bench_mark_tokenizer.pad_token_id,
-            eos_token_id=self.bench_mark_tokenizer.eos_token_id,
+            pad_token_id=self.tokenizer_bench_mark.pad_token_id,
+            eos_token_id=self.tokenizer_bench_mark.eos_token_id,
             **self.model_bench_mark_infer_config,
         )
 

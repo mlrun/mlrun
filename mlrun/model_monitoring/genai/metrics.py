@@ -406,7 +406,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         prompt_config: Dict[str, str],
     ):
         """
-        Base class for LLM as a judge metrics.
+        class for LLM as a judge metrics with reference grading
         These metrics are used for more open-ended question for the model
         and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
         """
@@ -430,20 +430,5 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
-        super().prepare_judge()
-        self.prompt_config["question"] = question
         self.prompt_config["reference"] = reference
-        self.prompt_config["answerA"] = response
-        self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
-        input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
-        outputs = self.model.generate(
-            input_ids,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            **self.model_infer_config,
-        )
-
-        response_ids = outputs[0]
-        response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-
-        return self.extract_score_explanation(response)
+        return super().compute_over_one_data(question, response)

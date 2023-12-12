@@ -13,7 +13,7 @@ from mlrun.model_monitoring.genai.prompt import (
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
 JUDGE_CONFIG = {
-    "device_map": "auto",
+    "device_map": "cuda",
     "revision": "main",
     "trust_remote_code": False,
 }
@@ -116,6 +116,7 @@ def test_pairwise_grading_scores(prompt_fixture):
 def test_reference_grading_scores(prompt_fixture):
     prompt_template = REF_GRADE_PROMPT
     prompt_config = prompt_fixture
+
     metric = LLMJudgeReferenceGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,

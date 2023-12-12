@@ -223,7 +223,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         self.prepare_judge()
         self.prompt_config["question"] = question
-        self.prompt_config["response"] = response
+        self.prompt_config["answer"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
         outputs = self.model.generate(
             input_ids,

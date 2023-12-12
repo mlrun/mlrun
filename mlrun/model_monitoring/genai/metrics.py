@@ -339,7 +339,9 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         )
 
         response_ids = outputs[0]
-        response = self.tokenizer_bench_mark.decode(response_ids, skip_special_tokens=True)
+        response = self.tokenizer_bench_mark.decode(
+            response_ids, skip_special_tokens=True
+        )
 
         return response
 
@@ -366,27 +368,28 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         print(response)
         return self.extract_score_explanation(response)
 
-
     def extract_score_explanation(self, response) -> Dict[str, Any]:
         # Find the position of the "[Output]:" marker
         output_marker_index = response.find("[Output]:")
         if output_marker_index == -1:
             return "No '[Output]:' marker found"
-    
+
         # Extract the part of the response after the "[Output]:" marker
-        response_after_output = response[output_marker_index + len("[Output]:"):]
-    
+        response_after_output = response[output_marker_index + len("[Output]:") :]
+
         # Adjusted pattern to match the text format and separate lines
         pattern = r"- score of assistant ([ab]): (\d)\s*- explanation of assistant \1: (.*?)\s*(?=- score of assistant|$)"
-    
+
         matches = re.findall(pattern, response_after_output, re.DOTALL)
-    
+
         if matches:
             result_dict = {}
             for match in matches:
                 assistant, score, explanation = match
                 result_dict[f"score_of_assistant_{assistant}"] = int(score)
-                result_dict[f"explanation_of_assistant_{assistant}"] = explanation.strip()
+                result_dict[
+                    f"explanation_of_assistant_{assistant}"
+                ] = explanation.strip()
             return result_dict
         else:
             return "No matches found after '[Output]:' marker"

@@ -363,6 +363,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+        print(response)
         return self.extract_score_explanation(response)
 
 

@@ -443,6 +443,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        self.prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["reference"] = reference
         self.prompt_config["answerA"] = response
@@ -458,4 +459,4 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
-        return {"response": response}
+        return self.extract_score_explanation(response)

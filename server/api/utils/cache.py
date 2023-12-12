@@ -16,7 +16,6 @@ import asyncio
 import contextlib
 import typing
 import uuid
-from threading import Lock
 
 
 class CachedObject:
@@ -27,11 +26,11 @@ class CachedObject:
     def __init__(
         self,
         object_id: str,
-        lock: Lock = None,
+        lock: asyncio.Lock = None,
         expiry_delayed_call: asyncio.Handle = None,
     ):
         self._object_id = object_id
-        self.lock = lock or Lock()
+        self.lock = lock or asyncio.Lock()
         self._expiry_delayed_call: typing.Optional[asyncio.Handle] = expiry_delayed_call
 
     def matches(self, object_id: str) -> bool:
@@ -48,12 +47,12 @@ class Cache:
     """
 
     def __init__(self, cls):
-        self.lock = Lock()
+        self.lock = asyncio.Lock()
         self.cls = cls
         self.cache: typing.Dict[str, cls] = {}
 
-    @contextlib.contextmanager
-    def get_or_create_locked(
+    @contextlib.asynccontextmanager
+    async def get_or_create_locked(
         self,
         key: str,
         ttl: float,
@@ -69,23 +68,23 @@ class Cache:
         :return:    A CachedObject instance and a boolean indicating whether the object was created.
         """
         created = False
-        with self.lock:
+        async with self.lock:
             obj = self.cache.get(key)
             if not obj:
                 created = True
                 obj = self._create(key, ttl, cls_kwargs)
 
             # lock the run specific lock before releasing the global lock
-            obj.lock.acquire()
+            await obj.lock.acquire()
 
         yield obj, created
         obj.lock.release()
 
-    def create(
+    async def create(
         self,
         key: str,
         ttl: float,
-        lock: typing.Optional[Lock] = None,
+        lock: typing.Optional[asyncio.Lock] = None,
         cls_kwargs=None,
     ) -> CachedObject:
         """
@@ -97,7 +96,7 @@ class Cache:
 
         :return:   A CachedObject instance.
         """
-        with self.lock:
+        async with self.lock:
             return self._create(key, ttl, lock, cls_kwargs)
 
     def remove_obj(self, key: str, object_id: dict = None):
@@ -115,7 +114,7 @@ class Cache:
         self,
         key: str,
         ttl: float,
-        lock: typing.Optional[Lock] = None,
+        lock: typing.Optional[asyncio.Lock] = None,
         cls_kwargs: dict = None,
     ):
         cls_kwargs = cls_kwargs or {}

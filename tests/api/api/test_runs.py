@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 import fastapi
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -230,7 +231,8 @@ def test_abort_run(db: Session, client: TestClient) -> None:
     assert run["status"]["error"] == "Run was aborted by user"
 
 
-def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
+@pytest.mark.asyncio
+async def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
     project = "some-project"
     run_in_progress = {
         "metadata": {
@@ -260,7 +262,7 @@ def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
     }
 
     server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache = {}
-    server.api.api.endpoints.runs._abort_run_background_tasks_cache.create(
+    await server.api.api.endpoints.runs._abort_run_background_tasks_cache.create(
         run_in_progress_uid, 100, cls_kwargs=kwargs
     )
 

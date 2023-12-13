@@ -159,6 +159,16 @@ class RunStates(object):
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
+    @staticmethod
+    def allowed_for_deletion_states():
+        return [
+            RunStates.completed,
+            RunStates.error,
+            RunStates.aborted,
+            RunStates.unknown,
+            RunStates.created,
+        ]
+
 
 class SparkApplicationStates:
     """

@@ -107,6 +107,7 @@ default_config = {
     },
     "crud": {
         "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
             "batch_delete_runs_chunk_size": 10,
         }
     },

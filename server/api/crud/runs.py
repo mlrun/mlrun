@@ -28,6 +28,7 @@ import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
+import server.api.db.session
 import server.api.runtime_handlers
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
@@ -222,8 +223,19 @@ class Runs(
         runs_list: mlrun.lists.RunList = None,
     ):
         project = project or mlrun.mlconf.default_project
-        # TODO: validate state
-        # states = [state] or [valid states for deletion]
+        if (
+            state
+            and state
+            not in mlrun.runtimes.constants.RunStates.allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Can not delete runs in {state} state"
+            )
+        states = (
+            [state]
+            if state
+            else mlrun.runtimes.constants.RunStates.allowed_for_deletion_states()
+        )
         if not runs_list:
             start_time_from = None
             if days_ago:
@@ -236,7 +248,7 @@ class Runs(
                 name,
                 project=project,
                 labels=labels,
-                states=[state] if state is not None else None,
+                states=states,
                 start_time_from=start_time_from,
             )
 
@@ -248,8 +260,8 @@ class Runs(
                 : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
             ]:
                 tasks.append(
-                    self.delete_run(
-                        db_session,  # TODO: create a new session for each
+                    server.api.db.session.run_function_with_new_db_session(
+                        self.delete_run,
                         run["metadata"]["uid"],
                         run["metadata"]["iteration"],
                         project,
@@ -266,7 +278,7 @@ class Runs(
                     )
 
             runs_list = runs_list[
-                : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
+                mlrun.config.config.crud.runs.batch_delete_runs_chunk_size :
             ]
 
         if failed_deletions:

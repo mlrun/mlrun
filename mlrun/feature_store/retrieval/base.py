@@ -385,19 +385,24 @@ class BaseMerger(abc.ABC):
         pass
 
     def _normalize_timestamp_column(
-        self, entity_timestamp_column, reference_df, featureset_df, featureset_name
+        self,
+        entity_timestamp_column,
+        reference_df,
+        featureset_timestamp,
+        featureset_df,
+        featureset_name,
     ):
         reference_df_timestamp_type = reference_df[entity_timestamp_column].dtype.name
-        featureset_df_timestamp_type = featureset_df[entity_timestamp_column].dtype.name
+        featureset_df_timestamp_type = featureset_df[featureset_timestamp].dtype.name
 
         if reference_df_timestamp_type != featureset_df_timestamp_type:
             logger.info(
                 f"Merger detected timestamp resolution incompatibility between feature set {featureset_name} and "
                 f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}. Converting feature set "
-                f"timestamp column '{entity_timestamp_column}' to type {reference_df_timestamp_type}."
+                f"timestamp column '{featureset_timestamp}' to type {reference_df_timestamp_type}."
             )
-            featureset_df[entity_timestamp_column] = featureset_df[
-                entity_timestamp_column
+            featureset_df[featureset_timestamp] = featureset_df[
+                featureset_timestamp
             ].astype(reference_df_timestamp_type)
 
         return featureset_df

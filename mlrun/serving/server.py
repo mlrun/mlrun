@@ -353,7 +353,7 @@ def v2_serving_init(context, namespace=None):
     if hasattr(context, "platform") and hasattr(
         context.platform, "set_termination_callback"
     ):
-        context.logger.debug(
+        context.logger.info(
             "Setting termination callback to terminate graph on worker shutdown"
         )
 
@@ -363,6 +363,23 @@ def v2_serving_init(context, namespace=None):
             context.logger.info("Termination of async flow is completed")
 
         context.platform.set_termination_callback(termination_callback)
+
+    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+        context.logger.info(
+            "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
+        )
+
+        def drain_callback():
+            context.logger.info("Drain callback called")
+            server.wait_for_completion()
+            context.logger.info(
+                "Termination of async flow is completed. Rerunning async flow."
+            )
+            # Rerun the flow without reconstructing it
+            server.graph._run_async_flow()
+            context.logger.info("Async flow restarted")
+
+        context.platform.set_drain_callback(drain_callback)
 
 
 def v2_serving_handler(context, event, get_body=False):

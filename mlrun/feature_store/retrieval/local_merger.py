@@ -48,7 +48,11 @@ class LocalFeatureMerger(BaseMerger):
         featureset_df.sort_values(by=featureset_timstamp, inplace=True)
 
         featureset_df = self._normalize_timestamp_column(
-            entity_timestamp_column, entity_df, featureset_df, featureset_name
+            entity_timestamp_column,
+            entity_df,
+            featureset_timstamp,
+            featureset_df,
+            featureset_name,
         )
 
         merged_df = pd.merge_asof(

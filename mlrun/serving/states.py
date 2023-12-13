@@ -921,6 +921,7 @@ class FlowStep(BaseStep):
 
         if self.engine != "sync":
             self._build_async_flow()
+            self._run_async_flow()
 
     def check_and_process_graph(self, allow_empty=False):
         """validate correct graph layout and initialize the .next links"""
@@ -1075,7 +1076,10 @@ class FlowStep(BaseStep):
                         if next_state.async_object and error_step.async_object:
                             error_step.async_object.to(next_state.async_object)
 
-        self._controller = source.run()
+        self._async_flow = source
+
+    def _run_async_flow(self):
+        self._controller = self._async_flow.run()
 
     def get_queue_links(self):
         """return dict of function and queue its listening on, for building stream triggers"""

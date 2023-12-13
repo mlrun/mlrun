@@ -213,6 +213,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         time.sleep(self.app_interval_seconds + 2)
         self.serving_fn.invoke(self.infer_path, self.next_window_input)
         # wait for the completed window to be processed
-        time.sleep(2.2 * self.app_interval_seconds)
+        time.sleep(1.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())

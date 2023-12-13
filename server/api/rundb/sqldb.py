@@ -151,8 +151,8 @@ class SQLRunDB(RunDBInterface):
             with_notifications=with_notifications,
         )
 
-    def del_run(self, uid, project=None, iter=None):
-        return self._transform_db_error(
+    async def del_run(self, uid, project=None, iter=None):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_run,
             self.session,
             uid,

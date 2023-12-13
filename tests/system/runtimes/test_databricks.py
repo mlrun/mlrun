@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import copy
+import inspect
 import os
 import time
 import uuid
@@ -95,27 +96,25 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         mlrun_run = mlrun_runs.to_objects()[0]
         self._run_db.abort_run(uid=mlrun_run.uid(), project=self.project_name)
 
-    def _check_artifacts_by_path(self, paths_dict):
+    def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
         assert len(artifacts) == len(paths_dict)
-        #  TODO change to get_artifact by key in the future if it will be user-defined.
-        for local_path, expected_dbfs_path in paths_dict.items():
-            artifacts_by_path = [
-                artifact
-                for artifact in artifacts
-                if artifact.spec.src_path == f"dbfs://{expected_dbfs_path}"
-            ]
-            assert len(artifacts_by_path) == 1
-            artifact = artifacts_by_path[0]
+        for expected_name, expected_dbfs_path in paths_dict.items():
+            db_key = f"databricks-test-main_{expected_name}"
+            artifact = self.project.get_artifact(key=db_key)
+            assert artifact.spec.src_path == f"dbfs://{expected_dbfs_path}"
             artifact_df = artifact.to_dataitem().as_df()
-            if local_path.endswith(".parquet"):
+            if expected_dbfs_path.endswith(".parquet"):
+                local_path = str(self.assets_path / "test_data.parquet")
                 expected_df = pd.read_parquet(local_path)
-            elif local_path.endswith(".csv"):
+            elif expected_dbfs_path.endswith(".csv"):
+                local_path = str(self.assets_path / "test_data.csv")
                 expected_df = pd.read_csv(local_path)
             else:
                 raise ValueError(
                     "The test does not support files that are not in the Parquet or CSV format."
                 )
+
             pd.testing.assert_frame_equal(expected_df, artifact_df)
 
     def setup_method(self, method):
@@ -133,13 +132,11 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    @staticmethod
-    def assert_print_kwargs(print_kwargs_run):
+    @classmethod
+    def assert_print_kwargs(cls, print_kwargs_run):
         assert print_kwargs_run.status.state == "completed"
-        assert (
-            print_kwargs_run.status.results["databricks_runtime_task"]["logs"]
-            == "kwargs: {'param1': 'value1', 'param2': 'value2'}\n"
-        )
+        logs = cls._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
+        assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
@@ -243,10 +240,7 @@ def import_mlrun():
             params=default_test_params,
         )
         assert run.status.state == "completed"
-        assert (
-            run.status.results["databricks_runtime_task"]["logs"]
-            == "{'param1': 'value1', 'param2': 'value2'}\n"
-        )
+        self.assert_print_kwargs(print_kwargs_run=run)
 
     @pytest.mark.parametrize(
         "handler, function_name",
@@ -344,34 +338,44 @@ def handler(**kwargs):
         )
         assert run.state.result_state == RunResultState.CANCELED
 
+    def _upload_df(self, filename_extension: str, test_name: str):
+        file_name = f"my_artifact_test_{uuid.uuid4()}.{filename_extension}"
+        dbfs_path = f"{self.dbfs_folder_path}/{test_name}/{file_name}"
+        src_path = str(self.assets_path / f"test_data.{filename_extension}")
+        try:
+            with open(src_path, "rb") as parquet_file:
+                self.workspace.dbfs.upload(src=parquet_file, path=dbfs_path)
+        except Exception as e:
+            raise e
+
+        return dbfs_path
+
     def test_log_artifact(self):
         self._run_db.del_artifacts(project=self.project_name)
-        artifact_key_parquet = f"my_artifact_test_{uuid.uuid4()}.parquet"
-        artifact_key_csv = f"my_artifact_test_{uuid.uuid4()}.csv"
-        parquet_artifact_dbfs_path = (
-            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_parquet}"
+        test_name = inspect.currentframe().f_code.co_name
+        parquet_artifact_dbfs_path = self._upload_df(
+            filename_extension="parquet", test_name=test_name
         )
-        csv_artifact_dbfs_path = (
-            f"{self.dbfs_folder_path}/test_log_artifact/{artifact_key_csv}"
+        parquet_artifact_name = "my_test_artifact_parquet"
+        csv_artifact_dbfs_path = self._upload_df(
+            filename_extension="csv", test_name=test_name
         )
-        src_parquet_path = str(self.assets_path / "test_data.parquet")
-        src_csv_path = str(self.assets_path / "test_data.csv")
+        csv_artifact_name = "my_test_artifact_csv"
+        generated_path_artifact_dbfs_path = self._upload_df(
+            filename_extension="parquet", test_name=test_name
+        )
         paths_dict = {
-            src_parquet_path: parquet_artifact_dbfs_path,
-            src_csv_path: csv_artifact_dbfs_path,
+            parquet_artifact_name: parquet_artifact_dbfs_path,
+            csv_artifact_name: csv_artifact_dbfs_path,
+            "mlrun_return_value_3": generated_path_artifact_dbfs_path,
         }
-        with open(str(self.assets_path / "test_data.parquet"), "rb") as parquet_file:
-            self.workspace.dbfs.upload(
-                src=parquet_file, path=parquet_artifact_dbfs_path
-            )
-        with open(str(self.assets_path / "test_data.csv"), "rb") as csv_file:
-            self.workspace.dbfs.upload(src=csv_file, path=csv_artifact_dbfs_path)
         #  CSV has been tested as a Spark path, and an illegal path was
         #  used for testing to avoid triggering an error in log_artifact.
         code = f"""\n
 def main():
     mlrun_log_artifact('my_test_artifact_parquet','/dbfs{parquet_artifact_dbfs_path}')
     mlrun_log_artifact('illegal artifact',10)
+    mlrun_log_artifact(path='/dbfs{generated_path_artifact_dbfs_path}')
     return {{'my_test_artifact_csv': 'dbfs:{csv_artifact_dbfs_path}'}}
 """
         function_ref = FunctionReference(
@@ -389,11 +393,12 @@ def main():
             project=self.project_name,
         )
         time.sleep(2)
-        self._check_artifacts_by_path(paths_dict=paths_dict)
+        self._check_artifacts(paths_dict=paths_dict)
         self._run_db.del_artifacts(project=self.project_name)
+        time.sleep(2)
         assert (
             len(self.project.list_artifacts()) == 0
         )  # Make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
-        time.sleep(3)
-        self._check_artifacts_by_path(paths_dict=paths_dict)
+        time.sleep(4)
+        self._check_artifacts(paths_dict=paths_dict)

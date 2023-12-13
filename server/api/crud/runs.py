@@ -283,7 +283,7 @@ class Runs(
 
         if failed_deletions:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to delete {failed_deletions} runs"
+                f"Failed to delete {failed_deletions} run(s). Error: {mlrun.errors.err_to_str(last_exception)}"
             ) from last_exception
 
     def abort_run(

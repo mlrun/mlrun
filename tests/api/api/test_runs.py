@@ -261,8 +261,8 @@ async def test_abort_run_already_in_progress(db: Session, client: TestClient) ->
         "background_task_id": background_task_name,
     }
 
-    server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache = {}
-    await server.api.api.endpoints.runs._abort_run_background_tasks_cache.create(
+    server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache = {}
+    await server.api.api.endpoints.runs.abort_run_background_tasks_cache.create(
         run_in_progress_uid, 100, cls_kwargs=kwargs
     )
 
@@ -298,7 +298,7 @@ def test_abort_aborted_run_with_background_task(
         db, run_in_progress, run_in_progress_uid, project=project
     )
 
-    server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache = {}
+    server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache = {}
     with unittest.mock.patch.object(
         server.api.crud.RuntimeResources, "delete_runtime_resources"
     ):
@@ -315,11 +315,11 @@ def test_abort_aborted_run_with_background_task(
             == mlrun.common.schemas.BackgroundTaskState.succeeded
         )
         assert (
-            len(server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache)
+            len(server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache)
             == 1
         )
         assert (
-            server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache[
+            server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache[
                 run_in_progress_uid
             ].background_task_id
             == background_task_1.metadata.name
@@ -345,11 +345,11 @@ def test_abort_aborted_run_with_background_task(
 
         assert background_task_1.metadata.name != background_task_2.metadata.name
         assert (
-            len(server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache)
+            len(server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache)
             == 1
         )
         assert (
-            server.api.api.endpoints.runs._abort_run_background_tasks_cache.cache[
+            server.api.api.endpoints.runs.abort_run_background_tasks_cache.cache[
                 run_in_progress_uid
             ].background_task_id
             == background_task_2.metadata.name

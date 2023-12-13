@@ -31,6 +31,7 @@ import mlrun.lists
 import mlrun.utils
 import mlrun.utils.notifications
 import mlrun.utils.version
+import server.api.api.endpoints.runs
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
 import server.api.crud
@@ -191,6 +192,7 @@ async def move_api_to_online():
     # we've added the full sync on the project member initialization (see code there for details) which might delete
     # projects which requires the scheduler to be set
     initialize_project_member()
+    _start_periodic_cache_cleanup()
 
     # maintenance periodic functions should only run on the chief instance
     if (
@@ -471,6 +473,10 @@ def _start_periodic_cleanup():
         run_function_periodically(
             interval, _cleanup_runtimes.__name__, False, _cleanup_runtimes
         )
+
+
+def _start_periodic_cache_cleanup():
+    server.api.api.endpoints.runs.abort_run_background_tasks_cache.start_periodic_cleanup()
 
 
 def _start_periodic_runs_monitoring():

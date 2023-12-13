@@ -160,13 +160,10 @@ class RunStates(object):
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
     @staticmethod
-    def allowed_for_deletion_states():
+    def not_allowed_for_deletion_states():
         return [
-            RunStates.completed,
-            RunStates.error,
-            RunStates.aborted,
-            RunStates.unknown,
-            RunStates.created,
+            RunStates.running,
+            RunStates.pending,
         ]
 
 

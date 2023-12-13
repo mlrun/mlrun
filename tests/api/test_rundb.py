@@ -103,7 +103,9 @@ async def test_runs(db: RunDBInterface):
         db.read_run(uid3)
 
     label = "l1"
-    db.del_runs(labels=[label])
+    runs = db.list_runs(labels=[label])
+    assert 1 == len(runs), "labels length"
+    await db.del_runs(labels=[label])
     for run in db.list_runs():
         assert label not in run["metadata"]["labels"], "del_runs"
 

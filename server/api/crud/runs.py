@@ -226,16 +226,12 @@ class Runs(
         if (
             state
             and state
-            not in mlrun.runtimes.constants.RunStates.allowed_for_deletion_states()
+            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunBadRequestError(
                 f"Can not delete runs in {state} state"
             )
-        states = (
-            [state]
-            if state
-            else mlrun.runtimes.constants.RunStates.allowed_for_deletion_states()
-        )
+
         if not runs_list:
             start_time_from = None
             if days_ago:
@@ -245,11 +241,12 @@ class Runs(
 
             runs_list = self.list_runs(
                 db_session,
-                name,
+                name=name,
                 project=project,
                 labels=labels,
-                states=states,
+                states=[state] if state else None,
                 start_time_from=start_time_from,
+                return_as_run_structs=False,
             )
 
         failed_deletions = 0
@@ -262,9 +259,9 @@ class Runs(
                 tasks.append(
                     server.api.db.session.run_function_with_new_db_session(
                         self.delete_run,
-                        run["metadata"]["uid"],
-                        run["metadata"]["iteration"],
-                        project,
+                        run.uid,
+                        run.iteration,
+                        run.project,
                     )
                 )
             results = await asyncio.gather(*tasks, return_exceptions=True)

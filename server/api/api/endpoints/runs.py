@@ -296,6 +296,7 @@ async def delete_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    runs = []
     if not project or project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
@@ -321,11 +322,9 @@ async def delete_runs(
             labels=labels,
             states=[state] if state is not None else None,
             start_time_from=start_time_from,
+            return_as_run_structs=False,
         )
-        projects = set(
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
-            for run in runs
-        )
+        projects = set(run.project or mlrun.mlconf.default_project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO Delete only runs from projects that user has permissions to
@@ -338,14 +337,14 @@ async def delete_runs(
             )
 
     # TODO: make a background task?
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_runs,
+    await server.api.crud.Runs().delete_runs(
         db_session,
         name,
         project,
         labels,
         state,
         days_ago,
+        runs,
     )
     return {}
 

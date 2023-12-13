@@ -103,7 +103,7 @@ def bump_model_endpoint_last_request(
     model_endpoint: ModelEndpoint,
     db: "RunDBInterface",
     minutes_delta: int = 10,  # TODO: move to config - should be the same as `batch_interval`
-    seconds_delta: int = 2,
+    seconds_delta: int = 1,
 ) -> None:
     """
     Update the last request field of the model endpoint to be after the current last request time.
@@ -113,7 +113,8 @@ def bump_model_endpoint_last_request(
     :param db:              DB interface.
     :param minutes_delta:   Minutes delta to add to the last request time.
     :param seconds_delta:   Seconds delta to add to the last request time. This is mainly to ensure that the last
-                            request time is strongly greater than the previous one after adding the minutes delta.
+                            request time is strongly greater than the previous one (with respect to the window time)
+                            after adding the minutes delta.
     """
     if not model_endpoint.status.last_request:
         logger.error(

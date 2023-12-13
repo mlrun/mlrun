@@ -11,13 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 
+import datetime
 import typing
 
+import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
+from mlrun.common.schemas.model_monitoring import EventFieldType
+from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.model_monitoring.model_endpoint import ModelEndpoint
+from mlrun.utils import logger
+
+if typing.TYPE_CHECKING:
+    from mlrun.db.base import RunDBInterface
 
 
 def get_stream_path(project: str = None, application_name: str = None):
@@ -88,4 +96,54 @@ def get_connection_string(secret_provider: typing.Callable = None) -> str:
             secret_provider=secret_provider,
         )
         or mlrun.mlconf.model_endpoint_monitoring.endpoint_store_connection
+    )
+
+
+def bump_model_endpoint_last_request(
+    project: str,
+    model_endpoint: ModelEndpoint,
+    db: "RunDBInterface",
+    minutes_delta: int = 10,  # TODO: move to config - should be the same as `batch_interval`
+    seconds_delta: int = 1,
+) -> None:
+    """
+    Update the last request field of the model endpoint to be after the current last request time.
+
+    :param project:         Project name.
+    :param model_endpoint:  Model endpoint object.
+    :param db:              DB interface.
+    :param minutes_delta:   Minutes delta to add to the last request time.
+    :param seconds_delta:   Seconds delta to add to the last request time. This is mainly to ensure that the last
+                            request time is strongly greater than the previous one (with respect to the window time)
+                            after adding the minutes delta.
+    """
+    if not model_endpoint.status.last_request:
+        logger.error(
+            "Model endpoint last request time is empty, cannot bump it.",
+            project=project,
+            endpoint_id=model_endpoint.metadata.uid,
+        )
+        raise MLRunInvalidArgumentError("Model endpoint last request time is empty")
+
+    bumped_last_request = (
+        datetime.datetime.fromisoformat(model_endpoint.status.last_request)
+        + datetime.timedelta(
+            minutes=minutes_delta,
+            seconds=seconds_delta,
+        )
+        + datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        )
+    ).strftime(EventFieldType.TIME_FORMAT)
+    logger.info(
+        "Bumping model endpoint last request time",
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        last_request=model_endpoint.status.last_request,
+        bumped_last_request=bumped_last_request,
+    )
+    db.patch_model_endpoint(
+        project=project,
+        endpoint_id=model_endpoint.metadata.uid,
+        attributes={EventFieldType.LAST_REQUEST: bumped_last_request},
     )

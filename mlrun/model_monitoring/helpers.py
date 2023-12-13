@@ -16,6 +16,7 @@
 import datetime
 import typing
 
+import mlrun
 import mlrun.common.model_monitoring.helpers
 import mlrun.common.schemas
 from mlrun.common.schemas.model_monitoring import EventFieldType
@@ -129,6 +130,9 @@ def bump_model_endpoint_last_request(
         + datetime.timedelta(
             minutes=minutes_delta,
             seconds=seconds_delta,
+        )
+        + datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )
     ).strftime(EventFieldType.TIME_FORMAT)
     logger.info(

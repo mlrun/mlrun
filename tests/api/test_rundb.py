@@ -28,6 +28,7 @@ from mlrun.db.base import RunDBInterface
 from server.api.initial_data import init_data
 from server.api.rundb import sqldb
 from server.api.utils.singletons.db import initialize_db
+from server.api.utils.singletons.logs_dir import initialize_logs_dir
 from tests.conftest import new_run, run_now
 
 dbs = [
@@ -67,7 +68,10 @@ def new_func(labels, **kw):
     return obj
 
 
-def test_runs(db: RunDBInterface):
+@pytest.mark.asyncio
+async def test_runs(db: RunDBInterface):
+    initialize_logs_dir()
+
     run1 = new_run("s1", {"l1": "v1", "l2": "v2"}, x=1)
     db.store_run(run1, "uid1")
     run2 = new_run("s1", {"l2": "v2", "l3": "v3"}, x=2)
@@ -94,7 +98,7 @@ def test_runs(db: RunDBInterface):
     run3["status"] = updates["status"]
     assert run3 == runs[0], "state run"
 
-    db.del_run(uid3)
+    await db.del_run(uid3)
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         db.read_run(uid3)
 

@@ -18,15 +18,20 @@ import pytest
 import sqlalchemy.orm
 from kubernetes import client as k8s_client
 
+import mlrun.common.schemas
 import mlrun.errors
 import server.api.crud
 import server.api.runtime_handlers
+import server.api.utils.clients.log_collector
 import server.api.utils.singletons.k8s
 import tests.api.conftest
 
 
 class TestRuns(tests.api.conftest.MockedK8sHelper):
-    def test_delete_runs_with_resources(self, db: sqlalchemy.orm.Session):
+    @pytest.mark.asyncio
+    async def test_delete_runs_with_resources(self, db: sqlalchemy.orm.Session):
+        mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
+
         project = "project-name"
         server.api.crud.Runs().store_run(
             db,
@@ -71,9 +76,15 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             ],
         ), unittest.mock.patch.object(
             server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
-        ):
-            server.api.crud.Runs().delete_run(db, "uid", 0, project)
+        ), unittest.mock.patch.object(
+            server.api.utils.clients.log_collector.LogCollectorClient, "stop_logs"
+        ) as stop_logs_mock, unittest.mock.patch.object(
+            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+        ) as delete_logs_mock:
+            await server.api.crud.Runs().delete_run(db, "uid", 0, project)
             delete_namespaced_pod_mock.assert_called_once()
+            stop_logs_mock.assert_called_once()
+            delete_logs_mock.assert_called_once()
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             server.api.crud.Runs().get_run(db, "uid", 0, project)

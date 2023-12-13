@@ -13,7 +13,17 @@
 # limitations under the License.
 #
 # This is the application that can include mutiple metrcs from evaluat and llm_judge
+# This class should perform the following:
+# 1. decide which metrics to use, if there is no y_true, we can only use
+#    metrics from llm_judge for single grading and pairwise grading. otherwise,
+#    we can use metrics from evaluate and llm_judge for reference grading.
+# 2. calculate the metrics values for the given data.
+# 3. create a radar chart for the metrics values. (this shoud be logged as an artifact)
+# 4. create a report for the metrics values. (this should be logged as an artifact)
+# 5. it's even better if we can offer a UI for this
 
+
+import pandas as pd
 from typing import List, Optional, Union, Dict
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
@@ -58,6 +68,13 @@ class LLMMonitoringApp(ModelObj):
     ) -> Dict[str, float]:
         """
         Calculate metrics values - helper for the user .
+        """
+
+        pass
+
+    def radar_chart(self, metrics_names: List[str], metrics_values: List[float]):
+        """
+        Create a radar chart for the metrics values.
         """
 
         pass

@@ -20,6 +20,7 @@ from unittest.mock import Mock, patch
 import pytest
 from v3io.dataplane.response import HttpResponseError
 
+import mlrun
 from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
     FeatureStats,
@@ -210,4 +211,6 @@ class TestBumpModelEndpointLastRequest:
             ]
         ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
             minutes=minutes_delta, seconds=seconds_delta
+        ) + datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         ), "The patched last request time should be bumped by the given delta"

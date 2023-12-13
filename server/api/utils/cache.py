@@ -49,7 +49,7 @@ class Cache:
     def __init__(self, cls):
         self.lock = asyncio.Lock()
         self.cls = cls
-        self.cache: typing.Dict[str, cls] = {}
+        self.cache: typing.Dict[str, CachedObject] = {}
 
     @contextlib.asynccontextmanager
     async def get_or_create_locked(
@@ -99,7 +99,7 @@ class Cache:
         async with self.lock:
             return self._create(key, ttl, lock, cls_kwargs)
 
-    def remove_obj(self, key: str, object_id: dict = None):
+    def remove_obj(self, key: str, object_id: str):
         """
         Remove an object from the cache if it exists and matches the given arguments.
         :param key:   The object's key in the cache.
@@ -122,7 +122,7 @@ class Cache:
 
         # create a delayed call to remove the object from the cache after the ttl expires
         loop = asyncio.get_event_loop()
-        expiry_delayed_call = loop.call_later(ttl, self.remove_obj, key)
+        expiry_delayed_call = loop.call_later(ttl, self.remove_obj, key, object_id)
 
         obj = self.cls(
             object_id, lock, expiry_delayed_call=expiry_delayed_call, **cls_kwargs

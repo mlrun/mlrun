@@ -50,8 +50,8 @@ class LLMMonitoringApp(ModelObj):
         return self._metrics
 
     @metrics.setter
-    def metrics(self, metrics: List[Union[MonitoringMetric]]):
-        self._metrics = ObjectList.from_list(MonitoringMetric, metrics)
+    def metrics(self, metrics: List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]):
+        self._metrics = ObjectList.from_list(metrics)
 
     def compute_metrics_over_data(
         self, train_df: pd.DataFrame, sample_df: pd.DataFrame, metrics_names: List[str]
@@ -59,3 +59,5 @@ class LLMMonitoringApp(ModelObj):
         """
         Calculate metrics values - helper for the user .
         """
+
+        pass

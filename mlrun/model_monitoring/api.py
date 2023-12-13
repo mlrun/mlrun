@@ -165,17 +165,14 @@ def record_results(
     :param possible_drift_threshold: The threshold of which to mark possible drifts.
     :param trigger_monitoring_job:   If true, run the batch drift job. If not exists, the monitoring batch function
                                      will be registered through MLRun API with the provided image.
-    :param last_in_batch_set:        This flag is relevant when the model endpoint does not have a model monitoring
-                                     infrastructure in place (i.e. stream path is empty).
-                                     If True, mark the current monitoring window as completed - meaning that
-                                     the current data will be used in the monitoring, without waiting for the
-                                     next monitoring window to start.
-                                     You may want to set it to False if you have multiple results to record, and this
-                                     result is not the last one in the current batch set. In that case, pass True only
-                                     for the last call to this function.
-                                     When the model endpoint has a model monitoring infrastructure in place, this flag
-                                     will produce a warning and will be ignored. Set `last_in_batch_set` to `None` to
-                                     resolve this warning.
+    :param last_in_batch_set:        This flag can (and should only) be used when the model endpoint does not have
+                                     model-monitoring set.
+                                     If set to `True` (the default), this flag marks the current monitoring window
+                                     (on this monitoring endpoint) is completed - the data inferred so far is assumed
+                                     to be the total data for this monitoring window.
+                                     You may want to set this flag to `False` if you want to record multiple results in
+                                     close time proximity ("batch set"). In this case, set this flag to `False` on all
+                                     but the last batch in the set.
     :param artifacts_tag:            Tag to use for all the artifacts resulted from the function. Will be relevant
                                      only if the monitoring batch job has been triggered.
 

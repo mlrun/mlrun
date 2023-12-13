@@ -940,12 +940,11 @@ def version():
 )
 @click.option("--offset", type=int, default=0, help="byte offset")
 @click.option("--db", help="api and db service path/url")
-@click.option("--watch", "-w", is_flag=True, help="watch/follow log")
-def logs(uid, project, offset, db, watch):
+def logs(uid, project, offset, db):
     """Get or watch task logs"""
     mldb = get_run_db(db or mlconf.dbpath)
     if mldb.kind == "http":
-        state, _ = mldb.watch_log(uid, project, watch=watch, offset=offset)
+        state, _ = mldb.watch_log(uid, project, watch=False, offset=offset)
     else:
         state, text = mldb.get_log(uid, project, offset=offset)
         if text:

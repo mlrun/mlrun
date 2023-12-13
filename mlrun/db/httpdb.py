@@ -482,20 +482,27 @@ class HTTPRunDB(RunDBInterface):
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=-1):
-        """Retrieve a log.
+    def get_log(self, uid, project="", offset=0, size=None):
+        """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log
-        :param size: See ``offset``. If set to ``-1`` (the default) will retrieve all data to end of log.
+        :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
         """
+        if size is None:
+            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
+        elif size == -1:
+            logger.warning(
+                "Retrieving all logs. This may be inefficient and can result in a large log."
+            )
+            self.watch_log(uid, project, watch=False, offset=offset)
 
         params = {"offset": offset, "size": size}
         path = self._path_of("log", project, uid)
@@ -508,46 +515,50 @@ class HTTPRunDB(RunDBInterface):
         return "unknown", resp.content
 
     def watch_log(self, uid, project="", watch=True, offset=0):
-        """Retrieve logs of a running process, and watch the progress of the execution until it completes. This
-        method will print out the logs and continue to periodically poll for, and print, new logs as long as the
-        state of the runtime which generates this log is either ``pending`` or ``running``.
+        """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
+        completes. This method will print out the logs and continue to periodically poll for, and print,
+        new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
 
         :param uid: The uid of the log object to watch.
         :param project: Project that the log belongs to.
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
-        :returns: The final state of the log being watched.
+        :returns: The final state of the log being watched and the final offset.
         """
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
-        if watch:
-            nil_resp = 0
-            while state in ["pending", "running"]:
-                offset += len(text)
-                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
-                # TODO: refactor this to use a conditional backoff mechanism
-                if nil_resp < 3:
-                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
-                else:
-                    time.sleep(
-                        int(
-                            mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
-                        )
-                    )
-                state, text = self.get_log(uid, project, offset=offset)
-                if text:
-                    nil_resp = 0
-                    print(
-                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
-                        end="",
-                    )
-                else:
-                    nil_resp += 1
-        else:
+        nil_resp = 0
+        while True:
             offset += len(text)
+            # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+            # TODO: refactor this to use a conditional backoff mechanism
+            if nil_resp < 3:
+                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
+            else:
+                time.sleep(
+                    int(
+                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                    )
+                )
+            state, text = self.get_log(uid, project, offset=offset)
+            if text:
+                nil_resp = 0
+                print(
+                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                    end="",
+                )
+            else:
+                nil_resp += 1
+
+            if watch and state in ["pending", "running"]:
+                continue
+            else:
+                # the whole log was retrieved
+                if len(text) == 0:
+                    break
 
         return state, offset
 

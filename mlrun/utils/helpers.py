@@ -522,14 +522,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match

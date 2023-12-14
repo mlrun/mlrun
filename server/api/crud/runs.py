@@ -229,7 +229,7 @@ class Runs(
             in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Can not delete runs in {state} state"
+                f"Can not delete runs in {state} state, consider aborting the run first."
             )
 
         if not runs_list:

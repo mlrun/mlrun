@@ -136,7 +136,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
-                requirements=["evidently~=0.4.7"],
+                requirements=["evidently==0.4.7"],
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
@@ -166,7 +166,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     requirements=app_data.requirements,
                     **app_data.kwargs,
                 )
-                executor.submit(self.project.deploy_function, fn)
+                executor.submit(fn.deploy)
 
     def _log_model(self) -> None:
         dataset = load_iris()

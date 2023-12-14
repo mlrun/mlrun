@@ -1,10 +1,8 @@
 [tool.ruff]
-select = []
-
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-extend_skip_glob = ["*venv*", "server/api/proto"]
+select = [
+    "I", # isort
+]
+extend-exclude = ["server/api/proto"]
 
 [tool.pytest.ini_options]
 addopts = "-v -rf --disable-warnings"

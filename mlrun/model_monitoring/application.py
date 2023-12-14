@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import dataclasses
 import json
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -45,7 +44,7 @@ class ModelMonitoringApplicationResult:
     :param result_kind:           (ResultKindApp) Kind of application result.
     :param result_status:         (ResultStatusApp) Status of the application result.
     :param result_extra_data:     (dict) Extra data associated with the application result.
-
+    :param _current_stats:        (dict) Current statistics of the data.
     """
 
     application_name: str
@@ -57,7 +56,7 @@ class ModelMonitoringApplicationResult:
     result_kind: mm_constant.ResultKindApp
     result_status: mm_constant.ResultStatusApp
     result_extra_data: dict = dataclasses.field(default_factory=dict)
-    _current_stats: dict = None
+    _current_stats: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self):
         """
@@ -103,7 +102,7 @@ class ModelMonitoringApplication(StepToDict):
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
                 output_stream_uri: str,
-            ) -> typing.Union[ModelMonitoringApplicationResult, typing.List[ModelMonitoringApplicationResult]
+            ) -> Union[ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
             ]:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
                 return ModelMonitoringApplicationResult(
@@ -121,19 +120,18 @@ class ModelMonitoringApplication(StepToDict):
 
     kind = "monitoring_application"
 
-    def do(self, event: Dict[str, Any]):
+    def do(self, event: dict[str, Any]):
         """
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (List[ModelMonitoringApplicationResult]) The application results.
+        :returns:       (list[ModelMonitoringApplicationResult]) The application results.
         """
         resolved_event = self._resolve_event(event)
         if not (
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        # Run application and get the result in the required `ModelMonitoringApplicationResult` format
         result = self.run_application(*resolved_event)
         # Add current stats to the result as provided in the event
         result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
@@ -154,7 +152,7 @@ class ModelMonitoringApplication(StepToDict):
         endpoint_id: str,
         output_stream_uri: str,
     ) -> Union[
-        ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
+        ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
     ]:
         """
         Implement this method with your custom monitoring logic.
@@ -170,13 +168,13 @@ class ModelMonitoringApplication(StepToDict):
         :param output_stream_uri:       (str) URI of the output stream for results
 
         :returns:                       (ModelMonitoringApplicationResult) or
-                                        (List[ModelMonitoringApplicationResult]) of the application results.
+                                        (list[ModelMonitoringApplicationResult]) of the application results.
         """
         raise NotImplementedError
 
     @staticmethod
     def _resolve_event(
-        event: Dict[str, Any],
+        event: dict[str, Any],
     ) -> Tuple[
         str,
         pd.DataFrame,
@@ -235,7 +233,7 @@ class ModelMonitoringApplication(StepToDict):
         return context
 
     @staticmethod
-    def _dict_to_histogram(histogram_dict: Dict[str, Dict[str, Any]]) -> pd.DataFrame:
+    def _dict_to_histogram(histogram_dict: dict[str, dict[str, Any]]) -> pd.DataFrame:
         """
         Convert histogram dictionary to pandas DataFrame with feature histograms as columns
 
@@ -262,10 +260,10 @@ class PushToMonitoringWriter(StepToDict):
 
     def __init__(
         self,
-        project: str = None,
-        writer_application_name: str = None,
-        stream_uri: str = None,
-        name: str = None,
+        project: str,
+        writer_application_name: str,
+        stream_uri: Optional[str] = None,
+        name: Optional[str] = None,
     ):
         """
         Class for pushing application results to the monitoring writer stream.
@@ -287,7 +285,7 @@ class PushToMonitoringWriter(StepToDict):
     def do(
         self,
         event: Union[
-            ModelMonitoringApplicationResult, List[ModelMonitoringApplicationResult]
+            ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
         ],
     ):
         """
@@ -296,7 +294,7 @@ class PushToMonitoringWriter(StepToDict):
         :param event: Monitoring result(s) to push.
         """
         self._lazy_init()
-        event = event if isinstance(event, List) else [event]
+        event = event if isinstance(event, list) else [event]
         for result in event:
             data = result.to_dict()
             logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")

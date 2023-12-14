@@ -122,7 +122,7 @@ default_config = {
         "generate_target_path_from_artifact_hash": None,
         # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
         # migration progress.
-        "artifact_migration_batch_size": 100,
+        "artifact_migration_batch_size": 200,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to

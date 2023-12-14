@@ -488,23 +488,26 @@ def _migrate_artifacts_table_v2(
     progress, and is updated after each batch, so that if the migration fails, it can be resumed from the last batch.
     Delete the old artifacts table when done.
     """
-    logger.info("Migrating artifacts to artifacts_v2 table")
 
     # count the total number of artifacts to migrate
     total_artifacts_count = db._query(
         db_session, server.api.db.sqldb.models.Artifact
     ).count()
+
+    if total_artifacts_count == 0:
+        # no artifacts to migrate
+        return
+
+    logger.info(
+        "Migrating artifacts to artifacts_v2 table",
+        total_artifacts_count=total_artifacts_count,
+    )
     batch_size = config.artifacts.artifact_migration_batch_size
 
     # get the id of the last migrated artifact and the list of all link artifacts ids from the state file
     last_migrated_artifact_id, link_artifact_ids = _get_migration_state()
 
     while True:
-        logger.debug(
-            "Migrating artifacts batch",
-            batch_size=batch_size,
-            total_artifacts_count=total_artifacts_count,
-        )
         # migrate the next batch
         last_migrated_artifact_id, batch_link_artifact_ids = _migrate_artifacts_batch(
             db, db_session, last_migrated_artifact_id, batch_size
@@ -524,6 +527,8 @@ def _migrate_artifacts_table_v2(
     # delete the state file
     _delete_state_file()
 
+    logger.debug("Deleting old artifacts table, including their labels and tags")
+
     # drop the old artifacts table, including their labels and tags tables
     db.delete_table_records(
         db_session, server.api.db.sqldb.models.Artifact.Label, raise_on_not_exists=False
@@ -534,6 +539,8 @@ def _migrate_artifacts_table_v2(
     db.delete_table_records(
         db_session, server.api.db.sqldb.models.Artifact, raise_on_not_exists=False
     )
+
+    logger.info("Finished migrating artifacts to artifacts_v2 table successfully")
 
 
 def _migrate_artifacts_batch(
@@ -562,6 +569,8 @@ def _migrate_artifacts_batch(
     if len(artifacts) == 0:
         # we're done
         return None, None
+
+    logger.debug("Migrating artifacts batch", batch_size=len(artifacts))
 
     for artifact in artifacts:
         new_artifact = server.api.db.sqldb.models.ArtifactV2()
@@ -667,9 +676,12 @@ def _migrate_artifact_labels(
     db_session: sqlalchemy.orm.Session,
     artifacts_labels_to_migrate: list,
 ):
-    # iterate over all the artifacts, and create labels for each one
-    logger.info("Aligning artifact labels")
+    if not artifacts_labels_to_migrate:
+        return []
+
     labels = []
+
+    # iterate over all the artifacts, and create labels for each one
     for artifact, artifacts_labels in artifacts_labels_to_migrate:
         for name, value in artifacts_labels.items():
             new_label = artifact.Label(
@@ -687,7 +699,9 @@ def _migrate_artifact_tags(
     db_session: sqlalchemy.orm.Session,
     old_id_to_artifact: dict[typing.Any, server.api.db.sqldb.models.ArtifactV2],
 ):
-    logger.info("Aligning artifact tags")
+    if not old_id_to_artifact:
+        return []
+
     new_tags = []
 
     # get all tags that are attached to the artifacts we migrated

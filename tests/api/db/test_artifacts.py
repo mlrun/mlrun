@@ -17,6 +17,7 @@ import tempfile
 
 import deepdiff
 import pytest
+from sqlalchemy import distinct, select
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
@@ -969,6 +970,81 @@ class TestArtifacts:
                     db_session, expected["key"], project=expected["project"]
                 )
 
+    def test_migrate_many_artifacts_to_v2(self, db: DBInterface, db_session: Session):
+        # create 10 artifacts in 10 projects
+        for i in range(10):
+            project_name = f"project-{i}"
+            db.create_project(
+                db_session,
+                mlrun.common.schemas.Project(
+                    metadata=mlrun.common.schemas.ProjectMetadata(
+                        name=project_name,
+                    ),
+                    spec=mlrun.common.schemas.ProjectSpec(
+                        description="some-description"
+                    ),
+                ),
+            )
+            for j in range(10):
+                artifact_key = f"artifact-{j}"
+                artifact_uid = f"uid-{j}"
+                artifact_tag = f"artifact-tag-{j}"
+                artifact_body = self._generate_artifact(
+                    artifact_key, artifact_uid, "artifact"
+                )
+                artifact_body["metadata"]["project"] = project_name
+                artifact_body["metadata"]["tag"] = artifact_tag
+                db.store_artifact_v1(
+                    db_session,
+                    artifact_key,
+                    artifact_body,
+                    artifact_uid,
+                    project=project_name,
+                    tag=artifact_tag,
+                )
+
+        # validate we have 100 artifacts in the old table
+        old_artifacts = db._query(
+            db_session,
+            server.api.db.sqldb.models.Artifact,
+        ).all()
+        assert len(old_artifacts) == 100
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # change the state file path to the temp directory for the test only
+            mlrun.config.config.artifacts.artifact_migration_state_file_path = (
+                temp_dir + "/_artifact_migration_state.json"
+            )
+
+            # perform the migration
+            server.api.initial_data._migrate_artifacts_table_v2(db, db_session)
+
+        # validate the migration succeeded
+        old_artifacts = db._query(
+            db_session,
+            server.api.db.sqldb.models.Artifact,
+        ).all()
+        assert len(old_artifacts) == 0
+
+        new_artifacts = db._query(
+            db_session,
+            server.api.db.sqldb.models.ArtifactV2,
+        ).all()
+        assert len(new_artifacts) == 100
+
+        # validate there are 200 tags in total - the specific tag and the latest tag for each artifact
+        new_artifact_tags = db._query(
+            db_session,
+            new_artifacts[0].Tag,
+        ).all()
+        assert len(new_artifact_tags) == 200
+
+        # validate we have 10 distinct projects in the new table
+        new_artifact_projects = db_session.execute(
+            select([distinct(server.api.db.sqldb.models.ArtifactV2.project)])
+        ).fetchall()
+        assert len(new_artifact_projects) == 10
+
     def test_migrate_artifact_v2_tag(self, db: DBInterface, db_session: Session):
         artifact_key = "artifact1"
         artifact_uid = "uid1"
@@ -1061,9 +1137,9 @@ class TestArtifacts:
             )
 
     @staticmethod
-    def _generate_artifact(name, uid=None, kind="artifact", tree=None, project=None):
+    def _generate_artifact(key, uid=None, kind="artifact", tree=None, project=None):
         artifact = {
-            "metadata": {"key": name},
+            "metadata": {"key": key},
             "spec": {"src_path": "/some/path"},
             "kind": kind,
             "status": {"bla": "blabla"},

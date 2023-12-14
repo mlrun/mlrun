@@ -186,3 +186,35 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
             runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "run_state",
+        [
+            mlrun.runtimes.constants.RunStates.running,
+            mlrun.runtimes.constants.RunStates.pending,
+        ],
+    )
+    async def test_delete_run_failure(self, db: sqlalchemy.orm.Session, run_state):
+        project = "project-name"
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+                "status": {"state": run_state},
+            },
+            "uid",
+            project=project,
+        )
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+            await server.api.crud.Runs().delete_run(db, "uid", 0, project)
+
+        assert (
+            f"Can not delete run in {run_state} state, consider aborting the run first."
+            in str(exc.value)
+        )

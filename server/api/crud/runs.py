@@ -187,6 +187,15 @@ class Runs(
             )
             return
 
+        run_state = run.get("status", {}).get("state")
+        if (
+            run_state
+            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Can not delete run in {run_state} state, consider aborting the run first."
+            )
+
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = server.api.runtime_handlers.get_runtime_handler(

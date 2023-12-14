@@ -33,7 +33,7 @@ from mlrun.datastore import DataItem
 from mlrun.model import ModelObj, ObjectList
 from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
-from mlrun.model_monitoring.genai.radar_chart import radar_plot
+from mlrun.model_monitoring.genai.radar_plot import radar_plot
 
 
 class MonitoringAppResult:

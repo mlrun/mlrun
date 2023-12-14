@@ -120,7 +120,7 @@ class ModelMonitoringApplication(StepToDict):
 
     kind = "monitoring_application"
 
-    def do(self, event: dict[str, Any]):
+    def do(self, event: dict[str, Any]) -> list[ModelMonitoringApplicationResult]:
         """
         Process the monitoring event and return application results.
 
@@ -132,10 +132,11 @@ class ModelMonitoringApplication(StepToDict):
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        result = self.run_application(*resolved_event)
-        # Add current stats to the result as provided in the event
-        result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
-        return result
+        results = self.run_application(*resolved_event)
+        results = results if isinstance(results, list) else [results]
+        for result in results:
+            result._current_stats = event[mm_constant.ApplicationEvent.CURRENT_STATS]
+        return results
 
     def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
@@ -282,19 +283,13 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(
-        self,
-        event: Union[
-            ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-        ],
-    ):
+    def do(self, event: list[ModelMonitoringApplicationResult]) -> None:
         """
         Push application results to the monitoring writer stream.
 
         :param event: Monitoring result(s) to push.
         """
         self._lazy_init()
-        event = event if isinstance(event, list) else [event]
         for result in event:
             data = result.to_dict()
             logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")

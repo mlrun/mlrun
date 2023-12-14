@@ -115,7 +115,7 @@ def test_requirement_specifiers_convention():
         },
         "fsspec": {"~=2023.9.0"},
         "adlfs": {"~=2023.9.0"},
-        "s3fs": {"~=2023.9.0"},
+        "s3fs": {"~=2023.9.1"},
         "gcsfs": {"~=2023.9.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},

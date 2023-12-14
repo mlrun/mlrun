@@ -359,7 +359,7 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )

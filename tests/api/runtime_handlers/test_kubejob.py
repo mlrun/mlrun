@@ -318,7 +318,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 )
 
                 # verifying monitoring was debounced
-                if type(expected_reached_state) == list:
+                if isinstance(expected_reached_state, list):
                     self._assert_run_reached_state(
                         db, self.project, self.run_uid, expected_reached_state[idx]
                     )

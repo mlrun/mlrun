@@ -192,7 +192,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind

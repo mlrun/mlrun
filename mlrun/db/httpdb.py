@@ -32,6 +32,7 @@ import mlrun.common.schemas
 import mlrun.model_monitoring.model_endpoint
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtimes.api_gateway
 from mlrun.errors import MLRunInvalidArgumentError, err_to_str
 
 from ..artifacts import Artifact
@@ -3186,6 +3187,41 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = f"projects/{project}/nuclio/api-gateways"
         resp = self.api_call("GET", endpoint_path, error)
         return resp.json()
+
+    def create_api_gateway(
+        self,
+        api_gateway: mlrun.runtimes.api_gateway.APIGateway,
+        auth: tuple,
+    ) -> bool:
+        """
+        Creates api gateway
+        :param api_gateway - api gateway entity
+        :param auth - pair of (username, password) if authentication is required
+
+        @return: true if response api gateway was created successfully
+        """
+        params = {
+            "functions": api_gateway.functions,
+            "path": api_gateway.path,
+            "description": api_gateway.description,
+            "host": api_gateway.host,
+        }
+        if api_gateway.requires_auth():
+            username, password = auth
+            params["username"] = username
+            params["password"] = password
+
+        # for user
+        if api_gateway.canary_dict:
+            params["canary"] = api_gateway.canary
+        error = "create api gateways"
+        endpoint_path = (
+            f"projects/{api_gateway.project}/nuclio/api-gateways/{api_gateway.name}"
+        )
+        response = self.api_call("POST", endpoint_path, error, params=params)
+        if not response:
+            return False
+        return response.ok
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually

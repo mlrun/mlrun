@@ -78,3 +78,30 @@ def test_list_api_gateways(
     )
 
     assert response.json() == expected_response_body
+
+
+@patch.object(server.api.utils.clients.async_nuclio.Client, "create_api_gateway")
+def test_create_api_gateway(
+    create_api_gateway_mocked, client: fastapi.testclient.TestClient
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    server.api.utils.clients.iguazio.AsyncClient().verify_request_session = (
+        unittest.mock.AsyncMock(
+            return_value=(
+                mlrun.common.schemas.AuthInfo(
+                    username="admin",
+                    session="some-session",
+                    data_session="some-session",
+                    user_id=None,
+                    user_unix_id=0,
+                    user_group_ids=[],
+                )
+            )
+        )
+    )
+
+    response = client.post(
+        f"projects/{PROJECT}/nuclio/api-gateways/test-create-gw", params={"functions": ["test-func"]}
+    )
+    create_api_gateway_mocked.return_value = None
+    assert response.status_code == 200

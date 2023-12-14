@@ -491,6 +491,13 @@ class NopDB(RunDBInterface):
     ):
         pass
 
+    def create_api_gateway(
+            self,
+            api_gateway: mlrun.runtimes.api_gateway.APIGateway,
+            auth: tuple,
+    ) -> bool:
+        pass
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,

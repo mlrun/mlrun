@@ -31,6 +31,7 @@ import mlrun.errors
 import mlrun.projects.project
 import mlrun.utils.helpers
 import tests.conftest
+import server.api.utils.clients.async_nuclio
 
 
 @pytest.fixture()
@@ -1464,3 +1465,37 @@ def test_load_project_from_yaml_with_function(context):
             )
             == {}
         )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
+def test_create_api_gateway(patched_create_api_gateway, context):
+    patched_create_api_gateway.return_value = True
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
+        image="my-image",
+        kind="nuclio",
+        filename=str(assets_path() / "handler.py"),
+    )
+    f1.save()
+    project.set_function(f1)
+    f2 = mlrun.code_to_function(
+        name="my-func2",
+        image="my-image",
+        kind="nuclio",
+        filename=str(assets_path() / "handler.py"),
+    )
+    f2.save()
+    project.set_function(f2)
+
+    with pytest.raises(ValueError):
+        project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20])
+
+    with pytest.raises(ValueError):
+        project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20, 10])
+
+    gateway = project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20, 80])
+    gateway._nuclio_dashboard_url = "https://nuclio.default-tenant.app.dev.lab.iguazeng.com/"
+    gateway._generate_invoke_url()
+    assert gateway._generate_invoke_url() == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"

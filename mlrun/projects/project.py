@@ -45,6 +45,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
+import mlrun.runtimes.api_gateway
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact
@@ -58,6 +59,7 @@ from ..model_monitoring.application import (
 )
 from ..run import code_to_function, get_object, import_function, new_function
 from ..runtimes.function import RemoteRuntime
+from ..runtimes.serving import ServingRuntime
 from ..secrets import SecretsStore
 from ..utils import (
     is_ipython,
@@ -3445,6 +3447,58 @@ class MlrunProject(ModelObj):
         :raise MLRunInvalidArgumentError: In case the packager was not in the list.
         """
         self.spec.remove_custom_packager(packager=packager)
+
+    def create_api_gateway(
+        self,
+        name: str,
+        host: str = None,
+        path: str = "",
+        description: str = "",
+        functions: list[Union[RemoteRuntime, ServingRuntime]] = [],
+        username: Union[None, str] = None,
+        password: Union[None, str] = None,
+        canary: Union[list[int], None] = None,
+    ) -> Union[mlrun.runtimes.api_gateway.APIGateway, None]:
+        """
+        Creates nuclio api gateway. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+
+        :param name: api gateway name
+        :param path: api gateway path
+        :param functions: the list of function names. For non-canary function pass a list of len=1
+        :param password: password if authentication is required
+        :param username: username if authentication is required
+        :param canary
+
+        @return: api gateway object
+
+        """
+        for func in functions:
+            if not (isinstance(func, RemoteRuntime) or isinstance(func, ServingRuntime)):
+                raise ValueError(f"Input function {func.name} is not a Nuclio function")
+
+        function_names = [func.metadata.name for func in functions]
+        gateway_instance = mlrun.runtimes.api_gateway.new_api_gateway(
+            project=self.name,
+            name=name,
+            host=host,
+            path=path,
+            description=description,
+            functions=function_names,
+            username=username,
+            password=password,
+            canary=canary,
+        )
+        ok = mlrun.db.get_run_db().create_api_gateway(
+            gateway_instance, (username, password)
+        )
+        return gateway_instance if ok else None
+
+    def list_api_gateways(self):
+        """
+        Lists nuclio api gateways. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+        :return api gateways json
+        """
+        mlrun.db.get_run_db().list_api_gateways(self.name)
 
     def _run_authenticated_git_action(
         self,

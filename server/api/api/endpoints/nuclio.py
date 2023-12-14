@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Body
 
 import mlrun.common.schemas
 import server.api.utils.clients.async_nuclio
 from server.api.api import deps
+from typing import Union
 
 router = APIRouter()
 
@@ -37,7 +38,7 @@ async def list_api_gateways(
     ).list_api_gateways(project)
 
     return await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateways,
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
         list(api_gateways.values()) if api_gateways else [],
         lambda _api_gateway: (
             _api_gateway.get("metadata", {})
@@ -46,4 +47,39 @@ async def list_api_gateways(
             _api_gateway.get("metadata", {}).get("name"),
         ),
         auth_info,
+    )
+
+
+@router.post("/projects/{project}/nuclio/api-gateways/{gateway}")
+async def create_api_gateway(
+    project: str,
+    gateway: str,
+    functions: list = Query(alias="functions"),
+    host: Union[str, None] = None,
+    path: Union[str, None] = None,
+    description: Union[str, None] = None,
+    username: Union[str, None] = None,
+    password: Union[str, None] = None,
+    canary: Union[list, None] = None,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
+):
+    """await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateways,
+        project,
+        "",
+        mlrun.common.schemas.AuthorizationAction.create,
+        auth_info,
+    )"""
+    await server.api.utils.clients.async_nuclio.Client(
+        auth_info
+    ).create_api_gateway(
+        project_name=project,
+        api_gateway_name=gateway,
+        functions=functions,
+        host=host,
+        path=path,
+        description=description,
+        username=username,
+        password=password,
+        canary=canary,
     )

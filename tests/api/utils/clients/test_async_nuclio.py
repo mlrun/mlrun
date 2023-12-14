@@ -91,3 +91,80 @@ async def test_nuclio_list_api_gateways(
     mock_aioresponse.get(request_url, status=http.HTTPStatus.UNAUTHORIZED)
     with pytest.raises(aiohttp.client_exceptions.ClientResponseError):
         await nuclio_client.list_api_gateways()
+
+
+@pytest.mark.asyncio
+async def test_nuclio_create_api_gateway(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    request_url = f"{api_url}/api/api_gateways/"
+
+    mock_aioresponse.post(
+        request_url,
+        status=http.HTTPStatus.ACCEPTED,
+    )
+    await nuclio_client.create_api_gateway(
+        project_name="default",
+        api_gateway_name="new-gw",
+        functions=["test-func"],
+    )
+
+
+def test__generate_nuclio_api_gateway_body(
+    nuclio_client: server.api.utils.clients.async_nuclio.Client,
+):
+    with pytest.raises(ValueError):
+        nuclio_client._generate_nuclio_api_gateway_body(
+            project_name="default",
+            api_gateway_name="gw",
+            functions=[],
+            host=None,
+            path="/",
+        )
+    with pytest.raises(ValueError):
+        nuclio_client._generate_nuclio_api_gateway_body(
+            project_name="default",
+            api_gateway_name="gw",
+            functions=[],
+            host=None,
+            path="/",
+            canary=[20, 30, 50],
+        )
+    nuclio_client._nuclio_domain = "nuclio.default-tenant.app.dev62.lab.iguazeng.com"
+    result = nuclio_client._generate_nuclio_api_gateway_body(
+        project_name="default",
+        api_gateway_name="gw",
+        functions=["f1", "f2", "f3"],
+        host=None,
+        path="/",
+        canary=[20, 30, 50],
+    )
+    assert result == {
+        "spec": {
+            "name": "gw",
+            "description": "",
+            "path": "/",
+            "authenticationMode": "none",
+            "upstreams": [
+                {
+                    "kind": "nucliofunction",
+                    "nucliofunction": {"name": "f1"},
+                    "percentage": 20,
+                },
+                {
+                    "kind": "nucliofunction",
+                    "nucliofunction": {"name": "f2"},
+                    "percentage": 30,
+                },
+                {
+                    "kind": "nucliofunction",
+                    "nucliofunction": {"name": "f3"},
+                    "percentage": 50,
+                },
+            ],
+            "host": "gw-default.default-tenant.app.dev62.lab.iguazeng.com",
+        },
+        "metadata": {"labels": {"nuclio.io/project-name": "default"}, "name": "gw"},
+    }

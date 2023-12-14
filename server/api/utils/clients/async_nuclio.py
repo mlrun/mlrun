@@ -14,17 +14,23 @@
 #
 import copy
 import urllib.parse
+from typing import Union
 
 import aiohttp
 
 import mlrun.common.schemas
 import mlrun.utils
+import mlrun.errors
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/"
 API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
+
+# auth modes for api gateways
+BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "basicAuth"
+NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
 
 
 class Client:
@@ -33,6 +39,7 @@ class Client:
         self._auth = aiohttp.BasicAuth(auth_info.username, auth_info.session)
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
+        self._nuclio_domain = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
 
     async def list_api_gateways(self, project_name=None):
         headers = {}
@@ -43,8 +50,45 @@ class Client:
         return await self._send_request_to_api(
             method="GET",
             url=self._nuclio_dashboard_url,
+            path=NUCLIO_API_GATEWAYS_ENDPOINT.format(api_gateway=""),
+            headers=headers,
+        )
+
+    async def create_api_gateway(
+        self,
+        project_name: str,
+        api_gateway_name: str,
+        functions: list,
+        host: Union[str, None] = None,
+        path="/",
+        description="",
+        username: Union[str, None] = None,
+        password: Union[str, None] = None,
+        canary: Union[list, None] = None,
+    ):
+        headers = {}
+
+        if project_name:
+            headers[NUCLIO_PROJECT_NAME_HEADER] = project_name
+
+        body = self._generate_nuclio_api_gateway_body(
+            project_name=project_name,
+            api_gateway_name=api_gateway_name,
+            functions=functions,
+            host=host,
+            path=path,
+            description=description,
+            username=username,
+            password=password,
+            canary=canary,
+        )
+
+        return await self._send_request_to_api(
+            method="POST",
+            url=self._nuclio_dashboard_url,
             path=NUCLIO_API_GATEWAYS_ENDPOINT,
             headers=headers,
+            json=body,
         )
 
     async def _ensure_async_session(self):
@@ -102,3 +146,86 @@ class Client:
         self._logger.warning("Request to nuclio failed. Reason:", **log_kwargs)
 
         mlrun.errors.raise_for_status(response, error_message)
+
+    def _generate_nuclio_api_gateway_body(
+        self,
+        project_name,
+        api_gateway_name,
+        functions,
+        host,
+        path,
+        description="",
+        username=None,
+        password=None,
+        canary=None,
+    ) -> dict:
+        if not functions:
+            raise ValueError("functions should contain at least one object")
+        host = (
+            f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.')+1:]}"
+            if not host
+            else host
+        )
+
+        authentication_mode = (
+            NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            if not username and not password
+            else BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+        )
+        body = {
+            "spec": {
+                "name": api_gateway_name,
+                "description": description,
+                "path": path,
+                "authenticationMode": authentication_mode,
+                "upstreams": [
+                    {
+                        "kind": "nucliofunction",
+                        "nucliofunction": {
+                            "name": functions[0],
+                        },
+                        "percentage": 0,
+                    }
+                ],
+                "host": host,
+            },
+            "metadata": {
+                "labels": {
+                    "nuclio.io/project-name": project_name,
+                },
+                "name": api_gateway_name,
+            },
+        }
+
+        # increments authentication info
+        if authentication_mode == BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE:
+            if username and password:
+                body["spec"]["authentication"] = {
+                    "basicAuth": {
+                        "username": username,
+                        "password": password,
+                    }
+                }
+            else:
+                raise mlrun.errors.MLRunPreconditionFailedError(
+                    "basicAuth authentication requires username and " "password"
+                )
+
+        # increments canary func info
+        if canary:
+            if len(canary) != len(functions):
+                raise ValueError("Functions list should be the same length as canary list")
+            upstream = []
+            for function_name, percentage in zip(functions, canary):
+                upstream.append(
+                    {
+                        "kind": "nucliofunction",
+                        "nucliofunction": {
+                            "name": function_name,
+                        },
+                        "percentage": percentage,
+                    }
+                )
+            body["spec"]["upstreams"] = upstream
+
+        return body

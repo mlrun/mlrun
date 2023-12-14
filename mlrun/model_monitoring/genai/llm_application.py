@@ -24,6 +24,7 @@
 
 
 import pandas as pd
+import json
 from abc import ABC, abstractmethod
 from statistics import mean, median
 from typing import List, Optional, Union, Dict
@@ -32,6 +33,7 @@ from mlrun.datastore import DataItem
 from mlrun.model import ModelObj, ObjectList
 from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
+from mlrun.model_monitoring.genai.radar_chart import radar_plot
 
 
 class MonitoringAppResult:
@@ -136,8 +138,10 @@ class LLMMonitoringApp(ModelObj, ABC):
         """
         Calculate metrics values - helper for the user .
         """
+        res = {}
         for metric in self.metrics:
             res[metric.name] = metric.compute_over_data(sample_df, train_df)
+        return res
 
     @aggregate("mean")
     def compute_one_metric_over_data(
@@ -160,14 +164,16 @@ class LLMMonitoringApp(ModelObj, ABC):
             )
         return res
 
-    def build_radar_chart(self, metrics_res: Dict[str, Union[float, int]]):
+    @staticmethod
+    def build_radar_chart(self, metrics_res: Dict[str, Any]):
         """
         Create a radar chart for the metrics values.
         """
-
         pass
 
-    def build_report(self, metrics_names: List[str], metrics_values: List[float]):
+    @staticmethod
+    def build_report(self, metrics_res: Dict[str, Any]):
         """
         Create a report for the metrics values.
         """
+        pass

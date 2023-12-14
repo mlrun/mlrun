@@ -31,7 +31,7 @@ from mlrun.utils import logger
 
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"
-tests_dir = Path(__file__).absolute().parent
+tests_dir = Path(__file__).absolute().parents[3]
 
 
 def my_job(context, p1=1, p2="a-string"):

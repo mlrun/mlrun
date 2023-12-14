@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
+import datetime
 import typing
 
 import sqlalchemy.orm
@@ -26,6 +28,7 @@ import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
+import server.api.db.session
 import server.api.runtime_handlers
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
@@ -137,7 +140,7 @@ class Runs(
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
@@ -209,7 +212,7 @@ class Runs(
 
         await self._post_delete_run(project, uid)
 
-    def delete_runs(
+    async def delete_runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
@@ -217,11 +220,72 @@ class Runs(
         labels=None,
         state=None,
         days_ago: int = 0,
+        runs_list: mlrun.lists.RunList = None,
     ):
         project = project or mlrun.mlconf.default_project
-        server.api.utils.singletons.db.get_db().del_runs(
-            db_session, name, project, labels, state, days_ago
-        )
+        if (
+            state
+            and state
+            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Can not delete runs in {state} state, consider aborting the run first."
+            )
+
+        if not runs_list:
+            start_time_from = None
+            if days_ago:
+                start_time_from = datetime.datetime.now(
+                    datetime.timezone.utc
+                ) - datetime.timedelta(days=days_ago)
+
+            runs_list = self.list_runs(
+                db_session,
+                name=name,
+                project=project,
+                labels=labels,
+                states=[state] if state else None,
+                start_time_from=start_time_from,
+                return_as_run_structs=False,
+            )
+
+        failed_deletions = 0
+        last_exception = None
+        while runs_list:
+            tasks = []
+            for run in runs_list[
+                : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
+            ]:
+                tasks.append(
+                    server.api.db.session.run_function_with_new_db_session(
+                        self.delete_run,
+                        run.uid,
+                        run.iteration,
+                        run.project,
+                    )
+                )
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    failed_deletions += 1
+                    last_exception = result
+                    run = runs_list[i]
+                    logger.warning(
+                        "Failed to delete run",
+                        run_uid=run.uid,
+                        run_name=run.name,
+                        project=run.project,
+                        error=mlrun.errors.err_to_str(result),
+                    )
+
+            runs_list = runs_list[
+                mlrun.config.config.crud.runs.batch_delete_runs_chunk_size :
+            ]
+
+        if failed_deletions:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to delete {failed_deletions} run(s). Error: {mlrun.errors.err_to_str(last_exception)}"
+            ) from last_exception
 
     def abort_run(
         self,

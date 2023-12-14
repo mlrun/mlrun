@@ -88,3 +88,101 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             server.api.crud.Runs().get_run(db, "uid", 0, project)
+
+    @pytest.mark.asyncio
+    async def test_delete_runs(self, db: sqlalchemy.orm.Session):
+        mlrun.mlconf.log_collector.mode = mlrun.common.schemas.LogsCollectorMode.sidecar
+
+        project = "project-name"
+        run_name = "run-name"
+        for uid in range(20):
+            server.api.crud.Runs().store_run(
+                db,
+                {
+                    "metadata": {
+                        "name": run_name,
+                        "labels": {
+                            "kind": "job",
+                        },
+                        "uid": str(uid),
+                        "iteration": 0,
+                    },
+                },
+                str(uid),
+                project=project,
+            )
+
+        runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+        assert len(runs) == 20
+
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        with unittest.mock.patch.object(
+            k8s_helper.v1api, "delete_namespaced_pod"
+        ) as delete_namespaced_pod_mock, unittest.mock.patch.object(
+            k8s_helper.v1api,
+            "list_namespaced_pod",
+            return_value=k8s_client.V1PodList(items=[]),
+        ), unittest.mock.patch.object(
+            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+        ), unittest.mock.patch.object(
+            server.api.utils.clients.log_collector.LogCollectorClient, "stop_logs"
+        ) as stop_logs_mock, unittest.mock.patch.object(
+            server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
+        ) as delete_logs_mock:
+            await server.api.crud.Runs().delete_runs(db, name=run_name, project=project)
+            runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+            assert len(runs) == 0
+            delete_namespaced_pod_mock.assert_not_called()
+            assert stop_logs_mock.call_count == 20
+            assert delete_logs_mock.call_count == 20
+
+    @pytest.mark.asyncio
+    async def test_delete_runs_failure(self, db: sqlalchemy.orm.Session):
+        """
+        This test creates 3 runs, and then tries to delete them.
+        The first run is deleted successfully, the second one fails with an exception, and the third one is deleted
+        """
+        project = "project-name"
+        run_name = "run-name"
+        for uid in range(3):
+            server.api.crud.Runs().store_run(
+                db,
+                {
+                    "metadata": {
+                        "name": run_name,
+                        "labels": {
+                            "kind": "job",
+                        },
+                        "uid": str(uid),
+                        "iteration": 0,
+                    },
+                },
+                str(uid),
+                project=project,
+            )
+
+        runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+        assert len(runs) == 3
+
+        k8s_helper = server.api.utils.singletons.k8s.get_k8s_helper()
+        with unittest.mock.patch.object(
+            k8s_helper.v1api, "delete_namespaced_pod"
+        ), unittest.mock.patch.object(
+            k8s_helper.v1api,
+            "list_namespaced_pod",
+            side_effect=[
+                k8s_client.V1PodList(items=[]),
+                Exception("Boom!"),
+                k8s_client.V1PodList(items=[]),
+            ],
+        ), unittest.mock.patch.object(
+            server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
+        ):
+            with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+                await server.api.crud.Runs().delete_runs(
+                    db, name=run_name, project=project
+                )
+            assert "Failed to delete 1 run(s). Error: Boom!" in str(exc.value)
+
+            runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
+            assert len(runs) == 1

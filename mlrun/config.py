@@ -105,6 +105,12 @@ default_config = {
             "list_runs_time_period_in_days": 7,  # days
         }
     },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",

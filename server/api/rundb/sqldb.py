@@ -160,8 +160,10 @@ class SQLRunDB(RunDBInterface):
             project,
         )
 
-    def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
-        return self._transform_db_error(
+    async def del_runs(
+        self, name=None, project=None, labels=None, state=None, days_ago=0
+    ):
+        return await self._transform_db_error(
             server.api.crud.Runs().delete_runs,
             self.session,
             name,

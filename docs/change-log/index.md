@@ -74,6 +74,7 @@
 
 
 
+
 ## v1.5.2 (30 November 2023)
 
 ###  Closed issues
@@ -853,6 +854,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-4767|When using mlrun-gpu image, use PyTorch versions up to and including than 2.0.1, but not higher.       | NA |                 v1.5.0|   
 |ML-4855|MLRun supports TensorFlow up to 2.13.1.
 |ML-4907|MLRun Client does not support Win OS.                                                 | Use WSL instead. | v1.3.0 | 
+|ML-5274|PySpark 3.2.x cannot always read parquet files written by pyarrow 13 or above. MLRun ingest might fail when `ingest()` is called with engine="spark" and a ParquetSource that points to parquet files that were written by pyarrow 13 or above. |Call `df.to_parquet()` with version="2.4" so that parquet files are backwards compatible.|v1.6.0|
 
 ## Deprecations and removed code
 

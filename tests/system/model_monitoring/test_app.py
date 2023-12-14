@@ -166,7 +166,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     requirements=app_data.requirements,
                     **app_data.kwargs,
                 )
-                executor.submit(self.project.deploy_function, fn)
+                executor.submit(fn.deploy)
 
     def _log_model(self) -> None:
         dataset = load_iris()

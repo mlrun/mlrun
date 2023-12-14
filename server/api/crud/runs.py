@@ -228,7 +228,7 @@ class Runs(
             and state
             in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
         ):
-            raise mlrun.errors.MLRunBadRequestError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Can not delete runs in {state} state"
             )
 
@@ -265,12 +265,16 @@ class Runs(
                     )
                 )
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            for result in results:
+            for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     failed_deletions += 1
                     last_exception = result
+                    run = runs_list[i]
                     logger.warning(
                         "Failed to delete run",
+                        run_uid=run.uid,
+                        run_name=run.name,
+                        project=run.project,
                         error=mlrun.errors.err_to_str(result),
                     )
 

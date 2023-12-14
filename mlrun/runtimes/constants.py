@@ -164,6 +164,7 @@ class RunStates(object):
         return [
             RunStates.running,
             RunStates.pending,
+            # TODO: add aborting state once we have it
         ]
 
 

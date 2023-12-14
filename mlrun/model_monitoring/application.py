@@ -261,8 +261,8 @@ class PushToMonitoringWriter(StepToDict):
 
     def __init__(
         self,
-        project: str,
-        writer_application_name: str,
+        project: Optional[str] = None,
+        writer_application_name: Optional[str] = None,
         stream_uri: Optional[str] = None,
         name: Optional[str] = None,
     ):

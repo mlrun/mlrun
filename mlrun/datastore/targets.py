@@ -96,7 +96,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id

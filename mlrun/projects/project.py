@@ -3488,7 +3488,7 @@ class MlrunProject(ModelObj):
                 elif hasattr(func, "metadata"):
                     raise ValueError(f"Input function {func.metadata.name} is not a Nuclio function")
                 else:
-                    raise ValueError(f"Input function is not a Nuclio function")
+                    raise ValueError("Input function is not a Nuclio function")
 
         function_names = [func.metadata.name for func in functions]
         gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(

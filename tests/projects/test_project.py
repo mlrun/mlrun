@@ -31,7 +31,6 @@ import mlrun.errors
 import mlrun.projects.project
 import mlrun.utils.helpers
 import tests.conftest
-import server.api.utils.clients.async_nuclio
 
 
 @pytest.fixture()
@@ -1611,9 +1610,9 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     project = mlrun.new_project(project_name, context=str(context), save=False)
     gateways = project.list_api_gateways()
 
-    assert gateways[0].name is "test"
-    assert gateways[0].host is "test-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert gateways[0].name == "test"
+    assert gateways[0].host == "test-default.default-tenant.app.dev62.lab.iguazeng.com"
     assert gateways[0].functions == ["fff"]
 
-    assert gateways[1]._invoke_url is "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert gateways[1]._invoke_url == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
     assert gateways[1]._auth == "Basic dGVzdDp0ZXN0"

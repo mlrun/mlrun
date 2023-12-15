@@ -85,10 +85,10 @@ class APIGateway:
 
         if canary:
             if len(functions) != len(canary):
-                raise ValueError(f"Lengths of function and canary lists do not match")
+                raise ValueError("Lengths of function and canary lists do not match")
             if sum(canary) != 100:
                 raise ValueError(
-                    f"Th sum of canary function percents should be equal to 100"
+                    "The sum of canary function percents should be equal to 100"
                 )
         return cls(
             project=project,

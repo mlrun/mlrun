@@ -470,7 +470,6 @@ class _PipelineRunner(abc.ABC):
         pass
 
 
-# TODO: should we move this entire class to a version specific KFP module? Either that or keep dual-compatibility
 class _KFPRunner(_PipelineRunner):
     """Kubeflow pipelines runner"""
 

@@ -3484,9 +3484,13 @@ class MlrunProject(ModelObj):
         for func in functions:
             if not isinstance(func, (RemoteRuntime, ServingRuntime)):
                 if hasattr(func, "name"):
-                    raise ValueError(f"Input function {func.name} is not a Nuclio function")
+                    raise ValueError(
+                        f"Input function {func.name} is not a Nuclio function"
+                    )
                 elif hasattr(func, "metadata"):
-                    raise ValueError(f"Input function {func.metadata.name} is not a Nuclio function")
+                    raise ValueError(
+                        f"Input function {func.metadata.name} is not a Nuclio function"
+                    )
                 else:
                     raise ValueError("Input function is not a Nuclio function")
 

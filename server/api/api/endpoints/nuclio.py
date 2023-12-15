@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Union
+
 from fastapi import APIRouter, Depends, Query
 
 import mlrun.common.schemas
 import server.api.utils.clients.async_nuclio
 from server.api.api import deps
-from typing import Union
 
 router = APIRouter()
 

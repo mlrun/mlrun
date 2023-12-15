@@ -42,10 +42,10 @@ import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.db
 import mlrun.errors
 import mlrun.runtimes
+import mlrun.runtimes.api_gateway
 import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils.regex
-import mlrun.runtimes.api_gateway
 from mlrun.datastore.datastore_profile import DatastoreProfile, DatastoreProfile2Json
 
 from ..artifacts import Artifact, ArtifactProducer, DatasetArtifact, ModelArtifact

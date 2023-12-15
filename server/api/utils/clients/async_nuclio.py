@@ -19,9 +19,9 @@ from typing import Union
 import aiohttp
 
 import mlrun.common.schemas
-import mlrun.utils
 import mlrun.errors
 import mlrun.runtimes.api_gateway
+import mlrun.utils
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"

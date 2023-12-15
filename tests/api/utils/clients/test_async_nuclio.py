@@ -130,16 +130,16 @@ def test__generate_nuclio_api_gateway_body(
             functions=[],
             host=None,
             path="/",
-            canary=[20, 30, 50],
+            canary=[50],
         )
     nuclio_client._nuclio_domain = "nuclio.default-tenant.app.dev62.lab.iguazeng.com"
     result = nuclio_client._generate_nuclio_api_gateway_body(
         project_name="default",
         api_gateway_name="gw",
-        functions=["f1", "f2", "f3"],
+        functions=["f1", "f2"],
         host=None,
         path="/",
-        canary=[20, 30, 50],
+        canary=[50, 50],
     )
     assert result == {
         "spec": {
@@ -151,16 +151,11 @@ def test__generate_nuclio_api_gateway_body(
                 {
                     "kind": "nucliofunction",
                     "nucliofunction": {"name": "f1"},
-                    "percentage": 20,
+                    "percentage": 50,
                 },
                 {
                     "kind": "nucliofunction",
                     "nucliofunction": {"name": "f2"},
-                    "percentage": 30,
-                },
-                {
-                    "kind": "nucliofunction",
-                    "nucliofunction": {"name": "f3"},
                     "percentage": 50,
                 },
             ],

@@ -27,7 +27,6 @@ from mlrun.model_monitoring.genai.prompt import (
 )
 import transformers
 
-
 """
 @misc{zheng2023judging,
       title={Judging LLM-as-a-judge with MT-Bench and Chatbot Arena},
@@ -44,13 +43,16 @@ import transformers
 
 
 class LLMEvaluateMetric(ModelObj):
+    """
+    Base class of the metrics that computed by evluate package
+    We need the y_true as the reference and y_pred as the prediction to compute the metrics
+    """
     _dict_fields = ["name"]
     kind = "llm_metric"
     default_name: ClassVar[str] = "llm_metric"
 
     def __init__(self, name: str):
         """
-        Base class for evaluate metrics
         These metrics are used to evaluate the model performance on a given dataset
         and the algorithm is implemented in the evaluate library
         :param name: name of the metric
@@ -67,6 +69,14 @@ class LLMEvaluateMetric(ModelObj):
     def compute_over_data(
         self, predictions: Union[List, Dict], references: Union[List, Dict], **kwargs
     ) -> Dict[str, Any]:
+        """
+        Compute the metrics over the given data
+
+        :param predictions: the predictions to compute the metrics over
+        :param references: the references to compute the metrics over
+        :param kwargs: other arguments to pass to the compute function
+        :return: the metrics score and the explanation
+        """
         if kwargs:
             return self.metric.compute(
                 predictions=predictions, references=references, **kwargs
@@ -75,6 +85,11 @@ class LLMEvaluateMetric(ModelObj):
 
 
 class LLMJudgeBaseMetric(ModelObj, ABC):
+    """
+    Base class of the metrics that computed by LLM as a judge
+    We don't need the y_true as reference. These metrics are used for more open-ended question for the model
+    and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+    """
     _dict_fields = [
         "name",
         "model_judge",
@@ -98,9 +113,15 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         prompt_config: Dict[str, Any],
     ):
         """
-        Base class for LLM as a judge metrics.
-        These metrics are used for more open-ended question for the model
-        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        These metrics are used to evaluate the model performance on a given dataset
+
+        :param name: name of the metric
+        :param model_judge: the model judge to use
+        :param model_judge_config: the model judge config
+        :param tokenizer_judge_config: the tokenizer judge config
+        :param model_judge_infer_config: the model judge infer config
+        :param prompt_template: the prompt template to fill
+        :param prompt_config: the prompt config to fill the template with
         """
         self.name = name or self.default_name
         self.model_judge = model_judge
@@ -130,7 +151,8 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
-        :param kwargs: the data to compute the metrics over
+        :param question: the question to compute the metrics over
+        :param response: the response to compute the metrics over
         :return: the metrics score and the explanation
         """
         pass
@@ -139,13 +161,17 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
     def extract_score_explanation(self, result: str) -> Dict[str, Any]:
         """
         Abstract the store of the result
-        :param result: the result to store
+        :param result: the result text
         :return: the stored result
         """
         pass
 
 
 class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
+    """
+    Base class for LLM as a judge using single grading. 
+    you need to define the defnition of the metrics and give the grading of the rubic
+    """
     _dict_fields = [
         "name",
         "model_judge",
@@ -168,9 +194,15 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         prompt_config: Dict[str, Any],
     ):
         """
-        Base class for LLM as a judge metrics.
-        These metrics are used for more open-ended question for the model
-        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        init the class
+
+        :param name: name of the metric
+        :param model_judge: the model judge to use
+        :param model_judge_config: the model judge config
+        :param tokenizer_judge_config: the tokenizer judge config
+        :param model_judge_infer_config: the model judge infer config
+        :param prompt_template: the prompt template to fill
+        :param prompt_config: the prompt config to fill the template with
         """
         super().__init__(
             name,
@@ -184,7 +216,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
 
     def prepare_judge(self) -> None:
         """
-        Prepare the judge model
+        Prepare the judge model it will init the tokenizer and the model
         """
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
@@ -196,7 +228,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
     def compute_over_one_data(self, question, response) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
-        :param kwargs: the data to compute the metrics over
+        :param question: the question to compute the metrics over
+        :param response: the response to compute the metrics over
         :return: the metrics score and the explanation
         """
         self.prepare_judge()
@@ -234,6 +267,11 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
 
 
 class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
+    """
+    Base class for LLM as a judge using pairwise grading.
+    you need to define the defnition of the metrics and give the grading of the rubic
+    you need to give a base model to compare the model to
+    """
     _dict_fields = [
         "name",
         "model_judge",
@@ -264,9 +302,19 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         prompt_config: Dict[str, Any],
     ):
         """
-        Base class for LLM as a judge metrics.
-        These metrics are used for more open-ended question for the model
-        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        init the class
+
+        :param name: name of the metric
+        :param model_judge: the model judge to use
+        :param tokenizer_judge_config: the tokenizer judge config
+        :param model_judge_config: the model judge config
+        :param model_judge_infer_config: the model judge infer config
+        :param model_bench_mark: the model bench mark to use
+        :param model_bench_mark_config: the model bench mark config
+        :param model_bench_mark_infer_config: the model bench mark infer config
+        :param tokenizer_bench_mark_config: the tokenizer bench mark config
+        :param prompt_template: the prompt template to fill
+        :param prompt_config: the prompt config to fill the template with
         """
         super().__init__(
             name,
@@ -284,7 +332,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
     def prepare_judge(self) -> None:
         """
-        Prepare the judge model
+        init the tokenizer and the model
         """
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
@@ -295,7 +343,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
     def prepare_bench_mark_model(self) -> None:
         """
-        Prepare the base model
+        Prepare the model that used for bench marking
         """
         self.tokenizer_bench_mark = transformers.AutoTokenizer.from_pretrained(
             self.model_bench_mark, **self.tokenizer_bench_mark_config
@@ -349,6 +397,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         return self.extract_score_explanation(response)
 
     def extract_score_explanation(self, response) -> Dict[str, Any]:
+        """
+        Extract the score and the explanation from the response
+        :param response: the response to extract the score and the explanation from
+        :return: the score and the explanation
+        """
         # Find the position of the "[Output]:" marker
         output_marker_index = response.find("[Output]:")
         if output_marker_index == -1:
@@ -376,6 +429,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
 
 class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
+    """
+    LLM Judge Reference Grading class
+    you need to give the name of the metrics, give the grading rubric and the bench mark model to use
+    This class requrie you know the y_true of the response
+    """
     _dict_fields = [
         "name",
         "model_judge",
@@ -406,9 +464,19 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         prompt_config: Dict[str, str],
     ):
         """
-        class for LLM as a judge metrics with reference grading
-        These metrics are used for more open-ended question for the model
-        and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
+        init the grading with reference class
+        
+        :param name: the name of the metrics
+        :param model_judge: the model to use for grading
+        :param model_judge_config: the config of the model to use for grading
+        :param model_judge_infer_config: the config of the model to use for inference
+        :param tokenizer_judge_config: the config of the tokenizer to use for grading
+        :param model_bench_mark: the model to use for bench marking
+        :param model_bench_mark_config: the config of the model to use for bench marking
+        :param tokenizer_bench_mark_config: the config of the tokenizer to use for bench marking
+        :param model_bench_mark_infer_config: the config of the model to use for inference
+        :param prompt_template: the template of the prompt to use
+        :param prompt_config: the config of the prompt to use
         """
         super().__init__(
             name,

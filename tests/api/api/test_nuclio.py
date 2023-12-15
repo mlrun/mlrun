@@ -101,7 +101,8 @@ def test_create_api_gateway(
     )
 
     response = client.post(
-        f"projects/{PROJECT}/nuclio/api-gateways/test-create-gw", params={"functions": ["test-func"]}
+        f"projects/{PROJECT}/nuclio/api-gateways/test-create-gw",
+        params={"functions": ["test-func"]},
     )
     create_api_gateway_mocked.return_value = None
     assert response.status_code == 200

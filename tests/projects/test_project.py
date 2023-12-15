@@ -1473,7 +1473,9 @@ def test_load_project_from_yaml_with_function(context):
     ],
 )
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
-def test_create_api_gateway_valid(patched_create_api_gateway, context, kind_1, kind_2, canary):
+def test_create_api_gateway_valid(
+    patched_create_api_gateway, context, kind_1, kind_2, canary
+):
     patched_create_api_gateway.return_value = True
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
@@ -1505,8 +1507,8 @@ def test_create_api_gateway_valid(patched_create_api_gateway, context, kind_1, k
     )
     gateway._generate_invoke_url()
     assert (
-            gateway._generate_invoke_url()
-            == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
+        gateway._generate_invoke_url()
+        == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
     )
 
 
@@ -1516,11 +1518,13 @@ def test_create_api_gateway_valid(patched_create_api_gateway, context, kind_1, k
         ("nuclio", "nuclio", [20]),
         ("nuclio", "nuclio", [20, 10]),
         ("nuclio", "job", [20, 80]),
-        ("job", None, None)
+        ("job", None, None),
     ],
 )
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
-def test_create_api_gateway_invalid(patched_create_api_gateway, context, kind_1, kind_2, canary):
+def test_create_api_gateway_invalid(
+    patched_create_api_gateway, context, kind_1, kind_2, canary
+):
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     patched_create_api_gateway.return_value = True
@@ -1614,5 +1618,8 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].host == "test-default.default-tenant.app.dev62.lab.iguazeng.com"
     assert gateways[0].functions == ["fff"]
 
-    assert gateways[1]._invoke_url == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert (
+        gateways[1]._invoke_url
+        == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
+    )
     assert gateways[1]._auth == "Basic dGVzdDp0ZXN0"

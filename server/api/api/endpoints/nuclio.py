@@ -71,9 +71,7 @@ async def create_api_gateway(
         auth_info,
     )
 
-    await server.api.utils.clients.async_nuclio.Client(
-        auth_info
-    ).create_api_gateway(
+    await server.api.utils.clients.async_nuclio.Client(auth_info).create_api_gateway(
         project_name=project,
         api_gateway_name=gateway,
         functions=functions,

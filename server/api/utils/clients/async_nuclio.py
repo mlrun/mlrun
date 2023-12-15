@@ -21,16 +21,13 @@ import aiohttp
 import mlrun.common.schemas
 import mlrun.utils
 import mlrun.errors
+import mlrun.runtimes.api_gateway
 from mlrun.utils import logger
 
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT = "/api/api_gateways/"
 API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
 NUCLIO_PROJECT_NAME_HEADER = "X-Nuclio-Project-Name"
-
-# auth modes for api gateways
-BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "basicAuth"
-NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
 
 
 class Client:
@@ -168,9 +165,9 @@ class Client:
         )
 
         authentication_mode = (
-            NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            mlrun.runtimes.api_gateway.NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
             if not username and not password
-            else BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            else mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
         )
         body = {
             "spec": {
@@ -197,8 +194,11 @@ class Client:
             },
         }
 
-        # increments authentication info
-        if authentication_mode == BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE:
+        # Handle authentication info
+        if (
+            authentication_mode
+            == mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+        ):
             if username and password:
                 body["spec"]["authentication"] = {
                     "basicAuth": {
@@ -211,21 +211,20 @@ class Client:
                     "basicAuth authentication requires username and " "password"
                 )
 
-        # increments canary func info
+        # Handle canary function info
         if canary:
             if len(canary) != len(functions):
-                raise ValueError("Functions list should be the same length as canary list")
-            upstream = []
-            for function_name, percentage in zip(functions, canary):
-                upstream.append(
-                    {
-                        "kind": "nucliofunction",
-                        "nucliofunction": {
-                            "name": function_name,
-                        },
-                        "percentage": percentage,
-                    }
+                raise ValueError(
+                    "Functions list should be the same length as canary list"
                 )
+            upstream = [
+                {
+                    "kind": "nucliofunction",
+                    "nucliofunction": {"name": function_name},
+                    "percentage": percentage,
+                }
+                for function_name, percentage in zip(functions, canary)
+            ]
             body["spec"]["upstreams"] = upstream
 
         return body

@@ -3191,14 +3191,14 @@ class HTTPRunDB(RunDBInterface):
     def create_api_gateway(
         self,
         api_gateway: mlrun.runtimes.api_gateway.APIGateway,
-        auth: tuple,
+        auth: tuple[str, str],
     ) -> bool:
         """
-        Creates api gateway
-        :param api_gateway - api gateway entity
-        :param auth - pair of (username, password) if authentication is required
+        Creates an API Gateway.
+        :param api_gateway (mlrun.runtimes.api_gateway.APIGateway): API Gateway entity.
+        :param auth (Tuple[str, str]): Pair of (username, password) if authentication is required.
 
-        @return: true if response api gateway was created successfully
+        @return: True if the API Gateway was created successfully, False otherwise
         """
         params = {
             "functions": api_gateway.functions,
@@ -3211,7 +3211,6 @@ class HTTPRunDB(RunDBInterface):
             params["username"] = username
             params["password"] = password
 
-        # for user
         if api_gateway.canary_dict:
             params["canary"] = api_gateway.canary
         error = "create api gateways"
@@ -3219,9 +3218,7 @@ class HTTPRunDB(RunDBInterface):
             f"projects/{api_gateway.project}/nuclio/api-gateways/{api_gateway.name}"
         )
         response = self.api_call("POST", endpoint_path, error, params=params)
-        if not response:
-            return False
-        return response.ok
+        return response.ok if response else False
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually

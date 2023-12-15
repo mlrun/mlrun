@@ -325,7 +325,6 @@ def test_load_project(
     project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
 
     for temp_file in temp_files:
-
         # verify that the context directory was cleaned if clone is True
         assert os.path.exists(os.path.join(context, temp_file)) is not clone
 
@@ -1467,35 +1466,154 @@ def test_load_project_from_yaml_with_function(context):
         )
 
 
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary",
+    [
+        ("nuclio", "nuclio", [20, 80]),
+        ("nuclio", None, None),
+    ],
+)
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
-def test_create_api_gateway(patched_create_api_gateway, context):
+def test_create_api_gateway_valid(patched_create_api_gateway, context, kind_1, kind_2, canary):
     patched_create_api_gateway.return_value = True
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     f1 = mlrun.code_to_function(
         name="my-func1",
         image="my-image",
-        kind="nuclio",
+        kind=kind_1,
         filename=str(assets_path() / "handler.py"),
     )
     f1.save()
+    functions = f1
     project.set_function(f1)
-    f2 = mlrun.code_to_function(
-        name="my-func2",
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
+
+    gateway = project.create_api_gateway(
+        name="gateway-f1-f2", functions=functions, canary=canary
+    )
+    gateway._nuclio_dashboard_url = (
+        "https://nuclio.default-tenant.app.dev.lab.iguazeng.com/"
+    )
+    gateway._generate_invoke_url()
+    assert (
+            gateway._generate_invoke_url()
+            == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
+    )
+
+
+@pytest.mark.parametrize(
+    "kind_1 ,kind_2, canary",
+    [
+        ("nuclio", "nuclio", [20]),
+        ("nuclio", "nuclio", [20, 10]),
+        ("nuclio", "job", [20, 80]),
+        ("job", None, None)
+    ],
+)
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
+def test_create_api_gateway_invalid(patched_create_api_gateway, context, kind_1, kind_2, canary):
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    patched_create_api_gateway.return_value = True
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    f1 = mlrun.code_to_function(
+        name="my-func1",
         image="my-image",
-        kind="nuclio",
+        kind=kind_1,
         filename=str(assets_path() / "handler.py"),
     )
-    f2.save()
-    project.set_function(f2)
+    f1.save()
+    functions = f1
+    project.set_function(f1)
+    if kind_2:
+        f2 = mlrun.code_to_function(
+            name="my-func2",
+            image="my-image",
+            kind=kind_2,
+            filename=str(assets_path() / "handler.py"),
+        )
+        f2.save()
+        project.set_function(f2)
+        functions = [f1, f2]
 
     with pytest.raises(ValueError):
-        project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20])
+        project.create_api_gateway(
+            name="gateway-f1-f2", functions=functions, canary=canary
+        )
 
-    with pytest.raises(ValueError):
-        project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20, 10])
 
-    gateway = project.create_api_gateway(name="gateway-f1-f2", functions=[f1, f2], canary=[20, 80])
-    gateway._nuclio_dashboard_url = "https://nuclio.default-tenant.app.dev.lab.iguazeng.com/"
-    gateway._generate_invoke_url()
-    assert gateway._generate_invoke_url() == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
+def test_list_api_gateways(patched_list_api_gateways, context):
+    patched_list_api_gateways.return_value = [
+        {
+            "metadata": {
+                "name": "test",
+                "namespace": "default-tenant",
+                "labels": {
+                    "iguazio.com/username": "admin",
+                    "nuclio.io/project-name": "default",
+                },
+                "creationTimestamp": "2023-12-13T13:00:09Z",
+            },
+            "spec": {
+                "host": "test-default.default-tenant.app.dev62.lab.iguazeng.com",
+                "name": "test",
+                "path": "/",
+                "authenticationMode": "none",
+                "upstreams": [
+                    {"kind": "nucliofunction", "nucliofunction": {"name": "fff"}}
+                ],
+            },
+            "status": {"name": "test", "state": "ready"},
+        },
+        {
+            "metadata": {
+                "name": "test-basic",
+                "namespace": "default-tenant",
+                "labels": {
+                    "iguazio.com/username": "admin",
+                    "nuclio.io/project-name": "default",
+                },
+                "creationTimestamp": "2023-11-16T12:42:48Z",
+            },
+            "spec": {
+                "host": "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com",
+                "name": "test-basic",
+                "path": "/",
+                "authenticationMode": "basicAuth",
+                "authentication": {
+                    "basicAuth": {"username": "test", "password": "test"}
+                },
+                "upstreams": [
+                    {"kind": "nucliofunction", "nucliofunction": {"name": "test"}},
+                    {
+                        "kind": "nucliofunction",
+                        "nucliofunction": {"name": "hello-test"},
+                        "percentage": 37,
+                    },
+                ],
+            },
+            "status": {"name": "test-basic", "state": "ready"},
+        },
+    ]
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, context=str(context), save=False)
+    gateways = project.list_api_gateways()
+
+    assert gateways[0].name is "test"
+    assert gateways[0].host is "test-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert gateways[0].functions == ["fff"]
+
+    assert gateways[1]._invoke_url is "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert gateways[1]._auth == "Basic dGVzdDp0ZXN0"

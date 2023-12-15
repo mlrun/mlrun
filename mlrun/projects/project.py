@@ -3454,30 +3454,44 @@ class MlrunProject(ModelObj):
         host: str = None,
         path: str = "",
         description: str = "",
-        functions: list[Union[RemoteRuntime, ServingRuntime]] = [],
+        functions: Union[
+            list[Union[RemoteRuntime, ServingRuntime]],
+            Union[RemoteRuntime, ServingRuntime],
+        ] = [],
         username: Union[None, str] = None,
         password: Union[None, str] = None,
         canary: Union[list[int], None] = None,
     ) -> Union[mlrun.runtimes.api_gateway.APIGateway, None]:
         """
-        Creates nuclio api gateway. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+        Creates a Nuclio API Gateway. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
-        :param name: api gateway name
-        :param path: api gateway path
-        :param functions: the list of function names. For non-canary function pass a list of len=1
-        :param password: password if authentication is required
-        :param username: username if authentication is required
-        :param canary
+        :param name (str): API Gateway name.
+        :param host (str): API Gateway host.
+        :param path (str): API Gateway path.
+        :param description (str): Description for the API Gateway.
+        :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
+            List of Nuclio functions or Nuclio function.
+        :param username (Union[None, str]): Username for authentication (if required).
+        :param password (Union[None, str]): Password for authentication (if required).
+        :param canary (Union[List[int], None]): Canary configuration.
 
-        @return: api gateway object
+        @return: API Gateway object if successful, else None.
 
         """
+        if not isinstance(functions, list):
+            functions = [functions]
+
         for func in functions:
-            if not (isinstance(func, RemoteRuntime) or isinstance(func, ServingRuntime)):
-                raise ValueError(f"Input function {func.name} is not a Nuclio function")
+            if not isinstance(func, (RemoteRuntime, ServingRuntime)):
+                if hasattr(func, "name"):
+                    raise ValueError(f"Input function {func.name} is not a Nuclio function")
+                elif hasattr(func, "metadata"):
+                    raise ValueError(f"Input function {func.metadata.name} is not a Nuclio function")
+                else:
+                    raise ValueError(f"Input function is not a Nuclio function")
 
         function_names = [func.metadata.name for func in functions]
-        gateway_instance = mlrun.runtimes.api_gateway.new_api_gateway(
+        gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(
             project=self.name,
             name=name,
             host=host,
@@ -3493,12 +3507,17 @@ class MlrunProject(ModelObj):
         )
         return gateway_instance if ok else None
 
-    def list_api_gateways(self):
+    def list_api_gateways(self) -> list[mlrun.runtimes.api_gateway.APIGateway]:
         """
-        Lists nuclio api gateways. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
-        :return api gateways json
+        Lists Nuclio API gateways. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
+
+        :return List of APIGateway objects.
         """
-        mlrun.db.get_run_db().list_api_gateways(self.name)
+        gateways_list = mlrun.db.get_run_db().list_api_gateways(self.name)
+        return [
+            mlrun.runtimes.api_gateway.APIGateway.from_dict(gateway_dict)
+            for gateway_dict in gateways_list
+        ]
 
     def _run_authenticated_git_action(
         self,

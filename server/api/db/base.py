@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mlrun.common.schemas
+import mlrun.lists
 import mlrun.model
 
 
@@ -105,7 +106,7 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         pass
 
     @abstractmethod

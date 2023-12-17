@@ -734,7 +734,11 @@ class KubeResourceSpec(FunctionSpec):
             self._initialize_affinity(affinity_field_name)
             self._initialize_node_affinity(affinity_field_name)
 
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = new_required_during_scheduling_ignored_during_execution
+            # fmt: off
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
+                new_required_during_scheduling_ignored_during_execution
+            )
+            # fmt: on
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(

@@ -287,7 +287,7 @@ def test_watch_logs_continue():
 
     adapter.register_uri(
         "GET",
-        f"https://wherever.com/api/v1/log/{project}/{run_uid}",
+        f"https://wherever.com/api/v1/projects/{project}/logs/{run_uid}",
         content=callback,
     )
     db.session = db._init_session()

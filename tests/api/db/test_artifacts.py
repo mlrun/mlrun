@@ -14,8 +14,6 @@
 #
 import copy
 import tempfile
-import time
-import unittest.mock
 
 import deepdiff
 import pytest
@@ -850,8 +848,6 @@ class TestArtifacts:
     @pytest.mark.asyncio
     async def test_project_file_counter(self, db: DBInterface, db_session: Session):
 
-        time.sleep(5)
-
         # create artifact with 5 distinct keys, and 3 tags for each key
         project = "artifact_project"
         for i in range(5):
@@ -877,41 +873,9 @@ class TestArtifacts:
         tags = db.list_artifact_tags(db_session, project=project)
         assert len(tags) == 20
 
-        # project_to_files_count = db.calculate_files_counters(db_session)
-        # assert project_to_files_count[project] == 5
-
-        # TODO: fix this section, failing with:
-        # E       sqlite3.OperationalError: no such table: artifacts_v2
-        # or
-        # E       sqlite3.OperationalError: no such table: artifacts_v2_tags
-
-        with unittest.mock.patch.object(
-            db, "_calculate_schedules_counters", return_value={}
-        ) as mock_schedules, unittest.mock.patch.object(
-            db, "_calculate_feature_sets_counters", return_value={}
-        ) as mock_feature_sets, unittest.mock.patch.object(
-            db, "_calculate_models_counters", return_value={}
-        ) as mock_models, unittest.mock.patch.object(
-            db, "_calculate_runs_counters", return_value={}
-        ) as mock_runs:
-
-            # list project file counters
-            resource_counters = await db.get_project_resources_counters()
-            (
-                project_to_files_count,
-                _,
-                _,
-                _,
-                _,
-                _,
-            ) = resource_counters
-            assert project_to_files_count[project] == 5
-
-        # verify that the counters were calculated
-        mock_schedules.assert_called_once()
-        mock_feature_sets.assert_called_once()
-        mock_models.assert_called_once()
-        mock_runs.assert_called_once()
+        # files counters should return the most recent artifacts, for each key -> 5 artifacts
+        project_to_files_count = db._calculate_files_counters(db_session)
+        assert project_to_files_count[project] == 5
 
     def test_migrate_artifacts_to_v2(self, db: DBInterface, db_session: Session):
         artifact_key = "artifact1"

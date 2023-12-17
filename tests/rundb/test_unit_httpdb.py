@@ -48,7 +48,7 @@ def test_api_call_enum_conversion():
     )
     for dict_key in ["headers", "params"]:
         for value in db.session.request.call_args_list[1][1][dict_key].values():
-            assert type(value) == str
+            assert isinstance(value, str)
 
 
 @pytest.mark.parametrize(

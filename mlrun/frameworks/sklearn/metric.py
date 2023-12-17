@@ -15,7 +15,6 @@
 import importlib
 import json
 import sys
-from types import ModuleType
 from typing import Callable, Union
 
 import mlrun.errors

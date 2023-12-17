@@ -59,8 +59,8 @@ class ArtifactIdentifier(pydantic.BaseModel):
 
 
 class ArtifactsFormat(mlrun.common.types.StrEnum):
+    # TODO: add a format that returns a minimal response
     full = "full"
-    legacy = "legacy"
 
 
 class ArtifactMetadata(pydantic.BaseModel):

@@ -114,8 +114,6 @@ class Artifacts(
             producer_id,
             object_uid,
         )
-        if format_ == mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
-            return _transform_artifact_struct_to_legacy_format(artifact)
         return artifact
 
     def list_artifacts(
@@ -151,12 +149,7 @@ class Artifacts(
             best_iteration,
             producer_id=producer_id,
         )
-        if format_ != mlrun.common.schemas.artifact.ArtifactsFormat.legacy:
-            return artifacts
-        return [
-            _transform_artifact_struct_to_legacy_format(artifact)
-            for artifact in artifacts
-        ]
+        return artifacts
 
     def list_artifact_tags(
         self,
@@ -197,16 +190,3 @@ class Artifacts(
         server.api.utils.singletons.db.get_db().del_artifacts(
             db_session, name, project, tag, labels, producer_id=producer_id
         )
-
-
-def _transform_artifact_struct_to_legacy_format(artifact):
-    # Check if this is already in legacy format
-    if "metadata" not in artifact:
-        return artifact
-
-    # Simply flatten the dictionary
-    legacy_artifact = {"kind": artifact["kind"]}
-    for section in ["metadata", "spec", "status"]:
-        for key, value in artifact[section].items():
-            legacy_artifact[key] = value
-    return legacy_artifact

@@ -312,24 +312,13 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         )
         assert not is_legacy_artifact(artifacts[0])
 
-    # request legacy format
+    # request legacy format - expect failure (legacy format is not supported anymore)
     for artifact_path in [
         f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}&format=legacy",
         f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy",
     ]:
         resp = client.get(artifact_path)
-        assert resp.status_code == HTTPStatus.OK.value
-
-        artifacts = resp.json()["artifacts"]
-        assert (
-            deepdiff.DeepDiff(
-                [artifact["tag"] for artifact in resp.json()["artifacts"]],
-                ["latest", TAG],
-                ignore_order=True,
-            )
-            == {}
-        )
-        assert is_legacy_artifact(artifacts[0])
+        assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
     # explicitly request full format
     for artifact_path in [
@@ -372,16 +361,13 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
         artifact = resp.json()
         assert not is_legacy_artifact(artifact["data"])
 
-    # request legacy format
+    # request legacy format - expect failure (legacy format is not supported anymore)
     for artifact_path in [
         f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
         f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
     ]:
         resp = client.get(artifact_path)
-        assert resp.status_code == HTTPStatus.OK.value
-
-        artifact = resp.json()
-        assert is_legacy_artifact(artifact["data"])
+        assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
     # explicitly request full format
     for artifact_path in [

@@ -1145,10 +1145,7 @@ class SQLDB(DBInterface):
                 return []
             query = query.filter(ArtifactV2.uid.in_(object_tag_uids))
         if uid:
-            if isinstance(uid, list):
-                query = query.filter(ArtifactV2.uid.in_(uid))
-            else:
-                query = query.filter(ArtifactV2.uid == uid)
+            query = query.filter(ArtifactV2.uid == uid)
         if name:
             query = self._add_artifact_name_query(query, name)
         if iter is not None:
@@ -1174,6 +1171,8 @@ class SQLDB(DBInterface):
                 query = query.filter(ArtifactV2.kind.notin_(kinds))
             else:
                 query = query.filter(ArtifactV2.kind.in_(kinds))
+        if most_recent:
+            query = self._attach_most_recent_query(session, query)
 
         return query.all()
 
@@ -2133,15 +2132,23 @@ class SQLDB(DBInterface):
         # We're using the "latest" which gives us only one version of each artifact key, which is what we want to
         # count (artifact count, not artifact versions count)
         model_artifacts = self._find_artifacts(
-            session, None, tag="latest", kind=mlrun.artifacts.model.ModelArtifact.kind
+            session,
+            None,
+            # tag="latest",
+            kind=mlrun.artifacts.model.ModelArtifact.kind,
+            most_recent=True,
         )
         project_to_models_count = collections.defaultdict(int)
         for model_artifact in model_artifacts:
             project_to_models_count[model_artifact.project] += 1
         return project_to_models_count
 
+    def calculate_files_counters(self, session) -> Dict[str, int]:
+        """For testing purposes only - DELETE THIS METHOD!"""
+        return self._calculate_files_counters(session)
+
     def _calculate_files_counters(self, session) -> Dict[str, int]:
-        most_recent_artifact_uids = self._get_most_recent_artifacts_uids(session)
+        # most_recent_artifact_ids = self._get_most_recent_artifacts_ids(session)
 
         # The category filter is applied post the query to the DB (manually in python code), so counting should be that
         # way as well, therefore we're doing it here, and can't do it with sql as the above
@@ -2150,8 +2157,9 @@ class SQLDB(DBInterface):
         file_artifacts = self._find_artifacts(
             session,
             None,
-            uid=most_recent_artifact_uids,
+            # ids=most_recent_artifact_ids,
             category=mlrun.common.schemas.ArtifactCategories.other,
+            most_recent=True,
         )
         project_to_files_count = collections.defaultdict(int)
         for file_artifact in file_artifacts:
@@ -3441,8 +3449,7 @@ class SQLDB(DBInterface):
                 uids.append(obj.uid)
         return uids
 
-    def _get_most_recent_artifacts_uids(self, session):
-
+    def _get_most_recent_artifacts_ids(self, session):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
             session.query(
@@ -3458,7 +3465,7 @@ class SQLDB(DBInterface):
         )
 
         # Join current query with sub query on (project, key)
-        query = session.query(ArtifactV2.uid,).join(
+        query = session.query(ArtifactV2.id).join(
             subq,
             and_(
                 ArtifactV2.project == subq.c.project,
@@ -3468,6 +3475,31 @@ class SQLDB(DBInterface):
         )
 
         return [uid[0] for uid in query.all()]
+
+    def _attach_most_recent_query(self, session, query):
+        # Create a sub query of latest uid (by updated) per (project,key)
+        subq = (
+            session.query(
+                ArtifactV2.project,
+                ArtifactV2.key,
+                func.max(ArtifactV2.updated).label("max_updated"),
+            )
+            .group_by(
+                ArtifactV2.project,
+                ArtifactV2.key,
+            )
+            .subquery()
+        )
+
+        # Join current query with sub query on (project, key)
+        return query.join(
+            subq,
+            and_(
+                ArtifactV2.project == subq.c.project,
+                ArtifactV2.key == subq.c.key,
+                ArtifactV2.updated == subq.c.max_updated,
+            ),
+        )
 
     def _query(self, session, cls, **kw):
         kw = {k: v for k, v in kw.items() if v is not None}

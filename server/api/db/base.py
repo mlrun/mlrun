@@ -423,6 +423,10 @@ class DBInterface(ABC):
     ]:
         pass
 
+    def calculate_files_counters(self, session) -> Dict[str, int]:
+        """For testing purposes only - DELETE THIS METHOD!"""
+        pass
+
     @abstractmethod
     def create_project(self, session, project: mlrun.common.schemas.Project):
         pass

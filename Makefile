@@ -597,8 +597,9 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code using black
-	@echo "Running black fmt..."
+fmt: ## Format the code using black and Ruff
+	@echo "Running ruff check and black..."
+	python -m ruff check . --fix
 	python -m black .
 
 .PHONY: lint-imports

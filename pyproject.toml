@@ -9,6 +9,10 @@ extend-exclude = [
     "server/api/proto",
     "playground",
 ]
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+exclude = ["*.ipynb"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120

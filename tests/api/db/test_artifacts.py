@@ -14,6 +14,8 @@
 #
 import copy
 import tempfile
+import time
+import unittest.mock
 
 import deepdiff
 import pytest
@@ -844,6 +846,72 @@ class TestArtifacts:
             db_session, artifact_key, project=project, tag=artifact_tag_2
         )
         assert len(artifacts) == 1
+
+    @pytest.mark.asyncio
+    async def test_project_file_counter(self, db: DBInterface, db_session: Session):
+
+        time.sleep(5)
+
+        # create artifact with 5 distinct keys, and 3 tags for each key
+        project = "artifact_project"
+        for i in range(5):
+            artifact_key = f"artifact_key_{i}"
+            artifact_tree = f"artifact_tree_{i}"
+            artifact_body = self._generate_artifact(artifact_key, tree=artifact_tree)
+            for j in range(3):
+                artifact_tag = f"artifact-tag-{j}"
+                db.store_artifact(
+                    db_session,
+                    artifact_key,
+                    artifact_body,
+                    tag=artifact_tag,
+                    project=project,
+                    producer_id=artifact_tree,
+                )
+
+        # list artifact with "latest" tag - should return 5 artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == 5
+
+        # query all artifacts tags, should return 15+5=20 tags
+        tags = db.list_artifact_tags(db_session, project=project)
+        assert len(tags) == 20
+
+        # project_to_files_count = db.calculate_files_counters(db_session)
+        # assert project_to_files_count[project] == 5
+
+        # TODO: fix this section, failing with:
+        # E       sqlite3.OperationalError: no such table: artifacts_v2
+        # or
+        # E       sqlite3.OperationalError: no such table: artifacts_v2_tags
+
+        with unittest.mock.patch.object(
+            db, "_calculate_schedules_counters", return_value={}
+        ) as mock_schedules, unittest.mock.patch.object(
+            db, "_calculate_feature_sets_counters", return_value={}
+        ) as mock_feature_sets, unittest.mock.patch.object(
+            db, "_calculate_models_counters", return_value={}
+        ) as mock_models, unittest.mock.patch.object(
+            db, "_calculate_runs_counters", return_value={}
+        ) as mock_runs:
+
+            # list project file counters
+            resource_counters = await db.get_project_resources_counters()
+            (
+                project_to_files_count,
+                _,
+                _,
+                _,
+                _,
+                _,
+            ) = resource_counters
+            assert project_to_files_count[project] == 5
+
+        # verify that the counters were calculated
+        mock_schedules.assert_called_once()
+        mock_feature_sets.assert_called_once()
+        mock_models.assert_called_once()
+        mock_runs.assert_called_once()
 
     def test_migrate_artifacts_to_v2(self, db: DBInterface, db_session: Session):
         artifact_key = "artifact1"

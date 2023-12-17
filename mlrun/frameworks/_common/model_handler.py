@@ -25,7 +25,7 @@ from typing import Any, Dict, Generic, List, Type, Union
 import numpy as np
 
 import mlrun
-from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.artifacts import Artifact
 from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 

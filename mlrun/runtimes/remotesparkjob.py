@@ -205,6 +205,7 @@ class RemoteSparkRuntime(KubejobRuntime):
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
             show_on_failure=show_on_failure,
+            force_build=force_build,
         )
 
 

@@ -15,32 +15,46 @@ import os
 import tempfile
 from pathlib import Path
 
-import fsspec
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 from mlrun.utils import logger
 
-from .base import DataStore, FileStats
+from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Google storage objects will be represented with the following URL: gcs://<bucket name>/<path> or gs://...
 
 
 class GoogleCloudStorageStore(DataStore):
+    using_bucket = True
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
 
-        # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
-        # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
-        # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
-        # we just read a specific env. variable, write it to a temp file and point the env variable to it.
-        if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
+        # Gives priority to secrets GOOGLE_APPLICATION_CREDENTIALS,
+        # then secrets GCP_CREDENTIALS,
+        # then environment GOOGLE_APPLICATION_CREDENTIALS,
+        # and finally, environment GCP_CREDENTIALS.
+        # Secrets have first priority, especially useful for profile cases.
+
+        choose_gcp_credentials = (
+            self._secrets
+            and "GCP_CREDENTIALS" in self._secrets
+            and "GOOGLE_APPLICATION_CREDENTIALS" not in self._secrets
+        ) or ("GOOGLE_APPLICATION_CREDENTIALS" not in os.environ)
+
+        if choose_gcp_credentials:
+            # Workaround to bypass the fact that fsspec works with gcs such that credentials must be placed in a JSON
+            # file, and pointed at by the GOOGLE_APPLICATION_CREDENTIALS env. variable. When passing it to runtime pods,
+            # eventually we will want this to happen through a secret that is mounted as a file to the pod. For now,
+            # we just read a specific env. variable, write it to a temp file and point the env variable to it.
             gcp_credentials = self._get_secret_or_env("GCP_CREDENTIALS")
             if gcp_credentials:
                 with tempfile.NamedTemporaryFile(
                     mode="w", suffix=".json", delete=False
                 ) as cred_file:
                     cred_file.write(gcp_credentials)
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = cred_file.name
+                    self._secrets["GOOGLE_APPLICATION_CREDENTIALS"] = cred_file.name
             else:
                 logger.info(
                     "No GCS credentials available - auth will rely on auto-discovery of credentials"
@@ -61,12 +75,16 @@ class GoogleCloudStorageStore(DataStore):
                     "Google gcsfs not installed, run pip install gcsfs"
                 ) from exc
             return None
-
-        self._filesystem = fsspec.filesystem("gcs", **self.get_storage_options())
+        filesystem_class = get_filesystem_class(protocol=self.kind)
+        self._filesystem = makeDatastoreSchemaSanitizer(
+            filesystem_class,
+            using_bucket=self.using_bucket,
+            **self.get_storage_options(),
+        )
         return self._filesystem
 
     def get_storage_options(self):
-        return dict(token=self._get_secret_or_env("GCS_TOKEN"))
+        return dict(token=self._get_secret_or_env("GOOGLE_APPLICATION_CREDENTIALS"))
 
     def _prepare_path_and_verify_filesystem(self, key):
         if not self._filesystem:
@@ -132,3 +150,7 @@ class GoogleCloudStorageStore(DataStore):
             f.split("/", 1)[1][key_length:] for f in files if len(f.split("/")) > 1
         ]
         return files
+
+    def rm(self, path, recursive=False, maxdepth=None):
+        path = self._prepare_path_and_verify_filesystem(path)
+        self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)

@@ -104,13 +104,13 @@ class ParallelRunner:
                 num_errors += 1
             results.append(resp)
             if num_errors > generator.max_errors:
-                logger.error("max errors reached, stopping iterations!")
+                logger.error("Max errors reached, stopping iterations!")
                 return True
             run_results = resp["status"].get("results", {})
             stop = generator.eval_stop_condition(run_results)
             if stop:
                 logger.info(
-                    f"reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
+                    f"Reached early stop condition ({generator.options.stop_condition}), stopping iterations!"
                 )
             return stop
 
@@ -140,7 +140,7 @@ class ParallelRunner:
 
         client.close()
         if function_name and generator.options.teardown_dask:
-            logger.info("tearing down the dask cluster..")
+            logger.info("Tearing down the dask cluster..")
             mlrun.get_run_db().delete_runtime_resources(
                 kind="dask", object_id=function_name, force=True
             )
@@ -278,7 +278,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
         handler = runobj.spec.handler
         handler_str = handler or "main"
-        logger.debug(f"starting local run: {self.spec.command} # {handler_str}")
+        logger.debug(f"Starting local run: {self.spec.command} # {handler_str}")
         pythonpath = self.spec.pythonpath
 
         if handler:
@@ -317,13 +317,13 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 context.set_state(error=err_to_str(exc), commit=True)
                 logger.error(f"run error, {traceback.format_exc()}")
                 raise RunError(
-                    "failed on pre-loading / post-running of the function"
+                    "Failed on pre-loading / post-running of the function"
                 ) from exc
 
         else:
             command = self.spec.command
             command = command.format(**runobj.spec.parameters)
-            logger.info(f"handler was not provided running main ({command})")
+            logger.info(f"Handler was not provided running main ({command})")
             arg_list = command.split()
             if self.spec.mode == "pass":
                 cmd = arg_list
@@ -360,9 +360,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if resp:
                     run_obj_dict = json.loads(resp)
                 else:
-                    logger.error("empty context tmp file")
+                    logger.debug("Empty context tmp file")
             else:
-                logger.info("no context file found")
+                logger.info("No context file found")
 
             # If trackers where used, this is where we log all data collected to MLRun
             run_obj_dict = trackers_manager.post_run(run_obj_dict)
@@ -396,7 +396,7 @@ def run_exec(cmd, args, env=None, cwd=None):
         cmd += args
     if env and "SYSTEMROOT" in os.environ:
         env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-    print("running:", cmd)
+    print("Running:", cmd)
     process = Popen(
         cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
     )
@@ -516,9 +516,8 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
         input_obj = context.get_input(input_key, inputs[input_key])
         # If there is no type hint annotation but there is a default value and its type is string, point the data
         # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if (
-            args[input_key].annotation is inspect.Parameter.empty
-            and type(args[input_key].default) is str
+        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
+            args[input_key].default, str
         ):
             return input_obj.local()
         else:

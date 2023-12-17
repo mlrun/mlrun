@@ -64,17 +64,12 @@ def init_data(
                 f"Invalid mysql dsn: {dsn}, assuming live and skipping liveness verification"
             )
 
-    sqlite_migration_util = None
-    if not from_scratch and config.httpdb.db.database_migration_mode == "enabled":
-        sqlite_migration_util = (
-            server.api.utils.db.sqlite_migration.SQLiteMigrationUtil()
-        )
     alembic_util = _create_alembic_util()
     (
         is_migration_needed,
         is_migration_from_scratch,
         is_backup_needed,
-    ) = _resolve_needed_operations(alembic_util, sqlite_migration_util, from_scratch)
+    ) = _resolve_needed_operations(alembic_util, from_scratch)
 
     if (
         not is_migration_from_scratch
@@ -97,9 +92,6 @@ def init_data(
     if is_migration_from_scratch or is_migration_needed:
         try:
             _perform_schema_migrations(alembic_util)
-
-            _perform_database_migration(sqlite_migration_util)
-
             init_db()
             db_session = create_session()
             try:
@@ -143,42 +135,29 @@ def update_default_configuration_data():
 
 def _resolve_needed_operations(
     alembic_util: server.api.utils.db.alembic.AlembicUtil,
-    sqlite_migration_util: typing.Optional[
-        server.api.utils.db.sqlite_migration.SQLiteMigrationUtil
-    ],
     force_from_scratch: bool = False,
 ) -> typing.Tuple[bool, bool, bool]:
-    is_database_migration_needed = False
-    if sqlite_migration_util is not None:
-        is_database_migration_needed = (
-            sqlite_migration_util.is_database_migration_needed()
-        )
-    # the util checks whether the target DB has data, when database migration needed, it obviously does not have data
-    # but in that case it's not really a migration from scratch
     is_migration_from_scratch = (
         force_from_scratch or alembic_util.is_migration_from_scratch()
-    ) and not is_database_migration_needed
+    )
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
         and config.httpdb.db.data_migrations_mode == "enabled"
     )
-    is_migration_needed = is_database_migration_needed or (
-        not is_migration_from_scratch
-        and (is_schema_migration_needed or is_data_migration_needed)
+    is_migration_needed = not is_migration_from_scratch and (
+        is_schema_migration_needed or is_data_migration_needed
     )
     is_backup_needed = (
         config.httpdb.db.backup.mode == "enabled"
         and is_migration_needed
         and not is_migration_from_scratch
-        and not is_database_migration_needed
     )
     logger.info(
         "Checking if migration is needed",
         is_migration_from_scratch=is_migration_from_scratch,
         is_schema_migration_needed=is_schema_migration_needed,
         is_data_migration_needed=is_data_migration_needed,
-        is_database_migration_needed=is_database_migration_needed,
         is_backup_needed=is_backup_needed,
         is_migration_needed=is_migration_needed,
     )
@@ -216,16 +195,6 @@ def _is_latest_data_version():
         close_session(db_session)
 
     return current_data_version == latest_data_version
-
-
-def _perform_database_migration(
-    sqlite_migration_util: typing.Optional[
-        server.api.utils.db.sqlite_migration.SQLiteMigrationUtil
-    ],
-):
-    if sqlite_migration_util:
-        logger.info("Performing database migration")
-        sqlite_migration_util.transfer()
 
 
 def _perform_data_migrations(db_session: sqlalchemy.orm.Session):

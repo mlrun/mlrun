@@ -550,6 +550,13 @@ class RemoteRuntime(KubeResource):
         """
         # todo: verify that the function name is normalized
 
+        old_http_session = getattr(self, "_http_session", None)
+        if old_http_session:
+            # ensure existing http session is terminated prior to (re)deploy to ensure that a connection to an old
+            # replica will not be reused
+            old_http_session.close()
+            self._http_session = None
+
         verbose = verbose or self.verbose
         if verbose:
             self.set_env("MLRUN_LOG_LEVEL", "DEBUG")
@@ -939,7 +946,11 @@ class RemoteRuntime(KubeResource):
                 http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
+            if not getattr(self, "_http_session", None):
+                self._http_session = requests.Session()
+            resp = self._http_session.request(
+                method, path, headers=headers, **http_client_kwargs
+            )
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"

@@ -177,7 +177,7 @@ class MpiV1Alpha1RuntimeHandler(AbstractMPIJobRuntimeHandler):
         return in_terminal_state, completion_time, desired_run_state
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod

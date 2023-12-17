@@ -618,7 +618,7 @@ fmt-check: ## Format and check the code (using black)
 .PHONY: ruff
 ruff: ## Run ruff linter
 	@echo "Running ruff check..."
-	python -m ruff check . --fix
+	python -m ruff check . --exit-non-zero-on-fix
 
 .PHONY: lint-go
 lint-go:

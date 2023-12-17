@@ -491,9 +491,7 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-            node_selector
-        )
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
 
     def enrich_function_preemption_spec(
         self,
@@ -593,7 +591,6 @@ class KubeResourceSpec(FunctionSpec):
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
-
             # remove preemptible anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
@@ -655,17 +652,13 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if (
-            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        ):
+        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = (
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        )
+        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -741,9 +734,7 @@ class KubeResourceSpec(FunctionSpec):
             self._initialize_affinity(affinity_field_name)
             self._initialize_node_affinity(affinity_field_name)
 
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-                new_required_during_scheduling_ignored_during_execution
-            )
+            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = new_required_during_scheduling_ignored_during_execution
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
@@ -894,7 +885,6 @@ class AutoMountType(str, Enum):
         return mlrun.platforms.other.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
-
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,

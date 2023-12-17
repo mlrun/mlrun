@@ -110,7 +110,7 @@ class TestBatchInterval:
 
     @staticmethod
     def test_touching_intervals(
-        intervals: list[Tuple[datetime.datetime, datetime.datetime]]
+        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
     ) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):

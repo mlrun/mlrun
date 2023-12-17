@@ -139,7 +139,6 @@ def test_connection_reset_causes_retries(
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-
         # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
         # wrapped with MLRunRuntimeError
         with pytest.raises((exception_type, mlrun.errors.MLRunRuntimeError)):
@@ -235,7 +234,6 @@ def test_retriable_post_requests(path, call_amount):
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-
         # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
         # wrapped with MLRunRuntimeError
         with pytest.raises(ConnectionRefusedError):

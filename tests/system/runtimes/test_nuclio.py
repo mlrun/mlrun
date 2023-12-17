@@ -332,7 +332,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-
         row_divide = 3
         stocks_df = pd.DataFrame(
             {

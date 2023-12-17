@@ -57,9 +57,7 @@ def get_frontend_spec(
             "{tag}",
         )
     )
-    registries_to_enforce_prefix = (
-        mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
-    )
+    registries_to_enforce_prefix = mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
     function_target_image_name_prefix_template = (
         config.httpdb.builder.function_target_image_name_prefix_template
     )

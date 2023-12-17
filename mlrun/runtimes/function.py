@@ -63,7 +63,6 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-
         # only log when version is set but invalid
         if mlconf.nuclio_version:
             logger.warning(
@@ -166,7 +165,6 @@ class NuclioSpec(KubeResourceSpec):
         state_thresholds=None,
         disable_default_http_trigger=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -1105,7 +1103,6 @@ class RemoteRuntime(KubeResource):
         return results
 
     def _resolve_invocation_url(self, path, force_external_address):
-
         if not path.startswith("/") and path != "":
             path = f"/{path}"
 

@@ -49,7 +49,6 @@ class SparkFeatureMerger(BaseMerger):
         left_keys: list,
         right_keys: list,
     ):
-
         """Perform an as of join between entity and featureset.
         Join conditions:
         Args:
@@ -132,7 +131,6 @@ class SparkFeatureMerger(BaseMerger):
         left_keys: list,
         right_keys: list,
     ):
-
         """
         spark dataframes join
 

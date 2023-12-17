@@ -72,8 +72,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.function: "/projects/{project_name}/functions/{resource_name}",
             AuthorizationResourceTypes.artifact: "/projects/{project_name}/artifacts/{resource_name}",
             # fmt: off
-            AuthorizationResourceTypes.project_background_task:
-                "/projects/{project_name}/background-tasks/{resource_name}",
+            AuthorizationResourceTypes.project_background_task: "/projects/{project_name}/background-tasks/{resource_name}",
             # fmt: on
             AuthorizationResourceTypes.background_task: "/background-tasks/{resource_name}",
             AuthorizationResourceTypes.feature_set: "/projects/{project_name}/feature-sets/{resource_name}",

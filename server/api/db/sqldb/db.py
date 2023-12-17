@@ -285,7 +285,7 @@ class SQLDB(DBInterface):
             return runs
 
         # from each row we expect to get a tuple of (uid,) so we need to extract the uid from the tuple
-        return [uid for uid, in query.all()]
+        return [uid for (uid,) in query.all()]
 
     def update_runs_requested_logs(
         self, session, uids: List[str], requested_logs: bool = True
@@ -1587,7 +1587,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(Function.name), project=project
             ).all()
         ]
@@ -1883,7 +1883,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(FeatureVector.name), project=project
             ).all()
         ]
@@ -4124,7 +4124,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(BackgroundTask.name), project=project
             ).all()
         ]

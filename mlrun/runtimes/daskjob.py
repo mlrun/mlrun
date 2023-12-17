@@ -94,7 +94,6 @@ class DaskSpec(KubeResourceSpec):
         clone_target_dir=None,
         state_thresholds=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -526,7 +525,6 @@ class DaskCluster(KubejobRuntime):
         )
 
     def _run(self, runobj: RunObject, execution):
-
         handler = runobj.spec.handler
         self._force_handler(handler)
 

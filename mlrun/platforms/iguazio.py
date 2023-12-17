@@ -305,7 +305,6 @@ class OutputStream:
         self._mock_queue = []
 
         if create and not mock:
-
             # this import creates an import loop via the utils module, so putting it in execution path
             from mlrun.utils.helpers import logger
 
@@ -368,7 +367,6 @@ class HTTPOutputStream:
             data = [data]
 
         for record in data:
-
             # Convert the new record to the required format
             serialized_record = dump_record(record)
             response = requests.post(self._stream_path, data=serialized_record)

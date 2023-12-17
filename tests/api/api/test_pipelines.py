@@ -125,9 +125,7 @@ def test_get_pipeline_no_project_opa_validation(
     assert (
         server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions.call_args[
             0
-        ][
-            1
-        ]
+        ][1]
         == project
     )
     assert response.json()["run"]["project"] == project

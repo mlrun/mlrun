@@ -191,9 +191,7 @@ class BaseMerger(abc.ABC):
 
         feature_sets = []
         dfs = []
-        keys = (
-            []
-        )  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
+        keys = []  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
         # featureset is connected to the previous one, and within each record the left keys are indicated in index 0
         # and the right keys in index 1, this keys will be the keys that will be used in this join
         join_types = []

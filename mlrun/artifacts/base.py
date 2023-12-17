@@ -712,7 +712,6 @@ class LinkArtifact(Artifact):
     category=FutureWarning,
 )
 class LegacyArtifact(ModelObj):
-
     _dict_fields = [
         "key",
         "kind",
@@ -930,7 +929,6 @@ class LegacyLinkArtifact(LegacyArtifact):
         link_key=None,
         link_tree=None,
     ):
-
         super().__init__(key)
         self.target_path = target_path
         self.link_iteration = link_iteration
@@ -958,7 +956,6 @@ def upload_extra_data(
         return
     target_path = artifact.target_path
     for key, item in extra_data.items():
-
         if isinstance(item, bytes):
             if target_path:
                 target = os.path.join(target_path, prefix + key)
@@ -1033,7 +1030,6 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
     suffix = "/"
     if not item.is_dir:
-
         # suffixes yields a list of suffixes, e.g. ['.tar', '.gz']
         # join them together to get the full suffix, e.g. '.tar.gz'
         suffix = "".join(pathlib.Path(item.src_path or "").suffixes)

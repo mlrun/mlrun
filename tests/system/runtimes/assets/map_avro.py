@@ -23,7 +23,6 @@ from storey import MapClass
 
 
 class MyMap(MapClass):
-
     schema = json.dumps(
         {
             "namespace": "example.avro",

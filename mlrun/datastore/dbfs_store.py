@@ -123,7 +123,6 @@ class DBFSStore(DataStore):
         return self._filesystem.cat_file(key, start=start, end=end)
 
     def put(self, key, data, append=False):
-
         self._verify_filesystem_and_key(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(

@@ -37,10 +37,10 @@ See: **Docs:** [Projects and Automation](https://docs.mlrun.org/en/latest/projec
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+MLRun provides abstract interfaces to various offline and online data sources, supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 In addition, the MLRun [**Feature Store**](https://docs.mlrun.org/en/latest/feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing. 
 
-See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/latest/data-prep/index.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html), [Data & Artifacts](https://docs.mlrun.org/en/latest/concepts/data-feature-store.html); **Tutorials:** [Quick start](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/basic-demo.html).
+See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/latest/data-prep/index.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html); **Tutorials:** [Quick start](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/basic-demo.html).
 
 ### Develop and train models
 

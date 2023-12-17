@@ -344,7 +344,6 @@ class Runs(
             mlrun.mlconf.log_collector.mode
             != mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            await server.api.crud.Logs().stop_logs_for_run(project, uid)
             await server.api.crud.Logs().delete_run_logs(project, uid)
         else:
             await run_in_threadpool(

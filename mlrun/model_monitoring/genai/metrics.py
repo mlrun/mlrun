@@ -91,7 +91,6 @@ def open_mpi_handler(
             size = comm.Get_size()
             rank = comm.Get_rank()
             sample_df = kwargs[worker_inputs]
-            print(size, rank)
 
             # Give the correct chunk of the workers inputs:
             even_chunk_size = len(sample_df) // size
@@ -104,7 +103,6 @@ def open_mpi_handler(
                 f"from index {chunk_start} to {chunk_end}."
             )
             sample_df = sample_df.iloc[chunk_start:chunk_end:, :]
-            print(sample_df)
             kwargs[worker_input] = sample_df
 
             # Run the worker:
@@ -341,8 +339,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-
-        return self.extract_score_explanation(response)
+        res_dic = self.extract_score_explanation(response)
+        return res_dic
 
     @open_mpi_handler(worker_inputs="sample_df")
     def compute_over_data(
@@ -516,7 +514,9 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-        return self.extract_score_explanation(response)
+        res_dic = self.extract_score_explanation(response)
+        res_dic["answerB"] = self.prompt_config["answerB"]
+        return res_dic
 
     @open_mpi_handler(worker_inputs="sample_df")
     def compute_over_data(
@@ -549,7 +549,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
                 sample_df.loc[i, "answerA"],
-                self.prompt_config["answerB"],
+                res_dic["answerB"],
                 res_dic["score_of_assistant_a"],
                 res_dic["explanation_of_assistant_a"],
                 res_dic["score_of_assistant_b"],
@@ -662,7 +662,8 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         :return: the metrics score and the explanation
         """
         self.prompt_config["reference"] = reference
-        return super().compute_over_one_data(question, response)
+        res_dic = super().compute_over_one_data(question, response)
+        return res_dic
 
     @open_mpi_handler(worker_inputs="sample_df")
     def compute_over_data(
@@ -697,7 +698,8 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
                 sample_df.loc[i, "answerA"],
-                self.prompt_config["answerB"],
+                sample_df.loc[i, "reference"],
+                res_dic["answerB"],
                 res_dic["score_of_assistant_a"],
                 res_dic["explanation_of_assistant_a"],
                 res_dic["score_of_assistant_b"],

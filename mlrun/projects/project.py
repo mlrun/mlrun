@@ -3513,7 +3513,8 @@ class MlrunProject(ModelObj):
             canary=canary,
         )
         ok = mlrun.db.get_run_db().create_api_gateway(
-            gateway_instance, (username, password) if gateway_instance.requires_auth() else None
+            gateway_instance,
+            (username, password) if gateway_instance.requires_auth() else None,
         )
         return gateway_instance if ok else None
 

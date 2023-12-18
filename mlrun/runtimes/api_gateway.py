@@ -52,7 +52,9 @@ class APIGateway:
         headers = {} if not self._auth else {"Authorization": self._auth}
         return requests.post(self._invoke_url, headers=headers)
 
-    def _generate_auth(self, username: Optional[str] = None, password: Optional[str] = None):
+    def _generate_auth(
+        self, username: Optional[str] = None, password: Optional[str] = None
+    ):
         if username and password:
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             self._auth = f"Basic {token}"

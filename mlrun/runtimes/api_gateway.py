@@ -66,7 +66,7 @@ class APIGateway:
         # Remove the 'nuclio' prefix from the hostname
         # For example, from `nuclio.default-tenant.app.dev62.lab.iguazeng.com`,
         # it becomes `default-tenant.app.dev62.lab.iguazeng.com`
-        common_hostname = nuclio_hostname[nuclio_hostname.find(".") + 1:]
+        common_hostname = nuclio_hostname[nuclio_hostname.find(".") + 1 :]
 
         # Generate a unique invoke URL which contains the API gateway name and project name
         return urllib.parse.urljoin(

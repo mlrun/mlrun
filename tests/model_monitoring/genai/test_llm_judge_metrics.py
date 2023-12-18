@@ -29,7 +29,7 @@ BENCHMARK_CONFIG = {
     "torch_dtype":"auto",
     "flash_attn": True,
 }
-TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
+TOKENIZER_BENCHMARK_CONFIG = {"trust_remote_code": True}
 BENCHMARK_INFER_CONFIG = {"max_length": 1500}
 
 

@@ -1,4 +1,4 @@
-# ~=1.28.0 from botocore 1.28.64 inside boto3 1.16.28 inside nuclio-jupyter 0.9.13
+# >=1.28.0,<1.29.0 botocore inside boto3 1.28.17 inside nuclio-jupyter 0.9.13
 urllib3>=1.26.9, <1.27
 GitPython~=3.1, >= 3.1.30
 # 3.8.4 and 3.9 breaks our unit tests. blacklist for now until we fix it

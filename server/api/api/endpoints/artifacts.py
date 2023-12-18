@@ -74,7 +74,7 @@ async def store_artifact(
         "Storing artifact", project=project, uid=uid, key=key, tag=tag, iter=iter
     )
     await run_in_threadpool(
-        server.api.crud.Artifacts(auth_info=auth_info).store_artifact,
+        server.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
@@ -82,6 +82,7 @@ async def store_artifact(
         tag,
         iter,
         project,
+        auth_info,
     )
     return {}
 

@@ -30,9 +30,6 @@ from mlrun.utils import logger
 class Artifacts(
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    def __init__(self, auth_info: mlrun.common.schemas.AuthInfo = None):
-        self._auth_info = auth_info
-
     def store_artifact(
         self,
         db_session: sqlalchemy.orm.Session,
@@ -42,6 +39,7 @@ class Artifacts(
         tag: str = "latest",
         iter: int = 0,
         project: str = mlrun.mlconf.default_project,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
         # In case project is an empty string the setdefault won't catch it
@@ -55,7 +53,7 @@ class Artifacts(
             )
 
         # calculate the size of the artifact
-        self._resolve_artifact_size(data)
+        self._resolve_artifact_size(data, auth_info)
 
         server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
@@ -67,13 +65,14 @@ class Artifacts(
             project,
         )
 
-    def _resolve_artifact_size(self, data):
+    @staticmethod
+    def _resolve_artifact_size(data, auth_info):
         if "spec" in data and "size" not in data["spec"]:
             if "target_path" in data["spec"]:
                 path = data["spec"].get("target_path")
                 try:
                     file_stat = server.api.crud.Files().get_filestat(
-                        self._auth_info, path=path
+                        auth_info, path=path
                     )
                     data["spec"]["size"] = file_stat["size"]
                 except HTTPException as exc:

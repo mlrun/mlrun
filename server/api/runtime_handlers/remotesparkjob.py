@@ -37,9 +37,3 @@ class RemoteSparkRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_object_label_selector(object_id: str) -> str:
         return f"mlrun/uid={object_id}"
-
-
-class DatabricksRuntimeHandler(KubeRuntimeHandler):
-    kind = "databricks"
-    class_modes = {RuntimeClassMode.run: "databricks"}
-    pod_grace_period_seconds = 60

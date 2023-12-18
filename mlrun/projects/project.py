@@ -3451,30 +3451,32 @@ class MlrunProject(ModelObj):
     def create_api_gateway(
         self,
         name: str,
-        host: str = None,
-        path: str = "",
-        description: str = "",
         functions: Union[
             list[Union[RemoteRuntime, ServingRuntime]],
             Union[RemoteRuntime, ServingRuntime],
         ] = [],
-        username: Union[None, str] = None,
-        password: Union[None, str] = None,
-        canary: Union[list[int], None] = None,
+        host: Optional[str] = None,
+        path: Optional[str] = "",
+        description: Optional[str] = "",
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        canary: Optional[list[int]] = None,
     ) -> Union[mlrun.runtimes.api_gateway.APIGateway, None]:
         """
         Creates a Nuclio API Gateway. Nuclio docs here: https://docs.nuclio.io/en/latest/reference/api-gateway/http.html
 
         :param name (str): API Gateway name.
-        :param host (str): API Gateway host.
-        :param path (str): API Gateway path.
-        :param description (str): Description for the API Gateway.
         :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
             List of Nuclio functions or Nuclio function.
-        :param username (Union[None, str]): Username for authentication (if required).
-        :param password (Union[None, str]): Password for authentication (if required).
-        :param canary (Union[List[int], None]): List containing canary configuration for each function in the function
-            list respectively. For example, if the function list is [f1, f2], the canary list should have two elements,
+
+        :param host (str): API Gateway host (optional).
+        :param path (str): API Gateway path (optional).
+        :param description (str): description for the API Gateway (optional).
+        :param username (str): Username for authentication (optional).
+        :param password (str): Password for authentication (optional).
+        :param canary (List[int]): List containing canary configuration for each function in the function
+            list respectively (optional).
+            For example, if the function list is [f1, f2], the canary list should have two elements,
             such as [20, 80]. In this case, 20 represents the percentage of traffic going to f1, and 80 represents
             the percentage of traffic going to f2.
 
@@ -3511,7 +3513,7 @@ class MlrunProject(ModelObj):
             canary=canary,
         )
         ok = mlrun.db.get_run_db().create_api_gateway(
-            gateway_instance, (username, password)
+            gateway_instance, (username, password) if gateway_instance.requires_auth() else None
         )
         return gateway_instance if ok else None
 

@@ -3195,7 +3195,7 @@ class HTTPRunDB(RunDBInterface):
     def create_api_gateway(
         self,
         api_gateway: mlrun.runtimes.api_gateway.APIGateway,
-        auth: tuple[str, str],
+        auth: Optional[tuple[str, str]] = None,
     ) -> bool:
         """
         Creates an API Gateway.
@@ -3210,7 +3210,7 @@ class HTTPRunDB(RunDBInterface):
             "description": api_gateway.description,
             "host": api_gateway.host,
         }
-        if api_gateway.requires_auth():
+        if auth:
             username, password = auth
             params["username"] = username
             params["password"] = password

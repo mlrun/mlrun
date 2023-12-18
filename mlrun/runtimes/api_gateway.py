@@ -13,7 +13,7 @@
 # limitations under the License.
 import base64
 import urllib.parse
-from typing import Union
+from typing import Optional, Union
 
 import requests
 
@@ -32,9 +32,9 @@ class APIGateway:
         path: str,
         description: str,
         functions: list[str],
-        username: Union[None, str],
-        password: Union[None, str],
-        canary: Union[dict[str, int], None],
+        username: Optional[str],
+        password: Optional[str],
+        canary: Optional[list[int]],
     ):
         self.project = project
         self.name = name
@@ -52,7 +52,7 @@ class APIGateway:
         headers = {} if not self._auth else {"Authorization": self._auth}
         return requests.post(self._invoke_url, headers=headers)
 
-    def _generate_auth(self, username: Union[None, str], password: Union[None, str]):
+    def _generate_auth(self, username: Optional[str] = None, password: Optional[str] = None):
         if username and password:
             token = base64.b64encode(f"{username}:{password}".encode()).decode()
             self._auth = f"Basic {token}"
@@ -82,9 +82,9 @@ class APIGateway:
         path: str,
         description: str,
         functions: list[str],
-        username: Union[None, str],
-        password: Union[None, str],
-        canary: Union[list[int], None],
+        username: Optional[str],
+        password: Optional[str],
+        canary: Optional[list[int]],
     ) -> "APIGateway":
         if not name:
             raise mlrun.errors.MLRunInvalidArgumentError(

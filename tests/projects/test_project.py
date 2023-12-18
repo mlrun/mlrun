@@ -1550,7 +1550,7 @@ def test_create_api_gateway_invalid(
         project.set_function(f2)
         functions = [f1, f2]
 
-    with pytest.raises(ValueError):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         project.create_api_gateway(
             name="gateway-f1-f2", functions=functions, canary=canary
         )

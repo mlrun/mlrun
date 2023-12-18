@@ -82,13 +82,17 @@ class APIGateway:
         canary: Union[list[int], None],
     ) -> "APIGateway":
         if not name:
-            raise ValueError("API Gateway name cannot be empty")
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API Gateway name cannot be empty"
+            )
 
         if canary:
             if len(functions) != len(canary):
-                raise ValueError("Lengths of function and canary lists do not match")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Lengths of function and canary lists do not match"
+                )
             if sum(canary) != 100:
-                raise ValueError(
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     "The sum of canary function percents should be equal to 100"
                 )
         return cls(
@@ -157,4 +161,5 @@ class APIGateway:
                 canary = [percentage_1, percentage_2]
             return functions, canary
         else:
+            # The upstream list length should be either 1 or 2; otherwise, we cannot parse the upstream value correctly
             return None, None

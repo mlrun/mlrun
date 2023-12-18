@@ -3473,26 +3473,30 @@ class MlrunProject(ModelObj):
             List of Nuclio functions or Nuclio function.
         :param username (Union[None, str]): Username for authentication (if required).
         :param password (Union[None, str]): Password for authentication (if required).
-        :param canary (Union[List[int], None]): Canary configuration.
+        :param canary (Union[List[int], None]): List containing canary configuration for each function in the function
+            list respectively. For example, if the function list is [f1, f2], the canary list should have two elements,
+            such as [20, 80]. In this case, 20 represents the percentage of traffic going to f1, and 80 represents
+            the percentage of traffic going to f2.
 
         @return: API Gateway object if successful, else None.
-
         """
         if not isinstance(functions, list):
             functions = [functions]
 
         for func in functions:
-            if not isinstance(func, (RemoteRuntime, ServingRuntime)):
+            if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 if hasattr(func, "name"):
-                    raise ValueError(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Input function {func.name} is not a Nuclio function"
                     )
                 elif hasattr(func, "metadata"):
-                    raise ValueError(
+                    raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Input function {func.metadata.name} is not a Nuclio function"
                     )
                 else:
-                    raise ValueError("Input function is not a Nuclio function")
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "Input function is not a Nuclio function"
+                    )
 
         function_names = [func.metadata.name for func in functions]
         gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(

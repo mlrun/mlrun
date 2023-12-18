@@ -91,6 +91,7 @@ def open_mpi_handler(
             size = comm.Get_size()
             rank = comm.Get_rank()
             sample_df = kwargs[worker_inputs]
+            print(size, rank)
 
             # Give the correct chunk of the workers inputs:
             even_chunk_size = len(sample_df) // size
@@ -103,6 +104,7 @@ def open_mpi_handler(
                 f"from index {chunk_start} to {chunk_end}."
             )
             sample_df = sample_df.iloc[chunk_start:chunk_end:, :]
+            print(sample_df)
             kwargs[worker_input] = sample_df
 
             # Run the worker:

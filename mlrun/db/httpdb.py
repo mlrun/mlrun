@@ -18,6 +18,7 @@ import tempfile
 import time
 import traceback
 import typing
+import warnings
 from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
@@ -780,54 +781,110 @@ class HTTPRunDB(RunDBInterface):
         _path = self._path_of("runs", project)
         self.api_call("DELETE", _path, error, params=params)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
+    def store_artifact(
+        self,
+        key,
+        artifact,
+        # TODO: deprecated, remove in 1.8.0
+        uid=None,
+        iter=None,
+        tag=None,
+        project="",
+        tree=None,
+    ):
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
         :param artifact: The actual artifact to store.
-        :param uid: A unique ID for this specific version of the artifact.
+        :param uid: A unique ID for this specific version of the artifact
+                    (deprecated, artifact uid is generated in the backend use `tree` instead)
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will
             be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
+        :param tree: The tree (producer id) which generated this artifact.
         """
+        if uid:
+            warnings.warn(
+                "'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
+                # TODO: Remove this in 1.8.0
+                FutureWarning,
+            )
 
-        endpoint_path = f"projects/{project}/artifacts/{uid}/{key}"
-        params = {
-            "tag": tag,
-        }
+        # we do this because previously the 'uid' name was used for the 'tree' parameter
+        tree = tree or uid
+
+        endpoint_path = f"projects/{project}/artifacts/{key}"
+
+        error = f"store artifact {project}/{key}"
+
+        params = {}
         if iter:
             params["iter"] = str(iter)
-
-        error = f"store artifact {project}/{uid}/{key}"
+        if tag:
+            params["tag"] = tag
+        if tree:
+            params["tree"] = tree
 
         body = _as_json(artifact)
-        self.api_call("POST", endpoint_path, error, params=params, body=body)
+        self.api_call(
+            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+        )
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
-        """Read an artifact, identified by its key, tag and iteration."""
+    def read_artifact(
+        self,
+        key,
+        tag=None,
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+    ):
+        """Read an artifact, identified by its key, tag, tree and iteration.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param iter: The iteration which generated this artifact (where ``iter=0`` means the root iteration).
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         project = project or config.default_project
         tag = tag or "latest"
-        endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
+        endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
-        params = {"format": mlrun.common.schemas.ArtifactsFormat.full.value}
+        params = {
+            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "tag": tag,
+            "tree": tree,
+            "uid": uid,
+        }
         if iter:
             params["iter"] = str(iter)
-        resp = self.api_call("GET", endpoint_path, error, params=params)
-        return resp.json()["data"]
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
+        return resp.json()
 
-    def del_artifact(self, key, tag=None, project=""):
-        """Delete an artifact."""
+    def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
+        """Delete an artifact.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
             "tag": tag,
+            "tree": tree,
+            "uid": uid,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifacts(
         self,
@@ -841,6 +898,7 @@ class HTTPRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -869,6 +927,7 @@ class HTTPRunDB(RunDBInterface):
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
         """
 
         project = project or config.default_project
@@ -885,16 +944,19 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
+            "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        resp = self.api_call("GET", endpoint_path, error, params=params)
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
 
-    def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
+    def del_artifacts(
+        self, name=None, project=None, tag=None, labels=None, days_ago=0, tree=None
+    ):
         """Delete artifacts referenced by the parameters.
 
         :param name: Name of artifacts to delete. Note that this is a like query, and is case-insensitive. See
@@ -908,12 +970,13 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "tag": tag,
+            "tree": tree,
             "label": labels or [],
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifact_tags(
         self,

@@ -24,7 +24,7 @@ BENCHMARK_MODEL = "microsoft/phi-2"
 BENCHMARK_CONFIG = {
     "device_map": "auto",
     "revision": "main",
-    "trust_remote_code": True,
+    "trust_remote_code": False,
 }
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
 BENCHMARK_INFER_CONFIG = {"max_length": 2000}

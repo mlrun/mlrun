@@ -91,11 +91,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -111,11 +113,12 @@ class RunDBInterface(ABC):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -203,8 +206,8 @@ class RunDBInterface(ABC):
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
-                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
-                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )

@@ -7,6 +7,7 @@ __pycache__/
 .hypothesis/
 .vscode/
 .bin
+.DS_Store
 build
 chart
 chart.html

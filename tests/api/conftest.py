@@ -45,7 +45,7 @@ from mlrun.config import config
 from mlrun.secrets import SecretsStore
 from mlrun.utils import logger
 from server.api.initial_data import init_data
-from server.api.main import BASE_VERSIONED_API_PREFIX, app
+from server.api.main import API_PREFIX, BASE_VERSIONED_API_PREFIX, app
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +129,24 @@ def client(db) -> Generator:
         with TestClient(app) as test_client:
             set_base_url_for_test_client(test_client)
             yield test_client
+
+
+@pytest.fixture()
+def unprefixed_client(db) -> Generator:
+    """
+    unprefixed_client is a test client that doesn't have the version prefix in the url.
+    When using this client, the version prefix must be added to the url manually.
+    This is useful when tests use several endpoints that are not under the same version prefix.
+    """
+    with TemporaryDirectory(suffix="mlrun-logs") as log_dir:
+        mlconf.httpdb.logs_path = log_dir
+        mlconf.monitoring.runs.interval = 0
+        mlconf.runtimes_cleanup_interval = 0
+        mlconf.httpdb.projects.periodic_sync_interval = "0 seconds"
+
+        with TestClient(app) as test_client_v2:
+            set_base_url_for_test_client(test_client_v2, API_PREFIX)
+            yield test_client_v2
 
 
 @pytest.fixture()

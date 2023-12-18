@@ -158,12 +158,11 @@ def get_store_resource(
         return db.get_feature_vector(name, project, tag, uid)
 
     elif StorePrefix.is_artifact(kind):
-        project, key, iteration, tag, uid = parse_artifact_uri(
+        project, key, iteration, tag, tree = parse_artifact_uri(
             uri, project or config.default_project
         )
-
         resource = db.read_artifact(
-            key, project=project, tag=tag or uid, iter=iteration
+            key, project=project, tag=tag, iter=iteration, tree=tree
         )
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer

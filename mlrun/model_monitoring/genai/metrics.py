@@ -43,11 +43,13 @@ import pandas as pd
 }
 """
 
+
 def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intracomm"]:
     global _LOGGER
     is_mpi = False
     try:
         import mlrun
+
         context = mlrun.get_or_create_ctx(name="mlrun")
         _LOGGER = context.logger
         is_mpi = context.labels.get("kind", "job") == "mpijob"
@@ -70,7 +72,7 @@ def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intrac
 
 
 def open_mpi_handler(
-        worker_inputs: List[str], root_worker_inputs: Dict[str, Any] = None
+    worker_inputs: str,
 ):
     global _LOGGER
 
@@ -80,46 +82,26 @@ def open_mpi_handler(
     def decorator(handler):
         if comm is None or comm.Get_size() == 1:
             return handler
+
         @wraps(handler)
         def wrapper(**kwargs):
             # Get the open mpi environment properties:
             size = comm.Get_size()
             rank = comm.Get_rank()
+            sample_df = kwargs[worker_inputs]
 
             # Give the correct chunk of the workers inputs:
-            for worker_input in worker_inputs:
-                input_argument = kwargs[worker_input]
-                if input_argument is None:
-                    continue
-                if isinstance(input_argument, str):
-                    input_argument = _get_text_files(
-                        data_path=pathlib.Path(input_argument).absolute()
-                    )
-                if len(input_argument) < size:
-                    raise ValueError(
-                        f"Cannot split the input '{worker_input}' of length {len(input_argument)} to {size} workers. "
-                        f"Please reduce the amount of workers for this input."
-                    )
-                even_chunk_size = len(input_argument) // size
-                chunk_start = rank * even_chunk_size
-                chunk_end = (
-                    (rank + 1) * even_chunk_size
-                    if rank + 1 < size
-                    else len(input_argument)
-                )
-                context.logger.info(
-                    f"Rank #{rank}: Processing input chunk of '{worker_input}' "
-                    f"from index {chunk_start} to {chunk_end}."
-                )
-                if isinstance(input_argument, list):
-                    input_argument = input_argument[chunk_start:chunk_end]
-                elif isinstance(input_argument, pd.DataFrame):
-                    input_argument = input_argument.iloc[chunk_start:chunk_end:, :]
-                kwargs[worker_input] = input_argument
-
-            # Set the root worker only arguments:
-            if rank == 0 and root_worker_inputs:
-                kwargs.update(root_worker_inputs)
+            even_chunk_size = len(sample_df) // size
+            chunk_start = rank * even_chunk_size
+            chunk_end = (
+                (rank + 1) * even_chunk_size if rank + 1 < size else len(input_argument)
+            )
+            context.logger.info(
+                f"Rank #{rank}: Processing input chunk sample dataframe"
+                f"from index {chunk_start} to {chunk_end}."
+            )
+            sample_df = sample_df.iloc[chunk_start:chunk_end:, :]
+            kwargs[worker_input] = sample_df
 
             # Run the worker:
             output = handler(**kwargs)
@@ -130,8 +112,7 @@ def open_mpi_handler(
                 # Join the outputs:
                 context.logger.info("Collecting data from workers to root worker.")
                 dataframe = pd.concat(objs=[df for df, _ in output], axis=0)
-                errors_dictionary = reduce(operator.ior, [err for _, err in output], {})
-                return dataframe, errors_dictionary
+                return dataframe
             return None
 
         return wrapper
@@ -139,13 +120,12 @@ def open_mpi_handler(
     return decorator
 
 
-@open_mpi_handler(worker_inputs=["data_path"], root_worker_inputs={"verbose": True})
-
 class LLMEvaluateMetric(ModelObj):
     """
     Base class of the metrics that computed by evluate package
     We need the y_true as the reference and y_pred as the prediction to compute the metrics
     """
+
     _dict_fields = ["name"]
     kind = "llm_metric"
     default_name: ClassVar[str] = "llm_metric"
@@ -189,6 +169,7 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
     We don't need the y_true as reference. These metrics are used for more open-ended question for the model
     and the algorithm is based on the paper https://arxiv.org/pdf/2306.05685.pdf
     """
+
     _dict_fields = [
         "name",
         "model_judge",
@@ -247,7 +228,19 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         pass
 
     @abstractmethod
-    def compute_over_one_data(self, question, response) -> Dict[str, Any]:
+    def compute_over_one_data(self, question: str, response: str) -> Dict[str, Any]:
+        """
+        Compute the metrics over one data point
+        :param question: the question to compute the metrics over
+        :param response: the response to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+        pass
+
+    @abstractmethod
+    def compute_over_data(
+        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
+    ) -> Dict[str, Any]:
         """
         Compute the metrics over one data point
         :param question: the question to compute the metrics over
@@ -268,9 +261,10 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
 
 class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
     """
-    Base class for LLM as a judge using single grading. 
+    Base class for LLM as a judge using single grading.
     you need to define the defnition of the metrics and give the grading of the rubic
     """
+
     _dict_fields = [
         "name",
         "model_judge",
@@ -331,7 +325,6 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param response: the response to compute the metrics over
         :return: the metrics score and the explanation
         """
-        self.prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["answer"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
@@ -346,6 +339,32 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
         return self.extract_score_explanation(response)
+
+    @open_mpi_handler(worker_inputs="sample_df")
+    def compute_over_data(
+        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
+    ) -> Dict[str, Any]:
+        """
+        Compute the metrics over all data
+        :param sample_df: the sample dataframe
+        :param train_df: the train dataframe
+        :return: the metrics score and the explanation
+        """
+        self.prepare_judge()
+        res_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
+
+        for i in range(len(sample_df)):
+            score, explanation = self.compute_over_one_data(
+                sample_df.loc[i, "question"], sample_df.loc[i, "answer"]
+            )
+            res_df.loc[i] = [
+                sample_df.loc[i, "question"],
+                sample_df.loc[i, "answer"],
+                score,
+                explanation,
+            ]
+
+        return res_df
 
     def extract_score_explanation(self, result: str) -> Dict[str, Any]:
         """
@@ -371,6 +390,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
     you need to define the defnition of the metrics and give the grading of the rubic
     you need to give a base model to compare the model to
     """
+
     _dict_fields = [
         "name",
         "model_judge",
@@ -479,7 +499,6 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
-        self.prepare_judge()
         self.prompt_config["question"] = question
         self.prompt_config["answerA"] = response
         self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
@@ -494,6 +513,46 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
         return self.extract_score_explanation(response)
+
+    @open_mpi_handler(worker_inputs="sample_df")
+    def compute_over_data(
+        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
+    ) -> Dict[str, Any]:
+        """
+        Compute the metrics over all data
+        :param sample_df: the sample dataframe
+        :param train_df: the train dataframe
+        :return: the metrics score and the explanation
+        """
+        self.prepare_judge()
+        res_df = pd.DataFrame(
+            columns=[
+                "question",
+                "answerA",
+                "answerB",
+                "score_of_assistant_a",
+                "explanation_of_assistant_a",
+                "score_of_assistant_b",
+                "explanation_of_assistant_b",
+            ]
+        )
+
+        for i in range(len(sample_df)):
+            res_dic = self.compute_over_one_data(
+                sample_df.loc[i, "question"],
+                sample_df.loc[i, "answerA"],
+            )
+            res_df.loc[i] = [
+                sample_df.loc[i, "question"],
+                sample_df.loc[i, "answerA"],
+                self.prompt_config["answerB"],
+                res_dic["score_of_assistant_a"],
+                res_dic["explanation_of_assistant_a"],
+                res_dic["score_of_assistant_b"],
+                res_dic["explanation_of_assistant_b"],
+            ]
+
+        return res_df
 
     def extract_score_explanation(self, response) -> Dict[str, Any]:
         """
@@ -533,6 +592,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
     you need to give the name of the metrics, give the grading rubric and the bench mark model to use
     This class requrie you know the y_true of the response
     """
+
     _dict_fields = [
         "name",
         "model_judge",
@@ -564,7 +624,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
     ):
         """
         init the grading with reference class
-        
+
         :param name: the name of the metrics
         :param model_judge: the model to use for grading
         :param model_judge_config: the config of the model to use for grading
@@ -599,3 +659,45 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         """
         self.prompt_config["reference"] = reference
         return super().compute_over_one_data(question, response)
+
+    @open_mpi_handler(worker_inputs="sample_df")
+    def compute_over_data(
+        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
+    ) -> pd.DataFrame:
+        """
+        Compute the metrics over a dataset
+
+        :param sample_df: the data to compute the metrics over
+        :return: the metrics score and the explanation
+        """
+        self.prepare_judge()
+        res_df = pd.DataFrame(
+            columns=[
+                "question",
+                "answerA",
+                "answerB",
+                "reference",
+                "score_of_assistant_a",
+                "explanation_of_assistant_a",
+                "score_of_assistant_b",
+                "explanation_of_assistant_b",
+            ]
+        )
+
+        for i in range(len(sample_df)):
+            res_dic = self.compute_over_one_data(
+                sample_df.loc[i, "question"],
+                sample_df.loc[i, "answerA"],
+            )
+            res_df.loc[i] = [
+                sample_df.loc[i, "question"],
+                sample_df.loc[i, "answerA"],
+                self.prompt_config["answerB"],
+                self.prompt_config["reference"],
+                res_dic["score_of_assistant_a"],
+                res_dic["explanation_of_assistant_a"],
+                res_dic["score_of_assistant_b"],
+                res_dic["explanation_of_assistant_b"],
+            ]
+
+        return res_df

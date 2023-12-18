@@ -120,7 +120,7 @@ def test_pairwise_grading_scores(prompt_fixture):
     a2 = "The capital of France is Paris"
 
     sample_df = pd.DataFrame({"question": [q1, q2], "answerA": [a1, a2]})
-    result = metric.compute_over_one_data(sample_df)
+    result = metric.compute_over_data(sample_df)
     assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
     assert all(0 <= score <= 5 for score in result["score_of_assistant_b"].to_list())
 

@@ -328,7 +328,7 @@ class SQLDB(DBInterface):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> RunList:
         project = project or config.default_project
         query = self._find_runs(session, uid, project, labels)
         if name is not None:

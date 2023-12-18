@@ -207,7 +207,7 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert fn.kind == "job", "kind not set, test failed"
         assert fn.spec.build.functionSourceCode, "code not embedded"
         assert fn.spec.build.origin_filename == filename, "did not record filename"
-        assert type(fn.metadata.labels) == dict, "metadata labels were not set"
+        assert isinstance(fn.metadata.labels, dict), "metadata labels were not set"
         run = fn.run(workdir=str(examples_path), local=True)
 
         project, uri, tag, hash_key = mlrun.common.helpers.parse_versioned_object_uri(

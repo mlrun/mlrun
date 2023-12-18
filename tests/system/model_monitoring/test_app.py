@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import pickle
 import time
 import typing
 import uuid
@@ -21,17 +22,27 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 import mlrun
+import mlrun.feature_store
+import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplication
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
+from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
 
-from .assets.application import EXPECTED_EVENTS_COUNT, DemoMonitoringApp
+from .assets.application import (
+    EXPECTED_EVENTS_COUNT,
+    DemoMonitoringApp,
+    NoCheckDemoMonitoringApp,
+)
 from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 
@@ -49,9 +60,55 @@ class _AppData:
         self.abs_path = str(path.absolute())
 
 
+class _V3IORecordsChecker:
+    _logger: Logger
+    apps_data: list[_AppData]
+    app_interval: int
+    tsdb_query_end: str = "now"
+
+    @classmethod
+    def custom_setup_class(cls, project_name: str) -> None:
+        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(project_name)
+        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
+        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
+            cls._v3io_container
+        )
+
+    @classmethod
+    def _test_kv_record(cls, ep_id: str) -> None:
+        for app_data in cls.apps_data:
+            app_name = app_data.class_.name
+            cls._logger.debug("Checking the KV record of app", app_name=app_name)
+            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
+                container=cls._v3io_container, table_path=ep_id, key=app_name
+            )
+            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
+
+    @classmethod
+    def _test_tsdb_record(cls, ep_id: str) -> None:
+        df: pd.DataFrame = cls._tsdb_storage.read(
+            backend=_TSDB_BE,
+            table=_TSDB_TABLE,
+            start=f"now-{5 * cls.app_interval}m",
+            end=cls.tsdb_query_end,
+        )
+        assert not df.empty, "No TSDB data"
+        assert (
+            df.endpoint_id == ep_id
+        ).all(), "The endpoint IDs are different than expected"
+        assert set(df.application_name) == {
+            app_data.class_.name for app_data in cls.apps_data
+        }, "The application names are different than expected"
+
+    @classmethod
+    def _test_v3io_records(cls, ep_id: str) -> None:
+        cls._test_kv_record(ep_id)
+        cls._test_tsdb_record(ep_id)
+
+
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
-class TestMonitoringAppFlow(TestMLRunSystem):
+class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-monitoring-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
     image: typing.Optional[str] = None
@@ -79,7 +136,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
-                requirements=["evidently~=0.4.7"],
+                requirements=["evidently==0.4.7"],
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
@@ -90,11 +147,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         cls.infer_input = cls._generate_infer_input()
         cls.next_window_input = cls._generate_infer_input(num_events=1)
 
-        cls._v3io_container = ModelMonitoringWriter.get_v3io_container(cls.project_name)
-        cls._kv_storage = ModelMonitoringWriter._get_v3io_client().kv
-        cls._tsdb_storage = ModelMonitoringWriter._get_v3io_frames_client(
-            cls._v3io_container
-        )
+        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
 
     def _submit_controller_and_deploy_writer(self) -> None:
         self.project.enable_model_monitoring(
@@ -113,7 +166,7 @@ class TestMonitoringAppFlow(TestMLRunSystem):
                     requirements=app_data.requirements,
                     **app_data.kwargs,
                 )
-                executor.submit(self.project.deploy_function, fn)
+                executor.submit(fn.deploy)
 
     def _log_model(self) -> None:
         dataset = load_iris()
@@ -166,36 +219,6 @@ class TestMonitoringAppFlow(TestMLRunSystem):
             num_events = cls.max_events
         return json.dumps({"inputs": [[0] * cls.num_features] * num_events})
 
-    @classmethod
-    def _test_kv_record(cls, ep_id: str) -> None:
-        for app_data in cls.apps_data:
-            app_name = app_data.class_.name
-            cls._logger.debug("Checking the KV record of app", app_name=app_name)
-            resp = ModelMonitoringWriter._get_v3io_client().kv.get(
-                container=cls._v3io_container, table_path=ep_id, key=app_name
-            )
-            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
-
-    @classmethod
-    def _test_tsdb_record(cls, ep_id: str) -> None:
-        df: pd.DataFrame = cls._tsdb_storage.read(
-            backend=_TSDB_BE,
-            table=_TSDB_TABLE,
-            start=f"now-{5 * cls.app_interval}m",
-        )
-        assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
-        assert set(df.application_name) == {
-            app_data.class_.name for app_data in cls.apps_data
-        }, "The application names are different than expected"
-
-    @classmethod
-    def _test_v3io_records(cls, ep_id: str) -> None:
-        cls._test_kv_record(ep_id)
-        cls._test_tsdb_record(ep_id)
-
     def test_app_flow(self) -> None:
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
         self._log_model()
@@ -216,3 +239,112 @@ class TestMonitoringAppFlow(TestMLRunSystem):
         time.sleep(1.2 * self.app_interval_seconds)
 
         self._test_v3io_records(ep_id=self._get_model_enpoint_id())
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
+    project_name = "test-monitoring-record-results"
+    name_prefix = "infer-monitoring"
+
+    # TODO - remove this when TSDB future time issue is resolved
+    tsdb_query_end = "now+3h"
+
+    @classmethod
+    def custom_setup_class(cls) -> None:
+        # model
+        cls.classif = SVC()
+        cls.model_name = "svc"
+        cls.columns = ["a1", "a2", "b"]
+        cls.y_name = "t"
+        cls.num_rows = 15
+        cls.num_cols = len(cls.columns)
+        cls.num_classes = 2
+        cls.x_train, cls.x_test, cls.y_train, cls.y_test = cls._generate_data()
+        cls.training_set = cls.x_train.join(cls.y_train)
+        cls.test_set = cls.x_test.join(cls.y_test)
+        cls.infer_results_df = cls.test_set
+        # cls.infer_results_df[EventFieldType.TIMESTAMP] = datetime.utcnow()  # TODO - add timestamp
+        cls.endpoint_id = "58d42fdd76ad999c377fad1adcafd2790b5a89b9"
+        cls.function_name = f"{cls.name_prefix}-function"
+        cls._train()
+
+        # model monitoring app
+        cls.app_data = _AppData(
+            class_=NoCheckDemoMonitoringApp, rel_path="assets/application.py"
+        )
+
+        # model monitoring infra
+        cls.app_interval: int = 1  # every 1 minute
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.apps_data = [cls.app_data]
+        _V3IORecordsChecker.custom_setup_class(project_name=cls.project_name)
+
+    @classmethod
+    def _generate_data(cls) -> list[typing.Union[pd.DataFrame, pd.Series]]:
+        rng = np.random.default_rng(seed=1)
+        x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
+        y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
+        assert cls.num_rows > cls.num_classes
+        return train_test_split(x, y, train_size=0.75, random_state=1)
+
+    @classmethod
+    def _train(cls) -> None:
+        cls.classif.fit(
+            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+        )
+
+    def _log_model(self) -> None:
+        self.project.log_model(  # pyright: ignore[reportOptionalMemberAccess]
+            self.model_name,
+            body=pickle.dumps(self.classif),
+            model_file="classif.pkl",
+            framework="sklearn",
+            training_set=self.training_set,
+            label_column=self.y_name,
+        )
+
+    def _deploy_monitoring_app(self) -> None:
+        self.project = typing.cast(mlrun.projects.MlrunProject, self.project)
+        fn = self.project.set_model_monitoring_function(
+            func=self.app_data.abs_path,
+            application_class=self.app_data.class_.__name__,
+            name=self.app_data.class_.name,
+            requirements=self.app_data.requirements,
+            **self.app_data.kwargs,
+        )
+        self.project.deploy_function(fn)
+
+    def _record_results(self) -> None:
+        mlrun.model_monitoring.api.record_results(
+            project=self.project_name,
+            model_path=self.project.get_artifact_uri(  # pyright: ignore[reportOptionalMemberAccess]
+                key=self.model_name, category="model", tag="latest"
+            ),
+            model_endpoint_name=f"{self.name_prefix}-test",
+            function_name=self.function_name,
+            endpoint_id=self.endpoint_id,
+            context=mlrun.get_or_create_ctx(
+                name=f"{self.name_prefix}-context"
+            ),  # pyright: ignore[reportGeneralTypeIssues]
+            infer_results_df=self.infer_results_df,
+            trigger_monitoring_job=True,
+            last_in_batch_set=True,
+        )
+
+    def _deploy_monitoring_infra(self) -> None:
+        self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
+            base_period=self.app_interval,
+        )
+
+    def test_inference_feature_set(self) -> None:
+        self._log_model()
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(self._deploy_monitoring_app)
+            executor.submit(self._deploy_monitoring_infra)
+            executor.submit(self._record_results)
+
+        time.sleep(1.2 * self.app_interval_seconds)
+
+        self._test_v3io_records(self.endpoint_id)

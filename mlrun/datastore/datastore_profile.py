@@ -302,7 +302,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             {
                 k: v
                 for k, v in profile.dict().items()
-                if not str(k) in profile._private_attributes
+                if str(k) not in profile._private_attributes
             }
         )
 

@@ -159,6 +159,14 @@ class RunStates(object):
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 
+    @staticmethod
+    def not_allowed_for_deletion_states():
+        return [
+            RunStates.running,
+            RunStates.pending,
+            # TODO: add aborting state once we have it
+        ]
+
 
 class SparkApplicationStates:
     """

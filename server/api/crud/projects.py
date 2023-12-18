@@ -168,7 +168,7 @@ class Projects(
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            server.api.crud.Logs().delete_logs(name)
+            server.api.crud.Logs().delete_project_logs_legacy(name)
 
         # delete db resources
         server.api.utils.singletons.db.get_db().delete_project_related_resources(

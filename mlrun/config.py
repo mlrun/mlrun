@@ -364,6 +364,7 @@ default_config = {
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
+            "pull_logs_default_size_limit": 1024 * 1024,  # 1 MB
         },
         "authorization": {
             "mode": "none",  # one of none, opa

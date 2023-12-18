@@ -272,6 +272,8 @@ def test_watch_logs_continue():
     def callback(request, context):
         nonlocal current_log_line
         offset = int(request.qs["offset"][0])
+        if current_log_line == len(log_lines):
+            return
         current_log_line += 1
 
         # when offset is 0 -> return first log line
@@ -298,6 +300,6 @@ def test_watch_logs_continue():
         # the first log line is printed with a newline
         assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
-    assert adapter.call_count == len(
-        log_lines
-    ), "should have called the adapter once per log line"
+    assert (
+        adapter.call_count == len(log_lines) + 1
+    ), "should have called the adapter once per log line, and one more time at the end of log"

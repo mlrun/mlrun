@@ -359,7 +359,7 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
@@ -522,14 +522,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match

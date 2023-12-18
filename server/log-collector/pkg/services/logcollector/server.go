@@ -551,13 +551,6 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 
 // DeleteLogs deletes the log file for a given run id or project
 func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
-	if !s.isChief {
-		s.Logger.DebugWithCtx(ctx,
-			"Server is not the chief, ignoring delete logs request",
-			"project", request.Project,
-			"numRunIDs", len(request.RunUIDs))
-		return s.successfulBaseResponse(), nil
-	}
 
 	// validate project name
 	if request.Project == "" {

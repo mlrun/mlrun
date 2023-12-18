@@ -15,8 +15,7 @@
 import importlib
 import os
 from abc import ABC
-from types import ModuleType
-from typing import List, Set, Tuple, Union
+from typing import List, Tuple, Union
 
 import tensorflow as tf
 from tensorflow import keras

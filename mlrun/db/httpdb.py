@@ -281,9 +281,12 @@ class HTTPRunDB(RunDBInterface):
             retry_on_post=retry_on_post,
         )
 
-    def _path_of(self, prefix, project, uid):
+    def _path_of(self, resource, project, uid=None):
         project = project or config.default_project
-        return f"{prefix}/{project}/{uid}"
+        _path = f"projects/{project}/{resource}"
+        if uid:
+            _path += f"/{uid}"
+        return _path
 
     def _is_retry_on_post_allowed(self, method, path: str):
         """
@@ -478,7 +481,7 @@ class HTTPRunDB(RunDBInterface):
         if not body:
             return
 
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
@@ -499,7 +502,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         params = {"offset": offset, "size": size}
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
@@ -556,7 +559,7 @@ class HTTPRunDB(RunDBInterface):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
         body = _as_json(struct)
@@ -565,7 +568,7 @@ class HTTPRunDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
@@ -606,7 +609,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific execution.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -620,7 +623,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific task.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"del run {project}/{uid}"
         self.api_call("DELETE", path, error, params=params)
@@ -712,7 +715,6 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "uid": uid,
-            "project": project,
             "label": labels or [],
             "state": state,
             "sort": bool2str(sort),
@@ -736,7 +738,8 @@ class HTTPRunDB(RunDBInterface):
                 )
             )
         error = "list runs"
-        resp = self.api_call("GET", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        resp = self.api_call("GET", _path, error, params=params)
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -762,7 +765,8 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del runs"
-        self.api_call("DELETE", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        self.api_call("DELETE", _path, error, params=params)
 
     def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
         """Store an artifact in the DB.
@@ -3447,9 +3451,9 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        _path = self._path_of("datastore-profiles", project, name)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
@@ -3460,17 +3464,17 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_datastore_profile(self, name: str, project: str):
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
-        self.api_call(method="DELETE", path=path)
+        _path = self._path_of("datastore-profiles", project, name)
+        self.api_call(method="DELETE", path=_path)
         return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastores = [
@@ -3488,9 +3492,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        self.api_call(method="PUT", path=path, json=profile.dict())
+        self.api_call(method="PUT", path=_path, json=profile.dict())
 
 
 def _as_json(obj):

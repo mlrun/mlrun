@@ -50,15 +50,12 @@ import pandas as pd
 def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intracomm"]:
     is_mpi = False
     try:
-        import mlrun
-
         context = mlrun.get_or_create_ctx(name="mlrun")
         is_mpi = context.labels.get("kind", "job") == "mpijob"
 
         if is_mpi:
             try:
                 from mpi4py import MPI
-
                 return context, MPI.COMM_WORLD
             except ModuleNotFoundError as mpi4py_not_found:
                 logger.error(
@@ -101,6 +98,8 @@ def open_mpi_handler(
             )
             sample_df = sample_df.iloc[chunk_start:chunk_end:, :]
             kwargs[worker_input] = sample_df
+            import pdb
+            pdb.set_trace()
 
             # Run the worker:
             output = handler(**kwargs)

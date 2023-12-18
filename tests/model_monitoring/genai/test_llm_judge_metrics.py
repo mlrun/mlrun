@@ -148,7 +148,7 @@ def test_reference_grading_scores(prompt_fixture):
     ref1 = "4"
 
     q2 = "What is the capital of France?"
-    a2 = "The capital of France is Paris"
+    a2 = "The capital of France is Seattle"
     ref2 = "Paris"
 
     sample_df = pd.DataFrame(

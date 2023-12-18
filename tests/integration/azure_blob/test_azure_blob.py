@@ -142,9 +142,6 @@ class TestAzureBlob:
     def test_azure_blob(self, use_datastore_profile, auth_method):
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-
-        print(f"\nBlob URL: {blob_url}")
-
         data_item = mlrun.run.get_dataitem(blob_url, secrets=self.storage_options)
         data_item.put(self.test_string)
 
@@ -161,6 +158,10 @@ class TestAzureBlob:
         assert (
             response.decode() == self.test_string[20:]
         ), "Partial result not as expected"
+        with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
+            data_item.download(temp_file.name)
+            content = temp_file.read()
+            assert content == self.test_string
 
         stat = data_item.stat()
         assert stat.size == len(self.test_string), "Stat size different than expected"
@@ -168,27 +169,28 @@ class TestAzureBlob:
     def test_list_dir(self, use_datastore_profile, auth_method):
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-        print(f"\nBlob URL: {blob_url}")
 
-        mlrun.run.get_dataitem(blob_url, self.storage_options).put(self.test_string)
+        file_dataitem = mlrun.run.get_dataitem(blob_url, self.storage_options)
+        file_dataitem.put(self.test_string)
 
         # Check dir list for container
-        dir_item = mlrun.run.get_dataitem(blob_container_path, self.storage_options)
-        dir_list = dir_item.listdir()  # can take a lot of time to big buckets.
+        blob_item = mlrun.run.get_dataitem(blob_container_path, self.storage_options)
+        dir_list = blob_item.listdir()  # can take a lot of time to big buckets.
         assert (
             self.test_dir + "/" + self.blob_file in dir_list
         ), "File not in container dir-list"
 
         # Check dir list for folder in container
-        dir_list = mlrun.run.get_dataitem(
+        dir_dataitem = mlrun.run.get_dataitem(
             blob_container_path + "/" + self.test_dir, self.storage_options
-        ).listdir()
-        assert self.blob_file in dir_list, "File not in folder dir-list"
+        )
+        assert self.blob_file in dir_dataitem.listdir(), "File not in folder dir-list"
+        file_dataitem.delete()
+        assert self.blob_file not in dir_dataitem.listdir()
 
     def test_blob_upload(self, use_datastore_profile, auth_method):
         blob_container_path = self.get_blob_container_path(use_datastore_profile)
         blob_url = blob_container_path + "/" + self.test_dir + "/" + self.blob_file
-        print(f"\nBlob URL: {blob_url}")
 
         upload_data_item = mlrun.run.get_dataitem(blob_url, self.storage_options)
         upload_data_item.upload(self.test_file)

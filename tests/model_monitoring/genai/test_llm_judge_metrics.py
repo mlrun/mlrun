@@ -18,16 +18,16 @@ JUDGE_CONFIG = {
     "revision": "main",
     "trust_remote_code": False,
 }
-JUDGE_INFER_CONFIG = {"max_length": 2000}
+JUDGE_INFER_CONFIG = {"max_length": 1500}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
 BENCHMARK_MODEL = "microsoft/phi-2"
 BENCHMARK_CONFIG = {
     "device_map": "auto",
     "revision": "main",
-    "trust_remote_code": False,
+    "trust_remote_code": True,
 }
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
-BENCHMARK_INFER_CONFIG = {"max_length": 2000}
+BENCHMARK_INFER_CONFIG = {"max_length": 1500}
 
 
 @pytest.fixture
@@ -72,8 +72,8 @@ def prompt_fixture():
 def test_single_grading_score(prompt_fixture):
     prompt_template = SINGLE_GRADE_PROMPT
     prompt_config = prompt_fixture
-    q1 = "What is 2 + 2?"
-    a1 = "2 + 2 equals 4"
+    q1 = "What is the capital of China?"
+    a1 = "The capital of China is Kongfu"
 
     q2 = "What is the capital of France?"
     a2 = "The capital of France is Paris"
@@ -112,8 +112,8 @@ def test_pairwise_grading_scores(prompt_fixture):
         prompt_config=prompt_config,
     )
 
-    q1 = "What is 2 + 2?"
-    a1 = "2 + 2 equals 4"
+    q1 = "What is the capital of China?"
+    a1 = "The capital of China is Kongfu"
 
     q2 = "What is the capital of France?"
     a2 = "The capital of France is Paris"
@@ -142,9 +142,9 @@ def test_reference_grading_scores(prompt_fixture):
         prompt_config=prompt_config,
     )
 
-    q1 = "What is 2 + 2?"
-    a1 = "2 + 2 equals 4"
-    ref1 = "4"
+    q1 = "What is the capital of China?"
+    a1 = "The capital of China is Kongfu"
+    ref1 = "Beijing"
 
     q2 = "What is the capital of France?"
     a2 = "The capital of France is Seattle"

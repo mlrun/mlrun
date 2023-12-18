@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 import mpi4py
 from typing import Union, List, Optional, Dict, Any, ClassVar, Tuple
+import mlrun
 from mlrun.utils import logger
 from mlrun.model import ModelObj
 from mlrun.model_monitoring.genai.prompt import (

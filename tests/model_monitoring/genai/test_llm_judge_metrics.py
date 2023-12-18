@@ -92,7 +92,7 @@ def test_single_grading_score(prompt_fixture):
     )
     result = single_grading.compute_over_data(sample_df)
     print(result)
-    assert all(0 <= result["score"].to_list() <= 5)
+    assert all(0 <= score <= 5 for score in result["score"])
 
 
 def test_pairwise_grading_scores(prompt_fixture):
@@ -120,9 +120,9 @@ def test_pairwise_grading_scores(prompt_fixture):
     a2 = "The capital of France is Paris"
 
     sample_df = pd.DataFrame({"question": [q1, q2], "answerA": [a1, a2]})
-    result = metric.compute_over_one_data(q, a1)
-    assert all(0 <= result["score_of_assistant_a"].to_list() <= 5)
-    assert all(0 <= result["score_of_assistant_b"].to_list() <= 5)
+    result = metric.compute_over_one_data(sample_df)
+    assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
+    assert all(0 <= score <= 5 for score in result["score_of_assistant_b"].to_list())
 
 
 def test_reference_grading_scores(prompt_fixture):
@@ -157,5 +157,5 @@ def test_reference_grading_scores(prompt_fixture):
 
     result = metric.compute_over_data(sample_df)
     print(result)
-    assert all(0 <= result["score_of_assistant_a"].to_list() <= 5)
-    assert all(0 <= result["score_of_assistant_b"].to_list() <= 5)
+    assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
+    assert all(0 <= score <= 5 for score in result["score_of_assistant_b"].to_list())

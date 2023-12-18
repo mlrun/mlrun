@@ -845,6 +845,38 @@ class TestArtifacts:
         )
         assert len(artifacts) == 1
 
+    @pytest.mark.asyncio
+    async def test_project_file_counter(self, db: DBInterface, db_session: Session):
+
+        # create artifact with 5 distinct keys, and 3 tags for each key
+        project = "artifact_project"
+        for i in range(5):
+            artifact_key = f"artifact_key_{i}"
+            artifact_tree = f"artifact_tree_{i}"
+            artifact_body = self._generate_artifact(artifact_key, tree=artifact_tree)
+            for j in range(3):
+                artifact_tag = f"artifact-tag-{j}"
+                db.store_artifact(
+                    db_session,
+                    artifact_key,
+                    artifact_body,
+                    tag=artifact_tag,
+                    project=project,
+                    producer_id=artifact_tree,
+                )
+
+        # list artifact with "latest" tag - should return 5 artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == 5
+
+        # query all artifacts tags, should return 15+5=20 tags
+        tags = db.list_artifact_tags(db_session, project=project)
+        assert len(tags) == 20
+
+        # files counters should return the most recent artifacts, for each key -> 5 artifacts
+        project_to_files_count = db._calculate_files_counters(db_session)
+        assert project_to_files_count[project] == 5
+
     def test_migrate_artifacts_to_v2(self, db: DBInterface, db_session: Session):
         artifact_key = "artifact1"
         artifact_uid = "uid1"

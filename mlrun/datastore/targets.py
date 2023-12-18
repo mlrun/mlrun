@@ -96,7 +96,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id
@@ -192,7 +192,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind
@@ -877,7 +877,7 @@ class ParquetTarget(BaseStoreTarget):
         else:
             storage_options = storage_options or self.storage_options
 
-        graph.add_step(
+        step = graph.add_step(
             name=self.name or "ParquetTarget",
             after=after,
             graph_shape="cylinder",
@@ -893,6 +893,16 @@ class ParquetTarget(BaseStoreTarget):
             update_last_written=featureset_status.update_last_written_for_target,
             **self.attributes,
         )
+
+        original_to_dict = step.to_dict
+
+        def delete_update_last_written(*arg, **kargs):
+            result = original_to_dict(*arg, **kargs)
+            del result["class_args"]["update_last_written"]
+            return result
+
+        # update_last_written is not serializable (ML-5108)
+        step.to_dict = delete_update_last_written
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
         partition_cols = []
@@ -911,10 +921,23 @@ class ParquetTarget(BaseStoreTarget):
                     partition_cols.append(unit)
                     if unit == time_partitioning_granularity:
                         break
-        result = {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "parquet",
-        }
+
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path),
+                "format": "parquet",
+            }
+            storage_spark_options = store.get_spark_options()
+            result = {**result, **storage_spark_options}
+        else:
+            result = {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "parquet",
+            }
         for partition_col in self.partition_cols or []:
             partition_cols.append(partition_col)
         if partition_cols:
@@ -1041,11 +1064,24 @@ class CSVTarget(BaseStoreTarget):
         )
 
     def get_spark_options(self, key_column=None, timestamp_key=None, overwrite=True):
-        return {
-            "path": store_path_to_spark(self.get_target_path()),
-            "format": "csv",
-            "header": "true",
-        }
+        if self.path and self.path.startswith("ds://"):
+            store, path = mlrun.store_manager.get_or_create_store(
+                self.get_target_path()
+            )
+            path = store.url + path
+            result = {
+                "path": store_path_to_spark(path),
+                "format": "csv",
+                "header": "true",
+            }
+            storage_spark_options = store.get_spark_options()
+            return {**result, **storage_spark_options}
+        else:
+            return {
+                "path": store_path_to_spark(self.get_target_path()),
+                "format": "csv",
+                "header": "true",
+            }
 
     def prepare_spark_df(self, df, key_columns, timestamp_key=None, spark_options=None):
         import pyspark.sql.functions as funcs
@@ -1250,7 +1286,7 @@ class RedisNoSqlTarget(NoSqlBaseTarget):
     def _get_server_endpoint(self):
         endpoint, uri = parse_path(self.get_target_path())
         endpoint = endpoint or mlrun.mlconf.redis.url
-        if endpoint.startswith("ds"):
+        if endpoint.startswith("ds://"):
             datastore_profile = datastore_profile_read(endpoint)
             if not datastore_profile:
                 raise ValueError(f"Failed to load datastore profile '{endpoint}'")

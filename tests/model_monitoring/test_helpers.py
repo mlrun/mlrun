@@ -20,13 +20,19 @@ from unittest.mock import Mock, patch
 import pytest
 from v3io.dataplane.response import HttpResponseError
 
+import mlrun
 from mlrun.common.model_monitoring.helpers import (
     _MAX_FLOAT,
     FeatureStats,
     Histogram,
     pad_features_hist,
 )
+from mlrun.common.schemas.model_monitoring.constants import EventFieldType
+from mlrun.db.nopdb import NopDB
+from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.model_monitoring.controller import _BatchWindow, _BatchWindowGenerator
+from mlrun.model_monitoring.helpers import bump_model_endpoint_last_request
+from mlrun.model_monitoring.model_endpoint import ModelEndpoint
 
 
 class _HistLen(typing.NamedTuple):
@@ -129,8 +135,82 @@ class TestBatchWindowGenerator:
 
     @staticmethod
     def test_last_updated_is_in_the_past() -> None:
-        time = datetime.datetime(2023, 11, 16, 12, 0, 0).timestamp()
+        last_request = datetime.datetime(2023, 11, 16, 12, 0, 0)
         last_updated = _BatchWindowGenerator._get_last_updated_time(
-            now_func=lambda: time
+            last_request=last_request.strftime(EventFieldType.TIME_FORMAT),
         )
-        assert last_updated < time, "The last updated time should be in the past"
+        assert last_updated
+        assert (
+            last_updated < last_request.timestamp()
+        ), "The last updated time should be before the last request"
+
+
+class TestBumpModelEndpointLastRequest:
+    @staticmethod
+    @pytest.fixture
+    def project() -> str:
+        return "project"
+
+    @staticmethod
+    @pytest.fixture
+    def db() -> NopDB:
+        return NopDB()
+
+    @staticmethod
+    @pytest.fixture
+    def empty_model_endpoint() -> ModelEndpoint:
+        return ModelEndpoint()
+
+    @staticmethod
+    @pytest.fixture
+    def last_request() -> str:
+        return "2023-12-05 18:17:50.255143"
+
+    @staticmethod
+    @pytest.fixture
+    def model_endpoint(
+        empty_model_endpoint: ModelEndpoint, last_request: str
+    ) -> ModelEndpoint:
+        empty_model_endpoint.status.last_request = last_request
+        return empty_model_endpoint
+
+    @staticmethod
+    def test_empty_last_request(
+        project: str, empty_model_endpoint: ModelEndpoint, db: NopDB
+    ) -> None:
+        with pytest.raises(
+            MLRunInvalidArgumentError, match="Model endpoint last request time is empty"
+        ):
+            bump_model_endpoint_last_request(
+                project=project,
+                model_endpoint=empty_model_endpoint,
+                db=db,
+            )
+
+    @staticmethod
+    def test_bump(
+        project: str,
+        model_endpoint: ModelEndpoint,
+        db: NopDB,
+        last_request: str,
+        minutes_delta: int = 4,
+        seconds_delta: int = 0,
+    ) -> None:
+        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
+            bump_model_endpoint_last_request(
+                project=project,
+                model_endpoint=model_endpoint,
+                db=db,
+                minutes_delta=minutes_delta,
+                seconds_delta=seconds_delta,
+            )
+        patch_patch_model_endpoint.assert_called_once()
+        assert datetime.datetime.fromisoformat(
+            patch_patch_model_endpoint.call_args.kwargs["attributes"][
+                EventFieldType.LAST_REQUEST
+            ]
+        ) == datetime.datetime.fromisoformat(last_request) + datetime.timedelta(
+            minutes=minutes_delta, seconds=seconds_delta
+        ) + datetime.timedelta(
+            seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+        ), "The patched last request time should be bumped by the given delta"

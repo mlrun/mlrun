@@ -105,6 +105,12 @@ default_config = {
             "list_runs_time_period_in_days": 7,  # days
         }
     },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -251,8 +257,8 @@ default_config = {
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
+        # in production envs we recommend to use a real db (e.g. mysql)
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
-        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
@@ -1130,7 +1136,7 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.7"
+            not self.nuclio_version or self.nuclio_version >= "1.12.9"
         )
 
 

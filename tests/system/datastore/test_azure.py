@@ -23,7 +23,7 @@ from pandas.testing import assert_frame_equal
 
 import mlrun.feature_store as fstore
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileGCS,
+    DatastoreProfileAzureBlob,
     register_temporary_client_datastore_profile,
 )
 from mlrun.datastore.sources import CSVSource, ParquetSource
@@ -36,31 +36,33 @@ test_environment = TestMLRunSystem._get_env_from_file()
 
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.skipif(
-    not test_environment.get("GOOGLE_APPLICATION_CREDENTIALS"),
-    reason="GOOGLE_APPLICATION_CREDENTIALS is not set",
+    not test_environment.get("AZURE_STORAGE_CONNECTION_STRING"),
+    reason="AZURE_STORAGE_CONNECTION_STRING is not set",
 )
 @pytest.mark.skipif(
-    not test_environment.get("GCS_BUCKET_NAME"),
-    reason="GCS_BUCKET_NAME is not set",
+    not test_environment.get("AZURE_CONTAINER"),
+    reason="AZURE_CONTAINER is not set",
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
-class TestGoogleCloudStorage(TestMLRunSystem):
-    project_name = "gcsfs-system-test"
+class TestAzureBlobSystem(TestMLRunSystem):
+    project_name = "azure-blob-system-test"
 
     @classmethod
     def clean_test_directory(cls):
         test_dir = f"{cls._bucket_name}/{cls.test_dir}"
-        if cls._gcs_fs.exists(test_dir):
-            cls._gcs_fs.delete(test_dir, recursive=True)
+        if cls._azure_fs.exists(test_dir):
+            cls._azure_fs.delete(test_dir, recursive=True)
 
     @classmethod
     def setup_class(cls):
         super().setup_class()
-        cls._bucket_name = test_environment["GCS_BUCKET_NAME"]
-        cls.credentials_path = test_environment["GOOGLE_APPLICATION_CREDENTIALS"]
-        cls.test_dir = "test_mlrun_gcs_system_objects"
-        cls.profile_name = "gcs_system_profile"
-        cls._gcs_fs = fsspec.filesystem("gcs", token=cls.credentials_path)
+        cls._bucket_name = test_environment["AZURE_CONTAINER"]
+        cls.connection_string = test_environment["AZURE_STORAGE_CONNECTION_STRING"]
+        cls.test_dir = "test_mlrun_azure_system_objects"
+        cls.profile_name = "azure_system_profile"
+        cls._azure_fs = fsspec.filesystem(
+            "az", using_bucket=cls._bucket_name, connection_string=cls.connection_string
+        )
         cls.clean_test_directory()
 
     @classmethod
@@ -74,7 +76,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         self._bucket_path = (
             f"ds://{self.profile_name}/{self._bucket_name}"
             if use_datastore_profile
-            else "gcs://" + self._bucket_name
+            else "az://" + self._bucket_name
         )
         self._source_url_template = (
             self._bucket_path + "/" + self._object_dir + "/source."
@@ -84,12 +86,12 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         )
         logger.info(f"Object URL template: {self._target_url_template}")
         if use_datastore_profile:
-            kwargs = {"credentials_path": self.credentials_path}
-            profile = DatastoreProfileGCS(name=self.profile_name, **kwargs)
+            kwargs = {"connection_string": self.connection_string}
+            profile = DatastoreProfileAzureBlob(name=self.profile_name, **kwargs)
             register_temporary_client_datastore_profile(profile)
-            os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+            os.environ.pop("AZURE_STORAGE_CONNECTION_STRING", None)
         else:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.credentials_path
+            os.environ["AZURE_STORAGE_CONNECTION_STRING"] = self.connection_string
 
     @pytest.mark.parametrize(
         "source_class, target_class, file_extension, reader, writer, writer_kwargs, reset_index",
@@ -132,7 +134,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
             mode="w", suffix=f".{file_extension}", delete=True
         ) as df_file:
             writer(df, df_file.name, **writer_kwargs)
-            self._gcs_fs.upload(
+            self._azure_fs.upload(
                 lpath=df_file.name,
                 rpath=source_url.replace(self._bucket_path, self._bucket_name),
             )
@@ -140,7 +142,7 @@ class TestGoogleCloudStorage(TestMLRunSystem):
         targets = [target_class(path=target_url)]
 
         fset = fstore.FeatureSet(
-            name="gcs_system_test", entities=[fstore.Entity("name")]
+            name="az_system_test", entities=[fstore.Entity("name")]
         )
         fstore.ingest(fset, source, targets=targets)
         target_path = fset.get_target_path()

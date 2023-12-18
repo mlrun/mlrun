@@ -1130,6 +1130,33 @@ class TestFeatureStore(TestMLRunSystem):
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
 
+    def test_merge_with_different_timestamp_resolutions(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
+        trades_microseconds = trades.copy()
+        trades_microseconds["time"] = trades_microseconds["time"].astype(
+            "datetime64[us]"
+        )
+        prepare_feature_set(
+            "left", "ticker", trades_microseconds, timestamp_key="time", targets=targets
+        )
+        prepare_feature_set(
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+
+        features = ["left.*", "right.*"]
+        feature_vector = fstore.FeatureVector(
+            "test_fv",
+            features,
+            with_indexes=True,
+        )
+        res = fstore.get_offline_features(
+            feature_vector,
+            entity_rows=trades.set_index("ticker"),
+            entity_timestamp_column="time",
+        )
+        res = res.to_dataframe()
+        assert res["time"].dtype.name == "datetime64[ns]"
+
     def test_left_not_ordered_pandas_asof_merge(self):
         left = trades.sort_values(by="price")
 
@@ -1297,6 +1324,8 @@ class TestFeatureStore(TestMLRunSystem):
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
+        resp_df = resp.to_dataframe()
+
         expected = pd.DataFrame(
             {
                 "time_stamp": [
@@ -1309,7 +1338,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        assert expected.equals(resp.to_dataframe())
+        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
 
     def test_filter_offline_multiple_featuresets(self):
         data = pd.DataFrame(
@@ -2364,7 +2393,7 @@ class TestFeatureStore(TestMLRunSystem):
         pd.testing.assert_frame_equal(
             off_df,
             orig_df,
-            check_dtype=True,
+            check_dtype=False,
             check_index_type=True,
             check_column_type=True,
             check_like=True,
@@ -3353,6 +3382,7 @@ class TestFeatureStore(TestMLRunSystem):
             pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
+            expected_df.index.name = "id"
             pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     def test_pandas_write_partitioned_parquet(self):

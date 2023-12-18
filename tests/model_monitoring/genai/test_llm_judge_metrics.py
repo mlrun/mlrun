@@ -18,17 +18,17 @@ JUDGE_CONFIG = {
     "revision": "main",
     "trust_remote_code": False,
 }
-JUDGE_INFER_CONFIG = {"max_length": 1000}
+JUDGE_INFER_CONFIG = {"max_length": 2000}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
 BENCHMARK_MODEL = "microsoft/phi-1_5"
 BENCHMARK_CONFIG = {
-    "max_length": 1000,
+    "max_length": 2000,
     "device_map": "auto",
     "revision": "main",
     "trust_remote_code": True,
 }
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
-BENCHMARK_INFER_CONFIG = {"max_length": 1000}
+BENCHMARK_INFER_CONFIG = {"max_length": 2000}
 
 
 @pytest.fixture

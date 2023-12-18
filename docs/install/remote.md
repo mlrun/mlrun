@@ -152,7 +152,7 @@ For more explanations read the documentation [mlrun.set_environment](https://doc
 
 ### Using your IDE (e.g. PyCharm or VSCode)
 
-Use these procedures to access MLRun remotely from your IDE (PyCharm or VSCode).
+Use these procedures to access MLRun remotely from your IDE. These instructions are for PyCharm and VSCode.
 
 #### Create environment file
 

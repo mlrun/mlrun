@@ -53,6 +53,8 @@ def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intrac
     try:
         context = mlrun.get_or_create_ctx(name="mlrun")
         is_mpi = context.labels.get("kind", "job") == "mpijob"
+        import pdb
+        pdb.set_trace()
 
         if is_mpi:
             try:

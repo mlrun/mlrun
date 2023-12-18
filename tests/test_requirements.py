@@ -144,7 +144,6 @@ def test_requirement_specifiers_convention():
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "pyyaml": {">=5.4.1, <6"},
         # other requirements
-        "azure-storage-blob": {">=12.13, !=12.18.0"},
         "aiohttp": {"~=3.8, <3.8.4"},
     }
 

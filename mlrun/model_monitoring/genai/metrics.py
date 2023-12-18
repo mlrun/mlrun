@@ -514,8 +514,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
+        print(response)
         res_dic = self.extract_score_explanation(response)
-        print(res_dic)
         res_dic["answerB"] = self.prompt_config["answerB"]
         return res_dic
 

@@ -76,7 +76,7 @@ Project access can be restricted to a set of users and roles.
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](./concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+MLRun provides abstract interfaces to various offline and online data sources, supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 {bdg-link-primary-line}`more... <./data-prep/index.html>`
 

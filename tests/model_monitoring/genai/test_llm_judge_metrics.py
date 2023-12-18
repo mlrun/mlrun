@@ -1,4 +1,5 @@
 import pytest
+import pandas as pd
 from mlrun.model_monitoring.genai.metrics import (
     LLMJudgeSingleGrading,
     LLMJudgePairwiseGrading,
@@ -72,8 +73,14 @@ def prompt_fixture():
 def test_single_grading_score(prompt_fixture):
     prompt_template = SINGLE_GRADE_PROMPT
     prompt_config = prompt_fixture
-    q = "What is 2 + 2?"
-    a = "2 + 2 equals 4"
+    q1 = "What is 2 + 2?"
+    a1 = "2 + 2 equals 4"
+
+    q2 = "What is the capital of France?"
+    a2 = "The capital of France is Paris"
+
+    sample_df = pd.DataFrame({"question": [q1, q2], "answer": [a1, a2]})
+
     single_grading = LLMJudgeSingleGrading(
         name="accuracy_metrics",
         model_judge=JUDGE_MODEL,
@@ -83,8 +90,9 @@ def test_single_grading_score(prompt_fixture):
         prompt_template=prompt_template,
         prompt_config=prompt_config,
     )
-    result = single_grading.compute_over_one_data(q, a)
-    assert 0 <= result["score"] <= 5
+    result = single_grading.compute_over_data(sample_df)
+    print(result)
+    assert all(0 <= result["score"].to_list() <= 5)
 
 
 def test_pairwise_grading_scores(prompt_fixture):
@@ -105,12 +113,16 @@ def test_pairwise_grading_scores(prompt_fixture):
         prompt_config=prompt_config,
     )
 
-    q = "What is the capital of France?"
-    a1 = "The capital of France is Paris"
+    q1 = "What is 2 + 2?"
+    a1 = "2 + 2 equals 4"
 
+    q2 = "What is the capital of France?"
+    a2 = "The capital of France is Paris"
+
+    sample_df = pd.DataFrame({"question": [q1, q2], "answerA": [a1, a2]})
     result = metric.compute_over_one_data(q, a1)
-    assert 0 <= result["score_of_assistant_a"] <= 5
-    assert 0 <= result["score_of_assistant_b"] <= 5
+    assert all(0 <= result["score_of_assistant_a"].to_list() <= 5)
+    assert all(0 <= result["score_of_assistant_b"].to_list() <= 5)
 
 
 def test_reference_grading_scores(prompt_fixture):
@@ -131,11 +143,19 @@ def test_reference_grading_scores(prompt_fixture):
         prompt_config=prompt_config,
     )
 
-    q = "What is the capital of France?"
-    a1 = "The capital of France is Seattle"
-    ref = "Paris"
+    q1 = "What is 2 + 2?"
+    a1 = "2 + 2 equals 4"
+    ref1 = "4"
 
-    result = metric.compute_over_one_data(q, a1, ref)
+    q2 = "What is the capital of France?"
+    a2 = "The capital of France is Paris"
+    ref2 = "Paris"
 
-    assert 0 <= result["score_of_assistant_a"] <= 5
-    assert 0 <= result["score_of_assistant_b"] <= 5
+    sample_df = pd.DataFrame(
+        {"question": [q1, q2], "answerA": [a1, a2], "reference": [ref1, ref2]}
+    )
+
+    result = metric.compute_over_data(sample_df)
+    print(result)
+    assert all(0 <= result["score_of_assistant_a"].to_list() <= 5)
+    assert all(0 <= result["score_of_assistant_b"].to_list() <= 5)

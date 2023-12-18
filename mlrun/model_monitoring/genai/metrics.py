@@ -354,14 +354,14 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         res_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
 
         for i in range(len(sample_df)):
-            score, explanation = self.compute_over_one_data(
+            res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"], sample_df.loc[i, "answer"]
             )
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
                 sample_df.loc[i, "answer"],
-                score,
-                explanation,
+                res_dic["score"],
+                res_dic["explanation"],
             ]
 
         return res_df
@@ -688,12 +688,12 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
             res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"],
                 sample_df.loc[i, "answerA"],
+                sample_df.loc[i, "reference"],
             )
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
                 sample_df.loc[i, "answerA"],
                 self.prompt_config["answerB"],
-                self.prompt_config["reference"],
                 res_dic["score_of_assistant_a"],
                 res_dic["explanation_of_assistant_a"],
                 res_dic["score_of_assistant_b"],

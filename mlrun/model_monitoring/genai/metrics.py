@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 import mpi4py
 from typing import Union, List, Optional, Dict, Any, ClassVar, Tuple
+import mlrun
 from mlrun.utils import logger
 from mlrun.model import ModelObj
 from mlrun.model_monitoring.genai.prompt import (
@@ -50,8 +51,6 @@ import pandas as pd
 def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intracomm"]:
     is_mpi = False
     try:
-        import mlrun
-
         context = mlrun.get_or_create_ctx(name="mlrun")
         is_mpi = context.labels.get("kind", "job") == "mpijob"
 

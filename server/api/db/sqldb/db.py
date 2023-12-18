@@ -1172,7 +1172,7 @@ class SQLDB(DBInterface):
             else:
                 query = query.filter(ArtifactV2.kind.in_(kinds))
         if most_recent:
-            query = self._attach_most_recent_query(session, query)
+            query = self._attach_most_recent_artifact_query(session, query)
 
         return query.all()
 
@@ -3451,7 +3451,7 @@ class SQLDB(DBInterface):
                 uids.append(obj.uid)
         return uids
 
-    def _attach_most_recent_query(self, session, query):
+    def _attach_most_recent_artifact_query(self, session, query):
         # Create a sub query of latest uid (by updated) per (project,key)
         subq = (
             session.query(

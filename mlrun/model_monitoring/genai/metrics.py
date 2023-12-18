@@ -77,6 +77,8 @@ def open_mpi_handler(
     context, comm = _check_mlrun_and_open_mpi()
 
     def decorator(handler):
+        import pdb
+        pdb.set_trace()
         if comm is None or comm.Get_size() == 1:
             return handler
 

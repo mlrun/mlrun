@@ -21,6 +21,7 @@ from abc import ABC, abstractmethod
 from functools import wraps
 import mpi4py
 from typing import Union, List, Optional, Dict, Any, ClassVar, Tuple
+from mlrun.utils import logger
 from mlrun.model import ModelObj
 from mlrun.model_monitoring.genai.prompt import (
     SINGLE_GRADE_PROMPT,
@@ -47,13 +48,11 @@ import pandas as pd
 
 
 def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intracomm"]:
-    global _LOGGER
     is_mpi = False
     try:
         import mlrun
 
         context = mlrun.get_or_create_ctx(name="mlrun")
-        _LOGGER = context.logger
         is_mpi = context.labels.get("kind", "job") == "mpijob"
 
         if is_mpi:
@@ -62,7 +61,7 @@ def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intrac
 
                 return context, MPI.COMM_WORLD
             except ModuleNotFoundError as mpi4py_not_found:
-                context.logger.error(
+                logger.error(
                     "To distribute the function using MLRun's 'mpijob' you need to have `mpi4py` package in your "
                     "interpreter. Please run `pip install mpi4py` and make sure you have open-mpi."
                 )
@@ -76,7 +75,6 @@ def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intrac
 def open_mpi_handler(
     worker_inputs: str,
 ):
-    global _LOGGER
 
     # Check for MLRun and OpenMPI availability:
     context, comm = _check_mlrun_and_open_mpi()
@@ -98,7 +96,7 @@ def open_mpi_handler(
             chunk_end = (
                 (rank + 1) * even_chunk_size if rank + 1 < size else len(input_argument)
             )
-            context.logger.info(
+            logger.info(
                 f"Rank #{rank}: Processing input chunk sample dataframe"
                 f"from index {chunk_start} to {chunk_end}."
             )
@@ -162,6 +160,7 @@ class LLMEvaluateMetric(ModelObj):
             return self.metric.compute(
                 predictions=predictions, references=references, **kwargs
             )
+        logger.info(f"Computing the metrics score of {self.name}")
         return self.metric.compute(predictions=predictions, references=references)
 
 
@@ -220,6 +219,7 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         :param prompt_config: the prompt config to fill the template with
         :return: the filled prompt
         """
+        logger.info(f"Filling the prompt template with the prompt config")
         return self.prompt_template.format(**self.prompt_config)
 
     @abstractmethod
@@ -313,6 +313,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         Prepare the judge model it will init the tokenizer and the model
         """
+        logger.info(f"Preparing the judge model {self.model_judge}")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
         )
@@ -327,6 +328,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param response: the response to compute the metrics over
         :return: the metrics score and the explanation
         """
+        logger.info(f"Computing the metrics over one data point with {question} and {response}")
         self.prompt_config["question"] = question
         self.prompt_config["answer"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
@@ -354,7 +356,8 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         self.prepare_judge()
         res_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
-
+        
+        logger.info(f"Computing the metrics over all data")
         for i in range(len(sample_df)):
             res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"], sample_df.loc[i, "answer"]
@@ -374,6 +377,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param result: the result to store
         :return: the stored result
         """
+        logger.info(f"Extracting the score and explanation from {result}")
         score_pattern = r"\bscore:\s*(\d+)\b"
         explanation_pattern = r"explanation:\s*(.*?)\s*(?=\bScore:|$)"
 
@@ -455,6 +459,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         """
         init the tokenizer and the model
         """
+        logger.info(f"Preparing the judge model {self.model_judge}")
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             self.model_judge, **self.tokenizer_judge_config
         )
@@ -466,6 +471,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         """
         Prepare the model that used for bench marking
         """
+        logger.info(f"Preparing the bench mark model {self.model_bench_mark}")
         self.tokenizer_bench_mark = transformers.AutoTokenizer.from_pretrained(
             self.model_bench_mark, **self.tokenizer_bench_mark_config
         )
@@ -479,7 +485,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param question: the question to ask the model
         :return: the response
         """
-        self.prepare_bench_mark_model()
+        logger.info(f"Computing the bench mark response for {question}")
         input_ids = self.tokenizer_bench_mark(question, return_tensors="pt").input_ids
         outputs = self.model_bench_mark.generate(
             input_ids,
@@ -492,6 +498,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         response = self.tokenizer_bench_mark.decode(
             response_ids, skip_special_tokens=True
         )
+        logger.info(f"Response of the bench mark model is {response}")
 
         return response
 
@@ -501,6 +508,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :param kwargs: the data to compute the metrics over
         :return: the metrics score and the explanation
         """
+        logger.info(f"Computing the metrics over {question} and {response}")
         self.prompt_config["question"] = question
         self.prompt_config["answerA"] = response
         self.prompt_config["answerB"] = self.compute_bench_mark_response(question)
@@ -514,7 +522,8 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-        print(response)
+        
+        logger.info(f"Response of the judge model is {response}")
         res_dic = self.extract_score_explanation(response)
         res_dic["answerB"] = self.prompt_config["answerB"]
         return res_dic
@@ -530,6 +539,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         :return: the metrics score and the explanation
         """
         self.prepare_judge()
+        self.prepare_bench_mark_model()
         res_df = pd.DataFrame(
             columns=[
                 "question",
@@ -680,6 +690,7 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         :return: the metrics score and the explanation
         """
         self.prepare_judge()
+        self.prepare_bench_mark_model()
         res_df = pd.DataFrame(
             columns=[
                 "question",

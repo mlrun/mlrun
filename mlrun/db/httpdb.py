@@ -495,6 +495,7 @@ class HTTPRunDB(RunDBInterface):
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
+            * in case size = -1, return the state and the final offset
         """
         if size is None:
             size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
@@ -502,7 +503,8 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
             )
-            self.watch_log(uid, project, watch=False, offset=offset)
+            state, offset = self.watch_log(uid, project, watch=False, offset=offset)
+            return state, offset
 
         params = {"offset": offset, "size": size}
         path = self._path_of("log", project, uid)

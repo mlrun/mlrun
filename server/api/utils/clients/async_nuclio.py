@@ -158,10 +158,10 @@ class Client:
     ) -> dict:
         if not functions:
             raise ValueError("functions should contain at least one object")
+
         host = (
-            f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.')+1:]}"
-            if not host
-            else host
+            host
+            or f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
         )
 
         authentication_mode = (

@@ -156,7 +156,7 @@ class APIGateway:
                 upstreams[1].get("nucliofunction", {}).get("name"),
             ]
             percentage_1 = upstreams[0].get("percentage")
-            percentage_2 = upstreams[0].get("percentage")
+            percentage_2 = upstreams[1].get("percentage")
 
             if not percentage_1 and percentage_2:
                 percentage_1 = 100 - percentage_2

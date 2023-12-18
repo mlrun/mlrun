@@ -8,8 +8,8 @@
 # in setup.py so that we'll be able to copy and install this in the layer with all other requirements making the last
 # layer (which is most commonly being re-built) as thin as possible
 # we have a test test_extras_requirement_file_aligned to verify this file is aligned to setup.py
-s3fs~=2023.9.2
-gcsfs~=2023.9.2
+s3fs==2023.9.2
+gcsfs==2023.9.2
 boto3>=1.28.0,<1.29.0
 aiobotocore>=2.5.0,<2.8
 # https://github.com/Azure/azure-sdk-for-python/issues/24765#issuecomment-1150310498
@@ -31,13 +31,13 @@ bokeh~=2.4, >=2.4.2
 plotly~=5.4, <5.12.0
 # To support python 11, google-cloud-bigquery requires grpcio>=1.49.1, which is incompatible with the grpcio version
 # required by frames (because it upgrades protobuf from 3.x to 4.x, breaking binary compatibility)
-google-cloud-bigquery[pandas, bqstorage]~=3.2
+google-cloud-bigquery[pandas, bqstorage]==3.14.1
 kafka-python~=2.0
 avro~=1.11
 redis~=4.3
 graphviz~=0.20.0
 mlflow~=2.8
-databricks-sdk~=0.3.0
+databricks-sdk~=0.15.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=1.4
 dask~=2023.9.0

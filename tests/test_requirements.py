@@ -113,10 +113,10 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {"~=2023.9.2"},
-        "adlfs": {"~=2023.9.0"},
-        "s3fs": {"~=2023.9.2"},
-        "gcsfs": {"~=2023.9.2"},
+        "fsspec": {"==2023.9.2"},
+        "adlfs": {"==2023.9.0"},
+        "s3fs": {"==2023.9.2"},
+        "gcsfs": {"==2023.9.2"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
@@ -131,7 +131,7 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >= 3.1.30"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
-        "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
+        "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},

@@ -70,6 +70,11 @@ See {ref}`hyper-params` for details and examples.
 
 Read further details on [**running tasks and getting their results**](../concepts/submitting-tasks-jobs-to-functions.html).
 
+```{admonition} Run/simulate functions locally: 
+Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
+parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+```
+
 Usage examples:
 
 ```python
@@ -84,9 +89,31 @@ run2 = project.run_function("train", inputs={"dataset": run1.outputs["data"]})
 run2.artifact('confusion-matrix').show()
 ```
 
-```{admonition} Run/simulate functions locally: 
-Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
-parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+Example of `new_function` with `new_task`:
+
+```
+import mlrun
+mlrun.get_or_create_project('xmhydasaoa')
+---
+
+from mlrun import RunTemplate, new_task, mlconf
+from os import path
+artifact_path = path.join(mlconf.artifact_path, '{{run.uid}}')
+def handler(context, param, model_names):
+    context.logger.info("blabla")
+    context.set_label('category', 'tests')
+    for model_name, file_name in model_names:
+        context.log_artifact(model_name, body=param.encode(), local_path=file_name)
+----
+func = mlrun.new_function("aaa", kind="job", image="mlrun/mlrun")
+func.save()
+---
+task = new_task(name='nnfevieqef', handler=handler, artifact_path=artifact_path,project='xmhydasaoa', 
+   'param': 'UUpXrXDZZeouXOvoYzGHNYDuVYGCAysgHqLvyNQqWdcgdfbOEoTfpyExIiLepkCOsdsASCgeuyVDumrUbuTvmeGnertvXQmztVUA',
+   'model_names': [('ypgqpokldn', 'eucaeqkbkk.txt'), ('wkmtokxewd', 'myfqbnzvuw.txt'), ('sbemmscgju', 'qsufmcvrct.txt'), ('iyqfbwfqar', 'qjcnzuygcu.txt'), ('iwvhxfwzlv', 'zlgrpwixcf.txt')]
+   )
+run_object = mlrun.run_function("aaa", local=True, base_task=task)
+run_object.uid()
 ```
 
 <a id="build"></a>

@@ -36,9 +36,10 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
    are determined by the relations field if it exists, and otherwise by the entities.
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
-   - Spark
-   - pandas
-   - storey. Default. (Some advanced functionalities are in the Beta state.)
+   - Spark &mdash; Good for simple batch transformations
+   - pandas &mdash; Good for simple batch transformations
+   - storey &mdash; Default. Stream processing engine that can handle complex workflows and real-time sources. (Some advanced functionalities are in the Beta state.)</br>
+   See more about [transformations](./transformations.html#supporting-multiple-engines).
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 
@@ -91,9 +92,6 @@ The MLRun feature store supports three processing engines (storey, pandas, spark
 The data pipeline is defined using MLRun graph (DAG) language. Graph steps can be pre-defined operators 
 (such as aggregate, filter, encode, map, join, impute, etc.) or custom python classes/functions. 
 Read more about the graph in [Real-time serving pipelines (graphs)](../serving/serving-graph.html).
-
-The `pandas` and `spark` engines are good for simple batch transformations, while the `storey` stream processing engine (the default engine)
-can handle complex workflows and real-time sources.
 
 The results from the transformation pipeline are stored in one or more material targets.  Data for offline 
 access, such as training, is usually stored in Parquet files. Data for online access such as serving is stored 

@@ -10,8 +10,9 @@
 
 Use the {py:meth}`~mlrun.projects.run_function` method for invoking a job over MLRun batch functions. 
 The `run_function` method accepts various parameters such as `name`, `handler`, `params`, `inputs`, `schedule`, etc. 
-Alternatively, you can pass a **`Task`** object (see: {py:func}`~mlrun.model.new_task`) that holds all of the 
+Alternatively, you can pass a **`Task`** object that holds all of the 
 parameters plus the advanced options. 
+See: {py:func}`~mlrun.model.new_task`, and the example in [run_function](../projects/run-build-deploy.html#run-function).
 
 Functions can host multiple methods (handlers). You can set the default handler per function. You
  need to specify which handler you intend to call in the run command. 

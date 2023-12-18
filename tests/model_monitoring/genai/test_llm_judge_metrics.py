@@ -20,12 +20,14 @@ JUDGE_CONFIG = {
 }
 JUDGE_INFER_CONFIG = {"max_length": 1500}
 TOKENIZER_JUDGE_CONFIG = {"use_fast": True}
-BENCHMARK_MODEL = "microsoft/phi-1_5"
+BENCHMARK_MODEL = "microsoft/phi-2"
 BENCHMARK_CONFIG = {
     "max_length": 1500,
     "device_map": "auto",
     "revision": "main",
     "trust_remote_code": True,
+    "torch_dtype":"auto",
+    "flash_attn": True,
 }
 TOKENIZER_BENCHMARK_CONFIG = {"use_fast": True}
 BENCHMARK_INFER_CONFIG = {"max_length": 1500}

@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import unittest.mock
+import uuid
 
 import pytest
 import sqlalchemy.orm
@@ -77,13 +78,10 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         ), unittest.mock.patch.object(
             server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
         ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "stop_logs"
-        ) as stop_logs_mock, unittest.mock.patch.object(
             server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
         ) as delete_logs_mock:
             await server.api.crud.Runs().delete_run(db, "uid", 0, project)
             delete_namespaced_pod_mock.assert_called_once()
-            stop_logs_mock.assert_called_once()
             delete_logs_mock.assert_called_once()
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -125,15 +123,12 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         ), unittest.mock.patch.object(
             server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
         ), unittest.mock.patch.object(
-            server.api.utils.clients.log_collector.LogCollectorClient, "stop_logs"
-        ) as stop_logs_mock, unittest.mock.patch.object(
             server.api.utils.clients.log_collector.LogCollectorClient, "delete_logs"
         ) as delete_logs_mock:
             await server.api.crud.Runs().delete_runs(db, name=run_name, project=project)
             runs = server.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 0
             delete_namespaced_pod_mock.assert_not_called()
-            assert stop_logs_mock.call_count == 20
             assert delete_logs_mock.call_count == 20
 
     @pytest.mark.asyncio
@@ -218,3 +213,30 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             f"Can not delete run in {run_state} state, consider aborting the run first."
             in str(exc.value)
         )
+
+    def test_run_abortion_failure(self, db: sqlalchemy.orm.Session):
+        project = "project-name"
+        run_uid = str(uuid.uuid4())
+        server.api.crud.Runs().store_run(
+            db,
+            {
+                "metadata": {
+                    "name": "run-name",
+                    "labels": {
+                        "kind": "job",
+                    },
+                },
+            },
+            run_uid,
+            project=project,
+        )
+        with unittest.mock.patch.object(
+            server.api.crud.RuntimeResources(),
+            "delete_runtime_resources",
+            side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
+        ):
+            server.api.crud.Runs().abort_run(db, project, run_uid, 0)
+
+        run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
+        assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error
+        assert run["status"]["error"] == "Failed to abort run, error: BOOM"

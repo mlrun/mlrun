@@ -52,4 +52,5 @@ nltk
 rouge_score
 accelerate
 einops
+mpi4py
 

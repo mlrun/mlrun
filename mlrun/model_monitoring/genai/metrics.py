@@ -75,7 +75,6 @@ def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intrac
 def open_mpi_handler(
     worker_inputs: str,
 ):
-
     # Check for MLRun and OpenMPI availability:
     context, comm = _check_mlrun_and_open_mpi()
 
@@ -110,7 +109,7 @@ def open_mpi_handler(
             output = comm.gather(output, root=0)
             if rank == 0:
                 # Join the outputs:
-                context.logger.info("Collecting data from workers to root worker.")
+                logger.info("Collecting data from workers to root worker.")
                 dataframe = pd.concat(objs=[df for df, _ in output], axis=0)
                 return dataframe
             return None
@@ -328,7 +327,9 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         :param response: the response to compute the metrics over
         :return: the metrics score and the explanation
         """
-        logger.info(f"Computing the metrics over one data point with {question} and {response}")
+        logger.info(
+            f"Computing the metrics over one data point with {question} and {response}"
+        )
         self.prompt_config["question"] = question
         self.prompt_config["answer"] = response
         input_ids = self.tokenizer(self.fill_prompt(), return_tensors="pt").input_ids
@@ -356,7 +357,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         """
         self.prepare_judge()
         res_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
-        
+
         logger.info(f"Computing the metrics over all data")
         for i in range(len(sample_df)):
             res_dic = self.compute_over_one_data(
@@ -522,7 +523,7 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
 
         response_ids = outputs[0]
         response = self.tokenizer.decode(response_ids, skip_special_tokens=True)
-        
+
         logger.info(f"Response of the judge model is {response}")
         res_dic = self.extract_score_explanation(response)
         res_dic["answerB"] = self.prompt_config["answerB"]

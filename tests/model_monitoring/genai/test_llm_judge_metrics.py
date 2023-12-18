@@ -1,5 +1,22 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
 import pytest
 import pandas as pd
+from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import (
     LLMJudgeSingleGrading,
     LLMJudgePairwiseGrading,
@@ -26,7 +43,7 @@ BENCHMARK_CONFIG = {
     "device_map": "auto",
     "revision": "main",
     "trust_remote_code": True,
-    "torch_dtype":"auto",
+    "torch_dtype": "auto",
     "flash_attn": True,
 }
 TOKENIZER_BENCHMARK_CONFIG = {"trust_remote_code": True}
@@ -93,7 +110,8 @@ def test_single_grading_score(prompt_fixture):
         prompt_config=prompt_config,
     )
     result = single_grading.compute_over_data(sample_df)
-    print(result)
+
+    logger.info(f"result: {result}")
     assert all(0 <= score <= 5 for score in result["score"])
 
 
@@ -123,6 +141,7 @@ def test_pairwise_grading_scores(prompt_fixture):
 
     sample_df = pd.DataFrame({"question": [q1, q2], "answerA": [a1, a2]})
     result = metric.compute_over_data(sample_df)
+    logger.info(f"result: {result}")
     assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
     assert all(0 <= score <= 5 for score in result["score_of_assistant_b"].to_list())
 
@@ -158,6 +177,6 @@ def test_reference_grading_scores(prompt_fixture):
     )
 
     result = metric.compute_over_data(sample_df)
-    print(result)
+    logger.info(f"result: {result}")
     assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
     assert all(0 <= score <= 5 for score in result["score_of_assistant_b"].to_list())

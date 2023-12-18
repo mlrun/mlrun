@@ -87,6 +87,9 @@ class TrackerManager(metaclass=Singleton):
         """
         # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
         is_context_dict = isinstance(context, dict)
+        if not self._trackers:
+            return context.to_dict() if is_context_dict else context
+
         if is_context_dict:
             context = MLClientCtx.from_dict(
                 context, include_status=True, store_run=False

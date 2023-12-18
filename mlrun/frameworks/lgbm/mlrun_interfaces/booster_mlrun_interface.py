@@ -17,7 +17,6 @@ from abc import ABC
 import lightgbm as lgb
 
 from ..._common import MLRunInterface
-from ..._ml_common import MLModelHandler
 from ..utils import LGBMTypes
 
 

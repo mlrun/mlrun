@@ -1,4 +1,4 @@
-# >=1.26.9, <1.27 from botocore 1.19.28 inside boto3 1.16.28 inside nuclio-jupyter 0.8.8
+# >=1.28.0,<1.29.0 from botocore 1.28.64 inside boto3 1.16.28 inside nuclio-jupyter 0.9.13
 urllib3>=1.26.9, <1.27
 GitPython~=3.1, >= 3.1.30
 # 3.8.4 and 3.9 breaks our unit tests. blacklist for now until we fix it
@@ -16,8 +16,8 @@ numpy>=1.16.5, <1.23.0
 pandas>=1.2, <3
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
-# <13 to prevent bugs due to major upgrading
-pyarrow>=10.0, <13
+# <15 to prevent bugs due to major upgrading
+pyarrow>=10.0, <15
 pyyaml~=5.1
 requests~=2.31
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
@@ -30,9 +30,12 @@ mergedeep~=1.3
 v3io-frames~=0.10.7
 semver~=3.0
 dependency-injector~=4.41
-fsspec>=2023.1,<2023.7
+# upper limit due to version 2023.9.2 fsspec removing the "auto_mkdir" in the open() function.
+# TODO to address this differently
+# lower limit due to versions 2023.9 of adlfs, gcsfs and s3fs.
+fsspec>=2023.9,<=2023.9.1
 v3iofs~=0.1.17
-storey~=1.6.6
+storey~=1.6.11
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above

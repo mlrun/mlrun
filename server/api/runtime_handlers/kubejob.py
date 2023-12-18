@@ -13,8 +13,10 @@
 # limitations under the License.
 import os
 
+import kubernetes
 from kubernetes import client
 from kubernetes.client.rest import ApiException
+from packaging.version import parse as parse_version
 
 import mlrun
 import server.api.utils.singletons.k8s
@@ -26,6 +28,15 @@ from server.api.runtime_handlers import BaseRuntimeHandler
 class KubeRuntimeHandler(BaseRuntimeHandler):
     kind = "job"
     class_modes = {RuntimeClassMode.run: "job", RuntimeClassMode.build: "build"}
+
+    @staticmethod
+    def _get_kubernetes_lifecycle_handler_class():
+        try:
+            if parse_version(kubernetes.__version__) > parse_version("22.6.0"):
+                return client.V1LifecycleHandler
+        except ImportError:
+            return client.V1Handler
+        return client.V1Handler
 
     def run(
         self,
@@ -168,7 +179,7 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
         return True
 
     @staticmethod
-    def _are_resources_coupled_to_run_object() -> bool:
+    def are_resources_coupled_to_run_object() -> bool:
         return True
 
     @staticmethod
@@ -188,7 +199,10 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
     @staticmethod
     def _get_lifecycle():
         script_path = "/mlrun/mlrun/runtimes/databricks_job/databricks_cancel_task.py"
-        pre_stop_handler = client.V1Handler(
+        handler_class = (
+            DatabricksRuntimeHandler._get_kubernetes_lifecycle_handler_class()
+        )
+        pre_stop_handler = handler_class(
             _exec=client.V1ExecAction(command=["python", script_path])
         )
         return client.V1Lifecycle(pre_stop=pre_stop_handler)

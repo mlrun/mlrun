@@ -15,6 +15,7 @@
 import pathlib
 
 from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
@@ -82,16 +83,14 @@ class DatabricksFileSystemDisableCache(DatabricksFileSystem):
 class DBFSStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        if not endpoint:
-            endpoint = self._get_secret_or_env("DATABRICKS_HOST")
-        self.endpoint = endpoint
         self.get_filesystem(silent=False)
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         if not self._filesystem:
             self._filesystem = makeDatastoreSchemaSanitizer(
-                cls=DatabricksFileSystemDisableCache,
+                cls=filesystem_class,
                 using_bucket=False,
                 **self.get_storage_options(),
             )

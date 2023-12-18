@@ -29,9 +29,9 @@ func CreateStateStore(
 
 	switch stateStoreKind {
 	case statestore.KindFile:
-		return file.NewFileStore(configuration.Logger, configuration.BaseDir, configuration.StateFileUpdateInterval), nil
+		return file.NewFileStore(configuration), nil
 	case statestore.KindInMemory:
-		return inmemory.NewInMemoryStore(configuration.Logger), nil
+		return inmemory.NewInMemoryStore(configuration), nil
 	default:
 		return nil, errors.New("Unknown state store type")
 	}

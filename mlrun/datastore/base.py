@@ -154,6 +154,9 @@ class DataStore:
     def upload(self, key, src_path):
         pass
 
+    def get_spark_options(self):
+        return {}
+
     @staticmethod
     def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
         from storey.utils import find_filters, find_partitions

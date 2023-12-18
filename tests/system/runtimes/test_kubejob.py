@@ -84,7 +84,7 @@ class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
             filename=code_path,
             requirements=[
                 # ML-3518
-                "pandas>=1.5.0, <1.6.0",
+                "pandas>=1.5.0, <3",
             ],
         )
         assert function.spec.image == ""

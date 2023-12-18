@@ -273,7 +273,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
 
     def test_run_function_with_auto_build_and_source_is_idempotent_after_failure(self):
         project = mlrun.get_or_create_project("run-with-source-and-auto-build")
-        # using project.name because this is a user project meaning the project name get concatenated with the user name
+        # using project.name because this is a user project meaning the project name get concatenated with the username
         self.custom_project_names_to_delete.append(project.name)
         project.set_source(f"{git_uri}#main", False)
         project.set_function(
@@ -282,7 +282,7 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
             image=base_image,
             kind="job",
             with_repo=True,
-            # not existing package, expected to fail when runnning
+            # not existing package, expected to fail when running
             requirements=["pandaasdasds"],
         )
         project.save()

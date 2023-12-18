@@ -281,9 +281,12 @@ class HTTPRunDB(RunDBInterface):
             retry_on_post=retry_on_post,
         )
 
-    def _path_of(self, prefix, project, uid):
+    def _path_of(self, resource, project, uid=None):
         project = project or config.default_project
-        return f"{prefix}/{project}/{uid}"
+        _path = f"projects/{project}/{resource}"
+        if uid:
+            _path += f"/{uid}"
+        return _path
 
     def _is_retry_on_post_allowed(self, method, path: str):
         """
@@ -478,7 +481,7 @@ class HTTPRunDB(RunDBInterface):
         if not body:
             return
 
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
@@ -499,7 +502,7 @@ class HTTPRunDB(RunDBInterface):
         """
 
         params = {"offset": offset, "size": size}
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
@@ -556,7 +559,7 @@ class HTTPRunDB(RunDBInterface):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
         body = _as_json(struct)
@@ -565,7 +568,7 @@ class HTTPRunDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
@@ -606,7 +609,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific execution.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -620,7 +623,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific task.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"del run {project}/{uid}"
         self.api_call("DELETE", path, error, params=params)
@@ -712,7 +715,6 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "uid": uid,
-            "project": project,
             "label": labels or [],
             "state": state,
             "sort": bool2str(sort),
@@ -736,7 +738,8 @@ class HTTPRunDB(RunDBInterface):
                 )
             )
         error = "list runs"
-        resp = self.api_call("GET", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        resp = self.api_call("GET", _path, error, params=params)
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -762,7 +765,8 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del runs"
-        self.api_call("DELETE", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        self.api_call("DELETE", _path, error, params=params)
 
     def store_artifact(
         self,
@@ -2908,26 +2912,25 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. Note that the values should be
-                           from type string or from a valid numerical type such as int or float.
-                            More details about the model endpoint available attributes can be found under
-                           :py:class:`~mlrun.common.schemas.ModelEndpoint`.
+            of this dictionary should exist in the target table. Note that the values should be from type string or from
+            a valid numerical type such as int or float. More details about the model endpoint available attributes can
+            be found under :py:class:`~mlrun.common.schemas.ModelEndpoint`.
 
-                           Example::
+        Example::
 
-                                # Generate current stats for two features
-                                current_stats = {'tvd_sum': 2.2,
-                                                 'tvd_mean': 0.5,
-                                                 'hellinger_sum': 3.6,
-                                                 'hellinger_mean': 0.9,
-                                                 'kld_sum': 24.2,
-                                                 'kld_mean': 6.0,
-                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+            # Generate current stats for two features
+            current_stats = {'tvd_sum': 2.2,
+                             'tvd_mean': 0.5,
+                             'hellinger_sum': 3.6,
+                             'hellinger_mean': 0.9,
+                             'kld_sum': 24.2,
+                             'kld_mean': 6.0,
+                             'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                             'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
 
-                                # Create attributes dictionary according to the required format
-                                attributes = {`current_stats`: json.dumps(current_stats),
-                                              `drift_status`: "DRIFT_DETECTED"}
+            # Create attributes dictionary according to the required format
+            attributes = {`current_stats`: json.dumps(current_stats),
+                          `drift_status`: "DRIFT_DETECTED"}
 
         """
 
@@ -2964,6 +2967,36 @@ class HTTPRunDB(RunDBInterface):
             "with_schedule": with_schedule,
         }
         path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
+    def create_model_monitoring_controller(
+        self,
+        project: str = "",
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 10,
+    ):
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        :param project:                  Project name.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_controller_image": default_controller_image,
+            "base_period": base_period,
+        }
+        path = f"projects/{project}/jobs/model-monitoring-controller"
 
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
@@ -3206,6 +3239,21 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
+    def list_api_gateways(self, project=None):
+        """
+        Returns a list of Nuclio api gateways
+        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+
+        :return: json with the list of Nuclio Api Gateways
+            (json example is here
+            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        """
+        project = project or config.default_project
+        error = "list api gateways"
+        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        resp = self.api_call("GET", endpoint_path, error)
+        return resp.json()
+
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
@@ -3394,15 +3442,15 @@ class HTTPRunDB(RunDBInterface):
     ) -> str:
         """
         Loading a project remotely from the given source.
-        :param name:            project name
-        :param url:             git or tar.gz or .zip sources archive path e.g.:
-                                git://github.com/mlrun/demo-xgb-project.git
-                                http://mysite/archived-project.zip
-                                The git project should include the project yaml file.
-        :param secrets:         Secrets to store in project in order to load it from the provided url.
-                                For more information see :py:func:`mlrun.load_project` function.
-        :param save_secrets:    Whether to store secrets in the loaded project.
-                                Setting to False will cause waiting for the process completion.
+        :param name:    project name
+        :param url:     git or tar.gz or .zip sources archive path e.g.:
+        git://github.com/mlrun/demo-xgb-project.git
+        http://mysite/archived-project.zip
+        The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url. For more
+        information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project. Setting to False will cause waiting
+        for the process completion.
 
         :returns:               The terminal state of load project process.
         """
@@ -3433,9 +3481,9 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
+        _path = self._path_of("datastore-profiles", project, name)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
@@ -3446,17 +3494,17 @@ class HTTPRunDB(RunDBInterface):
 
     def delete_datastore_profile(self, name: str, project: str):
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles") + f"/{name}"
-        self.api_call(method="DELETE", path=path)
+        _path = self._path_of("datastore-profiles", project, name)
+        self.api_call(method="DELETE", path=_path)
         return None
 
     def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        res = self.api_call(method="GET", path=path)
+        res = self.api_call(method="GET", path=_path)
         if res:
             public_wrapper = res.json()
             datastores = [
@@ -3474,9 +3522,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore-profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        self.api_call(method="PUT", path=path, json=profile.dict())
+        self.api_call(method="PUT", path=_path, json=profile.dict())
 
 
 def _as_json(obj):

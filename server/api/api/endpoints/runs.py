@@ -32,11 +32,11 @@ from server.api.api.utils import log_and_raise
 router = APIRouter()
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.post(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.post("/projects/{project}/runs/{uid}")
@@ -78,11 +78,11 @@ async def store_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.patch(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.patch("/projects/{project}/runs/{uid}")
@@ -118,11 +118,11 @@ async def update_run(
     return {}
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.get(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.get("/projects/{project}/runs/{uid}")
@@ -148,11 +148,11 @@ async def get_run(
     }
 
 
-# TODO: remove /run/{project}/{uid} in 1.7.0
+# TODO: remove /run/{project}/{uid} in 1.8.0
 @router.delete(
     "/run/{project}/{uid}",
     deprecated=True,
-    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/run/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.delete("/projects/{project}/runs/{uid}")
@@ -170,8 +170,7 @@ async def delete_run(
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_run,
+    await server.api.crud.Runs().delete_run(
         db_session,
         uid,
         iter,
@@ -180,11 +179,11 @@ async def delete_run(
     return {}
 
 
-# TODO: remove /runs in 1.7.0
+# TODO: remove /runs in 1.8.0
 @router.get(
     "/runs",
     deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.get("/projects/{project}/runs")
@@ -280,11 +279,11 @@ async def list_runs(
     }
 
 
-# TODO: remove /runs in 1.7.0
+# TODO: remove /runs in 1.8.0
 @router.delete(
     "/runs",
     deprecated=True,
-    description="/runs is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/runs is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/runs/{uid} instead",
 )
 @router.delete("/projects/{project}/runs")
@@ -297,6 +296,7 @@ async def delete_runs(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
+    runs = []
     if not project or project != "*":
         # Currently we don't differentiate between runs permissions inside a project.
         # Meaning there is no reason at the moment to query the permission for each run under the project
@@ -322,11 +322,9 @@ async def delete_runs(
             labels=labels,
             states=[state] if state is not None else None,
             start_time_from=start_time_from,
+            return_as_run_structs=False,
         )
-        projects = set(
-            run.get("metadata", {}).get("project", mlrun.mlconf.default_project)
-            for run in runs
-        )
+        projects = set(run.project or mlrun.mlconf.default_project for run in runs)
         for run_project in projects:
             # currently we fail if the user doesn't has permissions to delete runs to one of the projects in the system
             # TODO Delete only runs from projects that user has permissions to
@@ -338,14 +336,15 @@ async def delete_runs(
                 auth_info,
             )
 
-    await run_in_threadpool(
-        server.api.crud.Runs().delete_runs,
+    # TODO: make a background task?
+    await server.api.crud.Runs().delete_runs(
         db_session,
         name,
         project,
         labels,
         state,
         days_ago,
+        runs,
     )
     return {}
 

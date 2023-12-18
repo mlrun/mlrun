@@ -138,7 +138,7 @@ def add_code_metadata(path=""):
         ValueError,
     ) as exc:
         logger.warning(
-            "Failed to add git metadata, ignore if path is not part of a git repo.",
+            "Failed to add git metadata, ignore if path is not part of a git repo",
             path=path,
             error=err_to_str(exc),
         )

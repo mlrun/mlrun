@@ -383,20 +383,23 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         stale_run_name = "my-spark-stale"
         new_run_name = "my-spark-new"
 
+        threshold_in_seconds = server.api.utils.helpers.time_string_to_seconds(
+            getattr(
+                mlrun.mlconf.function.spec.state_thresholds.default,
+                threshold_state,
+            )
+        )
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            threshold_in_seconds * 2
+        )
+
         # create the runs
         for uid, name, start_time in [
             (
                 stale_job_uid,
                 stale_run_name,
-                datetime.now(timezone.utc)
-                - timedelta(
-                    seconds=server.api.utils.helpers.time_string_to_seconds(
-                        getattr(
-                            mlrun.mlconf.function.spec.state_thresholds.default,
-                            threshold_state,
-                        )
-                    )
-                ),
+                datetime.now(timezone.utc) - timedelta(seconds=threshold_in_seconds),
             ),
             (new_job_uid, new_run_name, datetime.now(timezone.utc)),
         ]:
@@ -478,7 +481,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         assert len(stale_runs) == 1
         assert stale_job_uid in [run["uid"] for run in stale_runs]
         assert stale_runs[0]["run_updates"] == {
-            "status.status_text": f"Run aborted due to exceeded state threshold: {threshold_state}",
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):

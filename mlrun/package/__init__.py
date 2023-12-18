@@ -76,7 +76,7 @@ def handler(
                    * Dict[str, Union[Type, str]] - A dictionary with argument name as key and the expected type to parse
                      the `mlrun.DataItem` to. The expected type can be a string as well, idicating the full module path.
 
-                   Default: True - meaning inputs will be parsed from `DataItem`s as long as they are type hinted.
+                   Default: True - meaning inputs will be parsed from DataItem's as long as they are type hinted.
 
     Example::
 

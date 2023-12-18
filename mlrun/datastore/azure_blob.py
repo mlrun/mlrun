@@ -15,19 +15,21 @@
 import time
 from pathlib import Path
 
-import fsspec
 from azure.storage.blob import BlobServiceClient
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 from mlrun.errors import err_to_str
 
-from .base import DataStore, FileStats
+from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 # Azure blobs will be represented with the following URL: az://<container name>. The storage account is already
 # pointed to by the connection string, so the user is not expected to specify it in any way.
 
 
 class AzureBlobStore(DataStore):
+    using_bucket = True
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.bsc = None
@@ -50,25 +52,31 @@ class AzureBlobStore(DataStore):
                     f"Azure adlfs not installed, run pip install adlfs, {err_to_str(exc)}"
                 )
             return None
-        self._filesystem = fsspec.filesystem(self.kind, **self.get_storage_options())
+        # in order to support az and wasbs kinds.
+        filesystem_class = get_filesystem_class(protocol=self.kind)
+        self._filesystem = makeDatastoreSchemaSanitizer(
+            filesystem_class,
+            using_bucket=self.using_bucket,
+            **self.get_storage_options(),
+        )
         return self._filesystem
 
     def get_storage_options(self):
         return dict(
-            account_name=self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME")
-            or self._get_secret_or_env("account_name"),
-            account_key=self._get_secret_or_env("AZURE_STORAGE_KEY")
-            or self._get_secret_or_env("account_key"),
-            connection_string=self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING")
-            or self._get_secret_or_env("connection_string"),
-            tenant_id=self._get_secret_or_env("AZURE_STORAGE_TENANT_ID")
-            or self._get_secret_or_env("tenant_id"),
-            client_id=self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID")
-            or self._get_secret_or_env("client_id"),
-            client_secret=self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET")
-            or self._get_secret_or_env("client_secret"),
-            sas_token=self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN")
-            or self._get_secret_or_env("sas_token"),
+            account_name=self._get_secret_or_env("account_name")
+            or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
+            account_key=self._get_secret_or_env("account_key")
+            or self._get_secret_or_env("AZURE_STORAGE_KEY"),
+            connection_string=self._get_secret_or_env("connection_string")
+            or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
+            tenant_id=self._get_secret_or_env("tenant_id")
+            or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
+            client_id=self._get_secret_or_env("client_id")
+            or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
+            client_secret=self._get_secret_or_env("client_secret")
+            or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
+            sas_token=self._get_secret_or_env("sas_token")
+            or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
             credential=self._get_secret_or_env("credential"),
         )
 

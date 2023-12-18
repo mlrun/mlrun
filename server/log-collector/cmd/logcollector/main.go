@@ -32,6 +32,7 @@ func StartServer() error {
 	// env vars parsing
 	listenPort := flag.Int("listen-port", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__LISTEN_PORT", 8080), "GRPC listen port")
 	logLevel := flag.String("log-level", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_LEVEL", "debug"), "Log level (debug, info, warn, error, fatal, panic)")
+	advancedLogLevel := flag.Int("advanced-log-level", common.GetEnvOrDefaultInt("MLRUN_LOG_COLLECTOR__ADVANCED_LOG_LEVEL", 0), "Advanced log level for more verbose logs (0-3)")
 	logFormatter := flag.String("log-formatter", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__LOG_FORMATTER", "text"), "Log formatter (text, json)")
 	baseDir := flag.String("base-dir", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__BASE_DIR", "/var/mlrun/logs"), "The directory to store the logs in")
 	kubeconfigPath := flag.String("kubeconfig-path", common.GetEnvOrDefaultString("MLRUN_LOG_COLLECTOR__KUBECONFIG_PATH", ""), "Path to kubeconfig file")
@@ -78,7 +79,8 @@ func StartServer() error {
 		*getLogsBufferPoolSize,
 		*logCollectionBufferSizeBytes,
 		*getLogsBufferSizeBytes,
-		*logTimeUpdateBytesInterval)
+		*logTimeUpdateBytesInterval,
+		*advancedLogLevel)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create log collector server")
 	}

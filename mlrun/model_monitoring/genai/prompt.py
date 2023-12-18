@@ -88,6 +88,8 @@ You must return the following fields in your output:
 - explanation of assistant a: a explanation about how did you determine the score step-by-step
 - score of assistant b: a numerical score of {name} for the response
 - explanation of assistant b: a explanation about how did you determine the score step-by-step
+
+[Output]:
 """
 
 REF_GRADE_PROMPT = """
@@ -122,4 +124,5 @@ You must return the following fields in your output:
 - score of assistant b: a numerical score of {name} for the response
 - explanation of assistant b: a explanation about how did you compare with the ground truth of the response to determine the score step-by-step
 
+[Output]:
 """

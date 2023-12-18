@@ -588,7 +588,10 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
                 ] = explanation.strip()
             return result_dict
         else:
-            return "No matches found after '[Output]:' marker"
+            raise ValueError(
+                "No matches found after '[Output]:' marker. "
+                "Please check the format of the response."
+            )
 
 
 class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):

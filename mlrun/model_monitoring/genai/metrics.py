@@ -26,6 +26,8 @@ from mlrun.model_monitoring.genai.prompt import (
     REF_GRADE_PROMPT,
 )
 import transformers
+import pandas as pd
+
 
 """
 @misc{zheng2023judging,
@@ -41,6 +43,103 @@ import transformers
 }
 """
 
+def _check_mlrun_and_open_mpi() -> Tuple["mlrun.MLClientCtx", "mpi4py.MPI.Intracomm"]:
+    global _LOGGER
+    is_mpi = False
+    try:
+        import mlrun
+        context = mlrun.get_or_create_ctx(name="mlrun")
+        _LOGGER = context.logger
+        is_mpi = context.labels.get("kind", "job") == "mpijob"
+
+        if is_mpi:
+            try:
+                from mpi4py import MPI
+
+                return context, MPI.COMM_WORLD
+            except ModuleNotFoundError as mpi4py_not_found:
+                context.logger.error(
+                    "To distribute the function using MLRun's 'mpijob' you need to have `mpi4py` package in your "
+                    "interpreter. Please run `pip install mpi4py` and make sure you have open-mpi."
+                )
+                raise mpi4py_not_found
+    except ModuleNotFoundError as module_not_found:
+        if is_mpi:
+            raise module_not_found
+    return None, None
+
+
+def open_mpi_handler(
+        worker_inputs: List[str], root_worker_inputs: Dict[str, Any] = None
+):
+    global _LOGGER
+
+    # Check for MLRun and OpenMPI availability:
+    context, comm = _check_mlrun_and_open_mpi()
+
+    def decorator(handler):
+        if comm is None or comm.Get_size() == 1:
+            return handler
+        @wraps(handler)
+        def wrapper(**kwargs):
+            # Get the open mpi environment properties:
+            size = comm.Get_size()
+            rank = comm.Get_rank()
+
+            # Give the correct chunk of the workers inputs:
+            for worker_input in worker_inputs:
+                input_argument = kwargs[worker_input]
+                if input_argument is None:
+                    continue
+                if isinstance(input_argument, str):
+                    input_argument = _get_text_files(
+                        data_path=pathlib.Path(input_argument).absolute()
+                    )
+                if len(input_argument) < size:
+                    raise ValueError(
+                        f"Cannot split the input '{worker_input}' of length {len(input_argument)} to {size} workers. "
+                        f"Please reduce the amount of workers for this input."
+                    )
+                even_chunk_size = len(input_argument) // size
+                chunk_start = rank * even_chunk_size
+                chunk_end = (
+                    (rank + 1) * even_chunk_size
+                    if rank + 1 < size
+                    else len(input_argument)
+                )
+                context.logger.info(
+                    f"Rank #{rank}: Processing input chunk of '{worker_input}' "
+                    f"from index {chunk_start} to {chunk_end}."
+                )
+                if isinstance(input_argument, list):
+                    input_argument = input_argument[chunk_start:chunk_end]
+                elif isinstance(input_argument, pd.DataFrame):
+                    input_argument = input_argument.iloc[chunk_start:chunk_end:, :]
+                kwargs[worker_input] = input_argument
+
+            # Set the root worker only arguments:
+            if rank == 0 and root_worker_inputs:
+                kwargs.update(root_worker_inputs)
+
+            # Run the worker:
+            output = handler(**kwargs)
+
+            # Send the output to the root rank (rank #0):
+            output = comm.gather(output, root=0)
+            if rank == 0:
+                # Join the outputs:
+                context.logger.info("Collecting data from workers to root worker.")
+                dataframe = pd.concat(objs=[df for df, _ in output], axis=0)
+                errors_dictionary = reduce(operator.ior, [err for _, err in output], {})
+                return dataframe, errors_dictionary
+            return None
+
+        return wrapper
+
+    return decorator
+
+
+@open_mpi_handler(worker_inputs=["data_path"], root_worker_inputs={"verbose": True})
 
 class LLMEvaluateMetric(ModelObj):
     """

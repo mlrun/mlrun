@@ -19,16 +19,14 @@ import (
 
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore"
 	"github.com/mlrun/mlrun/pkg/services/logcollector/statestore/abstract"
-
-	"github.com/nuclio/logger"
 )
 
 type Store struct {
 	*abstract.Store
 }
 
-func NewInMemoryStore(logger logger.Logger) *Store {
-	abstractClient := abstract.NewAbstractClient(logger)
+func NewInMemoryStore(configuration *statestore.Config) *Store {
+	abstractClient := abstract.NewAbstractClient(configuration.Logger, configuration.AdvancedLogLevel)
 	return &Store{
 		Store: abstractClient,
 	}
@@ -37,6 +35,27 @@ func NewInMemoryStore(logger logger.Logger) *Store {
 // Initialize initializes the state store
 func (s *Store) Initialize(ctx context.Context) error {
 	return nil
+}
+
+func (s *Store) AddLogItem(ctx context.Context, runUID, selector, project string) error {
+	if s.Store.AdvancedLogLevel >= 1 {
+		s.Logger.DebugWithCtx(ctx,
+			"Adding item to in memory state",
+			"runUID", runUID,
+			"selector", selector,
+			"project", project)
+	}
+	return s.Store.AddLogItem(ctx, runUID, selector, project)
+}
+
+func (s *Store) RemoveLogItem(ctx context.Context, runUID, project string) error {
+	if s.Store.AdvancedLogLevel >= 1 {
+		s.Logger.DebugWithCtx(ctx,
+			"Removing item from in memory state",
+			"runUID", runUID,
+			"project", project)
+	}
+	return s.Store.RemoveLogItem(runUID, project)
 }
 
 // WriteState writes the state to persistent storage

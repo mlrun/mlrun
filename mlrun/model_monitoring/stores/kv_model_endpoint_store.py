@@ -69,6 +69,8 @@ class KVModelEndpointStore(ModelEndpointStore):
             attributes=endpoint,
         )
 
+        self._infer_kv_schema()
+
     def update_model_endpoint(
         self, endpoint_id: str, attributes: typing.Dict[str, typing.Any]
     ):
@@ -280,11 +282,7 @@ class KVModelEndpointStore(ModelEndpointStore):
             )
 
         # Cleanup TSDB
-        frames = mlrun.utils.v3io_clients.get_frames_client(
-            token=self.access_key,
-            address=mlrun.mlconf.v3io_framesd,
-            container=self.container,
-        )
+        frames = self._get_frames_client()
 
         # Generate the required tsdb paths
         tsdb_path, filtered_path = self._generate_tsdb_paths()
@@ -424,6 +422,29 @@ class KVModelEndpointStore(ModelEndpointStore):
             full_path
         )
         return tsdb_path, filtered_path
+
+    def _infer_kv_schema(self):
+        """
+        Create KV schema file if not exist. This schema is being used by the Grafana dashboards.
+        """
+
+        schema_file = self.client.kv.new_cursor(
+            container=self.container,
+            table_path=self.path,
+            filter_expression='__name==".#schema"',
+        )
+
+        if not schema_file.all():
+            logger.info("Generate a new V3IO KV schema file", kv_table_path=self.path)
+            frames_client = self._get_frames_client()
+            frames_client.execute(backend="kv", table=self.path, command="infer_schema")
+
+    def _get_frames_client(self):
+        return mlrun.utils.v3io_clients.get_frames_client(
+            token=self.access_key,
+            address=mlrun.mlconf.v3io_framesd,
+            container=self.container,
+        )
 
     @staticmethod
     def _build_kv_cursor_filter_expression(

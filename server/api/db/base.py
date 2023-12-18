@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from deprecated import deprecated
 
 import mlrun.common.schemas
+import mlrun.lists
 import mlrun.model
 
 
@@ -107,7 +108,7 @@ class DBInterface(ABC):
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         pass
 
     @abstractmethod
@@ -232,7 +233,7 @@ class DBInterface(ABC):
     def list_artifact_tags(
         self, session, project, category: mlrun.common.schemas.ArtifactCategories = None
     ):
-        pass
+        return []
 
     # TODO: remove in 1.8.0
     @deprecated(

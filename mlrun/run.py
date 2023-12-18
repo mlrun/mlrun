@@ -442,7 +442,7 @@ def new_function(
 ):
     """Create a new ML function from base properties
 
-    example::
+    Example::
 
            # define a container based function (the `training.py` must exist in the container workdir)
            f = new_function(command='training.py -x {x}', image='myrepo/image:latest', kind='job')
@@ -467,18 +467,18 @@ def new_function(
     :param runtime:  runtime (job, nuclio, spark, dask ..) object/dict
                      store runtime specific details and preferences
     :param mode:     runtime mode:
-            * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
-                     params substitutions like {xparam} and will be replaced with the value of the xparam param
-                     if a command is not specified, then image entrypoint shall be used.
+        * pass - will run the command as is in the container (not wrapped by mlrun), the command can use
+        params substitutions like {xparam} and will be replaced with the value of the xparam param
+        if a command is not specified, then image entrypoint shall be used.
     :param handler:  The default function handler to call for the job or nuclio function, in batch functions
-                     (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
-                     the entire file will be executed (as main).
-                     for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
+         (job, mpijob, ..) the handler can also be specified in the `.run()` command, when not specified
+         the entire file will be executed (as main).
+         for nuclio functions the handler is in the form of module:function, defaults to "main:handler"
     :param source:   valid absolute path or URL to git, zip, or tar file, e.g.
-                     `git://github.com/mlrun/something.git`,
-                     `http://some/url/file.zip`
-                     note path source must exist on the image or exist locally when run is local
-                     (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
+        `git://github.com/mlrun/something.git`,
+        `http://some/url/file.zip`
+        note path source must exist on the image or exist locally when run is local
+        (it is recommended to use 'function.spec.workdir' when source is a filepath instead)
     :param requirements:        a list of python packages, defaults to None
     :param requirements_file:   path to a python requirements file
     :param kfp:      reserved, flag indicating running within kubeflow pipeline

@@ -58,7 +58,7 @@ def get_batching_interval_param(intervals_list: typing.List):
     )
 
 
-def _add_minutes_offset(
+def add_minutes_offset(
     minute: typing.Optional[typing.Union[int, str]],
     offset: Minutes,
 ) -> typing.Optional[typing.Union[int, str]]:
@@ -80,7 +80,7 @@ def convert_to_cron_string(
 ) -> str:
     """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
     return "{} {} {} * *".format(
-        _add_minutes_offset(cron_trigger.minute, minute_delay),
+        add_minutes_offset(cron_trigger.minute, minute_delay),
         cron_trigger.hour,
         cron_trigger.day,
     ).replace("None", "*")

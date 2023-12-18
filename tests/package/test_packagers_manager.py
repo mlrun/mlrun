@@ -39,27 +39,22 @@ class PackagerA(Packager):
 
     PACKABLE_OBJECT_TYPE = str
 
-    @classmethod
-    def get_default_packing_artifact_type(cls, obj: Any) -> str:
+    def get_default_packing_artifact_type(self, obj: Any) -> str:
         return "result"
 
-    @classmethod
-    def get_default_unpacking_artifact_type(cls, data_item: DataItem) -> str:
+    def get_default_unpacking_artifact_type(self, data_item: DataItem) -> str:
         return "result"
 
-    @classmethod
-    def get_supported_artifact_types(cls) -> List[str]:
+    def get_supported_artifact_types(self) -> List[str]:
         return ["result"]
 
-    @classmethod
     def is_packable(
-        cls, obj: Any, artifact_type: str = None, configurations: dict = None
+        self, obj: Any, artifact_type: str = None, configurations: dict = None
     ) -> bool:
-        return type(obj) is cls.PACKABLE_OBJECT_TYPE and artifact_type == "result"
+        return type(obj) is self.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
-    @classmethod
     def pack(
-        cls,
+        self,
         obj: str,
         key: str = None,
         artifact_type: str = None,
@@ -67,9 +62,8 @@ class PackagerA(Packager):
     ) -> dict:
         return {f"{key}_from_PackagerA": obj}
 
-    @classmethod
     def unpack(
-        cls,
+        self,
         data_item: DataItem,
         artifact_type: str = None,
         instructions: dict = None,
@@ -86,13 +80,11 @@ class PackagerB(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = "b1"
     DEFAULT_UNPACKING_ARTIFACT_TYPE = "b1"
 
-    @classmethod
-    def pack_result(cls, obj: Any, key: str) -> dict:
+    def pack_result(self, obj: Any, key: str) -> dict:
         return {f"{key}_from_PackagerB": obj}
 
-    @classmethod
     def pack_b1(
-        cls,
+        self,
         obj: str,
         key: str,
         fmt: str,
@@ -106,13 +98,12 @@ class PackagerB(DefaultPackager):
             file.write(obj)
 
         # Note for clearance:
-        cls.add_future_clearing_path(path=file_path)
+        self.add_future_clearing_path(path=file_path)
 
         return Artifact(key=key, src_path=file_path), {"temp_dir": path}
 
-    @classmethod
     def pack_b2(
-        cls,
+        self,
         obj: str,
         key: str,
         amount_of_files: int,
@@ -135,19 +126,17 @@ class PackagerB(DefaultPackager):
                 zip_file.write(txt_file_path)
 
         # Note for clearance:
-        cls.add_future_clearing_path(path=path)
+        self.add_future_clearing_path(path=path)
 
         return Artifact(key=key, src_path=zip_path), {
             "temp_dir": path,
             "amount_of_files": amount_of_files,
         }
 
-    @classmethod
-    def unpack_b1(cls, data_item: DataItem):
+    def unpack_b1(self, data_item: DataItem):
         pass
 
-    @classmethod
-    def unpack_b2(cls, data_item: DataItem, length: int):
+    def unpack_b2(self, data_item: DataItem, length: int):
         pass
 
 
@@ -159,9 +148,8 @@ class PackagerC(PackagerA):
 
     PACKABLE_OBJECT_TYPE = float
 
-    @classmethod
     def pack(
-        cls,
+        self,
         obj: float,
         key: str = None,
         artifact_type: str = None,
@@ -169,9 +157,8 @@ class PackagerC(PackagerA):
     ) -> dict:
         return {key: round(obj, configurations["n_round"])}
 
-    @classmethod
     def unpack(
-        cls,
+        self,
         data_item: DataItem,
         artifact_type: str = None,
         instructions: dict = None,
@@ -241,8 +228,9 @@ def test_collect_packagers(
         raise error
 
     # Validate only the required packagers were collected:
-    for packager in validation:
-        assert packager in packagers_manager._packagers
+    assert set(
+        packager.__class__.__name__ for packager in packagers_manager._packagers
+    ) == set(packager.__name__ for packager in validation)
 
 
 @pytest.mark.parametrize(
@@ -277,8 +265,9 @@ def test_packagers_priority(
         packagers_manager.collect_packagers(
             packagers=[packager], default_priority=priority
         )
-        if set_via_default_priority:
-            assert packager.PRIORITY == priority
+        for collected_packager in packagers_manager._packagers:
+            if collected_packager.__class__.__name__ == packager:
+                assert collected_packager.priority == priority
 
     # Pack a string as a result:
     key = "some_key"

@@ -254,7 +254,7 @@ class MapValues(StepToDict, MLRunStep):
         source_column_names = df.columns
         for column, column_map in self.mapping.items():
             new_column_name = self._get_feature_name(column)
-            if not self.get_ranges_key() in column_map:
+            if self.get_ranges_key() not in column_map:
                 if column not in source_column_names:
                     continue
                 mapping_expr = create_map([lit(x) for x in chain(*column_map.items())])
@@ -330,7 +330,7 @@ class MapValues(StepToDict, MLRunStep):
     def validate_args(cls, feature_set, **kwargs):
         mapping = kwargs.get("mapping", [])
         for column, column_map in mapping.items():
-            if not cls.get_ranges_key() in column_map:
+            if cls.get_ranges_key() not in column_map:
                 types = set(
                     type(val)
                     for val in column_map.values()
@@ -460,8 +460,10 @@ class OneHotEncoder(StepToDict, MLRunStep):
                 one_hot_encoding[
                     f"{feature}_{OneHotEncoder._sanitized_category(value)}"
                 ] = 1
-            else:
-                print(f"Warning, {value} is not a known value by the encoding")
+            elif self.logger:
+                self.logger.warn(
+                    f"OneHotEncoder does not have an encoding for value '{value}' of feature '{feature}'"
+                )
             return one_hot_encoding
 
         return {feature: value}

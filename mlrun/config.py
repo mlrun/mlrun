@@ -102,6 +102,13 @@ default_config = {
             "missing_runtime_resources_debouncing_interval": None,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
+            "list_runs_time_period_in_days": 7,  # days
+        }
+    },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
         }
     },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
@@ -254,8 +261,8 @@ default_config = {
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
+        # in production envs we recommend to use a real db (e.g. mysql)
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
-        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
@@ -1020,9 +1027,9 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self):
+    def get_v3io_access_key(self) -> typing.Optional[str]:
         # Get v3io access key from the environment
-        return os.environ.get("V3IO_ACCESS_KEY")
+        return os.getenv("V3IO_ACCESS_KEY")
 
     def get_model_monitoring_file_target_path(
         self,
@@ -1045,9 +1052,9 @@ class Config:
                                 artifact path instead.
         :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
                                 relative artifact path will be taken from the global MLRun artifact path.
-        :param application_name:Application name, None for model_monitoring_stream.
+        :param application_name:    Application name, None for model_monitoring_stream.
 
-        :return: Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":
@@ -1133,7 +1140,7 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.11.20"
+            not self.nuclio_version or self.nuclio_version >= "1.12.9"
         )
 
 

@@ -93,7 +93,7 @@ def write_kfpmeta(struct):
             val = results[key]
         try:
             path = "/".join([KFP_ARTIFACTS_DIR, key])
-            logger.info("writing artifact output", path=path, val=val)
+            logger.info("Writing artifact output", path=path, val=val)
             with open(path, "w") as fp:
                 fp.write(str(val))
         except Exception as exc:

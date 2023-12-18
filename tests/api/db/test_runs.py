@@ -109,14 +109,14 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, only_uids=False
     )
     assert len(distinct_runs) == 1
-    assert type(distinct_runs[0]) == dict
+    assert isinstance(distinct_runs[0], dict)
     assert distinct_runs[0]["metadata"]["uid"] == uid
 
     only_uids = db.list_distinct_runs_uids(
         db_session, project=project_name, only_uids=True
     )
     assert len(only_uids) == 1
-    assert type(only_uids[0]) == str
+    assert isinstance(only_uids[0], str)
     assert only_uids[0] == uid
 
     only_uids_requested_true = db.list_distinct_runs_uids(
@@ -128,7 +128,7 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, only_uids=True, requested_logs_modes=[False]
     )
     assert len(only_uids_requested_false) == 1
-    assert type(only_uids[0]) == str
+    assert isinstance(only_uids[0], str)
 
     distinct_runs_requested_true = db.list_distinct_runs_uids(
         db_session, project=project_name, requested_logs_modes=[True]
@@ -139,7 +139,7 @@ def test_list_distinct_runs_uids(db: DBInterface, db_session: Session):
         db_session, project=project_name, requested_logs_modes=[False]
     )
     assert len(distinct_runs_requested_false) == 1
-    assert type(distinct_runs[0]) == dict
+    assert isinstance(distinct_runs[0], dict)
 
 
 def test_list_runs_state_filter(db: DBInterface, db_session: Session):

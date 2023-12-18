@@ -90,9 +90,11 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
                 runtime.deploy(skip_deployed=True, show_on_failure=True)
 
             else:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "Function image is not built/ready, set auto_build=True or use .deploy() method first"
-                )
+                if runtime.requires_build():
+                    logger.warning(
+                        "Function image is not built/ready and function requires build - execution will fail. "
+                        "Need to set auto_build=True or use .deploy() method first"
+                    )
 
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")

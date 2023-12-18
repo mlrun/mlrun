@@ -800,6 +800,14 @@ class BaseRuntime(ModelObj):
         self.spec.build = {}
         return self
 
+    def requires_build(self) -> bool:
+        build = self.spec.build
+        return (
+            build.commands
+            or build.requirements
+            or (build.source and not build.load_source_on_run)
+        )
+
     def prepare_image_for_deploy(self):
         """
         if a function has a 'spec.image' it is considered to be deployed,

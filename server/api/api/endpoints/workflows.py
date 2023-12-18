@@ -108,28 +108,40 @@ async def submit_workflow(
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
+
+    # If workflow spec has not passed need to create on same name:
+    requested_workflow_name = getattr(workflow_request.spec, "name", name)
+
     # Check permission CREATE workflow on new workflow's name
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.workflow,
         project_name=project.metadata.name,
-        # If workflow spec has not passed need to create on same name:
-        resource_name=getattr(workflow_request.spec, "name", name),
+        resource_name=requested_workflow_name,
         action=mlrun.common.schemas.AuthorizationAction.create,
         auth_info=auth_info,
     )
-    # Re-route to chief in case of schedule
-    if (
-        _is_requested_schedule(name, workflow_request.spec, project)
-        and mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        chief_client = server.api.utils.clients.chief.Client()
-        return await chief_client.submit_workflow(
-            project=project.metadata.name,
-            name=name,
-            request=request,
-            json=workflow_request.dict(),
+
+    # Validate permissions and re-route to chief if needed in case of schedule
+    if _is_requested_schedule(name, workflow_request.spec, project):
+        await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.schedule,
+            project_name=project.metadata.name,
+            resource_name=requested_workflow_name,
+            action=mlrun.common.schemas.AuthorizationAction.create,
+            auth_info=auth_info,
         )
+
+        if (
+            mlrun.mlconf.httpdb.clusterization.role
+            != mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            chief_client = server.api.utils.clients.chief.Client()
+            return await chief_client.submit_workflow(
+                project=project.metadata.name,
+                name=name,
+                request=request,
+                json=workflow_request.dict(),
+            )
 
     workflow_spec = _fill_workflow_missing_fields_from_project(
         project=project,
@@ -137,6 +149,7 @@ async def submit_workflow(
         spec=workflow_request.spec,
         arguments=workflow_request.arguments,
     )
+
     updated_request = workflow_request.copy()
     updated_request.spec = workflow_spec
 
@@ -291,9 +304,9 @@ def _fill_workflow_missing_fields_from_project(
 
     if "name" not in workflow:
         log_and_raise(
-            reason=f"workflow {workflow_name} not found in project"
+            reason=f"Workflow {workflow_name} not found in project"
             if not workflow
-            else "workflow spec is invalid",
+            else "Workflow spec is invalid",
         )
 
     workflow_spec = mlrun.common.schemas.WorkflowSpec(**workflow)

@@ -34,6 +34,7 @@ from server.api.api.endpoints import (
     jobs,
     logs,
     model_endpoints,
+    nuclio,
     operations,
     pipelines,
     projects,
@@ -157,6 +158,11 @@ api_router.include_router(
 api_router.include_router(
     datastore_profile.router,
     tags=["datastores"],
+    dependencies=[Depends(deps.authenticate_request)],
+)
+api_router.include_router(
+    nuclio.router,
+    tags=["nuclio"],
     dependencies=[Depends(deps.authenticate_request)],
 )
 

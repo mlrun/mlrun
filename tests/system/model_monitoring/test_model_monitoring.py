@@ -703,7 +703,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                     calcs = drift_measures[feature]
                     for calc in stuff_for_each_column:
                         assert calc in calcs
-                        assert type(calcs[calc]) == float
+                        assert isinstance(calcs[calc], float)
                 expected = endpoint_with_details.status.feature_stats
                 for feature in columns:
                     assert feature in expected
@@ -723,7 +723,7 @@ class TestVotingModelMonitoring(TestMLRunSystem):
                 # overall drift analysis (details dashboard)
                 for measure in measures:
                     assert measure in drift_measures
-                    assert type(drift_measures[measure]) == float
+                    assert isinstance(drift_measures[measure], float)
 
                 # Validate error count value
                 assert endpoint.status.error_count == 1

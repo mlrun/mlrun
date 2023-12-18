@@ -21,6 +21,8 @@ import mlrun.config
 import mlrun.execution
 import mlrun.launcher.base as launcher
 import mlrun.launcher.factory
+import mlrun.projects.operations
+import mlrun.projects.pipelines
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -212,6 +214,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 
+        if (
+            not runtime.spec.image
+            and not runtime.requires_build()
+            and runtime.kind in mlrun.mlconf.function_defaults.image_by_kind.to_dict()
+        ):
+            runtime.spec.image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[
+                runtime.kind
+            ]
+
     def _enrich_full_spec(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
@@ -268,6 +279,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
 
         self._validate_state_thresholds(run.spec.state_thresholds)
+
+        if (
+            mlrun.runtimes.RuntimeKinds.requires_image_name_for_execution(runtime.kind)
+            and not runtime.spec.image
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"This runtime kind ({runtime.kind}) must have a valid image"
+            )
+
         super()._validate_runtime(runtime, run)
 
     @staticmethod

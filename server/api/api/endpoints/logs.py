@@ -24,11 +24,11 @@ import server.api.utils.auth.verifier
 router = fastapi.APIRouter()
 
 
-# TODO: remove /log/{project}/{uid} in 1.7.0
+# TODO: remove /log/{project}/{uid} in 1.8.0
 @router.post(
     "/log/{project}/{uid}",
     deprecated=True,
-    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/logs/{uid} instead",
 )
 @router.post("/projects/{project}/logs/{uid}")
@@ -59,11 +59,11 @@ async def store_log(
     return {}
 
 
-# TODO: remove /log/{project}/{uid} in 1.7.0
+# TODO: remove /log/{project}/{uid} in 1.8.0
 @router.get(
     "/log/{project}/{uid}",
     deprecated=True,
-    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.7.0, "
+    description="/log/{project}/{uid} is deprecated in 1.5.0 and will be removed in 1.8.0, "
     "use /projects/{project}/logs/{uid} instead",
 )
 @router.get("/projects/{project}/logs/{uid}")

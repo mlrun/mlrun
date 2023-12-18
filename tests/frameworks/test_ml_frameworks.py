@@ -14,17 +14,14 @@
 #
 import json
 import typing
-from typing import Dict, List, Tuple
 
 import pytest
 
 import mlrun
-from mlrun.frameworks._common import ArtifactsLibrary
 from mlrun.frameworks._ml_common import AlgorithmFunctionality, MLPlanStages
 from mlrun.frameworks.sklearn import MetricsLibrary, SKLearnArtifactsLibrary
 from mlrun.frameworks.xgboost import XGBoostArtifactsLibrary
 
-from .ml_functions import MLFunctions
 from .sklearn import SKLearnFunctions
 from .xgboost import XGBoostFunctions
 

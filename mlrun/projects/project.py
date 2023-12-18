@@ -103,9 +103,9 @@ def init_repo(context, url, init_git):
     repo = None
     context_path = pathlib.Path(context)
     if not context_path.exists():
-        context_path.mkdir(parents=True)
+        context_path.mkdir(parents=True, exist_ok=True)
     elif not context_path.is_dir():
-        raise ValueError(f"context {context} is not a dir path")
+        raise ValueError(f"Context {context} is not a dir path")
     try:
         repo = git.Repo(context)
         url = get_repo_url(repo)
@@ -222,6 +222,7 @@ def new_project(
     if remote and url != remote:
         project.create_remote(remote)
     elif url:
+        logger.info("Identified pre-initialized git repo, using it", url=url)
         project.spec._source = url
         project.spec.origin_url = url
     if description:
@@ -367,7 +368,7 @@ def load_project(
         project = _load_project_dir(context, name, subpath)
 
     if not project.metadata.name:
-        raise ValueError("project name must be specified")
+        raise ValueError("Project name must be specified")
 
     if parameters:
         # Enable setting project parameters at load time, can be used to customize the project_setup
@@ -1242,7 +1243,7 @@ class MlrunProject(ModelObj):
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
         # engine could be "remote" or "remote:local"
-        if image and ((engine and "remote" in engine) or schedule):
+        if image and ((engine and "remote" not in engine) and not schedule):
             logger.warning("Image is only relevant for 'remote' engine, ignoring it")
 
         if embed:
@@ -1386,8 +1387,9 @@ class MlrunProject(ModelObj):
         Get the absolute path of the artifact or function file
         :param url:                   remote url, absolute path or relative path
         :param check_path_in_context: if True, will check if the path exists when in the context
-                                      (temporary parameter to allow for backwards compatibility)
-        :returns:                     absolute path / url, whether the path is in the project context
+        (temporary parameter to allow for backwards compatibility)
+
+        :returns:   absolute path / url, whether the path is in the project context
         """
         # If the URL is for a remote location, we do not want to change it
         if not url or "://" in url:
@@ -1928,6 +1930,38 @@ class MlrunProject(ModelObj):
             function_object.apply(mlrun.mount_v3io())
 
         return resolved_function_name, function_object, func
+
+    def enable_model_monitoring(
+        self,
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 10,
+    ) -> dict:
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              The time period in minutes in which the model monitoring controller job
+                                         runs. By default, the base period is 10 minutes. The schedule for the job
+                                         will be the following cron expression: "*/{base_period} * * * *".
+        :return: model monitoring controller job as a dictionary.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.create_model_monitoring_controller(
+            project=self.name,
+            default_controller_image=default_controller_image,
+            base_period=base_period,
+        )
+
+    def disable_model_monitoring(self):
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.delete_function(
+            project=self.name,
+            name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        )
 
     def set_function(
         self,
@@ -2948,6 +2982,12 @@ class MlrunProject(ModelObj):
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
+        if not overwrite_build_params:
+            # TODO: change overwrite_build_params default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
         )
@@ -3019,35 +3059,48 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
 
-        self.build_config(
-            image=image,
-            set_as_default=set_as_default,
-            base_image=base_image,
-            commands=commands,
-            secret_name=secret_name,
-            with_mlrun=with_mlrun,
-            requirements=requirements,
-            requirements_file=requirements_file,
-            overwrite_build_params=overwrite_build_params,
-        )
+        if not overwrite_build_params:
+            # TODO: change overwrite_build_params default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
 
-        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
 
-        build = self.spec.build
-        result = self.build_function(
-            function=function,
-            with_mlrun=build.with_mlrun,
-            image=build.image,
-            base_image=build.base_image,
-            commands=build.commands,
-            secret_name=build.secret,
-            requirements=build.requirements,
-            overwrite_build_params=overwrite_build_params,
-            mlrun_version_specifier=mlrun_version_specifier,
-            builder_env=builder_env,
-            extra_args=extra_args,
-            force_build=force_build,
-        )
+            self.build_config(
+                image=image,
+                set_as_default=set_as_default,
+                base_image=base_image,
+                commands=commands,
+                secret_name=secret_name,
+                with_mlrun=with_mlrun,
+                requirements=requirements,
+                requirements_file=requirements_file,
+                overwrite_build_params=overwrite_build_params,
+            )
+
+            function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            build = self.spec.build
+            result = self.build_function(
+                function=function,
+                with_mlrun=build.with_mlrun,
+                image=build.image,
+                base_image=build.base_image,
+                commands=build.commands,
+                secret_name=build.secret,
+                requirements=build.requirements,
+                overwrite_build_params=overwrite_build_params,
+                mlrun_version_specifier=mlrun_version_specifier,
+                builder_env=builder_env,
+                extra_args=extra_args,
+                force_build=force_build,
+            )
 
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(
@@ -3232,13 +3285,16 @@ class MlrunProject(ModelObj):
         tag: Optional[str] = None,
         labels: Optional[list[str]] = None,
     ) -> Optional[list]:
-        """Retrieve a list of all the model monitoring functions.
-        example::
+        """
+        Retrieve a list of all the model monitoring functions.
+        Example::
+
             functions = project.list_model_monitoring_functions()
 
-        :param name: Return only functions with a specific name.
-        :param tag: Return function versions with specific tags.
-        :param labels: Return functions that have specific labels assigned to them.
+        :param name:    Return only functions with a specific name.
+        :param tag:     Return function versions with specific tags.
+        :param labels:  Return functions that have specific labels assigned to them.
+
         :returns: List of function objects.
         """
 
@@ -3479,7 +3535,13 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        if not image and not project.default_image and kind != "local":
+        # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
+        if (
+            not image
+            and not project.default_image
+            and kind != "local"
+            and not project.spec.load_source_on_run
+        ):
             raise ValueError(
                 "image must be provided with py code files which do not "
                 "run on 'local' engine kind"

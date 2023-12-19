@@ -25,9 +25,12 @@ import server.api.utils.auth.verifier
 import server.api.utils.singletons.project_member
 from mlrun.common.schemas.artifact import ArtifactsFormat
 from mlrun.config import config
-from mlrun.utils import is_legacy_artifact, logger
+from mlrun.utils import logger
 from server.api.api import deps
-from server.api.api.utils import log_and_raise
+from server.api.api.utils import (
+    artifact_project_and_resource_name_extractor,
+    log_and_raise,
+)
 
 router = APIRouter()
 
@@ -70,18 +73,21 @@ async def store_artifact(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    # the v1 artifacts `uid` parameter is essentially the `tree` parameter in v2
+    tree = uid
+
     logger.debug(
-        "Storing artifact", project=project, uid=uid, key=key, tag=tag, iter=iter
+        "Storing artifact", project=project, tree=tree, key=key, tag=tag, iter=iter
     )
     await run_in_threadpool(
         server.api.crud.Artifacts().store_artifact,
         db_session,
         key,
         data,
-        uid,
-        tag,
-        iter,
-        project,
+        tag=tag,
+        iter=iter,
+        project=project,
+        producer_id=tree,
     )
     return {}
 
@@ -140,15 +146,35 @@ async def get_artifact(
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
-    data = await run_in_threadpool(
-        server.api.crud.Artifacts().get_artifact,
-        db_session,
-        key,
-        tag,
-        iter,
-        project,
-        format_,
-    )
+    try:
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            tag=tag,
+            iter=iter,
+            project=project,
+            format_=format_,
+        )
+    except mlrun.errors.MLRunNotFoundError:
+        logger.debug(
+            "Artifact not found, trying to get it with producer_id=tag to support older versions",
+            project=project,
+            key=key,
+            tag=tag,
+        )
+
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we try to get the artifact with the given tag as the producer_id before returning an empty response
+        data = await run_in_threadpool(
+            server.api.crud.Artifacts().get_artifact,
+            db_session,
+            key,
+            iter=iter,
+            project=project,
+            format_=format_,
+            producer_id=tag,
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         project,
@@ -236,7 +262,7 @@ async def list_artifacts(
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        _artifact_project_and_resource_name_extractor,
+        artifact_project_and_resource_name_extractor,
         auth_info,
     )
     return {
@@ -307,7 +333,7 @@ async def _delete_artifacts(
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resources_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
-        _artifact_project_and_resource_name_extractor,
+        artifact_project_and_resource_name_extractor,
         mlrun.common.schemas.AuthorizationAction.delete,
         auth_info,
     )
@@ -320,14 +346,3 @@ async def _delete_artifacts(
         labels,
     )
     return {}
-
-
-# Extract project and resource name from legacy artifact structure as well as from new format
-def _artifact_project_and_resource_name_extractor(artifact):
-    if is_legacy_artifact(artifact):
-        return artifact.get("project", mlrun.mlconf.default_project), artifact["db_key"]
-    else:
-        return (
-            artifact.get("metadata").get("project", mlrun.mlconf.default_project),
-            artifact.get("spec")["db_key"],
-        )

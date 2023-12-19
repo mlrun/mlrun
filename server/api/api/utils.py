@@ -1051,3 +1051,11 @@ def parse_reference(reference: str):
     else:
         uid = regex_match.string
     return tag, uid
+
+
+# Extract project and artifact name from the artifact
+def artifact_project_and_resource_name_extractor(artifact):
+    return (
+        artifact.get("metadata").get("project", mlrun.mlconf.default_project),
+        artifact.get("spec")["db_key"],
+    )

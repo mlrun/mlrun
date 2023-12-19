@@ -44,14 +44,21 @@ def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     assert resp.json()["project"] == PROJECT, "project"
 
 
-def _create_project(client: TestClient, project_name: str = PROJECT):
+def _create_project(
+    client: TestClient, project_name: str = PROJECT, prefix: str = None
+):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         spec=mlrun.common.schemas.ProjectSpec(
             description="banana", source="source", goals="some goals"
         ),
     )
-    resp = client.post(LEGACY_API_PROJECTS_PATH, json=project.dict())
+    url = (
+        LEGACY_API_PROJECTS_PATH
+        if prefix is None
+        else f"{prefix}/{LEGACY_API_PROJECTS_PATH}"
+    )
+    resp = client.post(url, json=project.dict())
     assert resp.status_code == HTTPStatus.CREATED.value
     return resp
 
@@ -163,6 +170,38 @@ def test_store_artifact_with_empty_dict(db: Session, client: TestClient):
     assert resp.status_code == HTTPStatus.OK.value
 
 
+def test_create_artifact(db: Session, unprefixed_client: TestClient):
+    _create_project(unprefixed_client, prefix="v1")
+    data = {
+        "kind": "artifact",
+        "metadata": {
+            "description": "",
+            "labels": {},
+            "key": "some-key",
+            "project": PROJECT,
+            "tree": "some-tree",
+        },
+        "spec": {
+            "db_key": "some-key",
+            "producer": {"kind": "api", "uri": "my-uri:3000"},
+            "target_path": "s3://aaa/aaa",
+        },
+        "status": {},
+    }
+    url = "v2/projects/{project}/artifacts".format(project=PROJECT)
+    resp = unprefixed_client.post(
+        url,
+        json=data,
+    )
+
+    response_data = resp.json()
+
+    assert resp.status_code == HTTPStatus.CREATED.value
+    assert response_data["metadata"]["key"] == data["metadata"]["key"]
+    assert response_data["metadata"]["tree"] == data["metadata"]["tree"]
+    assert response_data["spec"]["target_path"] == data["spec"]["target_path"]
+
+
 def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClient):
     _create_project(client)
     empty_artifact = "{}"
@@ -184,7 +223,10 @@ def test_delete_artifacts_after_storing_empty_dict(db: Session, client: TestClie
     resp = client.get(project_artifacts_path)
     assert (
         deepdiff.DeepDiff(
-            [artifact["tag"] for artifact in resp.json()["artifacts"]],
+            [
+                artifact.get("metadata", {}).get("tag", None)
+                for artifact in resp.json()["artifacts"]
+            ],
             ["latest", "latest", TAG, TAG],
             ignore_order=True,
         )
@@ -230,7 +272,10 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
         assert resp.status_code == HTTPStatus.OK.value
         assert (
             deepdiff.DeepDiff(
-                [artifact["tag"] for artifact in resp.json()["artifacts"]],
+                [
+                    artifact.get("metadata", {}).get("tag", None)
+                    for artifact in resp.json()["artifacts"]
+                ],
                 ["latest", "latest", TAG, TAG],
                 ignore_order=True,
             )
@@ -267,24 +312,13 @@ def test_list_artifacts_with_format_query(db: Session, client: TestClient) -> No
         )
         assert not is_legacy_artifact(artifacts[0])
 
-    # request legacy format
+    # request legacy format - expect failure (legacy format is not supported anymore)
     for artifact_path in [
         f"{LEGACY_API_ARTIFACTS_PATH}?project={PROJECT}&format=legacy",
         f"{API_ARTIFACTS_PATH.format(project=PROJECT)}?format=legacy",
     ]:
         resp = client.get(artifact_path)
-        assert resp.status_code == HTTPStatus.OK.value
-
-        artifacts = resp.json()["artifacts"]
-        assert (
-            deepdiff.DeepDiff(
-                [artifact["tag"] for artifact in resp.json()["artifacts"]],
-                ["latest", TAG],
-                ignore_order=True,
-            )
-            == {}
-        )
-        assert is_legacy_artifact(artifacts[0])
+        assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
     # explicitly request full format
     for artifact_path in [
@@ -327,16 +361,13 @@ def test_get_artifact_with_format_query(db: Session, client: TestClient) -> None
         artifact = resp.json()
         assert not is_legacy_artifact(artifact["data"])
 
-    # request legacy format
+    # request legacy format - expect failure (legacy format is not supported anymore)
     for artifact_path in [
         f"{LEGACY_API_GET_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
         f"{GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG)}&format=legacy",
     ]:
         resp = client.get(artifact_path)
-        assert resp.status_code == HTTPStatus.OK.value
-
-        artifact = resp.json()
-        assert is_legacy_artifact(artifact["data"])
+        assert resp.status_code == HTTPStatus.UNPROCESSABLE_ENTITY.value
 
     # explicitly request full format
     for artifact_path in [
@@ -394,3 +425,31 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
                 ignore_order=True,
             )
         ) == {}
+
+
+def test_legacy_get_artifact_with_tree_as_tag_fallback(
+    db: Session, client: TestClient
+) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+
+    # store artifact with tree as tag, which was referred to as uid in the legacy API
+    tree = "my-tree"
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=tree, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # get the artifact with the tree as tag, and expect it to be returned properly,
+    # due to the fallback in the legacy API
+    artifact_path = LEGACY_API_GET_ARTIFACT_PATH.format(
+        project=PROJECT, key=KEY, tag=tree
+    )
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    artifact = resp.json()
+    assert not is_legacy_artifact(artifact["data"])
+    assert artifact["data"]["metadata"]["key"] == KEY
+    assert artifact["data"]["metadata"]["tree"] == tree

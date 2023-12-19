@@ -2650,12 +2650,12 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
+            status_engine = run._engine
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
-            if engine == "remote":
+            # TODO: support watch for remote:local
+            if engine == "remote" and status_engine.engine != "local":
                 status_engine = _RemoteRunner
-            else:
-                status_engine = run._engine
 
             status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run

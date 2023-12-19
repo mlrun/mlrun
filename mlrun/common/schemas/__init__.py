@@ -15,7 +15,14 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .api_gateway import APIGateway
-from .artifact import ArtifactCategories, ArtifactIdentifier, ArtifactsFormat
+from .artifact import (
+    Artifact,
+    ArtifactCategories,
+    ArtifactIdentifier,
+    ArtifactMetadata,
+    ArtifactsFormat,
+    ArtifactSpec,
+)
 from .auth import (
     AuthInfo,
     AuthorizationAction,

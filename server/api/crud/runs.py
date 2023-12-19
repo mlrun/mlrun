@@ -306,6 +306,7 @@ class Runs(
         run: typing.Optional[dict] = None,
     ):
         project = project or mlrun.mlconf.default_project
+        run_updates = run_updates or {}
         logger.debug("Aborting run", project=project, uid=uid, iter=iter)
 
         run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
@@ -314,26 +315,49 @@ class Runs(
                 db_session, uid, project, iter
             )
 
-        if (
-            run.get("status", {}).get("state")
-            in mlrun.runtimes.constants.RunStates.terminal_states()
-        ):
+        current_run_state = run.get("status", {}).get("state")
+        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )
+
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
             raise mlrun.errors.MLRunBadRequestError(
                 f"Run of kind {runtime_kind} can not be aborted"
             )
-        # aborting the run meaning deleting its runtime resources
-        # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
-        #  "knowledge" on the label selector
-        server.api.crud.RuntimeResources().delete_runtime_resources(
-            db_session,
-            label_selector=f"mlrun/project={project},mlrun/uid={uid}",
-            force=True,
+
+        # mark run as aborting
+        aborting_updates = {"status.state": mlrun.runtimes.constants.RunStates.aborting}
+        server.api.utils.singletons.db.get_db().update_run(
+            db_session, aborting_updates, uid, project, iter
         )
+
+        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        try:
+            # aborting the run meaning deleting its runtime resources
+            # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
+            #  "knowledge" on the label selector
+            server.api.crud.RuntimeResources().delete_runtime_resources(
+                db_session,
+                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                force=True,
+            )
+
+        except Exception as exc:
+            err = mlrun.errors.err_to_str(exc)
+            logger.warning(
+                "Failed to abort run",
+                err=err,
+                project=project,
+                uid=uid,
+                iter=iter,
+            )
+            run_updates = {
+                "status.state": mlrun.runtimes.constants.RunStates.error,
+                "status.error": f"Failed to abort run, error: {err}",
+            }
+
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter
         )

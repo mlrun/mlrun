@@ -262,7 +262,7 @@ class WorkflowRunners(
                 workflow_id = ""
             else:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {project}:{uid} not found"
+                    f"Workflow id of run {project}:{uid} not found"
                 )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)

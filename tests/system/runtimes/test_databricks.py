@@ -140,7 +140,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         #  Should be inside the metadata:
         assert "run_id" in logs
 
-
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
         if not cluster_id and is_cluster_id_required:

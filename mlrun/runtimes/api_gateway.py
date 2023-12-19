@@ -33,8 +33,6 @@ class APIGateway:
         path: str,
         description: str,
         functions: list[str],
-        username: Optional[str],
-        password: Optional[str],
         canary: Optional[list[int]],
     ):
         self.project = project
@@ -45,36 +43,11 @@ class APIGateway:
         self.description = description
         self.canary = canary
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._auth = None
         self._invoke_url = self._generate_invoke_url() if not host else host
-        self._generate_auth(username, password)
 
-    def invoke(self):
-        headers = {} if not self._auth else {"Authorization": self._auth}
+    def invoke(self, auth: Optional[tuple[str, str]]):
+        headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
         return requests.post(self._invoke_url, headers=headers)
-
-    def _generate_auth(
-        self, username: Optional[str] = None, password: Optional[str] = None
-    ):
-        if username and password:
-            token = base64.b64encode(f"{username}:{password}".encode()).decode()
-            self._auth = f"Basic {token}"
-
-    def requires_auth(self):
-        return self._auth is not None
-
-    def _generate_invoke_url(self):
-        nuclio_hostname = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
-
-        # Remove the 'nuclio' prefix from the hostname
-        # For example, from `nuclio.default-tenant.app.dev62.lab.iguazeng.com`,
-        # it becomes `default-tenant.app.dev62.lab.iguazeng.com`
-        common_hostname = nuclio_hostname[nuclio_hostname.find(".") + 1 :]
-
-        # Generate a unique invoke URL which contains the API gateway name and project name
-        return urllib.parse.urljoin(
-            f"{self.name}-{self.project}.{common_hostname}", self.path
-        )
 
     def to_scheme(
         self, auth: Optional[tuple[str, str]] = None
@@ -101,8 +74,6 @@ class APIGateway:
         path: str,
         description: str,
         functions: list[str],
-        username: Optional[str],
-        password: Optional[str],
         canary: Optional[list[int]],
     ) -> "APIGateway":
         if not name:
@@ -126,8 +97,6 @@ class APIGateway:
             path=path,
             description=description,
             functions=functions,
-            username=username,
-            password=password,
             canary=canary,
         )
 
@@ -157,10 +126,26 @@ class APIGateway:
             path=spec.get("path", ""),
             description=spec.get("description", ""),
             functions=functions,
-            username=authentication.get("username"),
-            password=authentication.get("password"),
             canary=canary,
         )
+
+    def _generate_invoke_url(self):
+        nuclio_hostname = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
+
+        # Remove the 'nuclio' prefix from the hostname
+        # For example, from `nuclio.default-tenant.app.dev62.lab.iguazeng.com`,
+        # it becomes `default-tenant.app.dev62.lab.iguazeng.com`
+        common_hostname = nuclio_hostname[nuclio_hostname.find(".") + 1 :]
+
+        # Generate a unique invoke URL which contains the API gateway name and project name
+        return urllib.parse.urljoin(
+            f"{self.name}-{self.project}.{common_hostname}", self.path
+        )
+
+    @staticmethod
+    def _generate_auth(username: str, password: str):
+        token = base64.b64encode(f"{username}:{password}".encode()).decode()
+        return f"Basic {token}"
 
     @staticmethod
     def _process_canary(

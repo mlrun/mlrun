@@ -108,7 +108,7 @@ async def test_nuclio_create_api_gateway(
     await nuclio_client.create_api_gateway(
         project_name="default",
         api_gateway_name="new-gw",
-        functions=["test-func"],
+        api_gateway=mlrun.common.schemas.APIGateway(function=["test-func"]),
     )
 
 

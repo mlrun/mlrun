@@ -3509,8 +3509,14 @@ class MlrunProject(ModelObj):
                     f"input function {func.metadata.name} "
                     f"should belong to the project"
                 )
+        if username and not password:
+            raise mlrun.errors.MLRunInvalidArgumentError("Password is not specified")
+
+        if password and not username:
+            raise mlrun.errors.MLRunInvalidArgumentError("Username is not specified")
 
         function_names = [func.uri for func in functions]
+        auth = (username, password) if username and password else None
         gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(
             project=self.name,
             name=name,
@@ -3518,13 +3524,11 @@ class MlrunProject(ModelObj):
             path=path,
             description=description,
             functions=function_names,
-            username=username,
-            password=password,
             canary=canary,
         )
         ok = mlrun.db.get_run_db().create_api_gateway(
             gateway_instance,
-            (username, password) if gateway_instance.requires_auth() else None,
+            auth,
         )
         return gateway_instance if ok else None
 

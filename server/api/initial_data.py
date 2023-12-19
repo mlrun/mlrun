@@ -719,7 +719,6 @@ def _mark_best_iteration_artifacts(
     for link_artifact in link_artifacts:
         link_artifact_dict = link_artifact.struct
         if is_legacy_artifact(link_artifact_dict):
-
             # convert the legacy artifact to the new format, so we can use the same logic
             link_artifact_dict = (
                 mlrun.artifacts.base.convert_legacy_artifact_to_new_format(

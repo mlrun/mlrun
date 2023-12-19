@@ -1481,7 +1481,6 @@ class SQLDB(DBInterface):
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
-
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
 
@@ -2399,7 +2398,11 @@ class SQLDB(DBInterface):
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
-        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
+        (
+            uid,
+            tag,
+            feature_set_dict,
+        ) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 
@@ -3134,7 +3137,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(FeatureSet.name), project=project
             ).all()
         ]

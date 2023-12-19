@@ -1040,7 +1040,7 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
 
 def convert_legacy_artifact_to_new_format(
-    legacy_artifact: typing.Union[LegacyArtifact, dict]
+    legacy_artifact: typing.Union[LegacyArtifact, dict],
 ) -> Artifact:
     """Converts a legacy artifact to a new format.
 

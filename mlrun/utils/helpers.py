@@ -952,7 +952,6 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
 
 
 def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
-
     # remove artifact related fields before calculating hash
     object_dict.setdefault("metadata", {})
     labels = object_dict["metadata"].pop("labels", None)

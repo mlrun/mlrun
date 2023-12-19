@@ -847,7 +847,6 @@ class TestArtifacts:
 
     @pytest.mark.asyncio
     async def test_project_file_counter(self, db: DBInterface, db_session: Session):
-
         # create artifact with 5 distinct keys, and 3 tags for each key
         project = "artifact_project"
         for i in range(5):

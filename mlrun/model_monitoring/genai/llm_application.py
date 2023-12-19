@@ -26,6 +26,7 @@
 import pandas as pd
 import json
 from abc import ABC, abstractmethod
+from functools import wraps, decrator
 from statistics import mean, median
 from typing import List, Optional, Union, Dict
 from mlrun.artifacts import Artifact
@@ -153,15 +154,8 @@ class LLMMonitoringApp(ModelObj, ABC):
         """
         Calculate one metric value - helper for the user .
         """
-        sample_questions = sample_df["question"].tolist()
-        sample_answers = sample_df["answer"].tolist()
-        res = []
-        for i in range(len(sample_questions)):
-            res.append(
-                metric.compute_one_metric_over_data(
-                    sample_questions[i], sample_answers[i], train_df
-                )
-            )
+        res = metric.compute_over_data(sample_df, train_df)
+        
         return res
 
     @staticmethod

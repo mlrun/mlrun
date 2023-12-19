@@ -375,6 +375,7 @@ async def start_function(
         background_tasks,
         _start_function,
         background_timeout,
+        None,
         # args for _start_function
         function,
         auth_info,

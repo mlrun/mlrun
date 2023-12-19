@@ -302,7 +302,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             {
                 k: v
                 for k, v in profile.dict().items()
-                if not str(k) in profile._private_attributes
+                if str(k) not in profile._private_attributes
             }
         )
 
@@ -344,6 +344,7 @@ class DatastoreProfile2Json(pydantic.BaseModel):
             "kafka_source": DatastoreProfileKafkaSource,
             "dbfs": DatastoreProfileDBFS,
             "gcs": DatastoreProfileGCS,
+            "az": DatastoreProfileAzureBlob,
         }
         if datastore_type in ds_profile_factory:
             return ds_profile_factory[datastore_type].parse_obj(decoded_dict)

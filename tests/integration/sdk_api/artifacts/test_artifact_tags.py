@@ -30,20 +30,20 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         key = "some-key"
         data_frame = pandas.DataFrame({"x": [1, 2]})
         artifact = mlrun.artifacts.dataset.DatasetArtifact(key, data_frame)
-        uid = "some-uid"
-        uid_2 = "some-uid-2"
+        tree = "some-tree"
+        tree_2 = "some-tree-2"
         tag = "some-tag"
         tag_2 = "some-tag-2"
         mlrun.get_run_db().store_artifact(
-            key, artifact.to_dict(), uid, tag=tag, project=project_name
+            key, artifact.to_dict(), tree=tree, tag=tag, project=project_name
         )
         mlrun.get_run_db().store_artifact(
-            key, artifact.to_dict(), uid_2, tag=tag_2, project=project_name
+            key, artifact.to_dict(), tree=tree_2, tag=tag_2, project=project_name
         )
 
         model_key = "model-key"
-        model_uid = "model-uid"
-        model_uid_2 = "model-uid-2"
+        model_tree = "model-tree"
+        model_tree_2 = "model-tree-2"
         # Using the same tag on purpose, to make sure it's returned only once
         model_tag = tag
         model_tag_2 = "model-tag-2"
@@ -53,14 +53,14 @@ class TestArtifactTags(tests.integration.sdk_api.base.TestMLRunIntegration):
         mlrun.get_run_db().store_artifact(
             model_key,
             model_artifact.to_dict(),
-            model_uid,
+            model_tree,
             tag=model_tag,
             project=project_name,
         )
         mlrun.get_run_db().store_artifact(
             model_key,
             model_artifact.to_dict(),
-            model_uid_2,
+            model_tree_2,
             tag=model_tag_2,
             project=project_name,
         )

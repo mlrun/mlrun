@@ -31,11 +31,7 @@ from mlrun import feature_store as fstore
 from mlrun.model_monitoring.writer import ModelMonitoringWriter
 from mlrun.utils import logger
 from server.api.api import deps
-from server.api.crud.model_monitoring.helpers import (
-    Seconds,
-    add_minutes_offset,
-    seconds2minutes,
-)
+from server.api.crud.model_monitoring.helpers import Seconds, seconds2minutes
 
 _MODEL_MONITORING_COMMON_PATH = (
     pathlib.Path(__file__).parents[4] / "mlrun" / "model_monitoring"
@@ -213,7 +209,6 @@ class MonitoringDeployment:
             db_session=db_session,
             auth_info=auth_info,
             tracking_policy=tracking_policy,
-            tracking_offset=Seconds(self._max_parquet_save_interval),
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
         )
 
@@ -582,7 +577,7 @@ class MonitoringDeployment:
          [1] = Dictionary of the batch interval.
         """
 
-        if function_name == "model-monitoring-batch":
+        if function_name == mm_constants.MonitoringFunctionNames.BATCH:
             # Apply batching interval params
             interval_list = [
                 tracking_policy.default_batch_intervals.minute,
@@ -602,18 +597,14 @@ class MonitoringDeployment:
             )
         else:
             # Apply monitoring controller params
-            (
-                minutes,
-                hours,
-                days,
-            ) = (tracking_policy.base_period, 0, 0)
-            schedule = "1/{} * * * *".format(
-                add_minutes_offset(
-                    minute=tracking_policy.base_period,
-                    offset=seconds2minutes(tracking_offset),
-                )
-            )
-        batch_dict = {"minutes": minutes, "hours": hours, "days": days}
+            minutes = tracking_policy.base_period
+            hours = days = 0
+            schedule = f"*/{tracking_policy.base_period} * * * *"
+        batch_dict = {
+            mm_constants.EventFieldType.MINUTES: minutes,
+            mm_constants.EventFieldType.HOURS: hours,
+            mm_constants.EventFieldType.DAYS: days,
+        }
         return schedule, batch_dict
 
     def _apply_stream_trigger(

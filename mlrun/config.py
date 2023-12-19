@@ -105,6 +105,12 @@ default_config = {
             "list_runs_time_period_in_days": 7,  # days
         }
     },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -121,6 +127,10 @@ default_config = {
         # But if both the server and the client set some value, we want the client to take precedence over the server.
         # By setting the default to None we are able to differentiate between the two cases.
         "generate_target_path_from_artifact_hash": None,
+        # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
+        # migration progress.
+        "artifact_migration_batch_size": 200,
+        "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -358,6 +368,7 @@ default_config = {
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
+            "pull_logs_default_size_limit": 1024 * 1024,  # 1 MB
         },
         "authorization": {
             "mode": "none",  # one of none, opa
@@ -1130,7 +1141,7 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.7"
+            not self.nuclio_version or self.nuclio_version >= "1.12.9"
         )
 
 

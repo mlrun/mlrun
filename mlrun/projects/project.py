@@ -1944,8 +1944,9 @@ class MlrunProject(ModelObj):
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
-        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
-                                         is running. By default, the base period is 5 minutes.
+        :param base_period:              The time period in minutes in which the model monitoring controller job
+                                         runs. By default, the base period is 10 minutes. The schedule for the job
+                                         will be the following cron expression: "*/{base_period} * * * *".
         :return: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
@@ -2647,12 +2648,12 @@ class MlrunProject(ModelObj):
             )
         workflow_spec.clear_tmp()
         if (timeout or watch) and not workflow_spec.schedule:
+            status_engine = run._engine
             # run's engine gets replaced with inner engine if engine is remote,
             # so in that case we need to get the status from the remote engine manually
-            if engine == "remote":
+            # TODO: support watch for remote:local
+            if engine == "remote" and status_engine.engine != "local":
                 status_engine = _RemoteRunner
-            else:
-                status_engine = run._engine
 
             status_engine.get_run_status(project=self, run=run, timeout=timeout)
         return run
@@ -2981,6 +2982,12 @@ class MlrunProject(ModelObj):
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
         """
+        if not overwrite_build_params:
+            # TODO: change overwrite_build_params default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
         default_image_name = mlrun.mlconf.default_project_image_name.format(
             name=self.name
         )
@@ -3052,35 +3059,48 @@ class MlrunProject(ModelObj):
                 FutureWarning,
             )
 
-        self.build_config(
-            image=image,
-            set_as_default=set_as_default,
-            base_image=base_image,
-            commands=commands,
-            secret_name=secret_name,
-            with_mlrun=with_mlrun,
-            requirements=requirements,
-            requirements_file=requirements_file,
-            overwrite_build_params=overwrite_build_params,
-        )
+        if not overwrite_build_params:
+            # TODO: change overwrite_build_params default to True in 1.8.0
+            warnings.warn(
+                "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+                mlrun.utils.OverwriteBuildParamsWarning,
+            )
 
-        function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
 
-        build = self.spec.build
-        result = self.build_function(
-            function=function,
-            with_mlrun=build.with_mlrun,
-            image=build.image,
-            base_image=build.base_image,
-            commands=build.commands,
-            secret_name=build.secret,
-            requirements=build.requirements,
-            overwrite_build_params=overwrite_build_params,
-            mlrun_version_specifier=mlrun_version_specifier,
-            builder_env=builder_env,
-            extra_args=extra_args,
-            force_build=force_build,
-        )
+            self.build_config(
+                image=image,
+                set_as_default=set_as_default,
+                base_image=base_image,
+                commands=commands,
+                secret_name=secret_name,
+                with_mlrun=with_mlrun,
+                requirements=requirements,
+                requirements_file=requirements_file,
+                overwrite_build_params=overwrite_build_params,
+            )
+
+            function = mlrun.new_function("mlrun--project--image--builder", kind="job")
+
+            build = self.spec.build
+            result = self.build_function(
+                function=function,
+                with_mlrun=build.with_mlrun,
+                image=build.image,
+                base_image=build.base_image,
+                commands=build.commands,
+                secret_name=build.secret,
+                requirements=build.requirements,
+                overwrite_build_params=overwrite_build_params,
+                mlrun_version_specifier=mlrun_version_specifier,
+                builder_env=builder_env,
+                extra_args=extra_args,
+                force_build=force_build,
+            )
 
         try:
             mlrun.db.get_run_db(secrets=self._secrets).delete_function(

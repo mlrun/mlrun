@@ -21,6 +21,7 @@ import pandas
 
 import mlrun
 import mlrun.artifacts
+import mlrun.common.schemas
 import tests.integration.sdk_api.base
 from tests import conftest
 
@@ -35,13 +36,13 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_artifacts(self):
         db = mlrun.get_run_db()
-        prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, "./")
         artifact = mlrun.artifacts.Artifact(key, body, target_path="/a.txt")
 
-        db.store_artifact(key, artifact, uid, project=prj)
-        db.store_artifact(key, artifact, uid, project=prj, iter=42)
-        artifacts = db.list_artifacts(project=prj, tag="*")
+        db.store_artifact(key, artifact, tree=tree, project=prj)
+        db.store_artifact(key, artifact, tree=tree, project=prj, iter=42)
+        artifacts = db.list_artifacts(project=prj, tag="*", tree=tree)
         assert len(artifacts) == 2, "bad number of artifacts"
         assert artifacts.to_objects()[0].key == key, "not a valid artifact object"
         assert artifacts.dataitems()[0].url, "not a valid artifact dataitem"
@@ -58,7 +59,7 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert len(artifacts) == 0, "bad number of artifacts after del"
 
     def test_list_artifacts_filter_by_kind(self):
-        prj, uid, key, body = "p9", "u19", "k802", "tomato"
+        prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, context="./")
         model_artifact = mlrun.artifacts.model.ModelArtifact(
             key, body, target_path="/a.txt"
@@ -71,8 +72,10 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         db = mlrun.get_run_db()
-        db.store_artifact(key, model_artifact, f"model_{uid}", project=prj)
-        db.store_artifact(key, dataset_artifact, f"ds_{uid}", project=prj, iter=42)
+        db.store_artifact(key, model_artifact, tree=f"model_{tree}", project=prj)
+        db.store_artifact(
+            key, dataset_artifact, tree=f"ds_{tree}", project=prj, iter=42
+        )
 
         artifacts = db.list_artifacts(project=prj)
         assert len(artifacts) == 2, "bad number of artifacts"

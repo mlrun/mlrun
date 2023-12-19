@@ -898,7 +898,7 @@ class ParquetTarget(BaseStoreTarget):
 
         def delete_update_last_written(*arg, **kargs):
             result = original_to_dict(*arg, **kargs)
-            del result["class_args"]["update_last_written"]
+            result["class_args"].pop("update_last_written", None)
             return result
 
         # update_last_written is not serializable (ML-5108)

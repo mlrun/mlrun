@@ -39,6 +39,9 @@ Your task is to determine a numerical score of {name} for the response. You must
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 
+[Examples]:
+{examples}
+
 [User Question]:
 {question}
 
@@ -51,8 +54,6 @@ Examples could be included beblow for your reference. Make sure you understand t
 [Grading Rubric]:
 {rubric}
 
-[Examples]:
-{examples}
 
 You must return the following fields in your output:
 - score: a numerical score of {name} for the response
@@ -65,6 +66,9 @@ Task:
 Your task is to determine two numerical score of {name} for the responses from two AI assistants. You must use the grading rubric to determine your scores. You must also give a explanation about how did you determine the scores step-by-step. Please using chain of thinking.
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
+
+[Examples]:
+{examples}
 
 [User Question]:
 {question}
@@ -80,8 +84,6 @@ Examples could be included beblow for your reference. Make sure you understand t
 [Grading Rubric]:
 {rubric}
 
-[Examples]:
-{examples}
 
 You must return the following fields in your output:
 - score of assistant a: a numerical score of {name} for the response
@@ -99,6 +101,9 @@ Your task is to determine two numerical score of {name} for the responses from t
 
 Examples could be included beblow for your reference. Make sure you understand the grading rubric and use the examples before completing the task.
 
+[Examples]:
+{examples}
+
 [User Question]:
 {question}
 
@@ -115,8 +120,6 @@ Examples could be included beblow for your reference. Make sure you understand t
 [Grading Rubric]:
 {rubric}
 
-[Examples]:
-{examples}
 
 You must return the following fields in your output:
 - score of assistant a: a numerical score of {name} for the response

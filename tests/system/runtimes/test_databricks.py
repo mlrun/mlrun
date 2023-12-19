@@ -137,6 +137,9 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         assert print_kwargs_run.status.state == "completed"
         logs = cls._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
+        #  Should be inside the metadata:
+        assert "run_id" in logs
+
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)

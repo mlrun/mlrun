@@ -85,6 +85,9 @@ class TrackerManager(metaclass=Singleton):
 
         :return: The context updated with the trackers products.
         """
+        if not self._trackers:
+            return context
+
         # Check if the context received is a dict to initialize it as an `MLClientCtx` object:
         is_context_dict = isinstance(context, dict)
         if is_context_dict:

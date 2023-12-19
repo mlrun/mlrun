@@ -1533,6 +1533,16 @@ class BaseRuntimeHandler(ABC):
             if db_run_state == run_state:
                 return False, run_state, run
 
+            if db_run_state == RunStates.aborting:
+                logger.debug(
+                    "Run is in aborting state. Not changing state",
+                    project=project,
+                    uid=uid,
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                )
+                return False, run_state, run
+
             # if the current run state is terminal and different from the desired - log
             if db_run_state in RunStates.terminal_states():
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but

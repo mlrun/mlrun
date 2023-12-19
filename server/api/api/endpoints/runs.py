@@ -13,6 +13,7 @@
 # limitations under the License.
 #
 import datetime
+import uuid
 from http import HTTPStatus
 from typing import List
 
@@ -25,6 +26,7 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.singletons.project_member
+from mlrun.utils import logger
 from mlrun.utils.helpers import datetime_from_iso
 from server.api.api import deps
 from server.api.api.utils import log_and_raise
@@ -416,6 +418,76 @@ async def abort_run(
     except ValueError:
         log_and_raise(HTTPStatus.BAD_REQUEST.value, reason="bad JSON body")
 
+    run = await run_in_threadpool(
+        server.api.crud.Runs().get_run, db_session, uid, iter, project
+    )
+
+    current_run_state = run.get("status", {}).get("state")
+    if current_run_state in [
+        mlrun.runtimes.constants.RunStates.aborting,
+        mlrun.runtimes.constants.RunStates.aborted,
+    ]:
+        background_task_id = run.get("status", {}).get("abort_task_id")
+        if background_task_id:
+            # get the background task and check if it's still running
+            try:
+                background_task = await run_in_threadpool(
+                    server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task,
+                    db_session,
+                    background_task_id,
+                    project,
+                )
+
+                if (
+                    background_task.status.state
+                    in mlrun.common.schemas.BackgroundTaskState.running
+                ):
+                    logger.debug(
+                        "Abort background task is still running, returning it",
+                        background_task_id=background_task_id,
+                        project=project,
+                        uid=uid,
+                    )
+                    return background_task
+
+                # if the background task completed, give some grace time before triggering another one
+                elif (
+                    background_task.status.state
+                    == mlrun.common.schemas.BackgroundTaskState.succeeded
+                ):
+                    grace_timedelta = datetime.timedelta(
+                        seconds=int(
+                            mlrun.mlconf.background_tasks.default_timeouts.operations.abort_grace_period
+                        )
+                    )
+                    if (
+                        datetime.datetime.utcnow() - background_task.metadata.updated
+                        < grace_timedelta
+                    ):
+                        logger.debug(
+                            "Abort background task completed, but grace time didn't pass yet, returning it",
+                            background_task_id=background_task_id,
+                            project=project,
+                            uid=uid,
+                        )
+                        return background_task
+                    else:
+                        logger.debug(
+                            "Abort background task completed, but grace time passed, creating a new one",
+                            background_task_id=background_task_id,
+                            project=project,
+                            uid=uid,
+                        )
+
+            except mlrun.errors.MLRunNotFoundError:
+                logger.warning(
+                    "Abort background task not found, creating a new one",
+                    background_task_id=background_task_id,
+                    project=project,
+                    uid=uid,
+                )
+
+    new_background_task_id = str(uuid.uuid4())
     background_task = await run_in_threadpool(
         server.api.utils.background_tasks.ProjectBackgroundTasksHandler().create_background_task,
         db_session,
@@ -423,12 +495,15 @@ async def abort_run(
         background_tasks,
         server.api.crud.Runs().abort_run,
         mlrun.mlconf.background_tasks.default_timeouts.operations.run_abortion,
+        new_background_task_id,
         # args for abort_run
         db_session,
         project,
         uid,
         iter,
         run_updates=data,
+        run=run,
+        new_background_task_id=new_background_task_id,
     )
 
     return background_task

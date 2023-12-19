@@ -33,6 +33,7 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
@@ -702,6 +703,10 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
     async def abort_run(stale_run):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
+            # mark abort as internal, it doesn't have a background task
+            stale_run[
+                "new_background_task_id"
+            ] = server.api.constants.internal_abort_task_id
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,

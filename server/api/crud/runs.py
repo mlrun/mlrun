@@ -30,6 +30,7 @@ import server.api.api.utils
 import server.api.constants
 import server.api.db.session
 import server.api.runtime_handlers
+import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
 from mlrun.utils import logger
@@ -304,18 +305,41 @@ class Runs(
         iter: int = 0,
         run_updates: typing.Optional[dict] = None,
         run: typing.Optional[dict] = None,
+        new_background_task_id: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
         run_updates = run_updates or {}
-        logger.debug("Aborting run", project=project, uid=uid, iter=iter)
-
         run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        logger.debug(
+            "Aborting run",
+            project=project,
+            uid=uid,
+            iter=iter,
+            new_background_task_id=new_background_task_id,
+        )
+
         if not run:
             run = server.api.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
 
         current_run_state = run.get("status", {}).get("state")
+        # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
+        if (
+            new_background_task_id == server.api.constants.internal_abort_task_id
+            and current_run_state
+            in [
+                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]
+        ):
+            logger.warning(
+                "Run is aborting/aborted, skipping internal abort",
+                new_background_task_id=new_background_task_id,
+                current_run_state=current_run_state,
+            )
+            return
+
         if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
@@ -328,7 +352,10 @@ class Runs(
             )
 
         # mark run as aborting
-        aborting_updates = {"status.state": mlrun.runtimes.constants.RunStates.aborting}
+        aborting_updates = {
+            "status.state": mlrun.runtimes.constants.RunStates.aborting,
+            "status.abort_task_id": new_background_task_id,
+        }
         server.api.utils.singletons.db.get_db().update_run(
             db_session, aborting_updates, uid, project, iter
         )

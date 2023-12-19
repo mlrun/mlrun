@@ -189,6 +189,7 @@ default_config = {
                 "migrations": "3600",
                 "load_project": "60",
                 "run_abortion": "600",
+                "abort_grace_period": "10",
             },
             "runtimes": {"dask": "600"},
         },

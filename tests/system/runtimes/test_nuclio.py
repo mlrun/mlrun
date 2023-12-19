@@ -144,7 +144,7 @@ class TestNuclioRuntimeWithStream(tests.system.base.TestMLRunSystem):
         v3io_client = v3io.dataplane.Client(
             endpoint=os.environ["V3IO_API"], access_key=os.environ["V3IO_ACCESS_KEY"]
         )
-        v3io_client.delete_stream(
+        v3io_client.stream.delete(
             self.stream_container,
             self.stream_path,
             raise_for_status=RaiseForStatus.never,

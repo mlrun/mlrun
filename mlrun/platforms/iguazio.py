@@ -318,7 +318,7 @@ class OutputStream:
                 retention_in_hours=retention_in_hours,
             )
 
-            response = self._v3io_client.create_stream(
+            response = self._v3io_client.stream.create(
                 container=self._container,
                 path=self._stream_path,
                 shard_count=shards or 1,
@@ -343,7 +343,7 @@ class OutputStream:
             # for mock testing
             self._mock_queue.extend(records)
         else:
-            self._v3io_client.put_records(
+            self._v3io_client.stream.put_records(
                 container=self._container, path=self._stream_path, records=records
             )
 

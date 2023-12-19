@@ -1082,7 +1082,7 @@ def create_model_monitoring_stream(
             if monitoring_application
             else config.model_endpoint_monitoring.serving_stream_args
         )
-        response = v3io_client.create_stream(
+        response = v3io_client.stream.create(
             container=container,
             path=stream_path,
             shard_count=stream_args.shard_count,

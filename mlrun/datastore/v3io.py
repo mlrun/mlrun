@@ -175,7 +175,7 @@ class V3ioStore(DataStore):
         subpath_length = len(subpath) - 1
 
         try:
-            response = v3io_client.get_container_contents(
+            response = v3io_client.container.list(
                 container=container,
                 path=subpath,
                 get_all_attributes=False,

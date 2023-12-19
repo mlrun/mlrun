@@ -31,7 +31,7 @@ import pyarrow.parquet as pq
 import pytest
 import pytz
 import requests
-from pandas.util.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal
 from storey import MapClass
 
 import mlrun
@@ -39,7 +39,11 @@ import mlrun.feature_store as fstore
 import tests.conftest
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
-from mlrun.datastore.datastore_profile import DatastoreProfileRedis
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaTarget,
+    DatastoreProfileRedis,
+    register_temporary_client_datastore_profile,
+)
 from mlrun.datastore.sources import (
     CSVSource,
     DataFrameSource,
@@ -115,7 +119,10 @@ def _generate_random_name():
     return random_name
 
 
-kafka_brokers = os.getenv("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS")
+test_environment = TestMLRunSystem._get_env_from_file()
+kafka_brokers = test_environment.get("MLRUN_SYSTEM_TESTS_KAFKA_BROKERS") or os.getenv(
+    "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"
+)
 
 kafka_topic = "kafka_integration_test"
 
@@ -174,9 +181,7 @@ class TestFeatureStore(TestMLRunSystem):
             "stocks", entities=[Entity("ticker", ValueType.STRING)]
         )
 
-        df = fstore.ingest(
-            stocks_set, stocks, infer_options=fstore.InferOptions.default()
-        )
+        df = stocks_set.ingest(stocks, infer_options=fstore.InferOptions.default())
 
         self._logger.info(f"output df:\n{df}")
         stocks_set["name"].description = "some name"
@@ -216,8 +221,7 @@ class TestFeatureStore(TestMLRunSystem):
             column="bid", operations=["max"], windows="1h", period="10m"
         )
 
-        df = fstore.preview(
-            quotes_set,
+        df = quotes_set.preview(
             quotes,
             entity_columns=["ticker"],
             options=fstore.InferOptions.default(),
@@ -326,7 +330,6 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize("with_graph", [True, False])
     def test_ingest_and_query(self, engine, entity_timestamp_column, with_graph):
-
         self._logger.debug("Creating stocks feature set")
         self._ingest_stocks_featureset()
 
@@ -416,11 +419,11 @@ class TestFeatureStore(TestMLRunSystem):
         pq_path = f"{tmpdir}/features.parquet"
         resp.to_parquet(pq_path)
         read_back_df = pd.read_parquet(pq_path)
-        assert read_back_df.equals(df_no_time)
+        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
         csv_path = f"{tmpdir}/features.csv"
         resp.to_csv(csv_path)
         read_back_df = pd.read_csv(csv_path, parse_dates=[2])
-        assert read_back_df.equals(df_no_time)
+        pd.testing.assert_frame_equal(read_back_df, df_no_time, check_dtype=False)
 
         assert isinstance(df_no_time.index, pd.core.indexes.range.RangeIndex)
         assert df_no_time.index.name is None
@@ -585,6 +588,40 @@ class TestFeatureStore(TestMLRunSystem):
             1
         ].get_path().get_absolute_path() == fset.get_target_path("nosql")
 
+    @pytest.mark.parametrize("local", [True, False])
+    def test_ingest_with_format_run_project(self, local):
+        source_path = str(self.assets_path / "testdata.csv")
+        if not local:
+            data = pd.read_csv(source_path)
+            source_path = (
+                f"v3io:///projects/{self.project_name}/test_ingest_with_format_run_project/"
+                f"{uuid.uuid4()}/source.csv"
+            )
+            data.to_csv(source_path)
+        source = CSVSource("mycsv", path=source_path)
+        feature_set = fstore.FeatureSet(
+            name=f"fs-run_project-format-local-{local}",
+            entities=[Entity("patient_id")],
+            timestamp_key="timestamp",
+        )
+        artifact_path = mlrun.mlconf.artifact_path
+        targets = [
+            CSVTarget(name="labels", path=os.path.join(artifact_path, "file.csv"))
+        ]
+        feature_set.set_targets(targets=targets, with_defaults=False)
+        fstore.ingest(
+            featureset=feature_set,
+            source=source,
+            run_config=fstore.RunConfig(local=local),
+        )
+        target_dir_path = os.path.dirname(
+            os.path.dirname(feature_set.get_target_path())
+        )
+        assert (
+            artifact_path.replace("{{run.project}}", self.project_name)
+            == target_dir_path
+        )
+
     def test_feature_set_db(self):
         name = "stocks_test"
         stocks_set = fstore.FeatureSet(name, entities=["ticker"])
@@ -650,7 +687,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         actual_stat = vector.get_stats_table().drop("hist", axis=1, errors="ignore")
         actual_stat = actual_stat.sort_index().sort_index(axis=1)
-        assert isinstance(actual_stat["top"]["booly"], bool)
+        # From pandas 2.0, top of a boolean column is string ("True" or "False"), not boolean
+        assert str(actual_stat["top"]["booly"]) == "True"
 
     def test_ingest_to_default_path(self):
         key = "patient_id"
@@ -732,7 +770,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",  # TODO: delete this deprecated parameter once it's removed
+            parse_dates="timestamp",
         )
         resp = fstore.ingest(measurements, source)
         assert resp["timestamp"].head(n=1)[0] == datetime.fromisoformat(
@@ -940,7 +978,7 @@ class TestFeatureStore(TestMLRunSystem):
         source = CSVSource(
             "mycsv",
             path=os.path.relpath(str(self.assets_path / "testdata.csv")),
-            time_field="timestamp",
+            parse_dates="timestamp",
         )
 
         expected = source.to_dataframe().set_index("patient_id")
@@ -1091,6 +1129,33 @@ class TestFeatureStore(TestMLRunSystem):
         res = fstore.get_offline_features(feature_vector)
         res = res.to_dataframe()
         assert res.shape[0] == left.shape[0]
+
+    def test_merge_with_different_timestamp_resolutions(self):
+        targets = [ParquetTarget(), NoSqlTarget()]
+        trades_microseconds = trades.copy()
+        trades_microseconds["time"] = trades_microseconds["time"].astype(
+            "datetime64[us]"
+        )
+        prepare_feature_set(
+            "left", "ticker", trades_microseconds, timestamp_key="time", targets=targets
+        )
+        prepare_feature_set(
+            "right", "ticker", quotes, timestamp_key="time", targets=targets
+        )
+
+        features = ["left.*", "right.*"]
+        feature_vector = fstore.FeatureVector(
+            "test_fv",
+            features,
+            with_indexes=True,
+        )
+        res = fstore.get_offline_features(
+            feature_vector,
+            entity_rows=trades.set_index("ticker"),
+            entity_timestamp_column="time",
+        )
+        res = res.to_dataframe()
+        assert res["time"].dtype.name == "datetime64[ns]"
 
     def test_left_not_ordered_pandas_asof_merge(self):
         left = trades.sort_values(by="price")
@@ -1259,6 +1324,8 @@ class TestFeatureStore(TestMLRunSystem):
             end_time=datetime(2021, 6, 9, 10, 30),
         )
 
+        resp_df = resp.to_dataframe()
+
         expected = pd.DataFrame(
             {
                 "time_stamp": [
@@ -1271,7 +1338,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         expected.set_index(keys="string", inplace=True)
 
-        assert expected.equals(resp.to_dataframe())
+        pd.testing.assert_frame_equal(resp_df, expected, check_dtype=False)
 
     def test_filter_offline_multiple_featuresets(self):
         data = pd.DataFrame(
@@ -1721,10 +1788,10 @@ class TestFeatureStore(TestMLRunSystem):
         assert len(resp.columns) == 2
         assert "price_m" in resp.columns
 
-        # status should contain original feature name, not its alias
+        # status should contain the alias of the feature and not its original feature name
         features_in_status = [feature.name for feature in vector.status.features]
-        assert "price_max_1h" in features_in_status
-        assert "price_m" not in features_in_status
+        assert "price_max_1h" not in features_in_status
+        assert "price_m" in features_in_status
 
         vector.save()
         stats = vector.get_stats_table()
@@ -2157,11 +2224,10 @@ class TestFeatureStore(TestMLRunSystem):
             path=path,
         )
         if target_redis.startswith("ds://"):
-            project = mlrun.get_or_create_project(self.project_name)
             profile = DatastoreProfileRedis(
                 name=target_redis[len("ds://") :], endpoint_url=mlrun.mlconf.redis.url
             )
-            project.register_datastore_profile(profile)
+            register_temporary_client_datastore_profile(profile)
 
         targets = [
             CSVTarget(),
@@ -2327,7 +2393,7 @@ class TestFeatureStore(TestMLRunSystem):
         pd.testing.assert_frame_equal(
             off_df,
             orig_df,
-            check_dtype=True,
+            check_dtype=False,
             check_index_type=True,
             check_column_type=True,
             check_like=True,
@@ -2357,9 +2423,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
-            featureset=myset, source=source, run_config=run_config
-        )
+        myset.deploy_ingestion_service(source=source, run_config=run_config)
         # push records to stream
         stream_path = f"v3io:///projects/{function.metadata.project}/FeatureStore/{fset_name}/v3ioStream"
         events_pusher = mlrun.datastore.get_stream_pusher(stream_path)
@@ -2665,7 +2729,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset,
             source=v3io_source,
             run_config=run_config,
@@ -2762,7 +2826,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         # check without impute
         vector = fstore.FeatureVector("vectori2", features)
-        with fstore.get_online_feature_service(vector) as svc:
+        with vector.get_online_feature_service() as svc:
             resp = svc.get([{"name": "cd"}])
             assert np.isnan(resp[0]["data2"])
             assert np.isnan(resp[0]["data_avg_1h"])
@@ -2829,7 +2893,7 @@ class TestFeatureStore(TestMLRunSystem):
             svc.close()
         assert resp == [{"some_data": 10, "ddata": "Paris"}]
 
-        resp = fstore.get_offline_features(vector)
+        resp = vector.get_offline_features()
         assert resp.to_dataframe().to_dict() == {
             "some_data": {0: 10, 1: 20},
             "ddata": {0: "Paris", 1: "Tel Aviv"},
@@ -2873,7 +2937,7 @@ class TestFeatureStore(TestMLRunSystem):
         run_config = fstore.RunConfig(function=function, local=False).apply(
             mlrun.mount_v3io()
         )
-        fstore.deploy_ingestion_service(
+        fstore.deploy_ingestion_service_v2(
             featureset=fset, source=source, run_config=run_config, targets=targets
         )
 
@@ -2921,7 +2985,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -2985,7 +3051,7 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_1 = result_1.to_dataframe()
 
-        assert df_res_1.equals(expected_df)
+        assert_frame_equal(df_res_1, expected_df, check_dtype=False)
 
         result_2 = fstore.get_offline_features(
             fv_name,
@@ -2996,11 +3062,10 @@ class TestFeatureStore(TestMLRunSystem):
         )
         df_res_2 = result_2.to_dataframe()
 
-        assert df_res_2.equals(expected_df)
+        assert_frame_equal(df_res_2, expected_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["pandas", "storey"])
     def test_set_event_with_spaces_or_hyphens(self, engine):
-
         lst_1 = [
             " Private",
             " Private",
@@ -3085,8 +3150,40 @@ class TestFeatureStore(TestMLRunSystem):
     @pytest.mark.skipif(
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
-    def test_kafka_target(self, kafka_consumer):
+    def test_kafka_target_datastore_profile(self, kafka_consumer):
+        profile = DatastoreProfileKafkaTarget(
+            name="dskafkatarget", bootstrap_servers=kafka_brokers, topic=kafka_topic
+        )
+        register_temporary_client_datastore_profile(profile)
 
+        stocks = pd.DataFrame(
+            {
+                "ticker": ["MSFT", "GOOG", "AAPL"],
+                "name": ["Microsoft Corporation", "Alphabet Inc", "Apple Inc"],
+                "booly": [True, False, True],
+            }
+        )
+        stocks_set = fstore.FeatureSet(
+            "stocks_test", entities=[Entity("ticker", ValueType.STRING)]
+        )
+        target = KafkaTarget(path="ds://dskafkatarget")
+        fstore.ingest(stocks_set, stocks, [target])
+
+        expected_records = [
+            b'{"ticker": "MSFT", "name": "Microsoft Corporation", "booly": true}',
+            b'{"ticker": "GOOG", "name": "Alphabet Inc", "booly": false}',
+            b'{"ticker": "AAPL", "name": "Apple Inc", "booly": true}',
+        ]
+
+        kafka_consumer.subscribe([kafka_topic])
+        for expected_record in expected_records:
+            record = next(kafka_consumer)
+            assert record.value == expected_record
+
+    @pytest.mark.skipif(
+        not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
+    )
+    def test_kafka_target(self, kafka_consumer):
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -3119,7 +3216,6 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_bad_kafka_options(self):
-
         stocks = pd.DataFrame(
             {
                 "ticker": ["MSFT", "GOOG", "AAPL"],
@@ -3183,7 +3279,7 @@ class TestFeatureStore(TestMLRunSystem):
         fstore.ingest(stocks_set, stocks, infer_options=fstore.InferOptions.default())
 
         quotes_set = fstore.FeatureSet(
-            "stock-quotes", entities=[fstore.Entity("ticker")]
+            "stock-quotes", entities=[fstore.Entity("ticker")], timestamp_key="time"
         )
 
         quotes_set.graph.to("storey.Extend", _fn="({'extra': event['bid'] * 77})").to(
@@ -3204,7 +3300,6 @@ class TestFeatureStore(TestMLRunSystem):
             quotes_set,
             quotes,
             entity_columns=["ticker"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
 
@@ -3255,15 +3350,15 @@ class TestFeatureStore(TestMLRunSystem):
             resp = service.get([{"ticker": "AAPL"}])
             assert resp == [
                 {
-                    "new_alias_for_total_ask": 0.0,
-                    "bids_min_1h": math.inf,
-                    "bids_max_1h": -math.inf,
+                    "new_alias_for_total_ask": math.nan,
+                    "bids_min_1h": math.nan,
+                    "bids_max_1h": math.nan,
                     "name": "Apple Inc",
                     "exchange": "NASDAQ",
                 }
             ]
             resp = service.get([{"ticker": "AAPL"}], as_list=True)
-            assert resp == [[0.0, math.inf, -math.inf, "Apple Inc", "NASDAQ"]]
+            assert resp == [[math.nan, math.nan, math.nan, "Apple Inc", "NASDAQ"]]
         finally:
             service.close()
 
@@ -3284,10 +3379,11 @@ class TestFeatureStore(TestMLRunSystem):
             returned_df = fstore.ingest(prediction_set, df)
 
             read_back_df = pd.read_parquet(outdir)
-            assert read_back_df.equals(returned_df)
+            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame({"number": [11, 22]}, index=["a", "b"])
-            assert read_back_df.equals(expected_df)
+            expected_df.index.name = "id"
+            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     def test_pandas_write_partitioned_parquet(self):
         prediction_set = fstore.FeatureSet(
@@ -3317,7 +3413,7 @@ class TestFeatureStore(TestMLRunSystem):
                 f"{prediction_set.get_target_path()}year=2022/month=01/day=01/hour=01/"
             )
 
-            assert read_back_df.equals(returned_df)
+            pd.testing.assert_frame_equal(read_back_df, returned_df, check_dtype=False)
 
             expected_df = pd.DataFrame(
                 {
@@ -3329,7 +3425,8 @@ class TestFeatureStore(TestMLRunSystem):
                 },
                 index=["a", "b"],
             )
-            assert read_back_df.equals(expected_df)
+            expected_df.index.name = "id"
+            pd.testing.assert_frame_equal(read_back_df, expected_df, check_dtype=False)
 
     # regression test for #2557
     @pytest.mark.parametrize(
@@ -3440,7 +3537,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3655,11 +3754,12 @@ class TestFeatureStore(TestMLRunSystem):
             expected = pd.DataFrame(
                 employees_with_department, columns=["id", "name"]
             ).set_index("id", drop=True)
-            assert_frame_equal(expected, resp.to_dataframe())
+            assert_frame_equal(expected, resp.to_dataframe(), check_dtype=False)
         else:
             assert_frame_equal(
                 pd.DataFrame(employees_with_department, columns=["name"]),
                 resp.to_dataframe(),
+                check_dtype=False,
             )
 
         with fstore.get_online_feature_service(vector) as svc:
@@ -3683,7 +3783,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3710,7 +3812,9 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by=["n"],
         )
-        assert_frame_equal(join_employee_managers, resp_2.to_dataframe())
+        assert_frame_equal(
+            join_employee_managers, resp_2.to_dataframe(), check_dtype=False
+        )
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3737,7 +3841,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="name",
         )
-        assert_frame_equal(join_employee_sets, resp_3.to_dataframe())
+        assert_frame_equal(join_employee_sets, resp_3.to_dataframe(), check_dtype=False)
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
@@ -3771,7 +3875,7 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_all, resp_4.to_dataframe())
+        assert_frame_equal(join_all, resp_4.to_dataframe(), check_dtype=False)
 
         with fstore.get_online_feature_service(vector, entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -3788,7 +3892,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3874,7 +3980,12 @@ class TestFeatureStore(TestMLRunSystem):
             engine_args=engine_args,
             order_by="n",
         )
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department,
+            resp_1.to_dataframe(),
+            check_dtype=False,
+            check_index_type=False,
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     @pytest.mark.parametrize("engine", ["local", "dask"])
@@ -3883,7 +3994,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -3977,7 +4090,9 @@ class TestFeatureStore(TestMLRunSystem):
             order_by=["n"],
         )
 
-        assert_frame_equal(join_employee_department, resp_1.to_dataframe())
+        assert_frame_equal(
+            join_employee_department, resp_1.to_dataframe(), check_dtype=False
+        )
 
     @pytest.mark.parametrize("with_indexes", [True, False])
     def test_pandas_ingest_from_parquet(self, with_indexes):
@@ -4059,7 +4174,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         # write to kv
         data_set = fstore.FeatureSet(
-            name, entities=[Entity("first_name"), Entity("last_name")]
+            name,
+            entities=[Entity("first_name"), Entity("last_name")],
+            timestamp_key="time",
         )
 
         data_set.add_aggregation(
@@ -4072,7 +4189,6 @@ class TestFeatureStore(TestMLRunSystem):
             data_set,
             source=data,
             entity_columns=["first_name", "last_name"],
-            timestamp_key="time",
             options=fstore.InferOptions.default(),
         )
         expected_df = pd.DataFrame(
@@ -4165,7 +4281,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4216,7 +4334,7 @@ class TestFeatureStore(TestMLRunSystem):
         resp = fstore.get_offline_features(vec, engine=engine, engine_args=engine_args)
         res_df = resp.to_dataframe().sort_index(axis=1)
 
-        assert_frame_equal(expected_df, res_df)
+        assert_frame_equal(expected_df, res_df, check_dtype=False)
 
     @pytest.mark.parametrize("engine", ["local", "dask"])
     @pytest.mark.parametrize(
@@ -4227,7 +4345,9 @@ class TestFeatureStore(TestMLRunSystem):
         engine_args = {}
         if engine == "dask":
             dask_cluster = mlrun.new_function(
-                "dask_tests", kind="dask", image="mlrun/ml-models"
+                "dask_tests",
+                kind="dask",
+                image="mlrun/ml-base",
             )
             dask_cluster.apply(mlrun.mount_v3io())
             dask_cluster.spec.remote = True
@@ -4368,11 +4488,12 @@ def verify_purge(fset, targets):
     for target in fset.status.targets:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert filesystem.exists(driver.get_target_path())
+                assert filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) > 0
 
     fset.purge_targets(target_names=target_names)
@@ -4380,11 +4501,12 @@ def verify_purge(fset, targets):
     for target in orig_status_tar:
         if target.name in target_names:
             driver = get_target_driver(target_spec=target, resource=fset)
-            filesystem = driver._get_store().get_filesystem(False)
+            store, target_path = driver._get_store_and_path()
+            filesystem = store.get_filesystem(False)
             if filesystem is not None:
-                assert not filesystem.exists(driver.get_target_path())
+                assert not filesystem.exists(target_path)
             else:
-                files_list = driver._get_store().listdir(driver.get_target_path())
+                files_list = store.listdir(target_path)
                 assert len(files_list) == 0
 
     fset.reload(update_spec=False)
@@ -4435,7 +4557,7 @@ def verify_ingest(
 def prepare_feature_set(
     name: str, entity: str, data: pd.DataFrame, timestamp_key=None, targets=None
 ):
-    df_source = mlrun.datastore.sources.DataFrameSource(data, entity, timestamp_key)
+    df_source = mlrun.datastore.sources.DataFrameSource(data, entity)
 
     feature_set = fstore.FeatureSet(
         name, entities=[fstore.Entity(entity)], timestamp_key=timestamp_key

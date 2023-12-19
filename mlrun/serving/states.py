@@ -29,7 +29,7 @@ from ..datastore.utils import parse_kafka_url
 from ..errors import MLRunInvalidArgumentError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
-from ..utils import get_class, get_function
+from ..utils import get_class, get_function, is_explicit_ack_supported
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
@@ -469,7 +469,6 @@ class TaskStep(BaseStep):
             class_name = class_name.__name__
         elif not class_object:
             if class_name == "$remote":
-
                 from mlrun.serving.remote import RemoteStep
 
                 class_object = RemoteStep
@@ -921,6 +920,7 @@ class FlowStep(BaseStep):
 
         if self.engine != "sync":
             self._build_async_flow()
+            self._run_async_flow()
 
     def check_and_process_graph(self, allow_empty=False):
         """validate correct graph layout and initialize the .next links"""
@@ -1075,7 +1075,10 @@ class FlowStep(BaseStep):
                         if next_state.async_object and error_step.async_object:
                             error_step.async_object.to(next_state.async_object)
 
-        self._controller = source.run()
+        self._async_flow = source
+
+    def _run_async_flow(self):
+        self._controller = self._async_flow.run()
 
     def get_queue_links(self):
         """return dict of function and queue its listening on, for building stream triggers"""
@@ -1126,7 +1129,6 @@ class FlowStep(BaseStep):
         return event
 
     def run(self, event, *args, **kwargs):
-
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None
@@ -1457,6 +1459,11 @@ def _init_async_objects(context, steps):
 
     wait_for_result = False
 
+    trigger = getattr(context, "trigger", None)
+    context.logger.debug(f"trigger is {trigger or 'unknown'}")
+    # respond is only supported for HTTP trigger
+    respond_supported = trigger is None or trigger == "http"
+
     for step in steps:
         if hasattr(step, "async_object") and step._is_local_function(context):
             if step.kind == StepKinds.queue:
@@ -1508,15 +1515,23 @@ def _init_async_objects(context, steps):
                     name=step.name,
                     context=context,
                 )
-            if not step.next and hasattr(step, "responder") and step.responder:
+            if (
+                respond_supported
+                and not step.next
+                and hasattr(step, "responder")
+                and step.responder
+            ):
                 # if responder step (return result), add Complete()
                 step.async_object.to(storey.Complete(full_event=True))
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})
+
+    explicit_ack = is_explicit_ack_supported(context) and mlrun.mlconf.is_explicit_ack()
+
     default_source = storey.SyncEmitSource(
         context=context,
-        explicit_ack=mlrun.mlconf.is_explicit_ack(),
+        explicit_ack=explicit_ack,
         **source_args,
     )
     return default_source, wait_for_result

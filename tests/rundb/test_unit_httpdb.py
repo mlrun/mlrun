@@ -48,7 +48,7 @@ def test_api_call_enum_conversion():
     )
     for dict_key in ["headers", "params"]:
         for value in db.session.request.call_args_list[1][1][dict_key].values():
-            assert type(value) == str
+            assert isinstance(value, str)
 
 
 @pytest.mark.parametrize(
@@ -56,7 +56,12 @@ def test_api_call_enum_conversion():
     [
         # feature enabled
         ("enabled", Exception, ("some-error",), 1),
-        ("enabled", ConnectionError, ("some-error",), 1),
+        (
+            "enabled",
+            ConnectionError,
+            ("some-error",),
+            1 + mlrun.config.config.http_retry_defaults.max_retries,
+        ),
         (
             "enabled",
             ConnectionError,
@@ -134,7 +139,6 @@ def test_connection_reset_causes_retries(
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-
         # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
         # wrapped with MLRunRuntimeError
         with pytest.raises((exception_type, mlrun.errors.MLRunRuntimeError)):
@@ -183,14 +187,14 @@ def test_resolve_artifacts_to_tag_objects():
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     artifact = mlrun.artifacts.base.Artifact("some-key", "some-value")
     artifact.metadata.iter = 1
-    artifact.metadata.tree = "some-uid"
+    artifact.metadata.tree = "some-tree"
 
     tag_objects = db._resolve_artifacts_to_tag_objects([artifact])
     assert len(tag_objects.identifiers) == 1
     assert tag_objects.identifiers[0].key == "some-key"
     assert tag_objects.identifiers[0].iter == 1
     assert tag_objects.identifiers[0].kind == "artifact"
-    assert tag_objects.identifiers[0].uid == "some-uid"
+    assert tag_objects.identifiers[0].producer_id == "some-tree"
 
 
 @pytest.mark.parametrize(
@@ -230,7 +234,6 @@ def test_retriable_post_requests(path, call_amount):
 
     # patch sleep to make test faster
     with unittest.mock.patch("time.sleep"):
-
         # Catching also MLRunRuntimeError as if the exception inherits from requests.RequestException, it will be
         # wrapped with MLRunRuntimeError
         with pytest.raises(ConnectionRefusedError):
@@ -267,6 +270,8 @@ def test_watch_logs_continue():
     def callback(request, context):
         nonlocal current_log_line
         offset = int(request.qs["offset"][0])
+        if current_log_line == len(log_lines):
+            return
         current_log_line += 1
 
         # when offset is 0 -> return first log line
@@ -282,7 +287,7 @@ def test_watch_logs_continue():
 
     adapter.register_uri(
         "GET",
-        f"https://wherever.com/api/v1/log/{project}/{run_uid}",
+        f"https://wherever.com/api/v1/projects/{project}/logs/{run_uid}",
         content=callback,
     )
     db.session = db._init_session()
@@ -293,6 +298,6 @@ def test_watch_logs_continue():
         # the first log line is printed with a newline
         assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
-    assert adapter.call_count == len(
-        log_lines
-    ), "should have called the adapter once per log line"
+    assert (
+        adapter.call_count == len(log_lines) + 1
+    ), "should have called the adapter once per log line, and one more time at the end of log"

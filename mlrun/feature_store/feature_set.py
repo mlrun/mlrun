@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
@@ -22,6 +22,7 @@ import mlrun
 import mlrun.common.schemas
 
 from ..config import config as mlconf
+from ..data_types import InferOptions
 from ..datastore import get_store_uri
 from ..datastore.sources import BaseSourceDriver, source_kind_to_driver
 from ..datastore.targets import (
@@ -44,11 +45,12 @@ from ..model import (
     ObjectList,
     VersionedObjMetadata,
 )
+from ..runtimes import BaseRuntime
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import BaseStep, RootFlowStep, previous_step, queue_class_names
 from ..serving.utils import StepToDict
 from ..utils import StorePrefix, logger
-from .common import verify_feature_set_permissions
+from .common import RunConfig, verify_feature_set_permissions
 
 aggregates_step = "Aggregates"
 
@@ -424,6 +426,9 @@ class FeatureSet(ModelObj):
         else:
             return mlrun.get_run_db()
 
+    def _override_run_db(self, run_db):
+        self._run_db = run_db
+
     def get_target_path(self, name=None):
         """get the url/path for an offline or specified data target"""
         target = get_offline_target(self, name=name)
@@ -432,7 +437,9 @@ class FeatureSet(ModelObj):
             target = get_online_target(self, name)
 
         if target:
-            return target.get_path().get_absolute_path()
+            return target.get_path().get_absolute_path(
+                project_name=self.metadata.project
+            )
 
     def set_targets(
         self,
@@ -706,7 +713,6 @@ class FeatureSet(ModelObj):
         step_name=None,
         after=None,
         before=None,
-        state_name=None,
         emit_policy: EmitPolicy = None,
     ):
         """add feature aggregation rule
@@ -743,7 +749,6 @@ class FeatureSet(ModelObj):
         :param name:       optional, aggregation name/prefix. Must be unique per feature set. If not passed,
                             the column will be used as name.
         :param step_name: optional, graph step name
-        :param state_name: *Deprecated* - use step_name instead
         :param after:      optional, after which graph step it runs
         :param before:     optional, comes before graph step
         :param emit_policy: optional, which emit policy to use when performing the aggregations. Use the derived
@@ -756,14 +761,6 @@ class FeatureSet(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invalid parameters provided - operations must be a list."
             )
-        if state_name:
-            warnings.warn(
-                "The 'state_name' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-                "Use 'step_name' instead.",
-                # TODO: remove in 1.5.0
-                FutureWarning,
-            )
-            step_name = step_name or state_name
 
         name = name or column
 
@@ -934,9 +931,8 @@ class FeatureSet(ModelObj):
                 )
             df = self.spec.source.to_dataframe(
                 columns=columns,
-                start_time=start_time
-                or pd.Timestamp.min,  # overwrite `source.start_time` when the source is schedule.
-                end_time=end_time or pd.Timestamp.max,
+                start_time=start_time,
+                end_time=end_time,
                 time_field=time_column,
                 **kwargs,
             )
@@ -959,22 +955,6 @@ class FeatureSet(ModelObj):
             time_column=time_column,
             **kwargs,
         )
-        if not columns:
-            drop_cols = []
-            if target.time_partitioning_granularity:
-                for col in mlrun.utils.helpers.LEGAL_TIME_UNITS:
-                    drop_cols.append(col)
-                    if col == target.time_partitioning_granularity:
-                        break
-            elif (
-                target.partitioned
-                and not target.partition_cols
-                and not target.key_bucketing_number
-            ):
-                drop_cols = mlrun.utils.helpers.DEFAULT_TIME_PARTITIONS
-            if drop_cols:
-                # if these columns aren't present for some reason, that's no reason to fail
-                result.drop(columns=drop_cols, inplace=True, errors="ignore")
         return result
 
     def save(self, tag="", versioned=False):
@@ -999,6 +979,56 @@ class FeatureSet(ModelObj):
         self.status = feature_set.status
         if update_spec:
             self.spec = feature_set.spec
+
+    def ingest(
+        self,
+        source=None,
+        targets: List[DataTargetBase] = None,
+        namespace=None,
+        return_df: bool = True,
+        infer_options: InferOptions = InferOptions.default(),
+        run_config: RunConfig = None,
+        mlrun_context=None,
+        spark_context=None,
+        overwrite=None,
+    ) -> Optional[pd.DataFrame]:
+        return mlrun.feature_store.api.ingest(
+            self,
+            source,
+            targets,
+            namespace,
+            return_df,
+            infer_options,
+            run_config,
+            mlrun_context,
+            spark_context,
+            overwrite,
+        )
+
+    def preview(
+        self,
+        source,
+        entity_columns: list = None,
+        namespace=None,
+        options: InferOptions = None,
+        verbose: bool = False,
+        sample_size: int = None,
+    ) -> pd.DataFrame:
+        return mlrun.feature_store.api.preview(
+            self, source, entity_columns, namespace, options, verbose, sample_size
+        )
+
+    def deploy_ingestion_service(
+        self,
+        source: DataSource = None,
+        targets: List[DataTargetBase] = None,
+        name: str = None,
+        run_config: RunConfig = None,
+        verbose=False,
+    ) -> Tuple[str, BaseRuntime]:
+        return mlrun.feature_store.api.deploy_ingestion_service_v2(
+            self, source, targets, name, run_config, verbose
+        )
 
 
 class SparkAggregateByKey(StepToDict):

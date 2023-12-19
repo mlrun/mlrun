@@ -18,8 +18,8 @@ from http import HTTPStatus
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.crud
 import mlrun.common.schemas
+import server.api.crud
 
 PROJECT_NAME = "my-proj1"
 WORKFLOW_NAME = "main"
@@ -31,7 +31,7 @@ def test_workflow_does_not_exist(db: Session, client: TestClient):
     wrong_name = "not-" + PROJECT_NAME
     resp = client.post(f"projects/{PROJECT_NAME}/workflows/{wrong_name}/submit")
     assert (
-        resp.json()["detail"]["reason"] == f"workflow {wrong_name} not found in project"
+        resp.json()["detail"]["reason"] == f"Workflow {wrong_name} not found in project"
     )
     assert resp.status_code == HTTPStatus.BAD_REQUEST
 
@@ -62,7 +62,7 @@ def test_get_workflow_bad_id(db: Session, client: TestClient):
         "metadata": {"name": "run-name"},
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
-    mlrun.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
+    server.api.crud.Runs().store_run(db, data, right_id, project=PROJECT_NAME)
     good_resp = client.get(
         f"projects/{PROJECT_NAME}/workflows/{WORKFLOW_NAME}/runs/{right_id}"
     ).json()
@@ -86,12 +86,15 @@ def test_get_workflow_bad_project(db: Session, client: TestClient):
         "metadata": {"name": "run-name"},
         "status": {"results": {"workflow_id": expected_workflow_id}},
     }
-    mlrun.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
+    server.api.crud.Runs().store_run(db, data, run_id, project=PROJECT_NAME)
     resp = client.get(
         f"projects/{wrong_project_name}/workflows/{WORKFLOW_NAME}/runs/{run_id}"
     )
     assert resp.status_code == HTTPStatus.NOT_FOUND
-    assert f"Run {run_id}:{wrong_project_name} not found" in resp.json()["detail"]
+    assert (
+        f"Run uid {run_id} of project {wrong_project_name} not found"
+        in resp.json()["detail"]
+    )
 
 
 def _create_proj_with_workflow(client: TestClient):

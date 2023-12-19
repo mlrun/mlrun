@@ -14,7 +14,14 @@
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
-from .artifact import ArtifactCategories, ArtifactIdentifier, ArtifactsFormat
+from .artifact import (
+    Artifact,
+    ArtifactCategories,
+    ArtifactIdentifier,
+    ArtifactMetadata,
+    ArtifactsFormat,
+    ArtifactSpec,
+)
 from .auth import (
     AuthInfo,
     AuthorizationAction,
@@ -119,6 +126,7 @@ from .model_monitoring import (
     ModelEndpointStatus,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    MonitoringFunctionNames,
     TimeSeriesTarget,
 )
 from .notification import (

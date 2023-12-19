@@ -37,8 +37,8 @@ import dotenv
 import semver
 import yaml
 
+import mlrun.common.schemas
 import mlrun.errors
-from mlrun.errors import err_to_str
 
 env_prefix = "MLRUN_"
 env_file_key = f"{env_prefix}CONFIG_FILE"
@@ -92,11 +92,25 @@ default_config = {
     "submit_timeout": "180",  # timeout when submitting a new k8s resource
     # runtimes cleanup interval in seconds
     "runtimes_cleanup_interval": "300",
-    # runs monitoring interval in seconds
-    "runs_monitoring_interval": "30",
-    # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding k8s resource
-    # by default the interval will be - (runs_monitoring_interval * 2 ), if set will override the default
-    "runs_monitoring_missing_runtime_resources_debouncing_interval": None,
+    "monitoring": {
+        "runs": {
+            # runs monitoring interval in seconds
+            "interval": "30",
+            # runs monitoring debouncing interval in seconds for run with non-terminal state without corresponding
+            # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
+            # default
+            "missing_runtime_resources_debouncing_interval": None,
+            # max number of parallel abort run jobs in runs monitoring
+            "concurrent_abort_stale_runs_workers": 10,
+            "list_runs_time_period_in_days": 7,  # days
+        }
+    },
+    "crud": {
+        "runs": {
+            # deleting runs is a heavy operation that includes deleting runtime resources, therefore we do it in chunks
+            "batch_delete_runs_chunk_size": 10,
+        }
+    },
     # the grace period (in seconds) that will be given to runtime resources (after they're in terminal state)
     # before deleting them (4 hours)
     "runtime_resources_deletion_grace_period": "14400",
@@ -113,6 +127,10 @@ default_config = {
         # But if both the server and the client set some value, we want the client to take precedence over the server.
         # By setting the default to None we are able to differentiate between the two cases.
         "generate_target_path_from_artifact_hash": None,
+        # migration from artifacts to artifacts_v2 is done in batches, and requires a state file to keep track of the
+        # migration progress.
+        "artifact_migration_batch_size": 200,
+        "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -143,12 +161,36 @@ default_config = {
     # when set (True or non empty str) it will force the mock=True in deploy_function(),
     # set to "auto" will use mock of Nuclio if not detected (no nuclio_version)
     "mock_nuclio_deployment": "",
+    # Configurations for `mlrun.track` - tracking runs and experiments from 3rd party vendors like MLFlow
+    # by running them as a MLRun function, capturing their logs, results and artifacts to mlrun.
+    "external_platform_tracking": {
+        # General enabler for the entire tracking mechanism (all tracking services):
+        "enabled": False,
+        # Specific enablement and other configurations for the supported trackers:
+        "mlflow": {
+            # Enabler of MLFlow tracking:
+            "enabled": True,
+            # Whether to match the experiment name to the runtime name (sets mlflow experiment name to mlrun
+            # context name):
+            "match_experiment_to_runtime": False,
+            # Whether to determine the mlflow run id before tracking starts, by doing so we can be positive that we
+            # are tracking the correct run, this is useful especially for when we run number of runs simultaneously
+            # in the same experiment. the default is set to false because in the process a mlflow run is created in
+            # advance, and we want to avoid creating unnecessary runs.
+            "control_run": False,
+        },
+    },
     "background_tasks": {
         # enabled / disabled
         "timeout_mode": "enabled",
         # timeout in seconds to wait for background task to be updated / finished by the worker responsible for the task
         "default_timeouts": {
-            "operations": {"migrations": "3600", "load_project": "60"},
+            "operations": {
+                "migrations": "3600",
+                "load_project": "60",
+                "run_abortion": "600",
+                "abort_grace_period": "10",
+            },
             "runtimes": {"dask": "600"},
         },
     },
@@ -170,8 +212,20 @@ default_config = {
                 },
             },
             "service_account": {"default": None},
+            "state_thresholds": {
+                "default": {
+                    "pending_scheduled": "1h",
+                    "pending_not_scheduled": "-1",  # infinite
+                    "image_pull_backoff": "1h",
+                    "running": "24h",
+                }
+            },
+        },
+        "databricks": {
+            "artifact_directory_path": "/mlrun_databricks_runtime/artifacts_dictionaries"
         },
     },
+    # TODO: function defaults should be moved to the function spec config above
     "function_defaults": {
         "image_by_kind": {
             "job": "mlrun/mlrun",
@@ -179,7 +233,7 @@ default_config = {
             "nuclio": "mlrun/mlrun",
             "remote": "mlrun/mlrun",
             "dask": "mlrun/ml-base",
-            "mpijob": "mlrun/ml-models",
+            "mpijob": "mlrun/mlrun",
         },
         # see enrich_function_preemption_spec for more info,
         # and mlrun.common.schemas.function.PreemptionModes for available options
@@ -203,13 +257,13 @@ default_config = {
                 },
                 "request_timeout": 45,  # seconds
             },
-            # see mlrun.api.utils.helpers.ensure_running_on_chief
+            # see server.api.utils.helpers.ensure_running_on_chief
             "ensure_function_running_on_chief_mode": "enabled",
         },
         "port": 8080,
         "dirpath": expanduser("~/.mlrun/db"),
+        # in production envs we recommend to use a real db (e.g. mysql)
         "dsn": "sqlite:///db/mlrun.db?check_same_thread=false",
-        "old_dsn": "",
         "debug": False,
         "user": "",
         "password": "",
@@ -315,6 +369,7 @@ default_config = {
             # this is the default interval period for pulling logs, if not specified different timeout interval
             "pull_logs_default_interval": 3,  # seconds
             "pull_logs_backoff_no_logs_default_interval": 10,  # seconds
+            "pull_logs_default_size_limit": 1024 * 1024,  # 1 MB
         },
         "authorization": {
             "mode": "none",  # one of none, opa
@@ -376,6 +431,8 @@ default_config = {
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
+            # kaniko sometimes fails to push image to registry due to network issues
+            "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -400,6 +457,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -414,14 +472,18 @@ default_config = {
         # Default http path that points to the monitoring stream nuclio function. Will be used as a stream path
         # when the user is working in CE environment and has not provided any stream path.
         "default_http_sink": "http://nuclio-{project}-model-monitoring-stream.mlrun.svc.cluster.local:8080",
+        "default_http_sink_app": "http://nuclio-{project}-{application_name}.mlrun.svc.cluster.local:8080",
         "batch_processing_function_branch": "master",
-        "parquet_batching_max_events": 10000,
-        "parquet_batching_timeout_secs": timedelta(minutes=30).total_seconds(),
+        "parquet_batching_max_events": 10_000,
+        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
         # See mlrun.model_monitoring.stores.ModelEndpointStoreType for available options
         "store_type": "v3io-nosql",
         "endpoint_store_connection": "",
     },
     "secret_stores": {
+        # Use only in testing scenarios (such as integration tests) to avoid using k8s for secrets (will use in-memory
+        # "secrets")
+        "test_mode_mock_secrets": False,
         "vault": {
             # URLs to access Vault. For example, in a local env (Minikube on Mac) these would be:
             # http://docker.for.mac.localhost:8200
@@ -453,7 +515,8 @@ default_config = {
         "data_prefixes": {
             "default": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
             "nosql": "v3io:///projects/{project}/FeatureStore/{name}/{kind}",
-            "redisnosql": "redis:///projects/{project}/FeatureStore/{name}/{kind}",
+            # "authority" is optional and generalizes [userinfo "@"] host [":" port]
+            "redisnosql": "redis://{authority}/projects/{project}/FeatureStore/{name}/{kind}",
         },
         "default_targets": "parquet,nosql",
         "default_job_image": "mlrun/mlrun",
@@ -494,6 +557,16 @@ default_config = {
         "requests": {"cpu": None, "memory": None, "gpu": None},
         "limits": {"cpu": None, "memory": None, "gpu": None},
     },
+    "default_spark_resources": {
+        "driver": {
+            "requests": {"cpu": "1", "memory": "2g"},
+            "limits": {"cpu": "2", "memory": "2g"},
+        },
+        "executor": {
+            "requests": {"cpu": "1", "memory": "5g"},
+            "limits": {"cpu": "2", "memory": "5g"},
+        },
+    },
     # preemptible node selector and tolerations to be added when running on spot nodes
     "preemptible_nodes": {
         # encoded empty dict
@@ -519,7 +592,7 @@ default_config = {
     "workflows": {
         "default_workflow_runner_name": "workflow-runner-{}",
         # Default timeout seconds for retrieving workflow id after execution:
-        "timeouts": {"local": 120, "kfp": 30},
+        "timeouts": {"local": 120, "kfp": 30, "remote": 30},
     },
     "log_collector": {
         "address": "localhost:8282",
@@ -533,6 +606,7 @@ default_config = {
         "mode": "legacy",
         # interval for collecting and sending runs which require their logs to be collected
         "periodic_start_log_interval": 10,
+        "failed_runs_grace_period": 3600,
         "verbose": True,
         # the number of workers which will be used to trigger the start log collection
         "concurrent_start_logs_workers": 15,
@@ -635,7 +709,7 @@ class Config:
                         if not skip_errors:
                             raise exc
                         print(
-                            f"Warning, failed to set config key {key}={value}, {err_to_str(exc)}"
+                            f"Warning, failed to set config key {key}={value}, {mlrun.errors.err_to_str(exc)}"
                         )
 
     def dump_yaml(self, stream=None):
@@ -782,9 +856,10 @@ class Config:
             return semver.VersionInfo.parse(f"{semver_compatible_igz_version}.0")
 
     def verify_security_context_enrichment_mode_is_allowed(self):
-        # TODO: move SecurityContextEnrichmentModes to a different package so that we could use it here without
-        #  importing mlrun.api
-        if config.function.spec.security_context.enrichment_mode == "disabled":
+        if (
+            config.function.spec.security_context.enrichment_mode
+            == mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled
+        ):
             return
 
         igz_version = self.get_parsed_igz_version()
@@ -877,9 +952,9 @@ class Config:
 
     def resolve_runs_monitoring_missing_runtime_resources_debouncing_interval(self):
         return (
-            float(self.runs_monitoring_missing_runtime_resources_debouncing_interval)
-            if self.runs_monitoring_missing_runtime_resources_debouncing_interval
-            else float(config.runs_monitoring_interval) * 2.0
+            float(self.monitoring.runs.missing_runtime_resources_debouncing_interval)
+            if self.monitoring.runs.missing_runtime_resources_debouncing_interval
+            else float(config.monitoring.runs.interval) * 2.0
         )
 
     @staticmethod
@@ -904,7 +979,7 @@ class Config:
         return resource_requirement
 
     def to_dict(self):
-        return copy.copy(self._cfg)
+        return copy.deepcopy(self._cfg)
 
     @staticmethod
     def reload():
@@ -954,9 +1029,9 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self):
+    def get_v3io_access_key(self) -> typing.Optional[str]:
         # Get v3io access key from the environment
-        return os.environ.get("V3IO_ACCESS_KEY")
+        return os.getenv("V3IO_ACCESS_KEY")
 
     def get_model_monitoring_file_target_path(
         self,
@@ -964,22 +1039,24 @@ class Config:
         kind: str = "",
         target: str = "online",
         artifact_path: str = None,
+        application_name: str = None,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
 
-        :param project:        Project name.
-        :param kind:           Kind of target path (e.g. events, log_stream, endpoints, etc.)
-        :param target:         Can be either online or offline. If the target is online, then we try to get a specific
-                               path for the provided kind. If it doesn't exist, use the default path.
-                               If the target path is offline and the offline path is already a full path in the
-                               configuration, then the result will be that path as-is. If the offline path is a
-                               relative path, then the result will be based on the project artifact path and the offline
-                               relative path. If project artifact path wasn't provided, then we use MLRun artifact
-                               path instead.
-        :param artifact_path:  Optional artifact path that will be used as a relative path. If not provided, the
-                               relative artifact path will be taken from the global MLRun artifact path.
+        :param project:         Project name.
+        :param kind:            Kind of target path (e.g. events, log_stream, endpoints, etc.)
+        :param target:          Can be either online or offline. If the target is online, then we try to get a specific
+                                path for the provided kind. If it doesn't exist, use the default path.
+                                If the target path is offline and the offline path is already a full path in the
+                                configuration, then the result will be that path as-is. If the offline path is a
+                                relative path, then the result will be based on the project artifact path and the
+                                offline relative path. If project artifact path wasn't provided, then we use MLRun
+                                artifact path instead.
+        :param artifact_path:   Optional artifact path that will be used as a relative path. If not provided, the
+                                relative artifact path will be taken from the global MLRun artifact path.
+        :param application_name:    Application name, None for model_monitoring_stream.
 
-        :return: Full configured path for the provided kind.
+        :return:                Full configured path for the provided kind.
         """
 
         if target != "offline":
@@ -989,8 +1066,22 @@ class Config:
             if store_prefix_dict.get(kind):
                 # Target exist in store prefix and has a valid string value
                 return store_prefix_dict[kind].format(project=project)
+
+            if (
+                application_name
+                != mlrun.common.schemas.model_monitoring.constants.MonitoringFunctionNames.STREAM
+            ):
+                return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.user_space.format(
+                    project=project,
+                    kind=kind
+                    if application_name is None
+                    else f"{kind}-{application_name.lower()}",
+                )
             return mlrun.mlconf.model_endpoint_monitoring.store_prefixes.default.format(
-                project=project, kind=kind
+                project=project,
+                kind=kind
+                if application_name is None
+                else f"{kind}-{application_name.lower()}",
             )
 
         # Get the current offline path from the configuration
@@ -1010,7 +1101,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_artifact_path_template(
+            return mlrun.utils.helpers.fill_project_path_template(
                 artifact_path=artifact_path + file_path, project=project
             )
 
@@ -1051,7 +1142,7 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.11.20"
+            not self.nuclio_version or self.nuclio_version >= "1.12.9"
         )
 
 

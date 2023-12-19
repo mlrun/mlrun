@@ -15,8 +15,9 @@ import collections
 import logging
 import typing
 from copy import copy
+from datetime import datetime
 from enum import Enum
-from typing import List, Union
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -36,6 +37,7 @@ from ..features import Entity, Feature
 from ..model import (
     DataSource,
     DataTarget,
+    DataTargetBase,
     ModelObj,
     ObjectDict,
     ObjectList,
@@ -44,6 +46,7 @@ from ..model import (
 from ..runtimes.function_reference import FunctionReference
 from ..serving.states import RootFlowStep
 from ..utils import StorePrefix
+from .common import RunConfig
 
 
 class FeatureVectorSpec(ModelObj):
@@ -165,6 +168,7 @@ class FeatureVectorStatus(ModelObj):
         preview=None,
         run_uri=None,
         index_keys=None,
+        timestamp_key=None,
     ):
         self._targets: ObjectList = None
         self._features: ObjectList = None
@@ -177,6 +181,7 @@ class FeatureVectorStatus(ModelObj):
         self.preview = preview or []
         self.features: List[Feature] = features or []
         self.run_uri = run_uri
+        self.timestamp_key = timestamp_key
 
     @property
     def targets(self) -> List[DataTarget]:
@@ -461,6 +466,25 @@ class _JoinStep(ModelObj):
         return [], []
 
 
+class FixedWindowType(Enum):
+    CurrentOpenWindow = 1
+    LastClosedWindow = 2
+
+    def to_qbk_fixed_window_type(self):
+        try:
+            from storey import FixedWindowType as QueryByKeyFixedWindowType
+        except ImportError as exc:
+            raise ImportError("storey not installed, use pip install storey") from exc
+        if self == FixedWindowType.LastClosedWindow:
+            return QueryByKeyFixedWindowType.LastClosedWindow
+        elif self == FixedWindowType.CurrentOpenWindow:
+            return QueryByKeyFixedWindowType.CurrentOpenWindow
+        else:
+            raise NotImplementedError(
+                f"Provided fixed window type is not supported. fixed_window_type={self}"
+            )
+
+
 class FeatureVector(ModelObj):
     """Feature vector, specify selected features, their metadata and material views"""
 
@@ -631,7 +655,7 @@ class FeatureVector(ModelObj):
             feature_set_fields:  list of field (name, alias) per featureset
         """
         processed_features = {}  # dict of name to (featureset, feature object)
-        feature_set_objects = {}
+        feature_set_objects = self.feature_set_objects or {}
         index_keys = []
         feature_set_fields = collections.defaultdict(list)
         features = copy(self.spec.features)
@@ -695,13 +719,14 @@ class FeatureVector(ModelObj):
             for key in feature_set.spec.entities.keys():
                 if key not in index_keys:
                     index_keys.append(key)
-            for name, _ in fields:
+            for name, alias in fields:
                 if name in feature_set.status.stats and update_stats:
                     self.status.stats[name] = feature_set.status.stats[name]
                 if name in feature_set.spec.features.keys():
                     feature = feature_set.spec.features[name].copy()
                     feature.origin = f"{feature_set.fullname}.{name}"
-                    self.status.features[name] = feature
+                    feature.name = alias or name
+                    self.status.features[alias or name] = feature
 
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
@@ -718,6 +743,60 @@ class FeatureVector(ModelObj):
             feature_set_relations = self.spec.relations[name]
         return feature_set_relations
 
+    def get_offline_features(
+        self,
+        entity_rows=None,
+        entity_timestamp_column: str = None,
+        target: DataTargetBase = None,
+        run_config: RunConfig = None,
+        drop_columns: List[str] = None,
+        start_time: Union[str, datetime] = None,
+        end_time: Union[str, datetime] = None,
+        with_indexes: bool = False,
+        update_stats: bool = False,
+        engine: str = None,
+        engine_args: dict = None,
+        query: str = None,
+        order_by: Union[str, List[str]] = None,
+        spark_service: str = None,
+        timestamp_for_filtering: Union[str, Dict[str, str]] = None,
+    ):
+        return mlrun.feature_store.api.get_offline_features(
+            self,
+            entity_rows,
+            entity_timestamp_column,
+            target,
+            run_config,
+            drop_columns,
+            start_time,
+            end_time,
+            with_indexes,
+            update_stats,
+            engine,
+            engine_args,
+            query,
+            order_by,
+            spark_service,
+            timestamp_for_filtering,
+        )
+
+    def get_online_feature_service(
+        self,
+        run_config: RunConfig = None,
+        fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
+        impute_policy: dict = None,
+        update_stats: bool = False,
+        entity_keys: List[str] = None,
+    ):
+        return mlrun.feature_store.api.get_online_feature_service(
+            self,
+            run_config,
+            fixed_window_type,
+            impute_policy,
+            update_stats,
+            entity_keys,
+        )
+
 
 class OnlineVectorService:
     """get_online_feature_service response object"""
@@ -727,7 +806,6 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
-        all_fs_entities: List[str] = None,
         impute_policy: dict = None,
         requested_columns: List[str] = None,
     ):
@@ -736,7 +814,6 @@ class OnlineVectorService:
 
         self._controller = graph.controller
         self._index_columns = index_columns
-        self._all_fs_entities = all_fs_entities
         self._impute_values = {}
         self._requested_columns = requested_columns
 
@@ -861,11 +938,11 @@ class OnlineVectorService:
                     for name in data.keys():
                         v = data[name]
                         if v is None or (
-                            type(v) == float and (np.isinf(v) or np.isnan(v))
+                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:
-                    for name in self._all_fs_entities:
+                    for name in self.vector.status.index_keys:
                         data.pop(name, None)
                 if not any(data.values()):
                     data = None
@@ -910,22 +987,3 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
-
-
-class FixedWindowType(Enum):
-    CurrentOpenWindow = 1
-    LastClosedWindow = 2
-
-    def to_qbk_fixed_window_type(self):
-        try:
-            from storey import FixedWindowType as QueryByKeyFixedWindowType
-        except ImportError as exc:
-            raise ImportError("storey not installed, use pip install storey") from exc
-        if self == FixedWindowType.LastClosedWindow:
-            return QueryByKeyFixedWindowType.LastClosedWindow
-        elif self == FixedWindowType.CurrentOpenWindow:
-            return QueryByKeyFixedWindowType.CurrentOpenWindow
-        else:
-            raise NotImplementedError(
-                f"Provided fixed window type is not supported. fixed_window_type={self}"
-            )

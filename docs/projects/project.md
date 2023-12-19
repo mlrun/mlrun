@@ -22,6 +22,7 @@ load-project
 run-build-deploy
 build-run-workflows-pipelines
 ../secrets
+project-setup
 ```
 
 **See also:**

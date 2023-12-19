@@ -26,19 +26,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.api.utils
-import mlrun.api.main
-import mlrun.api.rundb.sqldb
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.clients.chief
-import mlrun.api.utils.clients.iguazio
-import mlrun.api.utils.singletons.k8s
+import server.api.main
+import server.api.utils.auth.verifier
+import server.api.utils.clients.chief
+import server.api.utils.singletons.k8s
 import tests.api.api.utils
 from mlrun.common.schemas import AuthInfo
 from mlrun.config import config as mlconf
 from tests.api.conftest import K8sSecretsMock
 
-ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 DEFAULT_FUNCTION_OUTPUT_PATH = "/some/fictive/path/to/make/everybody/happy"
 
 
@@ -67,15 +64,15 @@ access_key = "12345"
 @pytest.fixture()
 def pod_create_mock():
     create_pod_orig_function = (
-        mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
+        server.api.utils.singletons.k8s.get_k8s_helper().create_pod
     )
     _get_project_secrets_raw_data_orig_function = (
-        mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
+        server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
+    server.api.utils.singletons.k8s.get_k8s_helper().create_pod = unittest.mock.Mock(
         return_value=("pod-name", "namespace")
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         unittest.mock.Mock(return_value={})
     )
 
@@ -93,25 +90,25 @@ def pod_create_mock():
     )
 
     authenticate_request_orig_function = (
-        mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request
+        server.api.utils.auth.verifier.AuthVerifier().authenticate_request
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    server.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         unittest.mock.AsyncMock(return_value=auth_info_mock)
     )
 
-    yield mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod
+    yield server.api.utils.singletons.k8s.get_k8s_helper().create_pod
 
     # Have to revert the mocks, otherwise other tests are failing
-    mlrun.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
+    server.api.utils.singletons.k8s.get_k8s_helper().create_pod = (
         create_pod_orig_function
     )
-    mlrun.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
+    server.api.utils.singletons.k8s.get_k8s_helper()._get_project_secrets_raw_data = (
         _get_project_secrets_raw_data_orig_function
     )
     mlrun.runtimes.kubejob.KubejobRuntime._update_run_state = (
         update_run_state_orig_function
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
+    server.api.utils.auth.verifier.AuthVerifier().authenticate_request = (
         authenticate_request_orig_function
     )
 
@@ -141,7 +138,7 @@ def test_submit_job_auto_mount(
 
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     expected_env_vars = {
         "V3IO_API": api_url,
         "V3IO_USERNAME": username,
@@ -173,7 +170,7 @@ def test_submit_job_ensure_function_has_auth_set(
     resp = client.post("submit_job", json=submit_job_body)
     assert resp
 
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     expected_env_vars = {
         mlrun.runtimes.constants.FunctionEnvironmentVariables.auth_session: (
             secret_name,
@@ -184,12 +181,8 @@ def test_submit_job_ensure_function_has_auth_set(
 
 
 def test_submit_schedule_job_from_hub_from_ui(
-    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock, monkeypatch
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock
 ) -> None:
-    monkeypatch.setattr(
-        mlrun.api.rundb.sqldb.SQLRunDB, "list_hub_sources", _mock_list_hub_sources
-    )
-
     project = "my-proj1"
     hub_function_uri = "hub://aggregate"
 
@@ -213,23 +206,6 @@ def test_submit_schedule_job_from_hub_from_ui(
 
     schedule = schedules[0]
     assert schedule["scheduled_object"]["task"]["spec"]["function"] != hub_function_uri
-
-
-def _mock_list_hub_sources(*args, **kwargs):
-    source = mlrun.common.schemas.IndexedHubSource(
-        index=1,
-        source=mlrun.common.schemas.HubSource(
-            metadata=mlrun.common.schemas.HubObjectMetadata(
-                name="default", description="some description"
-            ),
-            spec=mlrun.common.schemas.HubSourceSpec(
-                path=mlrun.mlconf.hub.default_source.url,
-                channel="master",
-                object_type="functions",
-            ),
-        ),
-    )
-    return [source]
 
 
 def test_submit_job_with_output_path_enrichment(
@@ -358,6 +334,36 @@ def test_submit_job_service_accounts(
     mlconf.function.spec.service_account.default = None
 
 
+def test_submit_job_no_image_ensure_default_image(
+    db: Session, client: TestClient, pod_create_mock, k8s_secrets_mock: K8sSecretsMock
+):
+    # When a function is submitted with pull_at_runtime and no image, make sure submit is successful, and the
+    # function runs with the default image. See ML-4994.
+    project_name = "proj-test"
+    git_repo = "git://github.com/some_user/some_repo.git"
+    tests.api.api.utils.create_project(
+        client, project_name, source=git_repo, load_source_on_run=True
+    )
+
+    proj_obj = mlrun.new_project(project_name, context="./", save=False)
+    proj_obj.set_source(source=git_repo, pull_at_runtime=True)
+    function = proj_obj.set_function(
+        func="code.py",
+        name="test-function",
+        handler="dummy",
+        with_repo=True,
+        kind="job",
+    )
+
+    submit_job_body = _create_submit_job_body(function, project_name)
+    resp = client.post("submit_job", json=submit_job_body)
+    assert resp
+
+    _assert_pod_image(
+        pod_create_mock, mlrun.mlconf.function_defaults.image_by_kind.to_dict()["job"]
+    )
+
+
 class _MockDataItem:
     def as_df(self):
         return pd.DataFrame({"key1": [0], "key2": [1]})
@@ -393,7 +399,7 @@ def test_submit_job_with_hyper_params_file(
 
     # Create test-specific mocks
     monkeypatch.setattr(
-        mlrun.api.utils.auth.verifier.AuthVerifier(),
+        server.api.utils.auth.verifier.AuthVerifier(),
         "authenticate_request",
         auth_info_mock,
     )
@@ -406,8 +412,11 @@ def test_submit_job_with_hyper_params_file(
     task_spec["selector"] = "max.loss"
     task_spec["strategy"] = "list"
 
+    data_item = _MockDataItem()
+    data_item.suffix = ""
+
     with unittest.mock.patch.object(
-        mlrun.MLClientCtx, "get_dataitem", return_value=_MockDataItem()
+        mlrun.MLClientCtx, "get_dataitem", return_value=data_item
     ) as data_item_mock:
         resp = client.post("submit_job", json=submit_job_body)
         assert resp.status_code == http.HTTPStatus.OK.value
@@ -440,12 +449,12 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
         image="mlrun/mlrun",
     )
 
-    handler_mock = mlrun.api.utils.clients.chief.Client()
+    handler_mock = server.api.utils.clients.chief.Client()
     handler_mock._proxy_request_to_chief = unittest.mock.AsyncMock(
         return_value=fastapi.Response()
     )
     monkeypatch.setattr(
-        mlrun.api.utils.clients.chief,
+        server.api.utils.clients.chief,
         "Client",
         lambda *args, **kwargs: handler_mock,
     )
@@ -621,3 +630,11 @@ def _assert_pod_service_account(pod_create_mock, expected_service_account):
     args, _ = pod_create_mock.call_args
     pod_spec = args[0].spec
     assert pod_spec.service_account == expected_service_account
+
+
+def _assert_pod_image(pod_create_mock, expected_image):
+    pod_create_mock.assert_called_once()
+    args, _ = pod_create_mock.call_args
+    pod_spec = args[0].spec
+    (image_name, image_tag) = pod_spec.containers[0].image.split(":")
+    assert image_name == expected_image

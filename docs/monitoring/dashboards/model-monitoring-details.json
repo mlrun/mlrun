@@ -44,6 +44,16 @@
       "title": "Model Monitoring - Overview",
       "type": "link",
       "url": "d/g0M4uh0Mz/model-monitoring-overview"
+    },
+    {
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Model Monitoring - Applications",
+      "type": "link",
+      "url": "d/gVrVlU7Iz/model-monitoring-applications"
     }
   ],
   "liveNow": false,

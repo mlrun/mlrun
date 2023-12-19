@@ -22,6 +22,7 @@ import yaml
 from deprecated import deprecated
 
 import mlrun
+import mlrun.artifacts
 import mlrun.errors
 
 from ..datastore import get_store_uri, is_store_uri, store_manager
@@ -312,11 +313,17 @@ class Artifact(ModelObj):
         """get the absolute target path for the artifact"""
         return self.spec.target_path
 
-    def get_store_url(self, with_tag=True, project=None):
+    def get_store_url(self, with_tag=True, project=None, with_tree=True):
         """get the artifact uri (store://..) with optional parameters"""
-        tag = self.metadata.tree if with_tag else None
+        tag = self.metadata.tag if with_tag else None
+        tree = self.metadata.tree if with_tree else None
+
         uri = generate_artifact_uri(
-            project or self.metadata.project, self.spec.db_key, tag, self.metadata.iter
+            project or self.metadata.project,
+            self.spec.db_key,
+            iter=self.metadata.iter,
+            tree=tree,
+            tag=tag,
         )
         return get_store_uri(self._store_prefix, uri)
 
@@ -705,7 +712,6 @@ class LinkArtifact(Artifact):
     category=FutureWarning,
 )
 class LegacyArtifact(ModelObj):
-
     _dict_fields = [
         "key",
         "kind",
@@ -923,7 +929,6 @@ class LegacyLinkArtifact(LegacyArtifact):
         link_key=None,
         link_tree=None,
     ):
-
         super().__init__(key)
         self.target_path = target_path
         self.link_iteration = link_iteration
@@ -949,10 +954,8 @@ def upload_extra_data(
     """upload extra data to the artifact store"""
     if not extra_data:
         return
-    # TODO: change to use `artifact.spec` when removing legacy artifacts
     target_path = artifact.target_path
     for key, item in extra_data.items():
-
         if isinstance(item, bytes):
             if target_path:
                 target = os.path.join(target_path, prefix + key)
@@ -970,7 +973,7 @@ def upload_extra_data(
                 os.path.join(artifact.src_path, item) if artifact.src_path else item
             )
             if not os.path.isfile(src_path):
-                raise ValueError(f"extra data file {src_path} not found")
+                raise ValueError(f"Extra data file {src_path} not found")
 
             if target_path:
                 target = os.path.join(target_path, item)
@@ -1027,7 +1030,6 @@ def generate_target_path(item: Artifact, artifact_path, producer):
 
     suffix = "/"
     if not item.is_dir:
-
         # suffixes yields a list of suffixes, e.g. ['.tar', '.gz']
         # join them together to get the full suffix, e.g. '.tar.gz'
         suffix = "".join(pathlib.Path(item.src_path or "").suffixes)
@@ -1035,3 +1037,31 @@ def generate_target_path(item: Artifact, artifact_path, producer):
             suffix = f".{item.format}"
 
     return f"{artifact_path}{item.key}{suffix}"
+
+
+def convert_legacy_artifact_to_new_format(
+    legacy_artifact: typing.Union[LegacyArtifact, dict],
+) -> Artifact:
+    """Converts a legacy artifact to a new format.
+
+    :param legacy_artifact: The legacy artifact to convert.
+    :return: The converted artifact.
+    """
+    if isinstance(legacy_artifact, LegacyArtifact):
+        legacy_artifact_dict = legacy_artifact.to_dict()
+    elif isinstance(legacy_artifact, dict):
+        legacy_artifact_dict = legacy_artifact
+    else:
+        raise TypeError(
+            f"Unsupported type '{type(legacy_artifact)}' for legacy artifact"
+        )
+
+    artifact = mlrun.artifacts.artifact_types.get(
+        legacy_artifact_dict.get("kind", "artifact"), mlrun.artifacts.Artifact
+    )()
+
+    artifact.metadata = artifact.metadata.from_dict(legacy_artifact_dict)
+    artifact.spec = artifact.spec.from_dict(legacy_artifact_dict)
+    artifact.status = artifact.status.from_dict(legacy_artifact_dict)
+
+    return artifact

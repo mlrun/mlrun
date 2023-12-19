@@ -37,27 +37,24 @@ from .utils import LogHintKey, TypeHintUtils
 
 class PackagersManager:
     """
-    A packager manager is holding the project's packagers and sending them objects to pack and data items to unpack.
+    A packager manager holds the project's packagers and sends them objects to pack, and data items to unpack.
 
-    It prepares the instructions / log hint configurations and then looks for the first packager who fits the task.
-    That's why when the manager collects its packagers, it first collects builtin MLRun packagers and only then the
-    user's custom packagers, this way user's custom packagers will have higher priority.
+    It prepares the instructions / log hint configurations and then looks for the first packager that fits the task.
     """
 
     def __init__(self, default_packager: Type[Packager] = None):
         """
         Initialize a packagers manager.
 
-        :param default_packager: The default packager should be a packager that fits to all types. It will be the first
-                                 packager in the manager's packagers (meaning it will be used at lowest priority) and it
-                                 should be found fitting when all packagers managed by the manager do not fit an
+        :param default_packager: The default packager should be a packager that fits all types. It
+                                 should fit any packagers that are managed by the manager that do not fit an
                                  object or data item. Default to ``mlrun.DefaultPackager``.
         """
         # Set the default packager:
-        self._default_packager = default_packager or DefaultPackager
+        self._default_packager = (default_packager or DefaultPackager)()
 
         # Initialize the packagers list (with the default packager in it):
-        self._packagers: List[Type[Packager]] = []
+        self._packagers: List[Packager] = []
 
         # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
         # data if noted by the user using the log hint key "extra_data")
@@ -83,15 +80,15 @@ class PackagersManager:
         return self._results
 
     def collect_packagers(
-        self, packagers: List[Union[Type, str]], default_priority: int = 5
+        self, packagers: List[Union[Type[Packager], str]], default_priority: int = 5
     ):
         """
-        Collect the provided packagers. Packagers passed as module paths will be imported and validated to be of type
-        `Packager`. If needed to import all packagers from a module, use the module path with a "*" at the end (packager
-        with a name that start with a '_' won't be collected).
+        Collect the provided packagers. Packagers passed as module paths are imported and validated to be of type
+        `Packager`. If it's needed to import all packagers from a module, use the module path with an asterisk
+        "*" at the end. (A packager with a name that starts with an underscore '_' is not collected.)
 
-        Notice: Only packagers that are declared in the module will be collected (packagers imported in the module scope
-        won't be collected). For example::
+        Notice: Only packagers that are declared in the module are collected (packagers imported in the module scope
+        aren't collected). For example::
 
             from mlrun import Packager
             from x import XPackager
@@ -99,10 +96,10 @@ class PackagersManager:
             class YPackager(Packager):
                 pass
 
-        Only "YPackager" will be collected as it is declared in the module, but not "XPackager" which is only imported.
+        Only "YPackager" is collected since it is declared in the module, but not "XPackager", which is only imported.
 
         :param packagers:        List of packagers to add.
-        :param default_priority:
+        :param default_priority: The default priority for the packagers that don't have a set priority (equals to ...).
 
         :raise MLRunPackageCollectingError: In case the packager could not be collected.
         """
@@ -158,9 +155,11 @@ class PackagersManager:
                 raise MLRunPackageCollectionError(
                     f"The packager '{packager.__name__}' could not be collected as it is not a `mlrun.Packager`."
                 )
+            # Initialize the packager class:
+            packager = packager()
             # Set default priority in case it is not set in the packager's class:
-            if packager.PRIORITY is ...:
-                packager.PRIORITY = default_priority
+            if packager.priority is ...:
+                packager.priority = default_priority
             # Collect the packager (putting him first in the list for highest priority:
             self._packagers.insert(0, packager)
             # For debugging, we'll print the collected packager:
@@ -176,16 +175,16 @@ class PackagersManager:
     ) -> Union[Artifact, dict, None, List[Union[Artifact, dict, None]]]:
         """
         Pack an object using one of the manager's packagers. A `dict` ("**") or `list` ("*") unpacking syntax in the
-        log hint key will pack the objects within them in separate packages.
+        log hint key packs the objects within them in separate packages.
 
         :param obj:      The object to pack as an artifact.
         :param log_hint: The log hint to use.
 
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object. If
                  a prefix of dict or list unpacking was provided in the log hint key, a list of all the arbitrary number
-                 of packaged objects will be returned.
+                 of packaged objects is returned.
 
-        :raise MLRunInvalidArgumentError: If the key in the log hint is noting to log an arbitrary amount of artifacts
+        :raise MLRunInvalidArgumentError: If the key in the log hint instructs to log an arbitrary number of artifacts
                                           but the object type does not match the "*" or "**" used in the key.
         :raise MLRunPackagePackingError:  If there was an error during the packing.
         """
@@ -247,7 +246,7 @@ class PackagersManager:
 
     def unpack(self, data_item: DataItem, type_hint: Type) -> Any:
         """
-        Unpack an object using one of the manager's packagers. The data item can be unpacked in two options:
+        Unpack an object using one of the manager's packagers. The data item can be unpacked in two ways:
 
         * As a package: If the data item contains a package and the type hint provided is equal to the object
           type noted in the package. Or, if it's a package and a type hint was not provided.
@@ -256,8 +255,8 @@ class PackagersManager:
 
         If the type hint is a `mlrun.DataItem` then it won't be unpacked.
 
-        Notice: It is not recommended to use a different packager than the one who originally packed the object to
-        unpack it. A warning will be shown in that case.
+        Notice: It is not recommended to use a different packager than the one that originally packed the object to
+        unpack it. A warning displays in that case.
 
         :param data_item: The data item holding the package.
         :param type_hint: The type hint to parse the data item as.
@@ -311,11 +310,11 @@ class PackagersManager:
         additional_results: dict,
     ):
         """
-        Link packages between each other according to the provided extra data and metrics spec keys. A future link is
-        marked with ellipses (...). If no link was found, None will be used and a warning will get printed.
+        Link packages to each other according to the provided extra data and metrics spec keys. A future link is
+        marked with ellipses (...). If no link is found, None is used and a warning is printed.
 
-        :param additional_artifacts: Additional artifacts to link (should come from a `mlrun.MLClientCtx`).
-        :param additional_results:   Additional results to link (should come from a `mlrun.MLClientCtx`).
+        :param additional_artifacts: Additional artifacts to link (should come from an `mlrun.MLClientCtx`).
+        :param additional_results:   Additional results to link (should come from an `mlrun.MLClientCtx`).
         """
         # Join the manager's artifacts and results with the additional ones to look for a link in all of them:
         joined_artifacts = [*additional_artifacts, *self.artifacts]
@@ -349,17 +348,18 @@ class PackagersManager:
 
     def clear_packagers_outputs(self):
         """
-        Clear the outputs of all packagers. This method should be called at the end of the run after logging all
-        artifacts as some will require uploading the files that will be deleted in this method.
+        Clear the outputs of all packagers. This method should be called at the end of the run, only after logging all
+        artifacts, to ensure that files that require uploading have already been uploaded.
         """
         for packager in self._get_packagers_with_default_packager():
-            for path in packager.get_future_clearing_path_list():
+            for path in packager.future_clearing_path_list:
                 if not os.path.exists(path):
                     continue
                 if os.path.isdir(path):
                     shutil.rmtree(path)
                 else:
                     os.remove(path)
+            packager.future_clearing_path_list.clear()
 
     class _InstructionsNotesKey:
         """
@@ -371,7 +371,7 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
-    def _get_packagers_with_default_packager(self) -> List[Type[Packager]]:
+    def _get_packagers_with_default_packager(self) -> List[Packager]:
         """
         Get the full list of packagers - the collected packagers and the default packager (located at last place in the
         list - the lowest priority).
@@ -380,7 +380,7 @@ class PackagersManager:
         """
         return [*self._packagers, self._default_packager]
 
-    def _get_packager_by_name(self, name: str) -> Union[Type[Packager], None]:
+    def _get_packager_by_name(self, name: str) -> Union[Packager, None]:
         """
         Look for a packager with the given name and return it.
 
@@ -392,7 +392,7 @@ class PackagersManager:
         """
         # Look for a packager by exact name:
         for packager in self._get_packagers_with_default_packager():
-            if packager.__name__ == name:
+            if packager.__class__.__name__ == name:
                 return packager
 
         # No packager was found:
@@ -403,20 +403,24 @@ class PackagersManager:
         self,
         obj: Any,
         artifact_type: str = None,
-    ) -> Union[Type[Packager], None]:
+        configurations: dict = None,
+    ) -> Union[Packager, None]:
         """
         Look for a packager that can pack the provided object as the provided artifact type.
 
         If a packager was not found None will be returned.
 
-        :param obj:           The object to pack.
-        :param artifact_type: The artifact type the packager to get should pack / unpack as.
+        :param obj:            The object to pack.
+        :param artifact_type:  The artifact type the packager to get should pack / unpack as.
+        :param configurations: The log hint configurations passed by the user.
 
         :return: The found packager or None if it wasn't found.
         """
         # Look for a packager for the combination of object nad artifact type:
         for packager in self._packagers:
-            if packager.is_packable(obj=obj, artifact_type=artifact_type):
+            if packager.is_packable(
+                obj=obj, artifact_type=artifact_type, configurations=configurations
+            ):
                 return packager
 
         # No packager was found:
@@ -427,7 +431,7 @@ class PackagersManager:
         data_item: Any,
         type_hint: type,
         artifact_type: str = None,
-    ) -> Union[Type[Packager], None]:
+    ) -> Union[Packager, None]:
         """
         Look for a packager that can unpack the data item of the given type hint as the provided artifact type.
 
@@ -458,16 +462,19 @@ class PackagersManager:
 
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
         """
-        # Get the artifact type (if user didn't pass any, the packager will use its configured default):
+        # Get the artifact type (if user didn't pass any, the packager will use its configured default) and key:
         artifact_type = log_hint.pop(LogHintKey.ARTIFACT_TYPE, None)
+        key = log_hint.pop(LogHintKey.KEY, None)
 
         # Get a packager:
-        packager = self._get_packager_for_packing(obj=obj, artifact_type=artifact_type)
+        packager = self._get_packager_for_packing(
+            obj=obj, artifact_type=artifact_type, configurations=log_hint
+        )
         if packager is None:
-            if self._default_packager.is_packable(obj=obj, artifact_type=artifact_type):
-                logger.info(
-                    f"Using the default packager to pack the object '{log_hint[LogHintKey.KEY]}'"
-                )
+            if self._default_packager.is_packable(
+                obj=obj, artifact_type=artifact_type, configurations=log_hint
+            ):
+                logger.info(f"Using the default packager to pack the object '{key}'")
                 packager = self._default_packager
             else:
                 raise MLRunPackagePackingError(
@@ -477,7 +484,7 @@ class PackagersManager:
 
         # Use the packager to pack the object:
         packed_object = packager.pack(
-            obj=obj, artifact_type=artifact_type, configurations=log_hint
+            obj=obj, key=key, artifact_type=artifact_type, configurations=log_hint
         )
 
         # If the packed object is a result, return it as is:
@@ -489,9 +496,9 @@ class PackagersManager:
         # It is an artifact, continue with the packaging:
         artifact, instructions = packed_object
 
-        # Prepare the manager's unpackagingg intructions notes:
+        # Prepare the manager's unpackaging instructions:
         unpackaging_instructions = {
-            self._InstructionsNotesKey.PACKAGER_NAME: packager.__name__,
+            self._InstructionsNotesKey.PACKAGER_NAME: packager.__class__.__name__,
             self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
             self._InstructionsNotesKey.ARTIFACT_TYPE: (
                 artifact_type
@@ -630,9 +637,9 @@ class PackagersManager:
 
     def _unpack_data_item(self, data_item: DataItem, type_hint: Type):
         """
-        Unpack a data item to the desired hinted type. In case the type hint includes multiple types (like in case of
-        `typing.Union`), the manager will go over the types, reduce them while looking for the first packager that
-        successfully unpack the data item.
+        Unpack a data item to the desired hinted type. In case the type hint includes multiple types (as in the case of
+        `typing.Union`), the manager goes over the types, and reduces them while looking for the first packager that
+        can successfully unpack the data item.
 
         :param data_item: The data item to unpack.
         :param type_hint: The type hint to unpack it to.
@@ -642,7 +649,7 @@ class PackagersManager:
         :raise MLRunPackageUnpackingError: If there is no packager that supports the provided type hint.
         """
         # Prepare a list of a packager and exception string for all the failures in case there was no fitting packager:
-        found_packagers: List[Tuple[Type[Packager], str]] = []
+        found_packagers: List[Tuple[Packager, str]] = []
 
         # Try to unpack as one of the possible types in the type hint:
         possible_type_hints = {type_hint}
@@ -734,7 +741,7 @@ class PackagersManager:
     @staticmethod
     def _split_module_path(module_path: str) -> Tuple[str, str]:
         """
-        Split a module path to the module name and the class name. Notice inner classes are not supported.
+        Split a module path to the module name and the class name. Inner classes are not supported.
 
         :param module_path: The module path to split.
 
@@ -751,10 +758,10 @@ class PackagersManager:
     @staticmethod
     def _get_type_name(typ: Type) -> str:
         """
-        Get an object type full name - its module path. For example, the name of a pandas data frame will be "DataFrame"
+        Get an object type full name - its module path. For example, the name of a pandas data frame is "DataFrame"
         but its full name (module path) is: "pandas.core.frame.DataFrame".
 
-        Notice: Type hints are not an object type. They are as their name suggests, only hints. As such, typing hints
+        Notice: Type hints are not an object type. They are, as their name suggests, only hints. As such, typing hints
         should not be given to this function (they do not have '__name__' and '__qualname__' attributes for example).
 
         :param typ: The object's type to get its full name.

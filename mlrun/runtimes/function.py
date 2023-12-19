@@ -63,7 +63,6 @@ def validate_nuclio_version_compatibility(*min_versions):
     try:
         parsed_current_version = semver.VersionInfo.parse(mlconf.nuclio_version)
     except ValueError:
-
         # only log when version is set but invalid
         if mlconf.nuclio_version:
             logger.warning(
@@ -120,6 +119,7 @@ class NuclioSpec(KubeResourceSpec):
         "base_image_pull",
         "service_type",
         "add_templated_ingress_host_mode",
+        "disable_default_http_trigger",
     ]
 
     def __init__(
@@ -162,8 +162,9 @@ class NuclioSpec(KubeResourceSpec):
         service_type=None,
         add_templated_ingress_host_mode=None,
         clone_target_dir=None,
+        state_thresholds=None,
+        disable_default_http_trigger=None,
     ):
-
         super().__init__(
             command=command,
             args=args,
@@ -208,6 +209,8 @@ class NuclioSpec(KubeResourceSpec):
 
         self.min_replicas = min_replicas or 1
         self.max_replicas = max_replicas or 4
+
+        self.disable_default_http_trigger = disable_default_http_trigger
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
@@ -300,9 +303,6 @@ class RemoteRuntime(KubeResource):
             self.spec.base_spec["metadata"]["annotations"][key] = str(value)
 
         return self
-
-    def add_volume(self, local, remote, name="fs", access_key="", user=""):
-        raise Exception("deprecated, use .apply(mount_v3io())")
 
     def add_trigger(self, name, spec):
         """add a nuclio trigger object/dict
@@ -415,6 +415,11 @@ class RemoteRuntime(KubeResource):
         :param extra_attributes: key/value dict of extra nuclio trigger attributes
         :return: function object (self)
         """
+        if self.disable_default_http_trigger:
+            logger.warning(
+                "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
+            )
+
         annotations = annotations or {}
         if worker_timeout:
             gateway_timeout = gateway_timeout or (worker_timeout + 60)
@@ -521,14 +526,6 @@ class RemoteRuntime(KubeResource):
         self.spec.min_replicas = shards
         self.spec.max_replicas = shards
 
-    def add_secrets_config_to_spec(self):
-        # For nuclio functions, we just add the project secrets as env variables. Since there's no MLRun code
-        # to decode the secrets and special env variable names in the function, we just use the same env variable as
-        # the key name (encode_key_names=False)
-        self._add_k8s_secrets_to_spec(
-            None, project=self.metadata.project, encode_key_names=False
-        )
-
     def deploy(
         self,
         dashboard="",
@@ -537,6 +534,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         auth_info: AuthInfo = None,
         builder_env: dict = None,
+        force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -546,8 +544,16 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param auth_info:  service AuthInfo
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
+        :param force_build: set True for force building the image
         """
         # todo: verify that the function name is normalized
+
+        old_http_session = getattr(self, "_http_session", None)
+        if old_http_session:
+            # ensure existing http session is terminated prior to (re)deploy to ensure that a connection to an old
+            # replica will not be reused
+            old_http_session.close()
+            self._http_session = None
 
         verbose = verbose or self.verbose
         if verbose:
@@ -569,7 +575,9 @@ class RemoteRuntime(KubeResource):
         self._fill_credentials()
         db = self._get_db()
         logger.info("Starting remote function deploy")
-        data = db.remote_builder(self, False, builder_env=builder_env)
+        data = db.remote_builder(
+            self, False, builder_env=builder_env, force_build=force_build
+        )
         self.status = data["data"].get("status")
         self._update_credentials_from_remote_build(data["data"])
 
@@ -679,6 +687,33 @@ class RemoteRuntime(KubeResource):
         """
         self.spec.service_type = service_type
         self.spec.add_templated_ingress_host_mode = add_templated_ingress_host_mode
+
+    def set_state_thresholds(
+        self,
+        state_thresholds: typing.Dict[str, int],
+        patch: bool = True,
+    ):
+        raise NotImplementedError(
+            "State thresholds do not apply for nuclio as it has its own function pods healthiness monitoring"
+        )
+
+    @min_nuclio_versions("1.12.8")
+    def disable_default_http_trigger(
+        self,
+    ):
+        """
+        Disables nuclio's default http trigger creation
+        """
+        self.spec.disable_default_http_trigger = True
+
+    @min_nuclio_versions("1.12.8")
+    def enable_default_http_trigger(
+        self,
+    ):
+        """
+        Enables nuclio's default http trigger creation
+        """
+        self.spec.disable_default_http_trigger = False
 
     def _get_state(
         self,
@@ -858,6 +893,10 @@ class RemoteRuntime(KubeResource):
         if not method:
             method = "POST" if body else "GET"
 
+        # if no path was provided, use the default handler to be invoked
+        if not path and self.spec.default_handler:
+            path = self.spec.default_handler
+
         if (self._mock_server and mock is None) or mlconf.use_nuclio_mock(mock):
             # if we deployed mock server or in simulated nuclio environment use mock
             if not self._mock_server:
@@ -869,11 +908,22 @@ class RemoteRuntime(KubeResource):
 
         if "://" not in path:
             if not self.status.address:
-                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
-                if state != "ready" or not self.status.address:
-                    raise ValueError(
-                        "no function address or not ready, first run .deploy()"
+                # here we check that if default http trigger is disabled, function contains a custom http trigger
+                # Otherwise, the function is not invokable, so we raise an error
+                if (
+                    not self._trigger_of_kind_exists(kind="http")
+                    and self.spec.disable_default_http_trigger
+                ):
+                    raise mlrun.errors.MLRunPreconditionFailedError(
+                        "Default http trigger creation is disabled and there is no any other custom http trigger, "
+                        "so function can not be invoked via http. Either enable default http trigger creation or create"
+                        "custom http trigger"
                     )
+                state, _, _ = self._get_state(dashboard, auth_info=auth_info)
+                if state not in ["ready", "scaledToZero"]:
+                    logger.warning(f"Function is in the {state} state")
+                if not self.status.address:
+                    raise ValueError("no function address first run .deploy()")
 
             path = self._resolve_invocation_url(path, force_external_address)
 
@@ -894,7 +944,11 @@ class RemoteRuntime(KubeResource):
                 http_client_kwargs["json"] = body
         try:
             logger.info("invoking function", method=method, path=path)
-            resp = requests.request(method, path, headers=headers, **http_client_kwargs)
+            if not getattr(self, "_http_session", None):
+                self._http_session = requests.Session()
+            resp = self._http_session.request(
+                method, path, headers=headers, **http_client_kwargs
+            )
         except OSError as err:
             raise OSError(
                 f"error: cannot run function at url {path}, {err_to_str(err)}"
@@ -906,6 +960,17 @@ class RemoteRuntime(KubeResource):
         if resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
+
+    def _trigger_of_kind_exists(self, kind: str) -> bool:
+        if not self.spec.config:
+            return False
+
+        for name, spec in self.spec.config.items():
+            if isinstance(spec, dict):
+                if spec.get("kind") == kind:
+                    return True
+
+        return False
 
     def _pre_run_validations(self):
         if self.spec.function_kind != "mlrun":
@@ -1038,7 +1103,6 @@ class RemoteRuntime(KubeResource):
         return results
 
     def _resolve_invocation_url(self, path, force_external_address):
-
         if not path.startswith("/") and path != "":
             path = f"/{path}"
 
@@ -1151,12 +1215,6 @@ async def submit(session, url, run, semaphore, headers=None):
 
 def fake_nuclio_context(body, headers=None):
     return nuclio.Context(), nuclio.Event(body=body, headers=headers)
-
-
-def _fullname(project, name):
-    if project:
-        return f"{project}-{name}"
-    return name
 
 
 def get_fullname(name, project, tag):

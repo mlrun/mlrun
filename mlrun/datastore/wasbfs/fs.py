@@ -18,7 +18,6 @@ from fsspec import AbstractFileSystem
 
 
 class WasbFS(AbstractFileSystem):
-
     protocol = "wasb"
 
     def __init__(

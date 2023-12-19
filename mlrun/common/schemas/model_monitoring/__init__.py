@@ -15,6 +15,7 @@
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
 
 from .constants import (
+    ControllerPolicy,
     DriftStatus,
     EndpointType,
     EndpointUID,
@@ -23,8 +24,10 @@ from .constants import (
     EventLiveStats,
     FileTargetKind,
     FunctionURI,
+    ModelEndpointTarget,
     ModelMonitoringMode,
     ModelMonitoringStoreKinds,
+    MonitoringFunctionNames,
     ProjectSecretKeys,
     PrometheusMetric,
     TimeSeriesTarget,

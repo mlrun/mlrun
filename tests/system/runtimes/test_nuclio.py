@@ -332,7 +332,6 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
         not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
     )
     def test_kafka_source_with_avro(self, kafka_fixture):
-
         row_divide = 3
         stocks_df = pd.DataFrame(
             {
@@ -378,10 +377,13 @@ class TestNuclioRuntimeWithKafka(tests.system.base.TestMLRunSystem):
             filename=str(self.assets_path / "map_avro.py"),
         )
 
+        func.spec.min_replicas = 1
+        func.spec.max_replicas = 1
+
         run_config = fstore.RunConfig(local=False, function=func).apply(
             mlrun.auto_mount()
         )
-        stocks_set_endpoint = fstore.deploy_ingestion_service(
+        stocks_set_endpoint, _ = fstore.deploy_ingestion_service_v2(
             featureset=stocks_set,
             source=kafka_source,
             targets=[target],

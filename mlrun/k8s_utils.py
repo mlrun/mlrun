@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import re
 import typing
 
 import kubernetes.client
@@ -59,9 +60,9 @@ def generate_preemptible_node_selector_requirements(
     return match_expressions
 
 
-def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
-    kubernetes.client.V1NodeSelectorTerm
-]:
+def generate_preemptible_nodes_anti_affinity_terms() -> (
+    typing.List[kubernetes.client.V1NodeSelectorTerm]
+):
     """
     Generate node selector term containing anti-affinity expressions based on the
     pre-configured node selector of the preemptible nodes.
@@ -81,9 +82,9 @@ def generate_preemptible_nodes_anti_affinity_terms() -> typing.List[
     ]
 
 
-def generate_preemptible_nodes_affinity_terms() -> typing.List[
-    kubernetes.client.V1NodeSelectorTerm
-]:
+def generate_preemptible_nodes_affinity_terms() -> (
+    typing.List[kubernetes.client.V1NodeSelectorTerm]
+):
     """
     Use for purpose of scheduling on node having at least one of the node selectors.
     When specifying multiple nodeSelectorTerms associated with nodeAffinity types,
@@ -119,3 +120,14 @@ def generate_preemptible_tolerations() -> typing.List[kubernetes.client.V1Tolera
             )
         )
     return toleration_objects
+
+
+def sanitize_label_value(value: str) -> str:
+    """
+    Kubernetes label values must be sanitized before they're sent to the API
+    Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+
+    :param value: arbitrary string that needs to sanitized for usage on k8s labels
+    :return:      string fully compliant with k8s label value expectations
+    """
+    return re.sub(r"([^a-zA-Z0-9_.-]|^[^a-zA-Z0-9]|[^a-zA-Z0-9]$)", "-", value[:63])

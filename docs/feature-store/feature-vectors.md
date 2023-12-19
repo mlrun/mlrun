@@ -8,20 +8,26 @@ Feature vectors are used as an input for models, allowing you to define the feat
 The feature vector handles all the merging logic for you using an `asof merge` type merge that accounts for both the time and the entity.
 It ensures that all the latest relevant data is fetched, without concerns about "seeing the future" or other types of common time-related errors.
 
+After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply 
+as input to a machine learning model.
+
 **In this section**
 
 - [Creating a feature vector](#creating-a-feature-vector)
-- [Using a feature vector](#using-a-feature-vector)
+- [Using an offline feature vector](#using-an-offline-feature-vector)
+- [Using an online feature vector](#using-an-online-feature-vector)
+
     
 ## Creating a feature vector
 
-The feature vector object holds the following information:
+The feature vector object minimally holds the following information:
 
 - Name &mdash; the feature vector's name as will be later addressed in the store reference `store://feature_vectors/<project>/<feature-vector-name>` and the UI (after saving the vector).
 - Description &mdash; a string description of the feature vector.
 - Features &mdash; a list of features that comprise the feature vector.  
 The feature list is defined by specifying the `<feature-set>.<feature-name>` for specific features or `<feature-set>.*` for all of the feature set's features.
-- Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification.
+- Label feature &mdash; the feature that is the label for this specific feature vector, as a `<feature-set>.<feature-name>` string specification. In classification tasks, the `label_feature` 
+may contain the expected label of each record, and be compared with the model output when training or evaluating a model.
 
 Example of creating a feature vector:
 
@@ -57,11 +63,41 @@ You can also view some metadata about the feature vector, including all the feat
 
 <img src="../_static/images/feature-store-vector-screen.png" alt="feature-store-vector-screen" width="800"/>
 
-## Using a feature vector
+### Feature vectors with different entities and complex joins
 
-After a feature vector is saved, it can be used to create both offline (static) datasets and online (real-time) instances to supply as input to a machine learning model.  
+```{admonition} Note
+Tech Preview
+```
 
-### Using an offline feature vector
+You can define a feature vector that joins between different feature sets not using the same entity and with a "complex" join 
+types. The join types can differ for different feature set combinations. This configuration supports online and offline 
+feature vectors. 
+
+You can define relations within a feature set in two ways:
+- Explicitly defining relations within the feature set itself.
+- Specifying relations in the context of a feature vector by passing them through the `relations` parameter ({py:class}`~mlrun.feature_store.FeatureVector`). 
+    This is a dictionary specifying the relations between feature 
+    sets in the feature vector. The keys of the dictionary are feature set names, and the values are both dictionaries whose keys 
+    represent column names (of the feature set), and they represent the target entities to join with. The `relations` take
+    precedence over the relations that were specified on the feature sets themselves. If a specific feature set is not mentioned 
+    as a key in `relations`, the function falls back to using the default relations defined in the feature set.
+
+You can define a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`), which defines the join type. 
+You can use the graph to define complex joins and pass on the relations to the vector.  Currently, only one branch (DAG) is supported. 
+This means that operations involving brackets are not available.
+    
+When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
+implements the "as_of" join.
+
+   Example, assuming three feature sets: [fs1, fs2. fs3]:
+```
+join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
+vector = FeatureVector("myvector", features, 
+                        join_graph=join_graph, 
+                        relation={fs_1:{'col_1':'entity_2'}}) # the relation between fs1-> fs3 / fs2-> fs3 is already defined or they have                           the same entity 
+```
+
+## Using an offline feature vector
 
 Use the feature store's {py:meth}`~mlrun.feature_store.get_offline_features` function to produce a `dataset` from the feature vector.
 It creates the dataset (asynchronously if possible), saves it to the requested target, and returns an {py:class}`~mlrun.feature_store.OfflineVectorResponse`.  
@@ -69,30 +105,7 @@ Due to the async nature of this action, the response object contains an `fv_resp
 
 `get_offline_features` supports Storey, Dask, Spark Operator, and Remote Spark.
 
-`get_offline_features` expects to receive:
-
-- **feature_vector** &mdash; A feature vector store reference or object.
-- **entity_rows** &mdash; (optional) A dataframe that the features will be joined to. 
-Defaults to the first feature set defined in the features vector's features list, and acts as the base for the vector's joins.
-- **entity_timestamp_column** &mdash; (optional) A specific timestamp column (from the defined features) to act as the base timestamp column. 
-Defaults to the base feature set's timestamp entity.
-- **target** &mdash; A Feature Store target to write the results to.  
-Defaults to return as a return value to the caller.
-- **run_config** &mdash; (optional) A function or a {py:class}`~mlrun.feature_store.RunConfig` to run the feature vector creation process in a remote function.
-- **drop_columns** &mdash; (optional) A list of columns to drop from the resulting feature vector.
-- **start_time** &mdash; (optional) Datetime, low limit of time needed to be filtered. 
-- **end_time** &mdash; (optional) Datetime, high limit of time needed to be filtered. 
-- **with_indexes**    return vector with index columns and timestamp_key from the feature sets. Default is False.
-- **update_stats** &mdash; update features statistics from the requested feature sets on the vector. Default is False.
-- **engine** &mdash; processing engine kind ("local", "dask", or "spark")
-- **engine_args** &mdash; kwargs for the processing engine.
-- **query** &mdash; The query string used to filter rows on the output.
-- **spark_service** &mdash; Name of the spark service to be used (when using a remote-spark runtime)
-- **order_by** &mdash; Name or list of names to order by. The name or the names in the list can be the feature name or the alias of the 
-feature you pass in the feature list.
-- **timestamp_for_filtering** &mdash; (optional) Used to configure the columns that a time-based filter filters by. By default, the time-based filter is executed using the timestamp_key of each feature set.
-Specifying the `timestamp_for_filtering` param overwrites this default: if it's str it specifies the timestamp column to use in all the feature sets. If it's a dictionary ({<feature set name>: <timestamp column name>, …}) it indicates the timestamp column name 
-for each feature set. The time filtering is performed on each feature set (using `start_time` and `end_time`) before the merge process.
+See {py:meth}`~mlrun.feature_store.get_offline_features` for the list of parameters it expects to receive,
 
 You can create a feature vector that comprises different feature sets, while joining the data based on specific fields and not the entity. 
 For example:
@@ -138,7 +151,7 @@ See a full example of using the offline feature vector to create an ML model in 
 You can use `get_offline_features` for a feature vector whose data is not ingested. See 
 [Create a feature set without ingesting its data](./feature-sets.html#create-a-feature-set-without-ingesting-its-data).
 
-#### Using joins in an offline feature vector
+### Using joins in an offline feature vector
 
 You can create a join for:
 - Feature sets that have a common entity
@@ -214,8 +227,9 @@ resp = fs.get_offline_features(
     with_indexes=False,
 )
 ```
+    
 
-### Using an online feature vector
+## Using an online feature vector
 
 The online feature vector provides real-time feature vectors to the model using the latest data available.
 
@@ -257,6 +271,17 @@ svc.get(entities)
 The `entities` can be a list of dictionaries as shown in the example, or a list of lists where the values in the internal 
 list correspond to the entity values (e.g. `entities = [["Joe"], ["Mike"]]`). The `.get()` method returns a dict by default. 
 If you want to return an ordered list of values, set the `as_list` parameter to `True`. The list input is required by many ML 
-frameworks and this eliminates additional glue logic.  
+frameworks and this eliminates additional glue logic. 
+    
+When defining a graph using the `join_graph` parameter ({py:meth}`~mlrun.feature_store.FeatureVector`),
+the `get_online_feature_service` uses QueryByKey on the kv store: all join types in the graph turn 
+into left joins. Consequently, the function performs joins using the latest events for each required 
+entity within each feature set.
+
+You can use the parameter `entity_keys` to join features by relations, instead of common entities. You define the relations, 
+and the starting place. 
+See {py:meth}`~mlrun.feature_store.get_online_feature_service`.
 
 See a full example of using the online feature service inside a serving function in [part 3 of the end-to-end demo](./end-to-end-demo/03-deploy-serving-model.html).
+
+

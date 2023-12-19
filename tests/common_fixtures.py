@@ -15,7 +15,7 @@
 import inspect
 import os
 import shutil
-import sys
+import tempfile
 import unittest
 from datetime import datetime
 from http import HTTPStatus
@@ -181,20 +181,24 @@ def mock_failed_get_func(status_code: int):
     return mock_get
 
 
+# Mock class used for tests involving native gitpython functionality
+class GitRepoMock:
+    def __init__(self, remotes: dict):
+        self.remotes = {}
+        for k in remotes:
+            mock = Mock()
+            mock.url = remotes[k]
+            self.remotes[k] = mock
+
+
 @pytest.fixture
-def patch_mpi4py():
-    old_module = sys.modules.get("mpi4py")
-
-    module = unittest.mock.Mock()
-    module.MPI.COMM_WORLD.Get_rank.return_value = 0
-    sys.modules["mpi4py"] = module
-
-    yield
-
-    if old_module:
-        sys.modules["mpi4py"] = old_module
-    else:
-        del sys.modules["mpi4py"]
+def mock_git_repo():
+    return GitRepoMock(
+        remotes={
+            "origin": "https://git.server/my-repo",
+            "organization": "https://another.git.server/my-repo",
+        }
+    )
 
 
 # Mock class used for client-side runtime tests. This mocks the rundb interface, for running/deploying runtimes
@@ -221,11 +225,13 @@ class RunDBMock:
         self._functions[name] = function
         return hash_key
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         self._artifacts[key] = artifact
         return artifact
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
+    def read_artifact(self, key, tag=None, iter=None, project="", tree=None, uid=None):
         return self._artifacts.get(key, None)
 
     def list_artifacts(
@@ -236,12 +242,11 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        kind=None,
-        category=None,
         iter: int = None,
         best_iteration: bool = False,
-        as_records: bool = False,
-        use_tag_as_uid: bool = None,
+        kind: str = None,
+        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -333,7 +338,7 @@ class RunDBMock:
             return self._project
 
         elif name == config.default_project and not self._project:
-            project = mlrun.projects.MlrunProject(name)
+            project = mlrun.projects.MlrunProject(mlrun.ProjectMetadata(name))
             self.store_project(name, project)
             return project
 
@@ -346,6 +351,7 @@ class RunDBMock:
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         function = func.to_dict()
         status = NuclioStatus(
@@ -424,7 +430,10 @@ class RunDBMock:
             {
                 "flexVolume": {
                     "driver": "v3io/fuse",
-                    "options": {"accessKey": v3io_access_key},
+                    "options": {
+                        "accessKey": v3io_access_key,
+                        "dirsToCreate": f'[{{"name": "users//{v3io_user}", "permissions": 488}}]',
+                    },
                 },
                 "name": "v3io",
             }
@@ -499,9 +508,6 @@ class RunDBMock:
 
         return list(self._functions.values())[0]
 
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        pass
-
     def list_hub_sources(self, *args, **kwargs):
         return [self._create_dummy_indexed_hub_source()]
 
@@ -523,6 +529,12 @@ class RunDBMock:
             ),
         )
 
+    def assert_runtime_categories(self, expected_categories, function_name=None):
+        function = self._get_function_internal(function_name)
+        categories = function["metadata"]["categories"]
+
+        assert categories == expected_categories
+
 
 @pytest.fixture()
 def rundb_mock() -> RunDBMock:
@@ -539,12 +551,13 @@ def rundb_mock() -> RunDBMock:
     config.dbpath = "http://localhost:12345"
 
     # Create the default project to mimic real MLRun DB (the default project is always available for use):
-    mlrun.get_or_create_project("default")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mlrun.get_or_create_project("default", context=tmp_dir)
 
-    yield mock_object
+        yield mock_object
 
-    # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
-    mlrun.db.get_run_db = orig_get_run_db
-    mlrun.get_run_db = orig_get_run_db
-    BaseRuntime._get_db = orig_get_db
-    config.dbpath = orig_db_path
+        # Have to revert the mocks, otherwise scheduling tests (and possibly others) are failing
+        mlrun.db.get_run_db = orig_get_run_db
+        mlrun.get_run_db = orig_get_run_db
+        BaseRuntime._get_db = orig_get_db
+        config.dbpath = orig_db_path

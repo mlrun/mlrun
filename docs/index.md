@@ -68,15 +68,15 @@ Project access can be restricted to a set of users and roles.
 {bdg-link-info}`Projects and automation <./projects/project.html>`
 {bdg-link-info}`CI/CD integration <./projects/ci-integration.html>`
 , {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`quick start <./tutorial/01-mlrun-basics.html>`
-{bdg-link-primary}`Automated ML pipeline <./tutorial/04-pipeline.html>`
+{bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
+{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
 , {octicon}`video` **Videos:**
 {bdg-link-warning}`Quick start <https://youtu.be/xI8KVGLlj7Q>`
 `````
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](./concepts/data-feature-store.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing.
 {bdg-link-primary-line}`more... <./data-prep/index.html>`
 
@@ -85,7 +85,7 @@ In addition, the MLRun [**Feature store**](./feature-store/feature-store.html) a
 {bdg-link-info}`Feature store <./feature-store/feature-store.html>`
 {bdg-link-info}`Data & artifacts <./concepts/data.html>`
 , {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`quick start <./tutorial/01-mlrun-basics.html>`
+{bdg-link-primary}`quick start <./tutorials/01-mlrun-basics.html>`
 {bdg-link-primary}`Feature store <./feature-store/basic-demo.html>`
 `````
 
@@ -99,8 +99,8 @@ MLRun allows you to easily build ML pipelines that take data from various source
 {bdg-link-info}`Model training and tracking <./development/model-training-tracking.html>`
 {bdg-link-info}`Batch runs and workflows <./concepts/runs-workflows.html>`
 , {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Train & eval models <./tutorial/02-model-training.html>`
-{bdg-link-primary}`Automated ML pipeline <./tutorial/04-pipeline.html>`
+{bdg-link-primary}`Train & eval models <./tutorials/02-model-training.html>`
+{bdg-link-primary}`Automated ML pipeline <./tutorials/04-pipeline.html>`
 , {octicon}`video` **Videos:**
 {bdg-link-warning}`Train & compare models <https://youtu.be/bZgBsmLMdQo>`
 `````
@@ -115,9 +115,9 @@ MLRun rapidly deploys and manages production-grade real-time or batch applicatio
 {bdg-link-info}`Realtime pipelines <./serving/serving-graph.html>`
 {bdg-link-info}`Batch inference <./deployment/batch_inference.html>`
 , {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Realtime serving <./tutorial/03-model-serving.html>`
-{bdg-link-primary}`Batch inference <./tutorial/07-batch-infer.html>`
-{bdg-link-primary}`Advanced pipeline <./tutorial/07-batch-infer.html>`
+{bdg-link-primary}`Realtime serving <./tutorials/03-model-serving.html>`
+{bdg-link-primary}`Batch inference <./tutorials/07-batch-infer.html>`
+{bdg-link-primary}`Advanced pipeline <./tutorials/07-batch-infer.html>`
 , {octicon}`video` **Videos:**
 {bdg-link-warning}`Serve pre-trained models <https://youtu.be/OUjOus4dZfw>`
 `````
@@ -131,7 +131,7 @@ Observability is built into the different MLRun objects (data, functions, jobs, 
 {octicon}`mortar-board` **Docs:**
 {bdg-link-info}`Model monitoring overview <./monitoring/model-monitoring-deployment.html>`
 , {octicon}`code-square` **Tutorials:**
-{bdg-link-primary}`Model monitoring & drift detection <./tutorial/05-model-monitoring.html>`
+{bdg-link-primary}`Model monitoring & drift detection <./tutorials/05-model-monitoring.html>`
 `````
 
 <a id="core-components"></a>

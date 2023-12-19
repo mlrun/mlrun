@@ -43,7 +43,7 @@ class TestDask(TestMLRunSystem):
             filename=str(self.assets_path / "dask_function.py"),
         ).apply(mount_v3io())
 
-        self.dask_function.spec.image = "mlrun/ml-models"
+        self.dask_function.spec.image = "mlrun/ml-base"
         self.dask_function.spec.remote = True
         self.dask_function.spec.replicas = 1
         self.dask_function.spec.service_type = "NodePort"
@@ -80,7 +80,6 @@ class TestDask(TestMLRunSystem):
     def test_run_pipeline(self):
         @kfp.dsl.pipeline(name="dask_pipeline")
         def dask_pipe(x=1, y=10):
-
             # use_db option will use a function (DB) pointer instead of adding the function spec to the YAML
             self.dask_function.as_step(
                 new_task(handler="main", name="dask_pipeline", params={"x": x, "y": y}),
@@ -163,7 +162,7 @@ class TestDask(TestMLRunSystem):
             client.list_datasets()
 
         # Cluster supposed to be decommissioned
-        with pytest.raises(RuntimeError):
+        with pytest.raises(AttributeError):
             client.restart()
 
     def _wait_for_dask_cluster_to_shutdown(self, dask_cluster_name):

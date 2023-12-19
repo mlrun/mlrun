@@ -11,15 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-import enum
+
 import hashlib
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import Optional
 
 import mlrun.common.helpers
-import mlrun.utils
+from mlrun.common.types import StrEnum
 
 
 class EventFieldType:
@@ -74,6 +73,38 @@ class EventFieldType:
     FEATURE_SET_URI = "monitoring_feature_set_uri"
     ALGORITHM = "algorithm"
     VALUE = "value"
+    DRIFT_DETECTED_THRESHOLD = "drift_detected_threshold"
+    POSSIBLE_DRIFT_THRESHOLD = "possible_drift_threshold"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+
+
+class ApplicationEvent:
+    APPLICATION_NAME = "application_name"
+    CURRENT_STATS = "current_stats"
+    FEATURE_STATS = "feature_stats"
+    SAMPLE_PARQUET_PATH = "sample_parquet_path"
+    START_INFER_TIME = "start_infer_time"
+    END_INFER_TIME = "end_infer_time"
+    LAST_REQUEST = "last_request"
+    ENDPOINT_ID = "endpoint_id"
+    OUTPUT_STREAM_URI = "output_stream_uri"
+
+
+class WriterEvent(StrEnum):
+    APPLICATION_NAME = "application_name"
+    ENDPOINT_ID = "endpoint_id"
+    START_INFER_TIME = "start_infer_time"
+    END_INFER_TIME = "end_infer_time"
+    RESULT_NAME = "result_name"
+    RESULT_VALUE = "result_value"
+    RESULT_KIND = "result_kind"
+    RESULT_STATUS = "result_status"
+    RESULT_EXTRA_DATA = "result_extra_data"
+    CURRENT_STATS = "current_stats"
+
+    @classmethod
+    def list(cls):
+        return list(map(lambda c: c.value, cls))
 
 
 class EventLiveStats:
@@ -104,6 +135,7 @@ class ModelEndpointTarget:
 class ProjectSecretKeys:
     ENDPOINT_STORE_CONNECTION = "MODEL_MONITORING_ENDPOINT_STORE_CONNECTION"
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
+    PIPELINES_ACCESS_KEY = "MODEL_MONITORING_PIPELINES_ACCESS_KEY"
     KAFKA_BOOTSTRAP_SERVERS = "KAFKA_BOOTSTRAP_SERVERS"
     STREAM_PATH = "STREAM_PATH"
 
@@ -113,20 +145,25 @@ class ModelMonitoringStoreKinds:
     EVENTS = "events"
 
 
+class SchedulingKeys:
+    LAST_ANALYZED = "last_analyzed"
+
+
 class FileTargetKind:
     ENDPOINTS = "endpoints"
     EVENTS = "events"
     STREAM = "stream"
     PARQUET = "parquet"
+    APPS_PARQUET = "apps_parquet"
     LOG_STREAM = "log_stream"
 
 
-class ModelMonitoringMode(str, enum.Enum):
+class ModelMonitoringMode(str, Enum):
     enabled = "enabled"
     disabled = "disabled"
 
 
-class EndpointType(enum.IntEnum):
+class EndpointType(IntEnum):
     NODE_EP = 1  # end point that is not a child of a router
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
@@ -139,6 +176,22 @@ class PrometheusMetric:
     ERRORS_TOTAL = "errors_total"
     DRIFT_METRICS = "drift_metrics"
     DRIFT_STATUS = "drift_status"
+
+
+class MonitoringFunctionNames:
+    WRITER = "model-monitoring-writer"
+    BATCH = "model-monitoring-batch"
+    APPLICATION_CONTROLLER = "model-monitoring-controller"
+    STREAM = None
+
+    @staticmethod
+    def all():
+        return [
+            MonitoringFunctionNames.WRITER,
+            MonitoringFunctionNames.STREAM,
+            MonitoringFunctionNames.BATCH,
+            MonitoringFunctionNames.APPLICATION_CONTROLLER,
+        ]
 
 
 @dataclass
@@ -206,3 +259,34 @@ class DriftStatus(Enum):
     NO_DRIFT = "NO_DRIFT"
     DRIFT_DETECTED = "DRIFT_DETECTED"
     POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
+
+
+class ResultKindApp(Enum):
+    """
+    Enum for the result kind values
+    """
+
+    data_drift = 0
+    concept_drift = 1
+    model_performance = 2
+    system_performance = 3
+
+
+class ResultStatusApp(IntEnum):
+    """
+    Enum for the result status values, detected means that the app detected some problem.
+    """
+
+    irrelevant = -1
+    no_detection = 0
+    potential_detection = 1
+    detected = 2
+
+
+class ModelMonitoringAppLabel:
+    KEY = "mlrun__type"
+    VAL = "mlrun__model-monitoring-application"
+
+
+class ControllerPolicy:
+    BASE_PERIOD = "base_period"

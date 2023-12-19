@@ -83,9 +83,7 @@ def create_ingress_resource(domain_name, ipadd):
       - hosts:
         - {}
         secretName: ingress-tls
-    """.format(
-        ipadd, domain_name, domain_name
-    )
+    """.format(ipadd, domain_name, domain_name)
     subprocess.run(
         ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
     )
@@ -171,7 +169,7 @@ def install_redisinsight(ipadd):
             "--namespace",
             "devtools",
         ]
-        subprocess.run(cmd.split(), check=True)
+        subprocess.run(cmd, check=True)
         # run patch cmd
         fqdn = get_ingress_controller_version()
         full_domain = "redisinsight" + fqdn

@@ -27,15 +27,15 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 ARG MLRUN_PIP_VERSION=23.2.1
 RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
 
-COPY ./dockerfiles/test-system/requirements.txt /tmp/mlrun-requirements/test-system-requirements.txt
 COPY ./dockerfiles/mlrun-api/requirements.txt /tmp/mlrun-requirements/mlrun-api-requirements.txt
 COPY ./extras-requirements.txt /tmp/mlrun-requirements
 COPY ./requirements.txt /tmp/mlrun-requirements
+COPY ./dev-requirements.txt /tmp/mlrun-requirements
 RUN python -m pip install \
   -r /tmp/mlrun-requirements/requirements.txt \
+  -r /tmp/mlrun-requirements/dev-requirements.txt \
   -r /tmp/mlrun-requirements/extras-requirements.txt \
-  -r /tmp/mlrun-requirements/mlrun-api-requirements.txt \
-  -r /tmp/mlrun-requirements/test-system-requirements.txt
+  -r /tmp/mlrun-requirements/mlrun-api-requirements.txt
 COPY . /tmp/mlrun
 RUN cd /tmp/mlrun && python -m pip install ".[complete]" && mv tests /tests && mv Makefile /Makefile
 

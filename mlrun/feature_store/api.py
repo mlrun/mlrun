@@ -15,16 +15,18 @@ import copy
 import importlib.util
 import pathlib
 import sys
-import warnings
+import typing
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+from deprecated import deprecated
 
 import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
+from ..datastore.datastore_profile import datastore_profile_embed_url_scheme
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
@@ -36,7 +38,7 @@ from ..datastore.targets import (
     validate_target_paths_for_engine,
 )
 from ..model import DataSource, DataTargetBase
-from ..runtimes import RuntimeKinds
+from ..runtimes import BaseRuntime, RuntimeKinds
 from ..runtimes.function_reference import FunctionReference
 from ..serving.server import Response
 from ..utils import get_caller_globals, logger, normalize_name
@@ -61,10 +63,11 @@ from .ingestion import (
     run_ingestion_job,
     run_spark_graph,
 )
-from .retrieval import get_merger, run_merge_job
+from .retrieval import RemoteVectorResponse, get_merger, run_merge_job
 
 _v3iofs = None
 spark_transform_handler = "transform"
+_TRANS_TABLE = str.maketrans({" ": "_", "(": "", ")": ""})
 
 
 def _features_to_vector_and_check_permissions(features, update_stats):
@@ -105,7 +108,7 @@ def get_offline_features(
     order_by: Union[str, List[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, Dict[str, str]] = None,
-) -> OfflineVectorResponse:
+) -> Union[OfflineVectorResponse, RemoteVectorResponse]:
     """retrieve offline feature vector results
 
     specify a feature vector object/uri and retrieve the desired features, their metadata
@@ -313,12 +316,20 @@ def get_online_feature_service(
     )
 
 
-def _rename_source_dataframe_columns(df):
+def norm_column_name(name: str) -> str:
+    """
+    Remove parentheses () and replace whitespaces with an underscore _.
+    Used to normalize a column/feature name.
+    """
+    return name.translate(_TRANS_TABLE)
+
+
+def _rename_source_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     rename_mapping = {}
     column_set = set(df.columns)
     for column in df.columns:
         if isinstance(column, str):
-            rename_to = column.replace(" ", "_").replace("(", "").replace(")", "")
+            rename_to = norm_column_name(column)
             if rename_to != column:
                 if rename_to in column_set:
                     raise mlrun.errors.MLRunInvalidArgumentError(
@@ -531,6 +542,21 @@ def ingest(
     targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
 
+    if (
+        isinstance(source, DataSource)
+        and source.path
+        and source.path.startswith("ds://")
+    ):
+        source.path = datastore_profile_embed_url_scheme(source.path)
+
+    for target in targets_to_ingest:
+        if (
+            isinstance(target, DataTargetBase)
+            and target.path
+            and target.path.startswith("ds://")
+        ):
+            target.path = datastore_profile_embed_url_scheme(target.path)
+
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 
     if overwrite is None:
@@ -647,7 +673,6 @@ def preview(
     featureset: FeatureSet,
     source,
     entity_columns: list = None,
-    timestamp_key: str = None,
     namespace=None,
     options: InferOptions = None,
     verbose: bool = False,
@@ -664,13 +689,11 @@ def preview(
             quotes_set,
             quotes_df,
             entity_columns=["ticker"],
-            timestamp_key="time",
         )
 
     :param featureset:     feature set object or uri
     :param source:         source dataframe or csv/parquet file path
     :param entity_columns: list of entity (index) column names
-    :param timestamp_key:  DEPRECATED. Use FeatureSet parameter.
     :param namespace:      namespace or module containing graph classes
     :param options:        schema (for discovery of entities, features in featureset), index, stats,
                            histogram and preview infer options (:py:class:`~mlrun.feature_store.InferOptions`)
@@ -687,17 +710,6 @@ def preview(
         )
 
     options = options if options is not None else InferOptions.default()
-    if timestamp_key is not None:
-        warnings.warn(
-            "preview's 'timestamp_key' parameter is deprecated in 1.3.0 and will be removed in 1.5.0. "
-            "Pass this parameter to 'FeatureSet' instead.",
-            # TODO: Remove this API in 1.5.0
-            FutureWarning,
-        )
-        featureset.spec.timestamp_key = timestamp_key
-        for step in featureset.graph.steps.values():
-            if step.class_name == "storey.AggregateByKey":
-                step.class_args["time_field"] = timestamp_key
 
     if isinstance(source, str):
         # if source is a path/url convert to DataFrame
@@ -768,14 +780,14 @@ def _run_ingestion_job(
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
 
-def deploy_ingestion_service(
+def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
     targets: List[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
-):
+) -> typing.Tuple[str, BaseRuntime]:
     """Start real-time ingestion service using nuclio function
 
     Deploy a real-time function implementing feature ingestion pipeline
@@ -797,6 +809,9 @@ def deploy_ingestion_service(
     :param name:          name for the job/function
     :param run_config:    service runtime configuration (function object/uri, resources, etc..)
     :param verbose:       verbose log
+
+    :return: URL to access the deployed ingestion service, and the function that was deployed (which will
+             differ from the function passed in via the run_config parameter).
     """
     if isinstance(featureset, str):
         featureset = get_feature_set_by_uri(featureset)
@@ -849,7 +864,55 @@ def deploy_ingestion_service(
 
     if run_config.local:
         return function.to_mock_server(namespace=get_caller_globals())
-    return function.deploy()
+    return function.deploy(), function
+
+
+@deprecated(
+    version="1.5.0",
+    reason="'deploy_ingestion_service' will be removed in 1.7.0, use 'deploy_ingestion_service_v2' instead",
+    category=FutureWarning,
+)
+def deploy_ingestion_service(
+    featureset: Union[FeatureSet, str],
+    source: DataSource = None,
+    targets: List[DataTargetBase] = None,
+    name: str = None,
+    run_config: RunConfig = None,
+    verbose=False,
+) -> str:
+    """Start real-time ingestion service using nuclio function
+
+    Deploy a real-time function implementing feature ingestion pipeline
+    the source maps to Nuclio event triggers (http, kafka, v3io stream, etc.)
+
+    the `run_config` parameter allow specifying the function and job configuration,
+    see: :py:class:`~mlrun.feature_store.RunConfig`
+
+    example::
+
+        source = HTTPSource()
+        func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
+        config = RunConfig(function=func)
+        fstore.deploy_ingestion_service(my_set, source, run_config=config)
+
+    :param featureset:    feature set object or uri
+    :param source:        data source object describing the online or offline source
+    :param targets:       list of data target objects
+    :param name:          name for the job/function
+    :param run_config:    service runtime configuration (function object/uri, resources, etc..)
+    :param verbose:       verbose log
+
+    :return: URL to access the deployed ingestion service
+    """
+    endpoint, _ = deploy_ingestion_service_v2(
+        featureset=featureset,
+        source=source,
+        targets=targets,
+        name=name,
+        run_config=run_config,
+        verbose=verbose,
+    )
+    return endpoint
 
 
 def _ingest_with_spark(
@@ -922,37 +985,9 @@ def _ingest_with_spark(
             )
 
             df_to_write = df
-
-            # If partitioning by time, add the necessary columns
-            if timestamp_key and "partitionBy" in spark_options:
-                from pyspark.sql.functions import (
-                    dayofmonth,
-                    hour,
-                    minute,
-                    month,
-                    second,
-                    year,
-                )
-
-                time_unit_to_op = {
-                    "year": year,
-                    "month": month,
-                    "day": dayofmonth,
-                    "hour": hour,
-                    "minute": minute,
-                    "second": second,
-                }
-                timestamp_col = df_to_write[timestamp_key]
-                for partition in spark_options["partitionBy"]:
-                    if (
-                        partition not in df_to_write.columns
-                        and partition in time_unit_to_op
-                    ):
-                        op = time_unit_to_op[partition]
-                        df_to_write = df_to_write.withColumn(
-                            partition, op(timestamp_col)
-                        )
-            df_to_write = target.prepare_spark_df(df_to_write, key_columns)
+            df_to_write = target.prepare_spark_df(
+                df_to_write, key_columns, timestamp_key, spark_options
+            )
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
             else:
@@ -970,7 +1005,10 @@ def _ingest_with_spark(
                 max_time = source.start_time
             for target in featureset.status.targets:
                 featureset.status.update_last_written_for_target(
-                    target.get_path().get_absolute_path(), max_time
+                    target.get_path().get_absolute_path(
+                        project_name=featureset.metadata.project
+                    ),
+                    max_time,
                 )
 
         _post_ingestion(mlrun_context, featureset, spark)

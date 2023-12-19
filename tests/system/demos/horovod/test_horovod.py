@@ -26,7 +26,6 @@ from tests.system.demos.base import TestDemo
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestHorovodTFv2(TestDemo):
-
     project_name = "horovod-project"
 
     def create_demo_project(self) -> mlrun.projects.MlrunProject:
@@ -66,7 +65,7 @@ class TestHorovodTFv2(TestDemo):
             name="trainer",
             kind="mpijob",
             command=self._get_v3io_user_store_path(trainer_dest_path, remote=False),
-            image="mlrun/ml-models",
+            image="mlrun/mlrun",
         )
         trainer.spec.remote = True
         trainer.spec.replicas = 4

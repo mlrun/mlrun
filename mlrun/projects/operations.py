@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import warnings
 from typing import Dict, List, Optional, Union
 
 import kfp
@@ -245,6 +246,7 @@ def build_function(
     project_object=None,
     overwrite_build_params: bool = False,
     extra_args: str = None,
+    force_build: bool = False,
 ) -> Union[BuildStatus, kfp.dsl.ContainerOp]:
     """deploy ML function, build container with its dependencies
 
@@ -267,17 +269,25 @@ def build_function(
         * True: The existing params are replaced by the new ones
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
+    :param force_build: Force building the image, even when no changes were made
     """
+    if not overwrite_build_params:
+        # TODO: change overwrite_build_params default to True in 1.8.0
+        warnings.warn(
+            "The `overwrite_build_params` parameter default will change from 'False' to 'True in 1.8.0.",
+            mlrun.utils.OverwriteBuildParamsWarning,
+        )
+
     engine, function = _get_engine_and_function(function, project_object)
     if function.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "cannot build use deploy_function()"
+            "Cannot build use deploy_function()"
         )
     if engine == "kfp":
         if overwrite_build_params:
             function.spec.build.commands = None
-        if requirements:
-            function.with_requirements(requirements, requirements_file)
+        if requirements or requirements_file:
+            function.with_requirements(requirements, requirements_file, overwrite=True)
         if commands:
             function.with_commands(commands)
         return function.deploy_step(
@@ -289,21 +299,28 @@ def build_function(
             skip_deployed=skip_deployed,
         )
     else:
-        function.build_config(
-            image=image,
-            base_image=base_image,
-            commands=commands,
-            secret=secret_name,
-            requirements=requirements,
-            overwrite=overwrite_build_params,
-            extra_args=extra_args,
-        )
+        # TODO: remove filter once overwrite_build_params default is changed to True in 1.8.0
+        with warnings.catch_warnings():
+            warnings.simplefilter(
+                "ignore", category=mlrun.utils.OverwriteBuildParamsWarning
+            )
+
+            function.build_config(
+                image=image,
+                base_image=base_image,
+                commands=commands,
+                secret=secret_name,
+                requirements=requirements,
+                overwrite=overwrite_build_params,
+                extra_args=extra_args,
+            )
         ready = function.deploy(
             watch=True,
             with_mlrun=with_mlrun,
             skip_deployed=skip_deployed,
             mlrun_version_specifier=mlrun_version_specifier,
             builder_env=builder_env,
+            force_build=force_build,
         )
         # return object with the same outputs as the KFP op (allow using the same pipeline)
         return BuildStatus(ready, {"image": function.spec.image}, function=function)

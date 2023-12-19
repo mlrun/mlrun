@@ -24,7 +24,7 @@ class SupportedFormat(ABC, Generic[FileHandlerType]):
     Library of supported formats by some builtin MLRun packagers.
     """
 
-    # Add here the all the supported formats in ALL CAPS and their value as a string:
+    # Add here all the supported formats in ALL CAPS and their value as a string:
     ...
 
     # The map to use in the method `get_format_handler`. A dictionary of string key to a class type to handle that

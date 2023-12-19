@@ -79,7 +79,7 @@ _PACKAGERS_TESTERS = [
 
 
 def _get_tests_tuples(
-    test_type: Union[Type[PackTest], Type[UnpackTest], Type[PackToUnpackTest]]
+    test_type: Union[Type[PackTest], Type[UnpackTest], Type[PackToUnpackTest]],
 ) -> List[Tuple[Type[PackagerTester], PackTest]]:
     return [
         (tester, test)
@@ -271,7 +271,7 @@ def test_packager_pack_to_unpack(
         ]
         assert (
             unpackaging_instructions["packager_name"]
-            == tester.PACKAGER_IN_TEST.__name__
+            == tester.PACKAGER_IN_TEST.__class__.__name__
         )
         if tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE is not ...:
             # Check the object name noted match the packager handled type (at least subclass of it):

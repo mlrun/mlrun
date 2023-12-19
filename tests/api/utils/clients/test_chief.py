@@ -25,10 +25,10 @@ import starlette.datastructures
 from aiohttp import ClientConnectorError
 from aiohttp.test_utils import TestClient, TestServer
 
-import mlrun.api.utils.clients.chief
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import server.api.utils.clients.chief
 from tests.common_fixtures import aioresponses_mock
 
 
@@ -42,8 +42,8 @@ async def api_url() -> str:
 @pytest.fixture()
 async def chief_client(
     api_url: str,
-) -> mlrun.api.utils.clients.chief.Client:
-    client = mlrun.api.utils.clients.chief.Client()
+) -> server.api.utils.clients.chief.Client:
+    client = server.api.utils.clients.chief.Client()
     # force running init again so the configured api url will be used
     client.__init__()
 
@@ -57,7 +57,7 @@ async def chief_client(
 @pytest.mark.asyncio
 async def test_get_background_task_from_chief_success(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
@@ -99,7 +99,7 @@ async def test_get_background_task_from_chief_success(
 @pytest.mark.asyncio
 async def test_get_background_task_from_chief_failed(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
@@ -117,10 +117,9 @@ async def test_get_background_task_from_chief_failed(
 @pytest.mark.asyncio
 async def test_retry_on_exception(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
-
     # ensure the session to make sure the retry options are set
     await chief_client._ensure_session()
     retry_attempts = chief_client._session.retry_options.attempts
@@ -145,7 +144,7 @@ async def test_retry_on_exception(
 @pytest.mark.asyncio
 async def test_trigger_migration_succeeded(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-for-chief"
@@ -191,7 +190,7 @@ async def test_trigger_migration_succeeded(
 @pytest.mark.asyncio
 async def test_trigger_migrations_from_chief_failures(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
     aioresponses_mock.post(
@@ -217,7 +216,7 @@ async def test_trigger_migrations_from_chief_failures(
 @pytest.mark.asyncio
 async def test_trigger_migrations_chief_restarted_while_executing_migrations(
     api_url: str,
-    chief_client: mlrun.api.utils.clients.chief.Client,
+    chief_client: server.api.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
     task_name = "test-bg-failed"

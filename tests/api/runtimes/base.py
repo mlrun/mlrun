@@ -30,23 +30,24 @@ from kubernetes import client
 from kubernetes import client as k8s_client
 from kubernetes.client import V1EnvVar
 
-import mlrun.api.api.endpoints.functions
-import mlrun.api.crud
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import server.api.api.endpoints.functions
+import server.api.crud
 import tests.api.api.utils
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
+import tests.api.conftest
 from mlrun.config import config as mlconf
 from mlrun.model import new_task
 from mlrun.runtimes.constants import PodPhases
 from mlrun.utils import create_logger
 from mlrun.utils.azure_vault import AzureVaultStore
+from server.api.utils.singletons.k8s import get_k8s_helper
 
 logger = create_logger(level="debug", name="test-runtime")
 
 
-class TestRuntimeBase:
+class TestRuntimeBase(tests.api.conftest.MockedK8sHelper):
     def setup_method(self, method):
         self.namespace = mlconf.namespace = "test-namespace"
         get_k8s_helper().namespace = self.namespace
@@ -64,7 +65,7 @@ class TestRuntimeBase:
         self.artifact_path = "/tmp"
         self.function_name_label = "mlrun/name"
         self.code_filename = str(self.assets_path / "sample_function.py")
-        self.requirements_file = str(self.assets_path / "requirements.txt")
+        self.requirements_file = str(self.assets_path / "requirements-test.txt")
 
         self.vault_secrets = ["secret1", "secret2", "AWS_KEY"]
         # TODO: Vault: uncomment when vault returns to be relevant
@@ -91,15 +92,6 @@ class TestRuntimeBase:
     def setup_method_fixture(
         self, db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
     ):
-        # We want this mock for every test, ideally we would have simply put it in the setup_method
-        # but it is happening before the fixtures initialization. We need the client fixture (which needs the db one)
-        # in order to be able to mock k8s stuff
-        get_k8s_helper().get_project_secret_keys = unittest.mock.Mock(return_value=[])
-        get_k8s_helper().v1api = unittest.mock.Mock()
-        get_k8s_helper().crdapi = unittest.mock.Mock()
-        get_k8s_helper().is_running_inside_kubernetes_cluster = unittest.mock.Mock(
-            return_value=True
-        )
         self._create_project(client)
         # enable inheriting classes to do the same
         self.custom_setup_after_fixtures()
@@ -402,7 +394,7 @@ class TestRuntimeBase:
     @staticmethod
     def deploy(db_session, runtime, with_mlrun=True):
         auth_info = mlrun.common.schemas.AuthInfo()
-        mlrun.api.api.endpoints.functions._build_function(
+        server.api.api.endpoints.functions._build_function(
             db_session, auth_info, runtime, with_mlrun=with_mlrun
         )
 
@@ -412,7 +404,7 @@ class TestRuntimeBase:
         get_k8s_helper().v1api.read_namespaced_pod_log.reset_mock()
 
     def _reset_custom_object_mocks(self):
-        mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
+        server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.reset_mock()
         get_k8s_helper().v1api.list_namespaced_pod.reset_mock()
 
     def _execute_run(self, runtime, **kwargs):
@@ -424,6 +416,7 @@ class TestRuntimeBase:
             name=self.name,
             project=self.project,
             artifact_path=self.artifact_path,
+            auth_info=mlrun.common.schemas.AuthInfo(),
             **kwargs,
         )
 
@@ -496,18 +489,30 @@ class TestRuntimeBase:
             assert diff_result == {}
 
     @staticmethod
-    def _assert_pod_env(pod_env, expected_variables):
+    def _assert_pod_env(pod_env, expected_variables, expected_secrets=None):
+        expected_secrets = expected_secrets or {}
         for env_variable in pod_env:
             if isinstance(env_variable, V1EnvVar):
-                env_variable = dict(name=env_variable.name, value=env_variable.value)
+                env_variable = env_variable.to_dict()
             name = env_variable["name"]
             if name in expected_variables:
                 if expected_variables[name]:
                     assert expected_variables[name] == env_variable["value"]
                 expected_variables.pop(name)
+            elif name in expected_secrets:
+                assert (
+                    env_variable["value_from"]["secret_key_ref"]["name"]
+                    == expected_secrets[name]["name"]
+                )
+                assert (
+                    env_variable["value_from"]["secret_key_ref"]["key"]
+                    == expected_secrets[name]["key"]
+                )
+                expected_secrets.pop(name)
 
         # Make sure all variables were accounted for
         assert len(expected_variables) == 0
+        assert len(expected_secrets) == 0
 
     @staticmethod
     def _assert_pod_env_from_secrets(pod_env, expected_variables):
@@ -546,18 +551,14 @@ class TestRuntimeBase:
         (
             _,
             kwargs,
-        ) = (
-            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["body"]
 
     def _get_create_custom_object_namespace_arg(self):
         (
             _,
             kwargs,
-        ) = (
-            mlrun.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
-        )
+        ) = server.api.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.call_args
         return kwargs["namespace"]
 
     def _get_create_pod_namespace_arg(self):
@@ -565,20 +566,32 @@ class TestRuntimeBase:
         return args[0]
 
     def _assert_v3io_mount_or_creds_configured(
-        self, v3io_user, v3io_access_key, cred_only=False
+        self, v3io_user, v3io_access_key, cred_only=False, masked=True
     ):
         args = self._get_pod_creation_args()
         pod_spec = args.spec
         container_spec = pod_spec.containers[0]
 
         pod_env = container_spec.env
+        expected_variables = {
+            "V3IO_API": None,
+            "V3IO_USERNAME": v3io_user,
+        }
+        expected_secrets = {}
+        if masked:
+            expected_secrets = {
+                "V3IO_ACCESS_KEY": {
+                    "name": f"secret-ref-{v3io_user}-{v3io_access_key}",
+                    "key": "accessKey",
+                },
+            }
+        else:
+            expected_variables["V3IO_ACCESS_KEY"] = v3io_access_key
+
         self._assert_pod_env(
             pod_env,
-            {
-                "V3IO_API": None,
-                "V3IO_USERNAME": v3io_user,
-                "V3IO_ACCESS_KEY": v3io_access_key,
-            },
+            expected_variables=expected_variables,
+            expected_secrets=expected_secrets,
         )
 
         if cred_only:
@@ -589,10 +602,19 @@ class TestRuntimeBase:
         expected_volume = {
             "flexVolume": {
                 "driver": "v3io/fuse",
-                "options": {"accessKey": v3io_access_key},
+                "options": {
+                    "dirsToCreate": f'[{{"name": "users//{v3io_user}", "permissions": 488}}]'
+                },
             },
             "name": "v3io",
         }
+        if masked:
+            expected_volume["flexVolume"]["secretRef"] = {
+                "name": f"secret-ref-{v3io_user}-{v3io_access_key}"
+            }
+        else:
+            expected_volume["flexVolume"]["options"]["accessKey"] = v3io_access_key
+
         assert (
             deepdiff.DeepDiff(pod_spec.volumes[0], expected_volume, ignore_order=True)
             == {}

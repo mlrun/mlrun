@@ -30,12 +30,11 @@ logger = create_logger(level="debug", name="test-integration")
 
 
 class TestMLRunIntegration:
-
     project_name = "system-test-project"
     root_path = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     results_path = root_path / "tests" / "test_results" / "integration"
 
-    db_liveness_timeout = 30
+    db_liveness_timeout = 40
     db_host_internal = "host.docker.internal"
     db_host_external = "localhost"
     db_user = "root"
@@ -143,6 +142,7 @@ class TestMLRunIntegration:
                     "MLRUN_VERSION": "0.0.0+unstable",
                     "MLRUN_HTTPDB__DSN": self.db_dsn,
                     "MLRUN_LOG_LEVEL": "DEBUG",
+                    "MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS": "True",
                 }
             ),
             cwd=TestMLRunIntegration.root_path,

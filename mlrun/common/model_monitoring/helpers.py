@@ -13,12 +13,22 @@
 # limitations under the License.
 #
 
+import sys
+import typing
+
 import mlrun.common
 from mlrun.common.schemas.model_monitoring import (
     EndpointUID,
     FunctionURI,
     VersionedModel,
 )
+
+FeatureStats = typing.NewType("FeatureStats", dict[str, dict[str, typing.Any]])
+Histogram = typing.NewType("Histogram", list[list])
+BinCounts = typing.NewType("BinCounts", list[int])
+BinEdges = typing.NewType("BinEdges", list[float])
+
+_MAX_FLOAT = sys.float_info.max
 
 
 def create_model_endpoint_uid(function_uri: str, versioned_model: str):
@@ -54,16 +64,63 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return endpoint, container, path
 
 
-def parse_monitoring_stream_path(stream_uri: str, project: str):
+def parse_monitoring_stream_path(
+    stream_uri: str, project: str, application_name: str = None
+):
     if stream_uri.startswith("kafka://"):
         if "?topic" in stream_uri:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Custom kafka topic is not allowed"
             )
         # Add topic to stream kafka uri
-        stream_uri += f"?topic=monitoring_stream_{project}"
+        if application_name is None:
+            stream_uri += f"?topic=monitoring_stream_{project}"
+        else:
+            stream_uri += f"?topic=monitoring_stream_{project}_{application_name}"
 
     elif stream_uri.startswith("v3io://") and mlrun.mlconf.is_ce_mode():
         # V3IO is not supported in CE mode, generating a default http stream path
-        stream_uri = mlrun.mlconf.model_endpoint_monitoring.default_http_sink
+        if application_name is None:
+            stream_uri = (
+                mlrun.mlconf.model_endpoint_monitoring.default_http_sink.format(
+                    project=project
+                )
+            )
+        else:
+            stream_uri = (
+                mlrun.mlconf.model_endpoint_monitoring.default_http_sink_app.format(
+                    project=project, application_name=application_name
+                )
+            )
     return stream_uri
+
+
+def _get_counts(hist: Histogram) -> BinCounts:
+    """Return the histogram counts"""
+    return BinCounts(hist[0])
+
+
+def _get_edges(hist: Histogram) -> BinEdges:
+    """Return the histogram edges"""
+    return BinEdges(hist[1])
+
+
+def pad_hist(hist: Histogram) -> None:
+    """Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace"""
+    counts = _get_counts(hist)
+    edges = _get_edges(hist)
+
+    counts.insert(0, 0)
+    edges.insert(0, -_MAX_FLOAT)
+
+    counts.append(0)
+    edges.append(_MAX_FLOAT)
+
+
+def pad_features_hist(feature_stats: FeatureStats) -> None:
+    """
+    Given a feature statistics dictionary, pad the histograms with edges bins
+    inplace to cover input statistics from -inf to inf.
+    """
+    for feature in feature_stats.values():
+        pad_hist(Histogram(feature["hist"]))

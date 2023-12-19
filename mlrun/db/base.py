@@ -14,7 +14,6 @@
 
 import datetime
 import typing
-import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
@@ -50,7 +49,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
     @abstractmethod
@@ -92,11 +91,13 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
     @abstractmethod
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     @abstractmethod
@@ -112,23 +113,17 @@ class RunDBInterface(ABC):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
     @abstractmethod
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     @abstractmethod
     def del_artifacts(self, name="", project="", tag="", labels=None):
         pass
-
-    # TODO: Make these abstract once filedb implements them
-    def store_metric(self, uid, project="", keyvals=None, timestamp=None, labels=None):
-        warnings.warn("store_metric not implemented yet")
-
-    def read_metric(self, keys, project="", query=""):
-        warnings.warn("store_metric not implemented yet")
 
     @abstractmethod
     def store_function(self, function, name, project="", tag="", versioned=False):
@@ -211,8 +206,8 @@ class RunDBInterface(ABC):
                     key=mlrun.utils.get_in_artifact(artifact_obj, "key"),
                     # we are passing tree as uid when storing an artifact, so if uid is not defined,
                     # pass the tree as uid
-                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid")
-                    or mlrun.utils.get_in_artifact(artifact_obj, "tree"),
+                    uid=mlrun.utils.get_in_artifact(artifact_obj, "uid"),
+                    producer_id=mlrun.utils.get_in_artifact(artifact_obj, "tree"),
                     kind=mlrun.utils.get_in_artifact(artifact_obj, "kind"),
                     iter=mlrun.utils.get_in_artifact(artifact_obj, "iter"),
                 )
@@ -257,7 +252,7 @@ class RunDBInterface(ABC):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -649,7 +644,7 @@ class RunDBInterface(ABC):
     ) -> mlrun.common.schemas.DatastoreProfile:
         pass
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

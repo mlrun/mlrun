@@ -150,6 +150,22 @@ project.build_function(
 )
 ```
 
+#### Using self-signed registry
+If you need to build your function and push the resulting container image to an external Docker registry that uses a self-signed SSL certificate,
+you can use Kaniko with the `--skip-tls-verify` flag.
+When using this flag, Kaniko ignores the SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
+
+Caution: Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
+Only use this flag in trusted environments or with private registries where you are confident in the security of the network connections.
+
+To use this flag, pass it in the extra_args parameter, for example:
+```python
+project.build_function(
+    ...
+    extra_args="--skip-tls-verify",
+)
+```
+
 ### Build environment variables
 It is possible to pass environment variables that will be set in the Kaniko pod that executes the build. This 
 may be useful to pass important information needed for the build process. The variables are passed as a dictionary in
@@ -161,6 +177,26 @@ project.build_function(
    builder_env={"GIT_TOKEN": token},
 )
 ```
+
+### Extra arguments
+It is also possible to pass custom arguments and flags to Kaniko.
+The `extra_args` parameter can be utilized in {py:func}`~mlrun.projects.build_image()`, 
+{py:func}`~mlrun.projects.build_function()`, or during the deployment of the function. It provides a way to fine-tune 
+the Kaniko build process according to your specific needs.
+
+You can provide the `extra_args` as a string in the format of a CLI command line, just as you would when using 
+Kaniko directly, for example:
+
+```python
+project.build_function(
+    ...
+    extra_args="--build arg GIT_TOKEN=token --skip-tls-verify",
+)
+```
+
+Note that when building an image in MLRun, project secrets are automatically passed to the builder pod as environment
+variables whose name is the secret key.
+
 
 ## Deploying nuclio functions
 When using nuclio functions, the image build process is done by nuclio as part of the deployment of the function. 

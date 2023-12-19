@@ -8,4 +8,5 @@
 
 automate-project-git-source
 load-project-yaml
+ci-integration
 ````

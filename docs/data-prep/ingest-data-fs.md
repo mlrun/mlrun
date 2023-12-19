@@ -123,7 +123,7 @@ error stream. <br>
 source = HTTPSource()
 func = mlrun.code_to_function("ingest", kind="serving").apply(mount_v3io())
 config = RunConfig(function=func)
-fstore.deploy_ingestion_service(my_set, source, run_config=config)
+fstore.deploy_ingestion_service_v2(my_set, source, run_config=config)
 ```
 
 To learn more about `deploy_ingestion_service` go to {py:class}`~mlrun.feature_store.deploy_ingestion_service`.
@@ -143,8 +143,8 @@ fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 
 target from the previous ingest is not deleted.
-For the storey engine, the feature is currently implemented for ParquetSource only. (CsvSource will be supported in a future release). 
-For Spark engine, other sources are also supported. 
+For the storey and pandas ingestion engines, the feature is currently implemented for ParquetSource only (CsvSource will be supported 
+in a future release). For Spark engine both ParquetSource and CsvSource are supported.
 
 ## Data sources
 

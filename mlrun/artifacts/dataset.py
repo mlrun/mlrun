@@ -59,7 +59,6 @@ class TableArtifact(Artifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -94,7 +93,11 @@ class TableArtifact(Artifact):
         if not self._is_df:
             return self.spec.get_body()
         csv_buffer = StringIO()
-        self.spec.get_body().to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        self.spec.get_body().to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **mlrun.utils.line_terminator_kwargs(),
+        )
         return csv_buffer.getvalue()
 
 
@@ -142,7 +145,6 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -346,7 +348,6 @@ class LegacyTableArtifact(LegacyArtifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -373,7 +374,11 @@ class LegacyTableArtifact(LegacyArtifact):
         if not self._is_df:
             return self._body
         csv_buffer = StringIO()
-        self._body.to_csv(csv_buffer, line_terminator="\n", encoding="utf-8")
+        self._body.to_csv(
+            csv_buffer,
+            encoding="utf-8",
+            **mlrun.utils.line_terminator_kwargs(),
+        )
         return csv_buffer.getvalue()
 
 
@@ -411,7 +416,6 @@ class LegacyDatasetArtifact(LegacyArtifact):
         ignore_preview_limits: bool = False,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -605,7 +609,7 @@ def update_dataset_meta(
     mlrun.get_run_db().store_artifact(
         artifact_spec.spec.db_key,
         artifact_spec.to_dict(),
-        artifact_spec.metadata.tree,
+        tree=artifact_spec.metadata.tree,
         iter=artifact_spec.metadata.iter,
         project=artifact_spec.metadata.project,
     )

@@ -66,7 +66,7 @@ def test_create_local_function_for_execution():
     assert runtime.metadata.project == "default"
     assert runtime.metadata.name == "test"
     assert run.spec.handler == handler
-    assert runtime.kind == ""
+    assert runtime.kind == "local"
     assert runtime._is_run_local
 
 
@@ -91,7 +91,7 @@ def test_create_local_function_for_execution_with_enrichment():
     assert runtime.metadata.name == "other_name"
     assert runtime.spec.workdir == "some_workdir"
     assert run.spec.handler == "handler_v2"
-    assert runtime.kind == ""
+    assert runtime.kind == "local"
     assert runtime._is_run_local
     assert runtime.spec.allow_empty_resources
 
@@ -104,7 +104,7 @@ def test_validate_inputs():
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_runtime(runtime, run)
-    assert "Inputs should be of type Dict[str,str]" in str(exc.value)
+    assert "'Inputs' should be of type Dict[str,str]" in str(exc.value)
 
 
 def test_validate_runtime_success():

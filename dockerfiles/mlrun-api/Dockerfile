@@ -20,9 +20,16 @@ ARG UID=1000
 # this creates both user and group with the same id
 RUN useradd -u $UID mlrun
 
+# Update OS packages:
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && \
     rm -rf /var/lib/apt/lists/*
+
+# Update base pip packages (usually pip, setuptools, wheel):
+RUN python -m pip  list --disable-pip-version-check --format freeze \
+    | grep -v '^\-e' \
+    | cut -d'=' -f1 \
+    | xargs python -m pip install --upgrade
 
 ENV PIP_NO_CACHE_DIR=1
 
@@ -61,4 +68,4 @@ COPY . .
 RUN python -m pip install .[complete-api]
 VOLUME /mlrun/db
 
-CMD ["python",  "-m",  "mlrun",  "db"]
+CMD ["python",  "-m",  "server.api",  "db"]

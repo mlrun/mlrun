@@ -19,12 +19,20 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.runtimes.databricks_job.databricks_runtime
 import mlrun.runtimes.mpijob.abstract
 import mlrun.runtimes.mpijob.v1
 import mlrun.runtimes.pod
 
 
-def test_runtimes_inheritance():
+@pytest.mark.parametrize(
+    "method, base_classes",
+    [
+        ("__init__", []),
+        ("run", [mlrun.runtimes.base.BaseRuntime]),
+    ],
+)
+def test_runtimes_inheritance(method, base_classes):
     classes_map = {
         mlrun.runtimes.base.FunctionSpec: [
             mlrun.runtimes.daskjob.DaskSpec,
@@ -42,7 +50,6 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.abstract.MPIResourceSpec,
             mlrun.runtimes.mpijob.v1.MPIV1ResourceSpec,
             mlrun.runtimes.remotesparkjob.RemoteSparkSpec,
-            mlrun.runtimes.sparkjob.abstract.AbstractSparkJobSpec,
             mlrun.runtimes.sparkjob.spark3job.Spark3JobSpec,
         ],
         mlrun.runtimes.function.NuclioSpec: [
@@ -63,8 +70,15 @@ def test_runtimes_inheritance():
             mlrun.runtimes.mpijob.v1alpha1.MpiRuntimeV1Alpha1,
             mlrun.runtimes.remotesparkjob.RemoteSparkRuntime,
             mlrun.runtimes.sparkjob.spark3job.Spark3Runtime,
+            mlrun.runtimes.databricks_job.databricks_runtime.DatabricksRuntime,
         ],
     }
+    if base_classes:
+        # filter classes_map entries by base_classes
+        classes_map = dict(
+            filter(lambda pair: pair[0] in base_classes, classes_map.items())
+        )
+
     invalid_classes = {}
     for base_class, inheriting_classes in classes_map.items():
         checked_classes = set()
@@ -75,10 +89,10 @@ def test_runtimes_inheritance():
                 if class_ in checked_classes:
                     continue
                 class_kwargs = list(
-                    inspect.signature(class_.__init__).parameters.keys()
+                    inspect.signature(getattr(class_, method)).parameters.keys()
                 )
                 base_class_kwargs = list(
-                    inspect.signature(base_class.__init__).parameters.keys()
+                    inspect.signature(getattr(base_class, method)).parameters.keys()
                 )
                 if not set(base_class_kwargs).issubset(class_kwargs):
                     invalid_classes[inheriting_class] = list(
@@ -208,7 +222,7 @@ def test_volume_mounts_addition():
 
 
 def test_build_config_with_multiple_commands():
-    image = "mlrun/ml-models"
+    image = "mlrun/mlrun"
     fn = mlrun.new_function(
         "some-function", "some-project", "some-tag", image=image, kind="job"
     )

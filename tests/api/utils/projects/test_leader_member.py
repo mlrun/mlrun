@@ -18,25 +18,25 @@ import unittest.mock
 import pytest
 import sqlalchemy.orm
 
-import mlrun.api.utils.projects.leader
-import mlrun.api.utils.projects.remotes.follower
-import mlrun.api.utils.singletons.project_member
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+import server.api.utils.projects.leader
+import server.api.utils.projects.remotes.follower
+import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 
 
 @pytest.fixture()
-async def projects_leader() -> typing.Generator[
-    mlrun.api.utils.projects.leader.Member, None, None
-]:
+async def projects_leader() -> (
+    typing.Generator[server.api.utils.projects.leader.Member, None, None]
+):
     logger.info("Creating projects leader")
     mlrun.config.config.httpdb.projects.leader = "nop-self-leader"
     mlrun.config.config.httpdb.projects.followers = "nop,nop2"
     mlrun.config.config.httpdb.projects.periodic_sync_interval = "0 seconds"
-    mlrun.api.utils.singletons.project_member.initialize_project_member()
-    projects_leader = mlrun.api.utils.singletons.project_member.get_project_member()
+    server.api.utils.singletons.project_member.initialize_project_member()
+    projects_leader = server.api.utils.singletons.project_member.get_project_member()
     yield projects_leader
     logger.info("Stopping projects leader")
     projects_leader.shutdown()
@@ -44,31 +44,31 @@ async def projects_leader() -> typing.Generator[
 
 @pytest.fixture()
 async def nop_follower(
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-) -> mlrun.api.utils.projects.remotes.follower.Member:
+    projects_leader: server.api.utils.projects.leader.Member,
+) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._followers["nop"]
 
 
 @pytest.fixture()
 async def second_nop_follower(
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-) -> mlrun.api.utils.projects.remotes.follower.Member:
+    projects_leader: server.api.utils.projects.leader.Member,
+) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._followers["nop2"]
 
 
 @pytest.fixture()
 async def leader_follower(
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-) -> mlrun.api.utils.projects.remotes.follower.Member:
+    projects_leader: server.api.utils.projects.leader.Member,
+) -> server.api.utils.projects.remotes.follower.Member:
     return projects_leader._leader_follower
 
 
 def test_projects_sync_follower_project_adoption(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    second_nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    second_nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -91,10 +91,10 @@ def test_projects_sync_follower_project_adoption(
 
 def test_projects_sync_mid_deletion(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    second_nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    second_nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     """
     This reproduces a bug in which projects sync is running mid deletion
@@ -134,10 +134,10 @@ def test_projects_sync_mid_deletion(
 
 def test_projects_sync_leader_project_syncing(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    second_nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    second_nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -173,10 +173,10 @@ def test_projects_sync_leader_project_syncing(
 
 def test_projects_sync_multiple_follower_project_adoption(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    second_nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    second_nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     second_follower_project_name = "project-name-2"
     second_follower_project_description = "some description 2"
@@ -234,9 +234,9 @@ def test_projects_sync_multiple_follower_project_adoption(
 
 def test_create_project(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -256,8 +256,8 @@ def test_create_project(
 
 def test_create_and_store_project_failure_invalid_name(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     cases = [
         {"name": "asd3", "valid": True},
@@ -325,9 +325,9 @@ def test_create_and_store_project_failure_invalid_name(
 
 def test_ensure_project(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -358,9 +358,9 @@ def test_ensure_project(
 
 def test_store_project_creation(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -380,9 +380,9 @@ def test_store_project_creation(
 
 def test_store_project_update(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"
@@ -414,9 +414,9 @@ def test_store_project_update(
 
 def test_patch_project(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project = mlrun.common.schemas.Project(
@@ -450,9 +450,9 @@ def test_patch_project(
 
 def test_store_and_patch_project_failure_conflict_body_path_name(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project = mlrun.common.schemas.Project(
@@ -483,9 +483,9 @@ def test_store_and_patch_project_failure_conflict_body_path_name(
 
 def test_delete_project(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project = mlrun.common.schemas.Project(
@@ -503,9 +503,9 @@ def test_delete_project(
 
 def test_delete_project_follower_failure(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     def mock_failed_delete(*args, **kwargs):
         raise RuntimeError()
@@ -531,9 +531,9 @@ def test_delete_project_follower_failure(
 
 def test_list_projects(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project = mlrun.common.schemas.Project(
@@ -561,9 +561,9 @@ def test_list_projects(
 
 def test_get_project(
     db: sqlalchemy.orm.Session,
-    projects_leader: mlrun.api.utils.projects.leader.Member,
-    nop_follower: mlrun.api.utils.projects.remotes.follower.Member,
-    leader_follower: mlrun.api.utils.projects.remotes.follower.Member,
+    projects_leader: server.api.utils.projects.leader.Member,
+    nop_follower: server.api.utils.projects.remotes.follower.Member,
+    leader_follower: server.api.utils.projects.remotes.follower.Member,
 ):
     project_name = "project-name"
     project_description = "some description"

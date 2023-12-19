@@ -16,6 +16,7 @@ import enum
 import functools
 import hashlib
 import inspect
+import itertools
 import json
 import os
 import pathlib
@@ -33,6 +34,7 @@ from typing import Any, List, Optional, Tuple
 import anyio
 import git
 import numpy as np
+import packaging.version
 import pandas
 import semver
 import yaml
@@ -47,9 +49,9 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.regex
 import mlrun.utils.version.version
+from mlrun.config import config
 from mlrun.errors import err_to_str
 
-from ..config import config
 from .logger import create_logger
 
 yaml.Dumper.ignore_aliases = lambda *args: True
@@ -61,6 +63,10 @@ DB_SCHEMA = "store"
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
+
+
+class OverwriteBuildParamsWarning(FutureWarning):
+    pass
 
 
 # TODO: remove in 1.7.0
@@ -119,7 +125,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -181,7 +187,7 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -191,7 +197,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -331,7 +337,7 @@ def remove_image_protocol_prefix(image: str) -> str:
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"Field '{field_name}' should be of type '{expected_type.__name__}' "
             f"(got: {type(field_value).__name__} with value: {field_value})."
         )
 
@@ -353,16 +359,16 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+                f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
         try:
             verify_list_items_type(dictionary.keys(), expected_keys_types)
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -405,7 +411,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                "Replacing underscores with dashes.",
+                f"Replacing '{name}' underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")
@@ -516,14 +522,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match
@@ -667,7 +673,7 @@ def parse_artifact_uri(uri, default_project=""):
             iteration = int(iteration)
         except ValueError:
             raise ValueError(
-                f"illegal store path {uri}, iteration must be integer value"
+                f"illegal store path '{uri}', iteration must be integer value"
             )
     return (
         group_dict["project"] or default_project,
@@ -689,12 +695,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -895,7 +903,7 @@ def get_docker_repository_or_default(repository: str) -> str:
 
 def get_parsed_docker_registry() -> Tuple[Optional[str], Optional[str]]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
-    docker_registry = config.httpdb.builder.docker_registry
+    docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
     # this is exception to the rules from the link above, since the config value is called docker_registry we assume
     # that if someone gave just one component without any slash they gave a registry and not a repository
@@ -924,6 +932,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
@@ -932,11 +941,42 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
+
+    # restore original values
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    return uid
+
+
+def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
+    # remove artifact related fields before calculating hash
+    object_dict.setdefault("metadata", {})
+    labels = object_dict["metadata"].pop("labels", None)
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
+
+    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
+    # so further updates of the artifacts will have the same hash
+    db_key = object_dict.get("spec", {}).pop("db_key", None)
+
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
+
+    # calc hash and fill
+    uid = fill_object_hash(object_dict, "uid")
+
+    # restore original values
+    if labels:
+        object_dict["metadata"]["labels"] = labels
+    if object_updated_timestamp:
+        object_dict["metadata"]["updated"] = object_updated_timestamp
+    if db_key:
+        object_dict.setdefault("spec", {})["db_key"] = db_key
     return uid
 
 
@@ -1029,7 +1069,7 @@ def retry_until_successful(
     first_interval = next(backoff)
     if timeout and timeout <= first_interval:
         logger.warning(
-            f"timeout ({timeout}) must be higher than backoff ({first_interval})."
+            f"Timeout ({timeout}) must be higher than backoff ({first_interval})."
             f" Set timeout to be higher than backoff."
         )
 
@@ -1064,7 +1104,7 @@ def retry_until_successful(
         )
 
     raise Exception(
-        f"failed to execute command by the given deadline."
+        f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
         f" timeout: {timeout}"
@@ -1197,7 +1237,7 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found"
+            f"state/function init failed, handler '{function}' not found"
         ) from exc
     return function_object
 
@@ -1269,7 +1309,7 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_artifact_path_template(artifact_path, project):
+def fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (
@@ -1330,6 +1370,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
+
+
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
@@ -1381,7 +1430,7 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
 
         if raise_on_missing:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"artifact {artifact} is missing metadata/spec/status"
+                f"artifact '{artifact}' is missing metadata/spec/status"
             )
         return default
 
@@ -1417,7 +1466,7 @@ def is_running_in_jupyter_notebook() -> bool:
 
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
-        raise ValueError(f"{field_name} must be numeric (str/int types)")
+        raise ValueError(f"'{field_name}' must be numeric (str/int types)")
     return int(field_value)
 
 
@@ -1471,29 +1520,6 @@ def is_file_path(filepath):
     return os.path.isfile(filepath) and ext
 
 
-class DeprecationHelper(object):
-    """A helper class to deprecate old schemas"""
-
-    def __init__(self, new_target, version="1.4.0"):
-        self._new_target = new_target
-        self._version = version
-
-    def _warn(self):
-        warnings.warn(
-            f"mlrun.api.schemas.{self._new_target.__name__} is deprecated in version {self._version}, "
-            f"Please use mlrun.common.schemas.{self._new_target.__name__} instead.",
-            FutureWarning,
-        )
-
-    def __call__(self, *args, **kwargs):
-        self._warn()
-        return self._new_target(*args, **kwargs)
-
-    def __getattr__(self, attr):
-        self._warn()
-        return getattr(self._new_target, attr)
-
-
 def normalize_workflow_name(name, project_name):
     return name.removeprefix(project_name + "-")
 
@@ -1505,3 +1531,46 @@ async def run_in_threadpool(func, *args, **kwargs):
         # run_sync doesn't accept 'kwargs', so bind them in here
         func = functools.partial(func, **kwargs)
     return await anyio.to_thread.run_sync(func, *args)
+
+
+def is_explicit_ack_supported(context):
+    # list from https://github.com/nuclio/nuclio/blob/1.12.0/pkg/platform/abstract/platform.go#L1546
+    return hasattr(context, "trigger") and context.trigger in [
+        "v3io-stream",
+        "v3ioStream",
+        "kafka-cluster",
+        "kafka",
+    ]
+
+
+def line_terminator_kwargs():
+    # pandas 1.5.0 renames line_terminator to lineterminator
+    line_terminator_parameter = (
+        "lineterminator"
+        if packaging.version.Version(pandas.__version__)
+        >= packaging.version.Version("1.5.0")
+        else "line_terminator"
+    )
+    return {line_terminator_parameter: "\n"}
+
+
+def iterate_list_by_chunks(
+    iterable_list: typing.Iterable, chunk_size: int
+) -> typing.Iterable:
+    """
+    Iterate over a list and yield chunks of the list in the given chunk size
+    e.g.: for list of [a,b,c,d,e,f] and chunk_size of 2, will yield [a,b], [c,d], [e,f]
+    """
+    if chunk_size <= 0 or not iterable_list:
+        yield iterable_list
+        return
+    iterator = iter(iterable_list)
+    while chunk := list(itertools.islice(iterator, chunk_size)):
+        yield chunk
+
+
+def to_parquet(df, *args, **kwargs):
+    # version set for pyspark compatibility, and is needed as of pyarrow 13 due to timestamp incompatibility
+    if "version" not in kwargs:
+        kwargs["version"] = "2.4"
+    df.to_parquet(*args, **kwargs)

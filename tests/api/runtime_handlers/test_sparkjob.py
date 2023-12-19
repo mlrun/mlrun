@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
 import mlrun.common.schemas
-from mlrun.api.runtime_handlers import get_runtime_handler
-from mlrun.api.utils.singletons.db import get_db
-from mlrun.api.utils.singletons.k8s import get_k8s_helper
+import server.api.utils.helpers
 from mlrun.runtimes import RuntimeKinds
 from mlrun.runtimes.constants import PodPhases, RunStates
+from server.api.runtime_handlers import get_runtime_handler
+from server.api.utils.singletons.db import get_db
+from server.api.utils.singletons.k8s import get_k8s_helper
 from tests.api.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -32,22 +35,23 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self.kind = RuntimeKinds.spark
         self.runtime_handler = get_runtime_handler(RuntimeKinds.spark)
         self.runtime_handler.wait_for_deletion_interval = 0
+        self._ui_url = "http://spark-ui-url:4040"
 
         # initializing them here to save space in tests
         self.running_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_running_crd_status(),
+            self._get_running_crd_status(driver_ui_url=self._ui_url),
         )
         self.completed_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_completed_crd_status(),
+            self._get_completed_crd_status(driver_ui_url=self._ui_url),
         )
         self.failed_crd_dict = self._generate_sparkjob_crd(
             self.project,
             self.run_uid,
-            self._get_failed_crd_status(),
+            self._get_failed_crd_status(driver_ui_url=self._ui_url),
         )
 
         executor_pod_labels = {
@@ -74,7 +78,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             PodPhases.running,
         )
 
-        driver_pod_labels = {
+        self.driver_pod_labels = {
             "mlrun/class": "spark",
             "mlrun/function": "my-spark-jdbc",
             "mlrun/job": "my-spark-jdbc-2ea432f1",
@@ -93,7 +97,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
 
         self.driver_pod = self._generate_pod(
             driver_pod_name,
-            driver_pod_labels,
+            self.driver_pod_labels,
             PodPhases.running,
         )
 
@@ -275,6 +279,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -314,6 +320,8 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         self._mock_list_namespaced_crds(list_namespaced_crds_calls)
         # for the get_logger_pods with proper selector
         list_namespaced_pods_calls = [
+            # 1 call per threshold state verification or for logs collection (runs in terminal state)
+            [],
             [self.driver_pod],
         ]
         self._mock_list_namespaced_pods(list_namespaced_pods_calls)
@@ -341,6 +349,140 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             log,
             self.driver_pod.metadata.name,
         )
+
+    def test_monitor_run_update_ui_url(self, db: Session, client: TestClient):
+        db_instance = get_db()
+        db_instance.del_run(db, self.run_uid, self.project)
+
+        list_namespaced_crds_calls = [
+            [self.running_crd_dict],
+        ]
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self.runtime_handler.monitor_runs(db_instance, db)
+
+        run = get_db().read_run(db, self.run_uid, self.project)
+        assert run["status"]["state"] == RunStates.running
+        assert run["status"]["ui_url"] == self._ui_url
+
+    @pytest.mark.parametrize(
+        "threshold_state",
+        (
+            "image_pull_backoff",
+            "pending_scheduled",
+            "running",
+        ),
+    )
+    def test_state_thresholds(self, db: Session, client: TestClient, threshold_state):
+        """
+        Creates 2 spark jobs with a pod in the given state.
+        1 that exceeds the threshold and 1 that doesn't.
+        Verifies that the one that exceeds the threshold is marked as stale.
+        """
+        stale_job_uid = str(uuid.uuid4())
+        new_job_uid = str(uuid.uuid4())
+        stale_run_name = "my-spark-stale"
+        new_run_name = "my-spark-new"
+
+        threshold_in_seconds = server.api.utils.helpers.time_string_to_seconds(
+            getattr(
+                mlrun.mlconf.function.spec.state_thresholds.default,
+                threshold_state,
+            )
+        )
+        # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
+        mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
+            threshold_in_seconds * 2
+        )
+
+        # create the runs
+        for uid, name, start_time in [
+            (
+                stale_job_uid,
+                stale_run_name,
+                datetime.now(timezone.utc) - timedelta(seconds=threshold_in_seconds),
+            ),
+            (new_job_uid, new_run_name, datetime.now(timezone.utc)),
+        ]:
+            self._store_run(
+                db,
+                name,
+                uid,
+                start_time=start_time,
+            )
+
+        # create the crd
+        list_namespaced_crds_calls = [[]]
+        for uid in [stale_job_uid, new_job_uid]:
+            running_crd_dict = self._generate_sparkjob_crd(
+                self.project,
+                uid,
+                self._get_running_crd_status(driver_ui_url=self._ui_url),
+            )
+            list_namespaced_crds_calls[0].append(running_crd_dict)
+
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+
+        # create the pods
+        list_namespaced_pods_calls = []
+        for uid, pod_name in [
+            (stale_job_uid, stale_run_name),
+            (new_job_uid, new_run_name),
+        ]:
+            pod_phase = (
+                PodPhases.pending if threshold_state != "running" else PodPhases.running
+            )
+            driver_pod = self._generate_pod(
+                pod_name,
+                self._generate_job_labels(
+                    pod_name, uid, job_labels=self.driver_pod_labels
+                ),
+                pod_phase,
+            )
+            if pod_phase == PodPhases.pending:
+                if threshold_state == "image_pull_backoff":
+                    driver_pod.status.container_statuses = [
+                        k8s_client.V1ContainerStatus(
+                            image="some-image",
+                            image_id="some-image-id",
+                            name="some-container",
+                            ready=False,
+                            restart_count=10,
+                            state=k8s_client.V1ContainerState(
+                                waiting=k8s_client.V1ContainerStateWaiting(
+                                    reason="ImagePullBackOff"
+                                )
+                            ),
+                        )
+                    ]
+                elif threshold_state == "pending_scheduled":
+                    driver_pod.status.conditions = [
+                        k8s_client.V1PodCondition(
+                            status="True",
+                            type="PodScheduled",
+                        )
+                    ]
+            list_namespaced_pods_calls.append([driver_pod])
+
+        self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+
+        expected_number_of_list_crds_calls = len(list_namespaced_crds_calls)
+        stale_runs = self.runtime_handler.monitor_runs(get_db(), db)
+
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            expected_number_of_list_crds_calls,
+        )
+        self._assert_list_namespaced_pods_calls(
+            self.runtime_handler,
+            len(list_namespaced_pods_calls),
+            expected_label_selector=f"mlrun/uid={stale_job_uid}",
+        )
+
+        assert len(stale_runs) == 1
+        assert stale_job_uid in [run["uid"] for run in stale_runs]
+        assert stale_runs[0]["run_updates"] == {
+            "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
+        }
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(
@@ -377,21 +519,30 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         return crd_dict
 
     @staticmethod
-    def _get_running_crd_status():
+    def _get_running_crd_status(driver_ui_url=None):
         return {
             "applicationState": {"state": "RUNNING"},
+            "driverInfo": {
+                "webUIIngressAddress": driver_ui_url,
+            },
         }
 
     @staticmethod
-    def _get_completed_crd_status(timestamp=None):
+    def _get_completed_crd_status(timestamp=None, driver_ui_url=None):
         return {
             "terminationTime": timestamp or "2020-10-05T21:17:11Z",
             "applicationState": {"state": "COMPLETED"},
+            "driverInfo": {
+                "webUIIngressAddress": driver_ui_url,
+            },
         }
 
     @staticmethod
-    def _get_failed_crd_status():
+    def _get_failed_crd_status(driver_ui_url=None):
         return {
             "terminationTime": "2020-10-05T21:17:11Z",
             "applicationState": {"state": "FAILED"},
+            "driverInfo": {
+                "webUIIngressAddress": driver_ui_url,
+            },
         }

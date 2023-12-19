@@ -70,6 +70,7 @@ class BaseLauncher(abc.ABC):
         param_file_secrets: Optional[Dict[str, str]] = None,
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass
@@ -79,6 +80,7 @@ class BaseLauncher(abc.ABC):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
         project_name: Optional[str] = "",
+        full: bool = True,
     ):
         pass
 
@@ -153,29 +155,28 @@ class BaseLauncher(abc.ABC):
             message = ""
             if not os.path.isabs(run.spec.output_path):
                 message = (
-                    "artifact/output path is not defined or is local and relative,"
+                    "Artifact/output path is not defined or is local and relative,"
                     " artifacts will not be visible in the UI"
                 )
                 if mlrun.runtimes.RuntimeKinds.requires_absolute_artifacts_path(
                     runtime.kind
                 ):
                     raise mlrun.errors.MLRunPreconditionFailedError(
-                        "artifact path (`artifact_path`) must be absolute for remote tasks"
+                        "Artifact path (`artifact_path`) must be absolute for remote tasks"
                     )
             elif (
                 hasattr(runtime.spec, "volume_mounts")
                 and not runtime.spec.volume_mounts
             ):
                 message = (
-                    "artifact output path is local while no volume mount is specified. "
-                    "artifacts would not be visible via UI."
+                    "Artifact output path is local while no volume mount is specified. "
+                    "Artifacts would not be visible via UI."
                 )
             if message:
                 logger.warning(message, output_path=run.spec.output_path)
 
     def _validate_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():
-
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
@@ -184,7 +185,7 @@ class BaseLauncher(abc.ABC):
             # verify that integer parameters don't exceed a int64
             if isinstance(param_value, int) and abs(param_value) >= 2**63:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"parameter {param_name} value {param_value} exceeds int64"
+                    f"Parameter {param_name} value {param_value} exceeds int64"
                 )
 
     @staticmethod
@@ -232,6 +233,7 @@ class BaseLauncher(abc.ABC):
         artifact_path=None,
         workdir=None,
         notifications: List[mlrun.model.Notification] = None,
+        state_thresholds: Optional[Dict[str, int]] = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -329,7 +331,7 @@ class BaseLauncher(abc.ABC):
 
         if run.spec.output_path:
             run.spec.output_path = run.spec.output_path.replace("{{run.uid}}", meta.uid)
-            run.spec.output_path = mlrun.utils.helpers.fill_artifact_path_template(
+            run.spec.output_path = mlrun.utils.helpers.fill_project_path_template(
                 run.spec.output_path, run.metadata.project
             )
 
@@ -340,6 +342,17 @@ class BaseLauncher(abc.ABC):
 
         run.spec.notifications = notifications
 
+        state_thresholds = (
+            state_thresholds
+            or run.spec.state_thresholds
+            or getattr(runtime.spec, "state_thresholds", {})
+            or {}
+        )
+        state_thresholds = (
+            mlrun.config.config.function.spec.state_thresholds.default.to_dict()
+            | state_thresholds
+        )
+        run.spec.state_thresholds = state_thresholds or run.spec.state_thresholds
         return run
 
     @staticmethod
@@ -375,7 +388,7 @@ class BaseLauncher(abc.ABC):
         if result and runtime.kfp and err is None:
             mlrun.kfpops.write_kfpmeta(result)
 
-        self._log_track_results(runtime, result, run)
+        self._log_track_results(runtime.is_child, result, run)
 
         if result:
             run = mlrun.run.RunObject.from_dict(result)

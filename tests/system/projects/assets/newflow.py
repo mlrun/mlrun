@@ -26,7 +26,6 @@ in_kfp = True
 
 @dsl.pipeline(name="Demo training pipeline", description="Shows how to use mlrun.")
 def newpipe():
-
     project = get_current_project()
 
     # build our ingestion function (container image)

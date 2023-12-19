@@ -17,12 +17,14 @@ import unittest.mock
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+from fastapi.testclient import TestClient
 
-import mlrun.api.api.utils
-import mlrun.api.launcher
 import mlrun.common.schemas
 import mlrun.launcher.base
 import mlrun.launcher.factory
+import server.api.launcher
+import server.api.utils.clients.iguazio
+import tests.api.api.utils
 
 
 @pytest.mark.parametrize(
@@ -42,14 +44,24 @@ def test_create_server_side_launcher(is_remote, local, expectation):
             is_remote,
             local=local,
         )
-        assert isinstance(launcher, mlrun.api.launcher.ServerSideLauncher)
+        assert isinstance(launcher, server.api.launcher.ServerSideLauncher)
 
 
-def test_enrich_and_validate_with_auth_info():
+def test_enrich_runtime_with_auth_info(
+    monkeypatch, k8s_secrets_mock, client: TestClient
+):
+    mlrun.mlconf.httpdb.authentication.mode = "iguazio"
+    monkeypatch.setattr(
+        server.api.utils.clients.iguazio,
+        "AsyncClient",
+        lambda *args, **kwargs: unittest.mock.AsyncMock(),
+    )
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         access_key="access_key",
         username="username",
     )
+    tests.api.api.utils.create_project(client, mlrun.mlconf.default_project)
+
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
         is_remote=True,
@@ -61,14 +73,64 @@ def test_enrich_and_validate_with_auth_info():
         name="launcher-test",
         kind="job",
     )
+    function.metadata.credentials.access_key = (
+        mlrun.model.Credentials.generate_access_key
+    )
 
-    with unittest.mock.patch(
-        "mlrun.api.api.utils.apply_enrichment_and_validation_on_function",
-        unittest.mock.Mock(),
-    ) as apply_enrichment_and_validation_on_function:
+    launcher.enrich_runtime(function)
+    assert (
+        function.get_env("MLRUN_AUTH_SESSION").secret_key_ref.name
+        == "secret-ref-username-access_key"
+    )
 
-        launcher.enrich_runtime(function)
-        apply_enrichment_and_validation_on_function.assert_called_once_with(
-            function,
-            auth_info,
+
+def test_validate_state_thresholds_success():
+    server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+        state_thresholds={
+            "pending_scheduled": "-1",
+            "running": "1000s",
+            "image_pull_backoff": "3m",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "state_thresholds, expected_error",
+    [
+        (
+            {
+                "pending_scheduled": "-1",
+                "running": "1000s",
+                "image_pull_backoff": "3mm",
+            },
+            "Threshold '3mm' for state 'image_pull_backoff' is not a valid timelength string. "
+            "Error: Input TimeLength \"3mm\" contains an invalid value: ['mm']",
+        ),
+        (
+            {
+                "pending_scheduled": -1,
+            },
+            "Threshold '-1' for state 'pending_scheduled' must be a string",
+        ),
+        (
+            {
+                "unknown_state": "10s",
+            },
+            f"Invalid state unknown_state for state threshold, must be one of "
+            f"{mlrun.runtimes.constants.ThresholdStates.all()}",
+        ),
+        (
+            {
+                "running": "10",
+            },
+            "Threshold '10' for state 'running' is not a valid timelength string. "
+            'Error: Input TimeLength "10" contains no valid Value and Scale pairs.',
+        ),
+    ],
+)
+def test_validate_state_thresholds_failure(state_thresholds, expected_error):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc:
+        server.api.launcher.ServerSideLauncher._validate_state_thresholds(
+            state_thresholds=state_thresholds
         )
+    assert expected_error in str(exc.value)

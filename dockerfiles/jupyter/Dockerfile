@@ -25,6 +25,13 @@ RUN apt-get update && \
 RUN apt-get update && apt-get install --no-install-recommends -y \
   graphviz \
  && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y curl apt-transport-https
+# Download and install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/
+
 USER $NB_UID
 
 ENV PIP_NO_CACHE_DIR=1
@@ -36,8 +43,7 @@ WORKDIR $HOME
 
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/README.ipynb $HOME
 COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlrun.env $HOME
-COPY --chown=$NB_UID:$NB_GID ./docs/tutorial $HOME/tutorial
-COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/tutorial $HOME/_static/images/tutorial
+COPY --chown=$NB_UID:$NB_GID ./docs/tutorials $HOME/tutorials
 COPY --chown=$NB_UID:$NB_GID ./docs/_static/images/MLRun-logo.png $HOME/_static/images
 
 RUN mkdir data
@@ -57,8 +63,11 @@ RUN cd /tmp/mlrun && python -m pip install ".[complete-api]"
 
 # This will usually cause a cache miss - so keep it in the last layers
 ARG MLRUN_CACHE_DATE=initial
-RUN git clone --branch 1.3.x https://github.com/mlrun/demos.git $HOME/demos && \
-    cd $HOME/demos && ./community_edition_align.sh && cd -
+RUN git clone --branch 1.5.x https://github.com/mlrun/demos.git $HOME/demos && \
+    ./demos/update_demos.sh --user=jovyan --path=/home/jovyan/demos --no-backup && \
+    cd $HOME/demos && \
+    ./community_edition_align.sh && \
+    cd -
 RUN git clone --branch master https://github.com/mlrun/functions.git $HOME/functions
 
 ENV JUPYTER_ENABLE_LAB=yes \
@@ -66,6 +75,11 @@ ENV JUPYTER_ENABLE_LAB=yes \
     MLRUN_HTTPDB__DSN='sqlite:////home/jovyan/data/mlrun.db?check_same_thread=false' \
     MLRUN_HTTPDB__LOGS_PATH=$HOME/data/logs \
     MLRUN_ENV_FILE=$HOME/mlrun.env
+
+# backup home since it will be deleted when using pvc
+RUN tar -cvf /tmp/basehome.tar $HOME
+
+COPY --chown=$NB_UID:$NB_GID ./dockerfiles/jupyter/mlce-start.sh /usr/local/bin/mlce-start.sh
 
 # run the mlrun db (api) and the notebook in parallel
 CMD MLRUN_ARTIFACT_PATH=$HOME/data python -m mlrun db & MLRUN_DBPATH=http://localhost:8080 start-notebook.sh \

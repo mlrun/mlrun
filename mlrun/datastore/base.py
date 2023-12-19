@@ -16,8 +16,8 @@ import urllib.parse
 from base64 import b64encode
 from os import path, remove
 from typing import Optional, Union
+from urllib.parse import urlparse
 
-import dask.dataframe as dd
 import fsspec
 import orjson
 import pandas as pd
@@ -49,6 +49,8 @@ class FileStats:
 
 
 class DataStore:
+    using_bucket = False
+
     def __init__(self, parent, name, kind, endpoint="", secrets: dict = None):
         self._parent = parent
         self.kind = kind
@@ -96,10 +98,10 @@ class DataStore:
         """Whether the data store supports isdir"""
         return True
 
-    def _get_secret_or_env(self, key, default=None):
+    def _get_secret_or_env(self, key, default=None, prefix=None):
         # Project-secrets are mounted as env variables whose name can be retrieved from SecretsStore
         return mlrun.get_secret_or_env(
-            key, secret_provider=self._get_secret, default=default
+            key, secret_provider=self._get_secret, default=default, prefix=prefix
         )
 
     def get_storage_options(self):
@@ -151,6 +153,9 @@ class DataStore:
 
     def upload(self, key, src_path):
         pass
+
+    def get_spark_options(self):
+        return {}
 
     @staticmethod
     def _parquet_reader(df_module, url, file_system, time_column, start_time, end_time):
@@ -257,10 +262,22 @@ class DataStore:
                                 filename = filename.split("/")[-1]
                                 filenames.append(filename)
                         dfs = []
-                        for filename in filenames:
-                            updated_args = [f"{base_path}/{filename}"]
-                            updated_args.extend(args[1:])
-                            dfs.append(df_module.read_csv(*updated_args, **kwargs))
+                        if df_module is pd:
+                            kwargs.pop("filesystem", None)
+                            kwargs.pop("storage_options", None)
+                            for filename in filenames:
+                                fullpath = f"{base_path}/{filename}"
+                                with file_system.open(fullpath) as fhandle:
+                                    updated_args = [fhandle]
+                                    updated_args.extend(args[1:])
+                                    dfs.append(
+                                        df_module.read_csv(*updated_args, **kwargs)
+                                    )
+                        else:
+                            for filename in filenames:
+                                updated_args = [f"{base_path}/{filename}"]
+                                updated_args.extend(args[1:])
+                                dfs.append(df_module.read_csv(*updated_args, **kwargs))
                         return df_module.concat(dfs)
 
         elif (
@@ -280,16 +297,26 @@ class DataStore:
             reader = df_module.read_json
 
         else:
-            raise Exception(f"file type unhandled {url}")
+            raise Exception(f"File type unhandled {url}")
 
         if file_system:
-            if self.supports_isdir() and file_system.isdir(file_url) or df_module == dd:
+            if (
+                self.supports_isdir()
+                and file_system.isdir(file_url)
+                or self._is_dd(df_module)
+            ):
                 storage_options = self.get_storage_options()
-                if storage_options:
+                if url.startswith("ds://"):
+                    parsed_url = urllib.parse.urlparse(url)
+                    url = parsed_url.path
+                    if self.using_bucket:
+                        url = url[1:]
+                    # Pass the underlying file system
+                    kwargs["filesystem"] = file_system
+                elif storage_options:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:
-
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
                 if file_system.protocol != "file":
@@ -329,6 +356,15 @@ class DataStore:
 
     def rm(self, path, recursive=False, maxdepth=None):
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+    @staticmethod
+    def _is_dd(df_module):
+        try:
+            import dask.dataframe as dd
+
+            return df_module == dd
+        except ImportError:
+            return False
 
 
 class DataItem:
@@ -670,3 +706,25 @@ class HttpStore(DataStore):
                 f"A AUTH TOKEN should not be provided while using {self._schema} "
                 f"schema as it is not secure and is not recommended."
             )
+
+
+# This wrapper class is designed to extract the 'ds' schema and profile name from URL-formatted paths.
+# Within fsspec, the AbstractFileSystem::_strip_protocol() internal method is used to handle complete URL paths.
+# As an example, it converts an S3 URL 's3://s3bucket/path' to just 's3bucket/path'.
+# Since 'ds' schemas are not inherently processed by fsspec, we have adapted the _strip_protocol()
+# method specifically to strip away the 'ds' schema as required.
+def makeDatastoreSchemaSanitizer(cls, using_bucket=False, *args, **kwargs):
+    if not issubclass(cls, fsspec.AbstractFileSystem):
+        raise ValueError("Class must be a subclass of fsspec.AbstractFileSystem")
+
+    class DatastoreSchemaSanitizer(cls):
+        @classmethod
+        def _strip_protocol(cls, url):
+            if url.startswith("ds://"):
+                parsed_url = urlparse(url)
+                url = parsed_url.path
+                if using_bucket:
+                    url = url[1:]
+            return super()._strip_protocol(url)
+
+    return DatastoreSchemaSanitizer(*args, **kwargs)

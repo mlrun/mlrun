@@ -24,15 +24,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.crud
-import mlrun.api.utils.auth.verifier
-import mlrun.api.utils.clients.iguazio
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import server.api.crud
+import server.api.utils.auth.verifier
+import server.api.utils.clients.iguazio
 import tests.api.api.utils
 import tests.api.conftest
-from mlrun.api.api.utils import (
+from mlrun.common.schemas import SecurityContextEnrichmentModes
+from mlrun.utils import logger
+from server.api.api.utils import (
     _generate_function_and_task_from_submit_run_body,
     _mask_v3io_access_key_env_var,
     _mask_v3io_volume_credentials,
@@ -40,8 +42,6 @@ from mlrun.api.api.utils import (
     ensure_function_security_context,
     get_scheduler,
 )
-from mlrun.common.schemas import SecurityContextEnrichmentModes
-from mlrun.utils import logger
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
@@ -67,14 +67,14 @@ def test_submit_run_sync(db: Session, client: TestClient):
             "metadata": {"credentials": {"access_key": "some-access-key-override"}},
         },
     }
-    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+    _, _, _, response_data = server.api.api.utils.submit_run_sync(
         db, auth_info, submit_job_body
     )
     assert response_data["data"]["action"] == "created"
 
     # submit again, make sure it was modified
     submit_job_body["schedule"] = "0 1 * * *"  # change schedule
-    _, _, _, response_data = mlrun.api.api.utils.submit_run_sync(
+    _, _, _, response_data = server.api.api.utils.submit_run_sync(
         db, auth_info, submit_job_body
     )
     assert response_data["data"]["action"] == "modified"
@@ -153,6 +153,7 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
                     "limits": {"cpu": "250m", "memory": "64Mi", "nvidia.com/gpu": "2"},
                     "requests": {"cpu": "200m", "memory": "32Mi"},
                 },
+                "image": "my/image:tag",
                 "image_pull_policy": "Always",
                 "replicas": "3",
                 "node_name": "k8s-node1",
@@ -262,6 +263,10 @@ def test_generate_function_and_task_from_submit_run_body_body_override_values(
             ignore_order=True,
         )
         == {}
+    )
+    assert (
+        parsed_function_object.spec.image
+        == submit_job_body["function"]["spec"]["image"]
     )
     assert (
         parsed_function_object.spec.image_pull_policy
@@ -461,7 +466,7 @@ def test_ensure_function_has_auth_set(
 ):
     tests.api.api.utils.create_project(client, PROJECT)
 
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
 
@@ -490,7 +495,7 @@ def test_ensure_function_has_auth_set(
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
     function = mlrun.new_function(runtime=original_function_dict)
-    mlrun.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
+    server.api.utils.auth.verifier.AuthVerifier().get_or_create_access_key = (
         unittest.mock.Mock(return_value=access_key)
     )
     ensure_function_has_auth_set(
@@ -509,7 +514,7 @@ def test_ensure_function_has_auth_set(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     assert (
         function.metadata.credentials.access_key
         == f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
@@ -584,7 +589,7 @@ def test_ensure_function_has_auth_set(
     ensure_function_has_auth_set(
         function, mlrun.common.schemas.AuthInfo(username=username)
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert (
         DeepDiff(
@@ -638,7 +643,7 @@ def test_mask_v3io_access_key_env_var(
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=True)
     )
     function = mlrun.new_function(runtime=original_function_dict)
@@ -654,7 +659,7 @@ def test_mask_v3io_access_key_env_var(
     _, _, _, original_function_dict = _generate_original_function(
         v3io_access_key=v3io_access_key
     )
-    mlrun.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+    server.api.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
         unittest.mock.Mock(return_value=False)
     )
     original_function = mlrun.new_function(runtime=original_function_dict)
@@ -692,7 +697,7 @@ def test_mask_v3io_access_key_env_var(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, v3io_access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, v3io_access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, v3io_access_key)
     _assert_env_var_from_secret(
         function,
@@ -706,7 +711,7 @@ def test_mask_v3io_access_key_env_var(
     )
     original_function = mlrun.new_function(runtime=function)
     _mask_v3io_access_key_env_var(function, mlrun.common.schemas.AuthInfo())
-    mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    server.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -715,7 +720,7 @@ def test_mask_v3io_access_key_env_var(
         == {}
     )
     # assert we're not trying to store unneeded-ly
-    assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
+    assert server.api.crud.Secrets().store_auth_secret.call_count == 0
 
     logger.info(
         "mask same function again, access key is already a reference, but this time a dict - nothing "
@@ -726,7 +731,7 @@ def test_mask_v3io_access_key_env_var(
     _mask_v3io_access_key_env_var(
         function, mlrun.common.schemas.AuthInfo(username=username)
     )
-    mlrun.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
+    server.api.crud.Secrets().store_auth_secret = unittest.mock.Mock()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -735,7 +740,7 @@ def test_mask_v3io_access_key_env_var(
         == {}
     )
     # assert we're not trying to store unneeded-ly
-    assert mlrun.api.crud.Secrets().store_auth_secret.call_count == 0
+    assert server.api.crud.Secrets().store_auth_secret.call_count == 0
 
 
 @pytest.mark.parametrize("use_structs", [True, False])
@@ -748,7 +753,7 @@ def test_mask_v3io_volume_credentials(
     username = "volume-username"
     access_key = "volume-access-key"
     v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
-        "some-v3io-volume-name", "", access_key
+        "some-v3io-volume-name", "", access_key, user=username
     )
     v3io_volume_mount = kubernetes.client.V1VolumeMount(
         mount_path="some-v3io-mount-path",
@@ -776,7 +781,17 @@ def test_mask_v3io_volume_credentials(
     no_access_key_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol(
         "no-access-key-v3io-volume-name", "", ""
     )
+
     no_name_v3io_volume = mlrun.platforms.iguazio.v3io_to_vol("", "", access_key)
+
+    no_username_volume = mlrun.platforms.iguazio.v3io_to_vol(
+        "no-user-vol", "/bigdata/someone", access_key=access_key
+    )
+    no_username_volume_mount = kubernetes.client.V1VolumeMount(
+        name="",
+        mount_path="/mnt/some-path",
+    )
+
     k8s_api_client = kubernetes.client.ApiClient()
     if not use_structs:
         v3io_volume["flexVolume"] = k8s_api_client.sanitize_for_serialization(
@@ -869,7 +884,7 @@ def test_mask_v3io_volume_credentials(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
@@ -894,10 +909,37 @@ def test_mask_v3io_volume_credentials(
         )
         == {}
     )
-    secret_name = k8s_secrets_mock.get_auth_secret_name(username, access_key)
+    secret_name = k8s_secrets_mock.resolve_auth_secret_name(username, access_key)
     k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
     assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
     assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+
+    # When creating a function without a user-name, the access-key will not be masked due to no user (ML-5068).
+    k8s_secrets_mock.reset_mock()
+    _, _, _, function_without_username = _generate_original_function(
+        volumes=[no_username_volume], volume_mounts=[no_username_volume_mount]
+    )
+
+    original_function = mlrun.new_function(runtime=function_without_username)
+    function = mlrun.new_function(runtime=function_without_username)
+    _mask_v3io_volume_credentials(function)
+    assert function.spec.volumes[0]["flexVolume"]["options"]["accessKey"] == access_key
+    assert (
+        DeepDiff(
+            original_function.to_dict(),
+            function.to_dict(),
+            ignore_order=True,
+        )
+        == {}
+    )
+
+    # mask while passing auth info with a username, verify masking happens
+    _mask_v3io_volume_credentials(
+        function, auth_info=mlrun.common.schemas.AuthInfo(username=username)
+    )
+    assert "accessKey" not in function.spec.volumes[0]["flexVolume"]["options"]
+    assert function.spec.volumes[0]["flexVolume"]["secretRef"]["name"] == secret_name
+    k8s_secrets_mock.assert_auth_secret(secret_name, username, access_key)
 
 
 def test_ensure_function_security_context_no_enrichment(
@@ -976,7 +1018,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
     )
 
     logger.info("Enrichment mode is override, security context should be enriched")
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
+    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock()
     auth_info = mlrun.common.schemas.AuthInfo(user_unix_id=1000)
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
@@ -987,7 +1029,7 @@ def test_ensure_function_security_context_override_enrichment_mode(
     ensure_function_security_context(function, auth_info)
 
     # assert user unix id was not fetched from iguazio
-    assert mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
+    assert server.api.utils.clients.iguazio.Client.get_user_unix_id.called == 0
 
     # assert function was changed
     assert (
@@ -1099,13 +1141,13 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
         SecurityContextEnrichmentModes.override
     )
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.data]
+        planes=[server.api.utils.clients.iguazio.SessionPlanes.data]
     )
     _, _, _, original_function_dict = _generate_original_function(
         kind=mlrun.runtimes.RuntimeKinds.job
     )
 
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunHTTPError()
     )
     logger.info(
@@ -1115,10 +1157,10 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         ensure_function_security_context(function, auth_info)
     assert "Were unable to enrich user unix id" in str(exc.value)
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
 
     user_unix_id = 1000
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
     auth_info = mlrun.common.schemas.AuthInfo(planes=[])
@@ -1127,8 +1169,8 @@ def test_ensure_function_security_context_missing_control_plane_session_tag(
     )
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
-    assert auth_info.planes == [mlrun.api.utils.clients.iguazio.SessionPlanes.control]
+    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    assert auth_info.planes == [server.api.utils.clients.iguazio.SessionPlanes.control]
 
 
 def test_ensure_function_security_context_get_user_unix_id(
@@ -1143,9 +1185,9 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     # set auth info with control plane and without user unix id so that it will be fetched
     auth_info = mlrun.common.schemas.AuthInfo(
-        planes=[mlrun.api.utils.clients.iguazio.SessionPlanes.control]
+        planes=[server.api.utils.clients.iguazio.SessionPlanes.control]
     )
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
+    server.api.utils.clients.iguazio.Client.get_user_unix_id = unittest.mock.Mock(
         return_value=user_unix_id
     )
 
@@ -1161,7 +1203,7 @@ def test_ensure_function_security_context_get_user_unix_id(
 
     function = mlrun.new_function(runtime=original_function_dict)
     ensure_function_security_context(function, auth_info)
-    mlrun.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
+    server.api.utils.clients.iguazio.Client.get_user_unix_id.assert_called_once()
     assert (
         DeepDiff(
             original_function.to_dict(),
@@ -1286,11 +1328,11 @@ def test_get_obj_path(db: Session, client: TestClient):
             with pytest.raises(
                 mlrun.errors.MLRunAccessDeniedError, match="Unauthorized path"
             ):
-                mlrun.api.api.utils.get_obj_path(
+                server.api.api.utils.get_obj_path(
                     case.get("schema"), case.get("path"), case.get("user")
                 )
         else:
-            result_path = mlrun.api.api.utils.get_obj_path(
+            result_path = server.api.api.utils.get_obj_path(
                 case.get("schema"), case.get("path"), case.get("user")
             )
             assert result_path == case["expected_path"]

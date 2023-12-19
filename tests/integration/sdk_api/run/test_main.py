@@ -40,7 +40,6 @@ echo "abc123" $1
 
 
 class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
-
     assets_path = (
         pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
     )
@@ -406,6 +405,11 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
         assert out.find("return: '[6, 7]'") != -1, out
 
+    def test_get_runs_with_tag(self):
+        args = ["runs", "-p", "obj=[6,7]", "--tag", "666"]
+        out = self._exec_main("get", args)
+        assert out.find("Unsupported argument") != -1, out
+
     def test_main_env_file(self):
         # test run with env vars loaded from a .env file
         function_path = str(self.assets_path / "handler.py")
@@ -419,6 +423,37 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         assert out.find("state: completed") != -1, out
         assert out.find("ENV_ARG1: '123'") != -1, out
         assert out.find("kfp_ttl: 12345") != -1, out
+
+    def test_main_run_function_from_another_project(self):
+        # test running function from another project and validate that the function is stored in the current project
+        project = mlrun.get_or_create_project("first-project")
+
+        fn = mlrun.code_to_function(
+            name="new-func",
+            filename=f"{examples_path}/handler.py",
+            kind="local",
+            handler="my_func",
+        )
+        project.set_function(fn)
+        fn.save()
+
+        # create another project
+        project2 = mlrun.get_or_create_project("second-project")
+
+        # from the second project - run the function that we stored in the first project
+        args = (
+            "-f db://first-project/new-func --project second-project --ensure-project"
+        )
+        self._exec_main("run", args.split())
+
+        # validate that the function is now stored also in the second project
+        first_project_func = project.get_function("new-func", ignore_cache=True)
+        second_project_func = project2.get_function("new-func", ignore_cache=True)
+
+        assert second_project_func is not None
+        assert second_project_func.metadata.name == first_project_func.metadata.name
+        assert second_project_func.metadata.tag == first_project_func.metadata.tag
+        assert second_project_func.metadata.hash != first_project_func.metadata.hash
 
     @staticmethod
     def _exec_main(op, args, cwd=examples_path, raise_on_error=True):

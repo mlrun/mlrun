@@ -1,18 +1,20 @@
 (configuring-job-resources)=
-# Managing job resources
+# Configuring runs and functions
 
 MLRun orchestrates serverless functions over Kubernetes. You can specify the resource requirements (CPU, memory, GPUs),
-preferences, and priorities in the logical function object. These are used during the function deployment.
+preferences, and pod priorities in the logical function object. You can also configure how MLRun prevents stuck pods.
+All of these are used during the function deployment.
 
-Configuration of job resources is relevant for all supported cloud platforms.
+Configuring runs and functions is relevant for all supported cloud platforms.
 
 **In this section**
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
-- [Number of GPUs](#number-of-gpus)
+- [Number of workers and GPUs](#number-of-workers-and-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
+- [Preventing stuck pods](#preventing-stuck-pods)
 
 ## Replicas
 
@@ -52,7 +54,7 @@ Configure the limits assigned to a function by using `with_limits`. For example:
 
 ```
 training_function = mlrun.code_to_function("training.py", name="training", handler="train", 
-                                                                       kind="mpijob", image="mlrun/ml-models-gpu")
+                                           kind="mpijob", image="mlrun/mlrun-gpu")
 training_function.spec.replicas = 2
 training_function.with_requests(cpu=2)
 training_function.with_limits(gpus=1)
@@ -61,11 +63,18 @@ training_function.with_limits(gpus=1)
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
-## Number of GPUs
+## Number of workers and GPUs
 
-When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of 
-workers. You can set the number of workers for each trigger and the number of GPUs for each pod 
-using the MLRun SDK.
+For each Nuclio or serving function, MLRun creates an HTTP trigger with the default of 1 worker.  When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of workers (or manage the GPU consumption within your code). You can set the [number of GPUs for each pod using the MLRun SDK](./create-and-use-functions.html#memory-cpu-gpu-resources).
+
+You can change the number of workers after you create the trigger (function object), then you need to 
+redeploy the function.  Examples of changing the number of workers:
+
+{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.with_http`:</br>
+`serve.with_http(workers=8, worker_timeout=10)`
+
+{py:class}`~mlrun.runtimes.html#mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
+`serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
 
 ## Volumes
 
@@ -162,8 +171,11 @@ it would have to be designed so that the job/function state will be saved when s
 
 Preemption mode has three values:
 - Allow: The function pod can run on a spot node if one is available.
-- Constrain: The function pod only runs on spot nodes, and does not run if none is available.
+- Constrain: The function pod only runs on spot nodes, and does not run if none is available. 
 - Prevent: Default. The function pod cannot run on a spot node. 
+
+To change the default function preemption mode, it is required to override mlrun the api configuration 
+(and specifically "MLRUN_FUNCTION_DEFAULTS__PREENPTION_MODE" envvar to either one of the above modes).
 
 ### UI configuration
 
@@ -261,3 +273,37 @@ train_fn.run(inputs={"dataset" :my_data})
 
 
 See [with_priority_class](../api/mlrun.runtimes.html.#mlrun.runtimes.RemoteRuntime.with_priority_class).
+
+## Preventing stuck pods
+
+The runtimes spec has four "state_threshold" attributes that can determine when to abort a run. 
+Once a threshold is passed and the run is in the matching state, the API monitoring aborts the run, deletes its resources, 
+sets the run state to aborted, and issues a "status_text" message.
+
+The four states and their default thresholds are:
+
+```
+'pending_scheduled': '1h', #Scheduled and pending and therefore consumes resources
+'pending_not_scheduled': '-1', #Scheduled but not pending, can continue to wait for resources
+'image_pull_backoff': '1h', #Container running in a pod fails to pull the required image from a container registry
+'running': '24h' #Job is running  
+```
+
+The thresholds are time strings constructed of value and scale pairs (e.g. "30 minutes 5h 1day"). 
+To configure to infinity, use `-1`. 
+
+To change the state thresholds, use:
+```
+func.set_state_thresholds({"pending_not_scheduled": "1 min"}) 
+```
+For just the run, use:
+```
+func.run(state_thresholds={"running": "1 min", "image_pull_backoff": "1 minute and 30s"}) 
+```
+
+See:
+- {py:meth}`~mlrun.runtimes.KubeResource.set_state_thresholds`
+
+```{admonition} Note
+State thresholds are not supported for Nuclio runtimes as nuclio provides it's own monitoring and for dask runtime which can be monitored by the client.
+```

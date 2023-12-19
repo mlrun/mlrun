@@ -16,10 +16,10 @@ import typing
 
 import pytest
 
-from mlrun.api.crud.model_monitoring.helpers import (
+from server.api.crud.model_monitoring.helpers import (
     Minutes,
     Seconds,
-    _add_minutes_offset,
+    add_minutes_offset,
     seconds2minutes,
 )
 
@@ -48,4 +48,4 @@ def test_add_minutes_offset(
     offset: Minutes,
     expected_result: typing.Optional[typing.Union[int, str]],
 ) -> None:
-    assert _add_minutes_offset(minute, offset) == expected_result
+    assert add_minutes_offset(minute, offset) == expected_result

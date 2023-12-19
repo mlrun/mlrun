@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import inspect
 import os
+import re
 import typing
-import uuid
 from enum import Enum
 
 import dotenv
@@ -36,15 +37,12 @@ from ..k8s_utils import (
     generate_preemptible_nodes_anti_affinity_terms,
     generate_preemptible_tolerations,
 )
-from ..secrets import SecretsStore
-from ..utils import logger, normalize_name, update_in
+from ..utils import logger, update_in
 from .base import BaseRuntime, FunctionSpec, spec_fields
 from .utils import (
     apply_kfp,
     get_gpu_from_resource_requirement,
     get_item_name,
-    get_k8s,
-    get_resource_labels,
     set_named_item,
     verify_limits,
     verify_requests,
@@ -105,6 +103,7 @@ class KubeResourceSpec(FunctionSpec):
         "tolerations",
         "preemption_mode",
         "security_context",
+        "state_thresholds",
     ]
 
     def __init__(
@@ -136,6 +135,7 @@ class KubeResourceSpec(FunctionSpec):
         preemption_mode=None,
         security_context=None,
         clone_target_dir=None,
+        state_thresholds=None,
     ):
         super().__init__(
             command=command,
@@ -182,6 +182,11 @@ class KubeResourceSpec(FunctionSpec):
         self.security_context = (
             security_context or mlrun.mlconf.get_default_function_security_context()
         )
+        self.state_thresholds = (
+            state_thresholds
+            or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
+        )
+        self.__fields_pending_discard = {}
 
     @property
     def volumes(self) -> list:
@@ -328,6 +333,22 @@ class KubeResourceSpec(FunctionSpec):
                         resource_value,
                     )
 
+    def discard_changes(self):
+        """
+        Certain pipeline engines might make temporary changes to a function spec to ensure expected behavior.
+        Kubeflow, for instance, can use pipeline parameters to change resource requests/limits on a function.
+        Affected fields will be scheduled for cleanup automatically. Direct user intervention is not required.
+        """
+        for k, v in self.__fields_pending_discard.items():
+            setattr(self, k, v)
+
+    def _add_field_to_pending_discard(self, field_name, field_value):
+        self.__fields_pending_discard.update(
+            {
+                field_name: copy.deepcopy(field_value),
+            }
+        )
+
     def _verify_and_set_requests(
         self,
         resources_field_name,
@@ -336,6 +357,11 @@ class KubeResourceSpec(FunctionSpec):
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
+        for pattern in mlrun.utils.regex.pipeline_param:
+            if re.match(pattern, str(cpu)) or re.match(pattern, str(mem)):
+                self._add_field_to_pending_discard(
+                    resources_field_name, getattr(self, resources_field_name)
+                )
         if not patch:
             update_in(
                 getattr(self, resources_field_name),
@@ -465,9 +491,7 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
-            node_selector
-        )
+        self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = node_selector
 
     def enrich_function_preemption_spec(
         self,
@@ -567,7 +591,6 @@ class KubeResourceSpec(FunctionSpec):
             )
         # purge any affinity / anti-affinity preemption related configuration and enrich with preemptible tolerations
         elif self_preemption_mode == PreemptionModes.allow.value:
-
             # remove preemptible anti-affinity
             self._prune_affinity_node_selector_requirement(
                 generate_preemptible_node_selector_requirements(
@@ -629,17 +652,13 @@ class KubeResourceSpec(FunctionSpec):
         self._initialize_node_affinity(affinity_field_name)
 
         self_affinity = getattr(self, affinity_field_name)
-        if (
-            not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        ):
+        if not self_affinity.node_affinity.required_during_scheduling_ignored_during_execution:
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = k8s_client.V1NodeSelector(
                 node_selector_terms=node_selector_terms
             )
             return
 
-        node_selector = (
-            self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
-        )
+        node_selector = self_affinity.node_affinity.required_during_scheduling_ignored_during_execution
         new_node_selector_terms = []
 
         for node_selector_term_to_add in node_selector_terms:
@@ -715,9 +734,11 @@ class KubeResourceSpec(FunctionSpec):
             self._initialize_affinity(affinity_field_name)
             self._initialize_node_affinity(affinity_field_name)
 
+            # fmt: off
             self_affinity.node_affinity.required_during_scheduling_ignored_during_execution = (
                 new_required_during_scheduling_ignored_during_execution
             )
+            # fmt: on
 
     @staticmethod
     def _prune_node_selector_requirements_from_node_selector_terms(
@@ -868,7 +889,6 @@ class AutoMountType(str, Enum):
         return mlrun.platforms.other.mount_pvc if pvc_configured else None
 
     def get_modifier(self):
-
         return {
             AutoMountType.none: None,
             AutoMountType.v3io_credentials: mlrun.v3io_cred,
@@ -1032,6 +1052,33 @@ class KubeResource(BaseRuntime):
         if image_pull_secret_name is not None:
             self.spec.image_pull_secret = image_pull_secret_name
 
+    def set_state_thresholds(
+        self,
+        state_thresholds: typing.Dict[str, str],
+        patch: bool = True,
+    ):
+        """
+        Set the threshold for a specific state of the runtime.
+        The threshold is the amount of time that the runtime will wait before aborting the run if the job is in the
+        matching state.
+        The threshold time string must conform to timelength python package standards and be at least 1 minute
+        (e.g. 1000s, 1 hour 30m, 1h etc. or -1 for infinite).
+        If the threshold is not set for a state, the default threshold will be used.
+
+        :param state_thresholds: A dictionary of state to threshold. The supported states are:
+            * pending_scheduled - The pod is scheduled on a node but not yet running
+            * pending_not_scheduled - The pod is not yet scheduled on a node
+            * running - The is running
+            * image_pull_backoff - The is in image pull backoff
+            See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+        :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
+                      or override them (False)
+        """
+        if patch:
+            self.spec.state_thresholds.update(state_thresholds)
+        else:
+            self.spec.state_thresholds = state_thresholds
+
     def with_limits(
         self,
         mem: str = None,
@@ -1169,169 +1216,6 @@ class KubeResource(BaseRuntime):
     def get_default_priority_class_name(self):
         return mlconf.default_function_priority_class_name
 
-    def _get_meta(self, runobj, unique=False):
-        namespace = get_k8s().resolve_namespace()
-
-        labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        new_meta = k8s_client.V1ObjectMeta(
-            namespace=namespace,
-            annotations=self.metadata.annotations or runobj.metadata.annotations,
-            labels=labels,
-        )
-
-        name = runobj.metadata.name or "mlrun"
-        norm_name = f"{normalize_name(name)}-"
-        if unique:
-            norm_name += uuid.uuid4().hex[:8]
-            new_meta.name = norm_name
-            runobj.set_label("mlrun/job", norm_name)
-        else:
-            new_meta.generate_name = norm_name
-        return new_meta
-
-    def _add_secrets_to_spec_before_running(self, runobj=None, project=None):
-        if self._secrets:
-            if self._secrets.has_vault_source():
-                self._add_vault_params_to_spec(runobj=runobj, project=project)
-            if self._secrets.has_azure_vault_source():
-                self._add_azure_vault_params_to_spec(
-                    self._secrets.get_azure_vault_k8s_secret()
-                )
-            self._add_k8s_secrets_to_spec(
-                self._secrets.get_k8s_secrets(), runobj=runobj, project=project
-            )
-        else:
-            self._add_k8s_secrets_to_spec(None, runobj=runobj, project=project)
-
-    def _add_azure_vault_params_to_spec(self, k8s_secret_name=None):
-        secret_name = (
-            k8s_secret_name or mlconf.secret_stores.azure_vault.default_secret_name
-        )
-        if not secret_name:
-            logger.warning(
-                "No k8s secret provided. Azure key vault will not be available"
-            )
-            return
-
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        secret_path = mlconf.secret_stores.azure_vault.secret_path.replace("~", "/root")
-        volumes = [
-            {
-                "name": "azure-vault-secret",
-                "secret": {"defaultMode": 420, "secretName": secret_name},
-            }
-        ]
-        volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-
-    def _add_k8s_secrets_to_spec(
-        self,
-        secrets,
-        runobj=None,
-        project=None,
-        encode_key_names=True,
-    ):
-        # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
-        # project secrets, to allow project secret keys to override them
-        global_secret_name = (
-            mlconf.secret_stores.kubernetes.global_function_env_secret_name
-        )
-        if mlrun.config.is_running_as_api() and global_secret_name:
-            global_secrets = get_k8s().get_secret_data(global_secret_name)
-            for key, value in global_secrets.items():
-                env_var_name = (
-                    SecretsStore.k8s_env_variable_name_for_secret(key)
-                    if encode_key_names
-                    else key
-                )
-                self.set_env_from_secret(env_var_name, global_secret_name, key)
-
-        # the secrets param may be an empty dictionary (asking for all secrets of that project) -
-        # it's a different case than None (not asking for project secrets at all).
-        if (
-            secrets is None
-            and not mlconf.secret_stores.kubernetes.auto_add_project_secrets
-        ):
-            return
-
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add k8s secrets")
-            return
-
-        secret_name = get_k8s().get_project_secret_name(project_name)
-        # Not utilizing the same functionality from the Secrets crud object because this code also runs client-side
-        # in the nuclio remote-dashboard flow, which causes dependency problems.
-        existing_secret_keys = get_k8s().get_project_secret_keys(
-            project_name, filter_internal=True
-        )
-
-        # If no secrets were passed or auto-adding all secrets, we need all existing keys
-        if not secrets:
-            secrets = {
-                key: SecretsStore.k8s_env_variable_name_for_secret(key)
-                if encode_key_names
-                else key
-                for key in existing_secret_keys
-            }
-
-        for key, env_var_name in secrets.items():
-            if key in existing_secret_keys:
-                self.set_env_from_secret(env_var_name, secret_name, key)
-
-        # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
-        # can be initialized with those env variables as secrets
-        if not encode_key_names and secrets.keys():
-            self.set_env("MLRUN_PROJECT_SECRETS_LIST", ",".join(secrets.keys()))
-
-    def _add_vault_params_to_spec(self, runobj=None, project=None):
-        project_name = project or runobj.metadata.project
-        if project_name is None:
-            logger.warning("No project provided. Cannot add vault parameters")
-            return
-
-        service_account_name = (
-            mlconf.secret_stores.vault.project_service_account_name.format(
-                project=project_name
-            )
-        )
-
-        project_vault_secret_name = get_k8s().get_project_vault_secret_name(
-            project_name, service_account_name
-        )
-        if project_vault_secret_name is None:
-            logger.info(f"No vault secret associated with project {project_name}")
-            return
-
-        volumes = [
-            {
-                "name": "vault-secret",
-                "secret": {"defaultMode": 420, "secretName": project_vault_secret_name},
-            }
-        ]
-        # We cannot use expanduser() here, since the user in question is the user running in the pod
-        # itself (which is root) and not where this code is running. That's why this hacky replacement is needed.
-        token_path = mlconf.secret_stores.vault.token_path.replace("~", "/root")
-
-        volume_mounts = [{"name": "vault-secret", "mountPath": token_path}]
-
-        self.spec.update_vols_and_mounts(volumes, volume_mounts)
-        self.spec.env.append(
-            {
-                "name": "MLRUN_SECRET_STORES__VAULT__ROLE",
-                "value": f"project:{project_name}",
-            }
-        )
-        # In case remote URL is different than local URL, use it. Else, use the local URL
-        vault_url = mlconf.secret_stores.vault.remote_url
-        if vault_url == "":
-            vault_url = mlconf.secret_stores.vault.url
-
-        self.spec.env.append(
-            {"name": "MLRUN_SECRET_STORES__VAULT__URL", "value": vault_url}
-        )
-
     def try_auto_mount_based_on_config(self, override_params=None):
         if self.spec.disable_auto_mount:
             logger.debug(
@@ -1367,25 +1251,6 @@ class KubeResource(BaseRuntime):
                 )
 
         self.spec.validate_service_account(allowed_service_accounts)
-
-
-def kube_resource_spec_to_pod_spec(
-    kube_resource_spec: KubeResourceSpec, container: k8s_client.V1Container
-):
-    return k8s_client.V1PodSpec(
-        containers=[container],
-        restart_policy="Never",
-        volumes=kube_resource_spec.volumes,
-        service_account=kube_resource_spec.service_account,
-        node_name=kube_resource_spec.node_name,
-        node_selector=kube_resource_spec.node_selector,
-        affinity=kube_resource_spec.affinity,
-        priority_class_name=kube_resource_spec.priority_class_name
-        if len(mlconf.get_valid_function_priority_class_names())
-        else None,
-        tolerations=kube_resource_spec.tolerations,
-        security_context=kube_resource_spec.security_context,
-    )
 
 
 def _resolve_if_type_sanitized(attribute_name, attribute):

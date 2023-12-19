@@ -354,6 +354,37 @@ def v2_serving_init(context, namespace=None):
     if server.verbose:
         context.logger.info(server.to_yaml())
 
+    if hasattr(context, "platform") and hasattr(
+        context.platform, "set_termination_callback"
+    ):
+        context.logger.info(
+            "Setting termination callback to terminate graph on worker shutdown"
+        )
+
+        def termination_callback():
+            context.logger.info("Termination callback called")
+            server.wait_for_completion()
+            context.logger.info("Termination of async flow is completed")
+
+        context.platform.set_termination_callback(termination_callback)
+
+    if hasattr(context, "platform") and hasattr(context.platform, "set_drain_callback"):
+        context.logger.info(
+            "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
+        )
+
+        def drain_callback():
+            context.logger.info("Drain callback called")
+            server.wait_for_completion()
+            context.logger.info(
+                "Termination of async flow is completed. Rerunning async flow."
+            )
+            # Rerun the flow without reconstructing it
+            server.graph._run_async_flow()
+            context.logger.info("Async flow restarted")
+
+        context.platform.set_drain_callback(drain_callback)
+
 
 def v2_serving_handler(context, event, get_body=False):
     """hook for nuclio handler()"""
@@ -361,8 +392,6 @@ def v2_serving_handler(context, event, get_body=False):
         # Workaround for a Nuclio bug where it sometimes passes b'' instead of None due to dirty memory
         if event.body == b"":
             event.body = None
-    else:
-        event.path = "/"  # fix the issue that non http returns "Unsupported"
 
     return context._server.run(event, context, get_body)
 
@@ -467,6 +496,10 @@ class GraphContext:
         if nuclio_context:
             self.logger = nuclio_context.logger
             self.Response = nuclio_context.Response
+            if hasattr(nuclio_context, "trigger") and hasattr(
+                nuclio_context.trigger, "kind"
+            ):
+                self.trigger = nuclio_context.trigger.kind
             self.worker_id = nuclio_context.worker_id
             if hasattr(nuclio_context, "platform"):
                 self.platform = nuclio_context.platform

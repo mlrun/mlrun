@@ -13,7 +13,8 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Any
 
 import mlrun.model
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -24,72 +25,44 @@ from mlrun.common.schemas.model_monitoring.constants import (
 )
 
 
+@dataclass
 class ModelEndpointSpec(mlrun.model.ModelObj):
-    def __init__(
-        self,
-        function_uri: Optional[str] = "",
-        model: Optional[str] = "",
-        model_class: Optional[str] = "",
-        model_uri: Optional[str] = "",
-        feature_names: Optional[List[str]] = None,
-        label_names: Optional[List[str]] = None,
-        stream_path: Optional[str] = "",
-        algorithm: Optional[str] = "",
-        monitor_configuration: Optional[dict] = None,
-        active: Optional[bool] = True,
-        monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled,
-    ):
-        self.function_uri = function_uri  # <project_name>/<function_name>:<tag>
-        self.model = model  # <model_name>:<version>
-        self.model_class = model_class
-        self.model_uri = model_uri
-        self.feature_names = feature_names or []
-        self.label_names = label_names or []
-        self.stream_path = stream_path
-        self.algorithm = algorithm
-        self.monitor_configuration = monitor_configuration or {}
-        self.active = active
-        self.monitoring_mode = monitoring_mode
+    function_uri: str = ""  # <project_name>/<function_name>:<tag>
+    model: str = ""  # <model_name>:<version>
+    model_class: str = ""
+    model_uri: str = ""
+    feature_names: list[str] = field(default_factory=list)
+    label_names: list[str] = field(default_factory=list)
+    stream_path: str = ""
+    algorithm: str = ""
+    monitor_configuration: dict = field(default_factory=dict)
+    active: bool = True
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.disabled
 
 
+@dataclass
 class ModelEndpointStatus(mlrun.model.ModelObj):
-    def __init__(
-        self,
-        feature_stats: Optional[dict] = None,
-        current_stats: Optional[dict] = None,
-        first_request: Optional[str] = "",
-        last_request: Optional[str] = "",
-        error_count: Optional[int] = 0,
-        drift_status: Optional[str] = "",
-        drift_measures: Optional[dict] = None,
-        metrics: Optional[Dict[str, Dict[str, Any]]] = None,
-        features: Optional[List[Dict[str, Any]]] = None,
-        children: Optional[List[str]] = None,
-        children_uids: Optional[List[str]] = None,
-        endpoint_type: Optional[EndpointType] = EndpointType.NODE_EP.value,
-        monitoring_feature_set_uri: Optional[str] = "",
-        state: Optional[str] = "",
-    ):
-        self.feature_stats = feature_stats or {}
-        self.current_stats = current_stats or {}
-        self.first_request = first_request
-        self.last_request = last_request
-        self.error_count = error_count
-        self.drift_status = drift_status
-        self.drift_measures = drift_measures or {}
-        self.features = features or []
-        self.children = children or []
-        self.children_uids = children_uids or []
-        self.endpoint_type = endpoint_type
-        self.monitoring_feature_set_uri = monitoring_feature_set_uri
-        if metrics is None:
-            self.metrics = {
-                EventKeyMetrics.GENERIC: {
-                    EventLiveStats.LATENCY_AVG_1H: 0,
-                    EventLiveStats.PREDICTIONS_PER_SECOND: 0,
-                }
+    feature_stats: dict = field(default_factory=dict)
+    current_stats: dict = field(default_factory=dict)
+    first_request: str = ""
+    last_request: str = ""
+    error_count: int = 0
+    drift_status: str = ""
+    drift_measures: dict = field(default_factory=dict)
+    metrics: dict[str, dict[str, Any]] = field(
+        default_factory=lambda: {
+            EventKeyMetrics.GENERIC: {
+                EventLiveStats.LATENCY_AVG_1H: 0,
+                EventLiveStats.PREDICTIONS_PER_SECOND: 0,
             }
-        self.state = state
+        }
+    )
+    features: list[dict[str, Any]] = field(default_factory=list)
+    children: list[str] = field(default_factory=list)
+    children_uids: list[str] = field(default_factory=list)
+    endpoint_type: EndpointType = EndpointType.NODE_EP
+    monitoring_feature_set_uri: str = ""
+    state: str = ""
 
 
 class ModelEndpoint(mlrun.model.ModelObj):

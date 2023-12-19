@@ -23,8 +23,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import mlrun
-import mlrun.api.api.endpoints.functions
 import mlrun.common.schemas
+import server.api.api.endpoints.functions
 from mlrun import mlconf
 from mlrun.platforms import auto_mount
 from mlrun.runtimes.utils import generate_resources
@@ -107,7 +107,7 @@ class TestDaskRuntime(TestRuntimeBase):
     ):
         scheduler_pod = self._get_scheduler_pod_creation_args()
         scheduler_container_spec = scheduler_pod.spec.containers[0]
-        assert scheduler_container_spec.args == ["dask-scheduler"]
+        assert scheduler_container_spec.args == ["dask", "scheduler"]
 
     def _assert_pods_resources(
         self,
@@ -167,7 +167,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_scheduler_pod_args()
 
@@ -195,7 +195,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_pods_resources(
             expected_worker_requests={
@@ -249,7 +249,7 @@ class TestDaskRuntime(TestRuntimeBase):
             assert_namespace_env_variable=False,
         )
         self._assert_v3io_mount_or_creds_configured(
-            self.v3io_user, self.v3io_access_key
+            self.v3io_user, self.v3io_access_key, masked=False
         )
         self._assert_pods_resources(
             expected_requests,
@@ -442,7 +442,7 @@ class TestDaskRuntime(TestRuntimeBase):
         mlrun.mlconf.function.spec.security_context.enrichment_mode = (
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.disabled.value
         )
-        _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)
+        _ = server.api.api.endpoints.functions._start_function(runtime, auth_info)
         pod = self._get_pod_creation_args()
         print(pod)
         self.assert_security_context()
@@ -451,7 +451,7 @@ class TestDaskRuntime(TestRuntimeBase):
             mlrun.common.schemas.function.SecurityContextEnrichmentModes.override.value
         )
         runtime = self._generate_runtime()
-        _ = mlrun.api.api.endpoints.functions._start_function(runtime, auth_info)
+        _ = server.api.api.endpoints.functions._start_function(runtime, auth_info)
         self.assert_security_context(
             self._generate_security_context(
                 run_as_group=mlrun.mlconf.function.spec.security_context.enrichment_group_id,

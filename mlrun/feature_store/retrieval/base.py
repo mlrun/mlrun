@@ -21,7 +21,7 @@ import pandas as pd
 import mlrun
 from mlrun.datastore.targets import CSVTarget, ParquetTarget
 from mlrun.feature_store.feature_set import FeatureSet
-from mlrun.feature_store.feature_vector import Feature, JoinGraph
+from mlrun.feature_store.feature_vector import JoinGraph
 
 from ...utils import logger, str_to_timestamp
 from ..feature_vector import OfflineVectorResponse
@@ -136,7 +136,11 @@ class BaseMerger(abc.ABC):
             order_by=order_by,
         )
 
-    def _write_to_offline_target(self):
+    def _write_to_offline_target(self, timestamp_key=None):
+        save_vector = False
+        if not self._drop_indexes and timestamp_key not in self._drop_columns:
+            self.vector.status.timestamp_key = timestamp_key
+            save_vector = True
         if self._target:
             is_persistent_vector = self.vector.metadata.name is not None
             if not self._target.path and not is_persistent_vector:
@@ -144,18 +148,14 @@ class BaseMerger(abc.ABC):
                     "target path was not specified"
                 )
             self._target.set_resource(self.vector)
-            size = self._target.write_dataframe(self._result_df)
+            size = self._target.write_dataframe(
+                self._result_df, timestamp_key=self.vector.status.timestamp_key
+            )
             if is_persistent_vector:
                 target_status = self._target.update_resource_status("ready", size=size)
                 logger.info(f"wrote target: {target_status}")
-                self.vector.save()
-        if not self._drop_indexes:
-            self.vector.spec.entity_fields = [
-                Feature(name=feature, value_type=self._result_df[feature].dtype)
-                if self._result_df[feature].dtype.name != "object"
-                else Feature(name=feature, value_type="str")
-                for feature in self._index_columns
-            ]
+            save_vector = True
+        if save_vector:
             self.vector.save()
 
     def _set_indexes(self, df):
@@ -191,18 +191,14 @@ class BaseMerger(abc.ABC):
 
         feature_sets = []
         dfs = []
-        keys = (
-            []
-        )  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
+        keys = []  # the struct of key is [[[],[]], ..] So that each record indicates which way the corresponding
         # featureset is connected to the previous one, and within each record the left keys are indicated in index 0
         # and the right keys in index 1, this keys will be the keys that will be used in this join
         join_types = []
 
         if entity_rows is not None:
             if entity_rows.index.names[0]:
-                entity_rows.reset_index(
-                    inplace=True,
-                )
+                entity_rows = entity_rows.reset_index()
             entity_rows_keys = list(entity_rows.columns)
         else:
             entity_rows_keys = None
@@ -312,6 +308,7 @@ class BaseMerger(abc.ABC):
                 "start_time and end_time can only be provided in conjunction with "
                 "a timestamp column, or when the at least one feature_set has a timestamp key"
             )
+
         # join the feature data frames
         result_timestamp = self.merge(
             entity_timestamp_column=entity_timestamp_column,
@@ -363,7 +360,7 @@ class BaseMerger(abc.ABC):
                 )
             self._order_by(order_by_active)
 
-        self._write_to_offline_target()
+        self._write_to_offline_target(timestamp_key=result_timestamp)
         return OfflineVectorResponse(self)
 
     def init_online_vector_service(
@@ -384,6 +381,29 @@ class BaseMerger(abc.ABC):
 
     def _unpersist_df(self, df):
         pass
+
+    def _normalize_timestamp_column(
+        self,
+        entity_timestamp_column,
+        reference_df,
+        featureset_timestamp,
+        featureset_df,
+        featureset_name,
+    ):
+        reference_df_timestamp_type = reference_df[entity_timestamp_column].dtype.name
+        featureset_df_timestamp_type = featureset_df[featureset_timestamp].dtype.name
+
+        if reference_df_timestamp_type != featureset_df_timestamp_type:
+            logger.info(
+                f"Merger detected timestamp resolution incompatibility between feature set {featureset_name} and "
+                f"others: {reference_df_timestamp_type} and {featureset_df_timestamp_type}. Converting feature set "
+                f"timestamp column '{featureset_timestamp}' to type {reference_df_timestamp_type}."
+            )
+            featureset_df[featureset_timestamp] = featureset_df[
+                featureset_timestamp
+            ].astype(reference_df_timestamp_type)
+
+        return featureset_df
 
     def merge(
         self,
@@ -748,6 +768,7 @@ class BaseMerger(abc.ABC):
 
         raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
+    @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 

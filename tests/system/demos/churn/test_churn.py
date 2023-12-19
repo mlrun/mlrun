@@ -24,7 +24,6 @@ from tests.system.demos.base import TestDemo
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestChurn(TestDemo):
-
     project_name = "churn-project"
     use_gpus = False
 
@@ -46,7 +45,7 @@ class TestChurn(TestDemo):
             name="clean_data",
             kind="job",
             filename=function_path,
-            image="mlrun/ml-models-gpu" if self.use_gpus else "mlrun/ml-models",
+            image="mlrun/mlrun-gpu" if self.use_gpus else "mlrun/mlrun",
             description="clean and encode raw data",
             categories=["data-prep"],
             labels={"author": "yasha", "framework": "xgboost"},

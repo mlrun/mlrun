@@ -14,12 +14,12 @@
 
 import pathlib
 
-import fsspec
 from fsspec.implementations.dbfs import DatabricksFile, DatabricksFileSystem
+from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
 
-from .base import DataStore, FileStats
+from .base import DataStore, FileStats, makeDatastoreSchemaSanitizer
 
 
 class DatabricksFileBugFixed(DatabricksFile):
@@ -87,13 +87,19 @@ class DBFSStore(DataStore):
 
     def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
+        filesystem_class = get_filesystem_class(protocol=self.kind)
         if not self._filesystem:
-            self._filesystem = fsspec.filesystem("dbfs", **self.get_storage_options())
+            self._filesystem = makeDatastoreSchemaSanitizer(
+                cls=filesystem_class,
+                using_bucket=False,
+                **self.get_storage_options(),
+            )
         return self._filesystem
 
     def get_storage_options(self):
         return dict(
-            token=self._get_secret_or_env("DATABRICKS_TOKEN"), instance=self.endpoint
+            token=self._get_secret_or_env("DATABRICKS_TOKEN"),
+            instance=self._get_secret_or_env("DATABRICKS_HOST"),
         )
 
     def _verify_filesystem_and_key(self, key: str):
@@ -108,16 +114,15 @@ class DBFSStore(DataStore):
 
     def get(self, key: str, size=None, offset=0) -> bytes:
         self._verify_filesystem_and_key(key)
-        if size is not None and size <= 0:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "size cannot be negative or zero"
-            )
+        if size is not None and size < 0:
+            raise mlrun.errors.MLRunInvalidArgumentError("size cannot be negative")
+        if offset is None:
+            raise mlrun.errors.MLRunInvalidArgumentError("offset cannot be None")
         start = offset or None
-        end = offset + size if size is not None else None
+        end = offset + size if size else None
         return self._filesystem.cat_file(key, start=start, end=end)
 
     def put(self, key, data, append=False):
-
         self._verify_filesystem_and_key(key)
         if append:
             raise mlrun.errors.MLRunInvalidArgumentError(

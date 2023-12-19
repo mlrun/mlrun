@@ -29,7 +29,7 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
-    fill_artifact_path_template,
+    fill_project_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
@@ -704,12 +704,12 @@ def test_parse_store_uri(uri, expected_output):
         },
     ],
 )
-def test_fill_artifact_path_template(case):
+def test_fill_project_path_template(case):
     if case.get("raise"):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fill_artifact_path_template(case["artifact_path"], case.get("project"))
+            fill_project_path_template(case["artifact_path"], case.get("project"))
     else:
-        filled_artifact_path = fill_artifact_path_template(
+        filled_artifact_path = fill_project_path_template(
             case["artifact_path"], case.get("project")
         )
         assert case["expected_artifact_path"] == filled_artifact_path
@@ -869,7 +869,6 @@ def test_create_step_backoff():
             for _ in range(0, step_occurrences):
                 assert step_value, next(backoff)
         else:
-
             # Run another 10 iterations:
             for _ in range(0, 10):
                 assert step_value, next(backoff)
@@ -913,3 +912,18 @@ def test_retry_until_successful():
     test_run(0.02)
 
     test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))
+
+
+@pytest.mark.parametrize(
+    "iterable_list, chunk_size, expected_chunked_list",
+    [
+        (["a", "b", "c"], 1, [["a"], ["b"], ["c"]]),
+        (["a", "b", "c"], 2, [["a", "b"], ["c"]]),
+        (["a", "b", "c"], 3, [["a", "b", "c"]]),
+        (["a", "b", "c"], 4, [["a", "b", "c"]]),
+        (["a", "b", "c"], 0, [["a", "b", "c"]]),
+    ],
+)
+def test_iterate_list_by_chunks(iterable_list, chunk_size, expected_chunked_list):
+    chunked_list = mlrun.utils.iterate_list_by_chunks(iterable_list, chunk_size)
+    assert list(chunked_list) == expected_chunked_list

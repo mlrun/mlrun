@@ -13,13 +13,13 @@
 # limitations under the License.
 import enum
 import http
-import json
 import re
 import tempfile
 import time
 import traceback
 import typing
-from datetime import datetime
+import warnings
+from datetime import datetime, timedelta
 from os import path, remove
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlparse
@@ -281,9 +281,12 @@ class HTTPRunDB(RunDBInterface):
             retry_on_post=retry_on_post,
         )
 
-    def _path_of(self, prefix, project, uid):
+    def _path_of(self, resource, project, uid=None):
         project = project or config.default_project
-        return f"{prefix}/{project}/{uid}"
+        _path = f"projects/{project}/{resource}"
+        if uid:
+            _path += f"/{uid}"
+        return _path
 
     def _is_retry_on_post_allowed(self, method, path: str):
         """
@@ -436,9 +439,17 @@ class HTTPRunDB(RunDBInterface):
             )
             config.function = server_cfg.get("function") or config.function
             config.httpdb.logs = server_cfg.get("logs") or config.httpdb.logs
+            config.external_platform_tracking = (
+                server_cfg.get("external_platform_tracking")
+                or config.external_platform_tracking
+            )
             config.model_endpoint_monitoring.store_type = (
                 server_cfg.get("model_endpoint_monitoring_store_type")
                 or config.model_endpoint_monitoring.store_type
+            )
+            config.model_endpoint_monitoring.endpoint_store_connection = (
+                server_cfg.get("model_endpoint_monitoring_endpoint_store_connection")
+                or config.model_endpoint_monitoring.endpoint_store_connection
             )
             config.packagers = server_cfg.get("packagers") or config.packagers
             server_data_prefixes = server_cfg.get("feature_store_data_prefixes") or {}
@@ -470,28 +481,37 @@ class HTTPRunDB(RunDBInterface):
         if not body:
             return
 
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         params = {"append": bool2str(append)}
         error = f"store log {project}/{uid}"
         self.api_call("POST", path, error, params, body)
 
-    def get_log(self, uid, project="", offset=0, size=-1):
-        """Retrieve a log.
+    def get_log(self, uid, project="", offset=0, size=None):
+        """Retrieve 1 MB data of log.
 
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
             from beginning of log
-        :param size: See ``offset``. If set to ``-1`` (the default) will retrieve all data to end of log.
+        :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
+            * in case size = -1, return the state and the final offset
         """
+        if size is None:
+            size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
+        elif size == -1:
+            logger.warning(
+                "Retrieving all logs. This may be inefficient and can result in a large log."
+            )
+            state, offset = self.watch_log(uid, project, watch=False, offset=offset)
+            return state, offset
 
         params = {"offset": offset, "size": size}
-        path = self._path_of("log", project, uid)
+        path = self._path_of("logs", project, uid)
         error = f"get log {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
         if resp.headers:
@@ -501,46 +521,50 @@ class HTTPRunDB(RunDBInterface):
         return "unknown", resp.content
 
     def watch_log(self, uid, project="", watch=True, offset=0):
-        """Retrieve logs of a running process, and watch the progress of the execution until it completes. This
-        method will print out the logs and continue to periodically poll for, and print, new logs as long as the
-        state of the runtime which generates this log is either ``pending`` or ``running``.
+        """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
+        completes. This method will print out the logs and continue to periodically poll for, and print,
+        new logs as long as the state of the runtime which generates this log is either ``pending`` or ``running``.
 
         :param uid: The uid of the log object to watch.
         :param project: Project that the log belongs to.
         :param watch: If set to ``True`` will continue tracking the log as described above. Otherwise this function
             is practically equivalent to the :py:func:`~get_log` function.
         :param offset: Minimal offset in the log to watch.
-        :returns: The final state of the log being watched.
+        :returns: The final state of the log being watched and the final offset.
         """
 
         state, text = self.get_log(uid, project, offset=offset)
         if text:
             print(text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors))
-        if watch:
-            nil_resp = 0
-            while state in ["pending", "running"]:
-                offset += len(text)
-                # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
-                # TODO: refactor this to use a conditional backoff mechanism
-                if nil_resp < 3:
-                    time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
-                else:
-                    time.sleep(
-                        int(
-                            mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
-                        )
-                    )
-                state, text = self.get_log(uid, project, offset=offset)
-                if text:
-                    nil_resp = 0
-                    print(
-                        text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
-                        end="",
-                    )
-                else:
-                    nil_resp += 1
-        else:
+        nil_resp = 0
+        while True:
             offset += len(text)
+            # if we get 3 nil responses in a row, increase the sleep time to 10 seconds
+            # TODO: refactor this to use a conditional backoff mechanism
+            if nil_resp < 3:
+                time.sleep(int(mlrun.mlconf.httpdb.logs.pull_logs_default_interval))
+            else:
+                time.sleep(
+                    int(
+                        mlrun.mlconf.httpdb.logs.pull_logs_backoff_no_logs_default_interval
+                    )
+                )
+            state, text = self.get_log(uid, project, offset=offset)
+            if text:
+                nil_resp = 0
+                print(
+                    text.decode(errors=mlrun.mlconf.httpdb.logs.decode.errors),
+                    end="",
+                )
+            else:
+                nil_resp += 1
+
+            if watch and state in ["pending", "running"]:
+                continue
+            else:
+                # the whole log was retrieved
+                if len(text) == 0:
+                    break
 
         return state, offset
 
@@ -548,7 +572,7 @@ class HTTPRunDB(RunDBInterface):
         """Store run details in the DB. This method is usually called from within other :py:mod:`mlrun` flows
         and not called directly by the user."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"store run {project}/{uid}"
         body = _as_json(struct)
@@ -557,23 +581,38 @@ class HTTPRunDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0, timeout=45):
         """Update the details of a stored run in the DB."""
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"update run {project}/{uid}"
         body = _as_json(updates)
         self.api_call("PATCH", path, error, params=params, body=body, timeout=timeout)
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         """
-        Abort a running run - will remove the run's runtime resources and mark its state as aborted
+        Abort a running run - will remove the run's runtime resources and mark its state as aborted.
+        :returns: :py:class:`~mlrun.common.schemas.BackgroundTask`.
         """
-        self.update_run(
-            {"status.state": mlrun.runtimes.constants.RunStates.aborted},
-            uid,
-            project,
-            iter,
-            timeout,
+        project = project or config.default_project
+        params = {"iter": iter}
+        updates = {}
+        if status_text:
+            updates["status.status_text"] = status_text
+        body = _as_json(updates)
+
+        response = self.api_call(
+            "POST",
+            path=f"projects/{project}/runs/{uid}/abort",
+            error="Failed run abortion",
+            params=params,
+            body=body,
+            timeout=timeout,
         )
+        if response.status_code == http.HTTPStatus.ACCEPTED:
+            background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+            return self._wait_for_background_task_to_reach_terminal_state(
+                background_task.metadata.name, project=project
+            )
+        return None
 
     def read_run(self, uid, project="", iter=0):
         """Read the details of a stored run from the DB.
@@ -583,7 +622,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific execution.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"get run {project}/{uid}"
         resp = self.api_call("GET", path, error, params=params)
@@ -597,7 +636,7 @@ class HTTPRunDB(RunDBInterface):
         :param iter: Iteration within a specific task.
         """
 
-        path = self._path_of("run", project, uid)
+        path = self._path_of("runs", project, uid)
         params = {"iter": iter}
         error = f"del run {project}/{uid}"
         self.api_call("DELETE", path, error, params=params)
@@ -627,7 +666,10 @@ class HTTPRunDB(RunDBInterface):
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> RunList:
-        """Retrieve a list of runs, filtered by various options.
+        """
+        Retrieve a list of runs, filtered by various options.
+        If no filter is provided, will return runs from the last week.
+
         Example::
 
             runs = db.list_runs(name='download', project='iris', labels=['owner=admin', 'kind=job'])
@@ -663,10 +705,29 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+
+        if (
+            not name
+            and not uid
+            and not labels
+            and not state
+            and not last
+            and not start_time_from
+            and not start_time_to
+            and not last_update_time_from
+            and not last_update_time_to
+            and not partition_by
+            and not partition_sort_by
+            and not iter
+        ):
+            # default to last week on no filter
+            start_time_from = datetime.now() - timedelta(days=7)
+            partition_by = mlrun.common.schemas.RunPartitionByField.name
+            partition_sort_by = mlrun.common.schemas.SortField.updated
+
         params = {
             "name": name,
             "uid": uid,
-            "project": project,
             "label": labels or [],
             "state": state,
             "sort": bool2str(sort),
@@ -690,7 +751,8 @@ class HTTPRunDB(RunDBInterface):
                 )
             )
         error = "list runs"
-        resp = self.api_call("GET", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        resp = self.api_call("GET", _path, error, params=params)
         return RunList(resp.json()["runs"])
 
     def del_runs(self, name=None, project=None, labels=None, state=None, days_ago=0):
@@ -716,56 +778,113 @@ class HTTPRunDB(RunDBInterface):
             "days_ago": str(days_ago),
         }
         error = "del runs"
-        self.api_call("DELETE", "runs", error, params=params)
+        _path = self._path_of("runs", project)
+        self.api_call("DELETE", _path, error, params=params)
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag=None, project=""):
+    def store_artifact(
+        self,
+        key,
+        artifact,
+        # TODO: deprecated, remove in 1.8.0
+        uid=None,
+        iter=None,
+        tag=None,
+        project="",
+        tree=None,
+    ):
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
         :param artifact: The actual artifact to store.
-        :param uid: A unique ID for this specific version of the artifact.
+        :param uid: A unique ID for this specific version of the artifact
+                    (deprecated, artifact uid is generated in the backend use `tree` instead)
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will
             be added to the key provided to generate a unique key for the artifact of the specific iteration.
         :param tag: Tag of the artifact.
         :param project: Project that the artifact belongs to.
+        :param tree: The tree (producer id) which generated this artifact.
         """
+        if uid:
+            warnings.warn(
+                "'uid' is deprecated in 1.6.0 and will be removed in 1.8.0, use 'tree' instead.",
+                # TODO: Remove this in 1.8.0
+                FutureWarning,
+            )
 
-        endpoint_path = f"projects/{project}/artifacts/{uid}/{key}"
-        params = {
-            "tag": tag,
-        }
+        # we do this because previously the 'uid' name was used for the 'tree' parameter
+        tree = tree or uid
+
+        endpoint_path = f"projects/{project}/artifacts/{key}"
+
+        error = f"store artifact {project}/{key}"
+
+        params = {}
         if iter:
             params["iter"] = str(iter)
-
-        error = f"store artifact {project}/{uid}/{key}"
+        if tag:
+            params["tag"] = tag
+        if tree:
+            params["tree"] = tree
 
         body = _as_json(artifact)
-        self.api_call("POST", endpoint_path, error, params=params, body=body)
+        self.api_call(
+            "PUT", endpoint_path, error, body=body, params=params, version="v2"
+        )
 
-    def read_artifact(self, key, tag=None, iter=None, project=""):
-        """Read an artifact, identified by its key, tag and iteration."""
+    def read_artifact(
+        self,
+        key,
+        tag=None,
+        iter=None,
+        project="",
+        tree=None,
+        uid=None,
+    ):
+        """Read an artifact, identified by its key, tag, tree and iteration.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param iter: The iteration which generated this artifact (where ``iter=0`` means the root iteration).
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         project = project or config.default_project
         tag = tag or "latest"
-        endpoint_path = f"projects/{project}/artifacts/{key}?tag={tag}"
+        endpoint_path = f"projects/{project}/artifacts/{key}"
         error = f"read artifact {project}/{key}"
         # explicitly set artifacts format to 'full' since old servers may default to 'legacy'
-        params = {"format": mlrun.common.schemas.ArtifactsFormat.full.value}
+        params = {
+            "format": mlrun.common.schemas.ArtifactsFormat.full.value,
+            "tag": tag,
+            "tree": tree,
+            "uid": uid,
+        }
         if iter:
             params["iter"] = str(iter)
-        resp = self.api_call("GET", endpoint_path, error, params=params)
-        return resp.json()["data"]
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
+        return resp.json()
 
-    def del_artifact(self, key, tag=None, project=""):
-        """Delete an artifact."""
+    def del_artifact(self, key, tag=None, project="", tree=None, uid=None):
+        """Delete an artifact.
+
+        :param key: Identifying key of the artifact.
+        :param tag: Tag of the artifact.
+        :param project: Project that the artifact belongs to.
+        :param tree: The tree which generated this artifact.
+        :param uid: A unique ID for this specific version of the artifact (the uid that was generated in the backend)
+        """
 
         endpoint_path = f"projects/{project}/artifacts/{key}"
         params = {
             "key": key,
             "tag": tag,
+            "tree": tree,
+            "uid": uid,
         }
         error = f"del artifact {project}/{key}"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifacts(
         self,
@@ -779,6 +898,7 @@ class HTTPRunDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ) -> ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -807,6 +927,7 @@ class HTTPRunDB(RunDBInterface):
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
         """
 
         project = project or config.default_project
@@ -823,16 +944,19 @@ class HTTPRunDB(RunDBInterface):
             "best-iteration": best_iteration,
             "kind": kind,
             "category": category,
+            "tree": tree,
             "format": mlrun.common.schemas.ArtifactsFormat.full.value,
         }
         error = "list artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        resp = self.api_call("GET", endpoint_path, error, params=params)
+        resp = self.api_call("GET", endpoint_path, error, params=params, version="v2")
         values = ArtifactList(resp.json()["artifacts"])
         values.tag = tag
         return values
 
-    def del_artifacts(self, name=None, project=None, tag=None, labels=None, days_ago=0):
+    def del_artifacts(
+        self, name=None, project=None, tag=None, labels=None, days_ago=0, tree=None
+    ):
         """Delete artifacts referenced by the parameters.
 
         :param name: Name of artifacts to delete. Note that this is a like query, and is case-insensitive. See
@@ -846,12 +970,13 @@ class HTTPRunDB(RunDBInterface):
         params = {
             "name": name,
             "tag": tag,
+            "tree": tree,
             "label": labels or [],
             "days_ago": str(days_ago),
         }
         error = "del artifacts"
         endpoint_path = f"projects/{project}/artifacts"
-        self.api_call("DELETE", endpoint_path, error, params=params)
+        self.api_call("DELETE", endpoint_path, error, params=params, version="v2")
 
     def list_artifact_tags(
         self,
@@ -961,7 +1086,7 @@ class HTTPRunDB(RunDBInterface):
         :param group_by: Object to group results by. Allowed values are `job` and `project`.
         """
         params = {
-            "label_selector": label_selector,
+            "label-selector": label_selector,
             "group-by": group_by,
             "kind": kind,
             "object-id": object_id,
@@ -1163,6 +1288,7 @@ class HTTPRunDB(RunDBInterface):
         mlrun_version_specifier=None,
         skip_deployed=False,
         builder_env=None,
+        force_build=False,
     ):
         """Build the pod image for a function, for execution on a remote cluster. This is executed by the MLRun
         API server, and creates a Docker image out of the function provided and any specific build
@@ -1175,6 +1301,7 @@ class HTTPRunDB(RunDBInterface):
         :param mlrun_version_specifier: Version of MLRun to include in the built image.
         :param skip_deployed: Skip the build if we already have an image for the function.
         :param builder_env:   Kaniko builder pod env vars dict (for config/credentials)
+        :param force_build:   Force building the image, even when no changes were made
         """
 
         try:
@@ -1182,6 +1309,7 @@ class HTTPRunDB(RunDBInterface):
                 "function": func.to_dict(),
                 "with_mlrun": bool2str(with_mlrun),
                 "skip_deployed": skip_deployed,
+                "force_build": force_build,
             }
             if mlrun_version_specifier:
                 req["mlrun_version_specifier"] = mlrun_version_specifier
@@ -1448,15 +1576,17 @@ class HTTPRunDB(RunDBInterface):
                 headers=headers,
             )
         except OSError as err:
-            logger.error(f"error cannot submit pipeline: {err_to_str(err)}")
-            raise OSError(f"error: cannot cannot submit pipeline, {err_to_str(err)}")
+            logger.error("Error: Cannot submit pipeline", err=err_to_str(err))
+            raise OSError(f"Error: Cannot submit pipeline, {err_to_str(err)}")
 
         if not resp.ok:
-            logger.error(f"bad resp!!\n{resp.text}")
-            raise ValueError(f"bad submit pipeline response, {resp.text}")
+            logger.error("Failed to submit pipeline", respones_text=resp.text)
+            raise ValueError(f"Failed to submit pipeline, {resp.text}")
 
         resp = resp.json()
-        logger.info(f"submitted pipeline {resp['name']} id={resp['id']}")
+        logger.info(
+            "Pipeline submitted successfully", pipeline_name=resp["name"], id=resp["id"]
+        )
         return resp["id"]
 
     def list_pipelines(
@@ -1512,7 +1642,7 @@ class HTTPRunDB(RunDBInterface):
         self,
         run_id: str,
         namespace: str = None,
-        timeout: int = 10,
+        timeout: int = 30,
         format_: Union[
             str, mlrun.common.schemas.PipelinesFormat
         ] = mlrun.common.schemas.PipelinesFormat.summary,
@@ -1673,7 +1803,6 @@ class HTTPRunDB(RunDBInterface):
         order,
         max_partitions=None,
     ):
-
         partition_params = {
             "partition-by": partition_by,
             "rows-per-partition": rows_per_partition,
@@ -2159,7 +2288,7 @@ class HTTPRunDB(RunDBInterface):
         owner: str = None,
         format_: Union[
             str, mlrun.common.schemas.ProjectsFormat
-        ] = mlrun.common.schemas.ProjectsFormat.full,
+        ] = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: Union[str, mlrun.common.schemas.ProjectState] = None,
     ) -> List[Union[mlrun.projects.MlrunProject, str]]:
@@ -2168,9 +2297,9 @@ class HTTPRunDB(RunDBInterface):
         :param owner: List only projects belonging to this specific owner.
         :param format_: Format of the results. Possible values are:
 
-            - ``full`` (default value) - Return full project objects.
+            - ``name_only`` (default value) - Return just the names of the projects.
             - ``minimal`` - Return minimal project objects (minimization happens in the BE).
-            - ``name_only`` - Return just the names of the projects.
+            - ``full``  - Return full project objects.
 
         :param labels: Filter by labels attached to the project.
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
@@ -2186,7 +2315,6 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed listing projects, query: {params}"
         response = self.api_call("GET", "projects", error_message, params=params)
         if format_ == mlrun.common.schemas.ProjectsFormat.name_only:
-
             # projects is just a list of strings
             return response.json()["projects"]
 
@@ -2218,21 +2346,23 @@ class HTTPRunDB(RunDBInterface):
         """Delete a project.
 
         :param name: Name of the project to delete.
-        :param deletion_strategy: How to treat child objects of the project. Possible values are:
+        :param deletion_strategy: How to treat resources related to the project. Possible values are:
 
-            - ``restrict`` (default) - Project must not have any child objects when deleted. If using this mode while
-              child objects exist, the operation will fail.
-            - ``cascade`` - Automatically delete all child objects when deleting the project.
+            - ``restrict`` (default) - Project must not have any related resources when deleted. If using
+              this mode while related resources exist, the operation will fail.
+            - ``cascade`` - Automatically delete all related resources when deleting the project.
         """
 
-        path = f"projects/{name}"
+        path = f"projects/{name}?wait-for-completion=false"
         headers = {
             mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy
         }
         error_message = f"Failed deleting project {name}"
         response = self.api_call("DELETE", path, error_message, headers=headers)
         if response.status_code == http.HTTPStatus.ACCEPTED:
-            return self._wait_for_project_to_be_deleted(name)
+            logger.info("Project is being deleted", project_name=name)
+            self._wait_for_project_to_be_deleted(name)
+        logger.info("Project deleted", project_name=name)
 
     def store_project(
         self,
@@ -2295,7 +2425,9 @@ class HTTPRunDB(RunDBInterface):
         error_message = f"Failed creating project {project_name}"
         response = self.api_call(
             "POST",
-            "projects",
+            # do not wait for project to reach terminal state synchronously.
+            # let it start and wait for it to reach terminal state asynchronously
+            "projects?wait-for-completion=false",
             error_message,
             body=dict_to_json(project),
         )
@@ -2319,17 +2451,20 @@ class HTTPRunDB(RunDBInterface):
 
         return mlrun.utils.helpers.retry_until_successful(
             self._wait_for_project_terminal_state_retry_interval,
-            120,
+            180,
             logger,
             False,
             _verify_project_in_terminal_state,
         )
 
     def _wait_for_background_task_to_reach_terminal_state(
-        self, name: str
+        self, name: str, project: str = ""
     ) -> mlrun.common.schemas.BackgroundTask:
         def _verify_background_task_in_terminal_state():
-            background_task = self.get_background_task(name)
+            if project:
+                background_task = self.get_project_background_task(project, name)
+            else:
+                background_task = self.get_background_task(name)
             state = background_task.status.state
             if state not in mlrun.common.schemas.BackgroundTaskState.terminal_states():
                 raise Exception(
@@ -2790,26 +2925,25 @@ class HTTPRunDB(RunDBInterface):
         :param project: The name of the project.
         :param endpoint_id: The id of the endpoint.
         :param attributes: Dictionary of attributes that will be used for update the model endpoint. The keys
-                           of this dictionary should exist in the target table. Note that the values should be
-                           from type string or from a valid numerical type such as int or float.
-                            More details about the model endpoint available attributes can be found under
-                           :py:class:`~mlrun.common.schemas.ModelEndpoint`.
+            of this dictionary should exist in the target table. Note that the values should be from type string or from
+            a valid numerical type such as int or float. More details about the model endpoint available attributes can
+            be found under :py:class:`~mlrun.common.schemas.ModelEndpoint`.
 
-                           Example::
+        Example::
 
-                                # Generate current stats for two features
-                                current_stats = {'tvd_sum': 2.2,
-                                                 'tvd_mean': 0.5,
-                                                 'hellinger_sum': 3.6,
-                                                 'hellinger_mean': 0.9,
-                                                 'kld_sum': 24.2,
-                                                 'kld_mean': 6.0,
-                                                 'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
-                                                 'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
+            # Generate current stats for two features
+            current_stats = {'tvd_sum': 2.2,
+                             'tvd_mean': 0.5,
+                             'hellinger_sum': 3.6,
+                             'hellinger_mean': 0.9,
+                             'kld_sum': 24.2,
+                             'kld_mean': 6.0,
+                             'f1': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.4},
+                             'f2': {'tvd': 0.5, 'hellinger': 1.0, 'kld': 6.5}}
 
-                                # Create attributes dictionary according to the required format
-                                attributes = {`current_stats`: json.dumps(current_stats),
-                                              `drift_status`: "DRIFT_DETECTED"}
+            # Create attributes dictionary according to the required format
+            attributes = {`current_stats`: json.dumps(current_stats),
+                          `drift_status`: "DRIFT_DETECTED"}
 
         """
 
@@ -2846,6 +2980,36 @@ class HTTPRunDB(RunDBInterface):
             "with_schedule": with_schedule,
         }
         path = f"projects/{project}/jobs/batch-monitoring"
+
+        resp = self.api_call(method="POST", path=path, params=params)
+        return resp.json()["func"]
+
+    def create_model_monitoring_controller(
+        self,
+        project: str = "",
+        default_controller_image: str = "mlrun/mlrun",
+        base_period: int = 10,
+    ):
+        """
+        Submit model monitoring application controller job along with deploying the model monitoring writer function.
+        While the main goal of the controller job is to handle the monitoring processing and triggering applications,
+        the goal of the model monitoring writer function is to write all the monitoring application results to the
+        databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+        :param project:                  Project name.
+        :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
+                                         function, which is a real time nuclio functino, will be deployed with the same
+                                         image. By default, the image is mlrun/mlrun.
+        :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
+                                         is running. By default, the base period is 5 minutes.
+        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+                 runtime object by calling ~mlrun.new_function.
+        """
+
+        params = {
+            "default_controller_image": default_controller_image,
+            "base_period": base_period,
+        }
+        path = f"projects/{project}/jobs/model-monitoring-controller"
 
         resp = self.api_call(method="POST", path=path, params=params)
         return resp.json()["func"]
@@ -3088,6 +3252,21 @@ class HTTPRunDB(RunDBInterface):
             body=dict_to_json(authorization_verification_input.dict()),
         )
 
+    def list_api_gateways(self, project=None):
+        """
+        Returns a list of Nuclio api gateways
+        :param project: optional str parameter to filter by project, if not passed, default Nuclio's value is taken
+
+        :return: json with the list of Nuclio Api Gateways
+            (json example is here
+            https://github.com/nuclio/nuclio/blob/development/docs/reference/api/README.md#listing-all-api-gateways)
+        """
+        project = project or config.default_project
+        error = "list api gateways"
+        endpoint_path = f"projects/{project}/nuclio/api-gateways"
+        resp = self.api_call("GET", endpoint_path, error)
+        return resp.json()
+
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:
         """Trigger migrations (will do nothing if no migrations are needed) and wait for them to finish if actually
         triggered
@@ -3183,6 +3362,7 @@ class HTTPRunDB(RunDBInterface):
         source: Optional[str] = None,
         run_name: Optional[str] = None,
         namespace: Optional[str] = None,
+        notifications: typing.List[mlrun.model.Notification] = None,
     ):
         """
         Submitting workflow for a remote execution.
@@ -3195,6 +3375,7 @@ class HTTPRunDB(RunDBInterface):
         :param source:          source url of the project
         :param run_name:        run name to override the default: 'workflow-runner-<workflow name>'
         :param namespace:       kubernetes namespace if other than default
+        :param notifications:   list of notifications to send when workflow execution is completed
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
@@ -3203,6 +3384,11 @@ class HTTPRunDB(RunDBInterface):
             if hasattr(workflow_spec, "image")
             else workflow_spec.get("image", None)
         )
+        workflow_name = name or (
+            workflow_spec.name
+            if hasattr(workflow_spec, "name")
+            else workflow_spec.get("name", None)
+        )
         req = {
             "arguments": arguments,
             "artifact_path": artifact_path,
@@ -3210,16 +3396,25 @@ class HTTPRunDB(RunDBInterface):
             "run_name": run_name,
             "namespace": namespace,
         }
-        if isinstance(workflow_spec, mlrun.common.schemas.WorkflowSpec):
+        if isinstance(
+            workflow_spec,
+            mlrun.common.schemas.WorkflowSpec,
+        ):
             req["spec"] = workflow_spec.dict()
         elif isinstance(workflow_spec, mlrun.projects.pipelines.WorkflowSpec):
             req["spec"] = workflow_spec.to_dict()
         else:
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
+        req["spec"]["name"] = workflow_name
+        if notifications:
+            req["notifications"] = [
+                notification.to_dict() for notification in notifications
+            ]
+
         response = self.api_call(
             "POST",
-            f"projects/{project}/workflows/{name}/submit",
+            f"projects/{project}/workflows/{workflow_name}/submit",
             json=req,
         )
         return mlrun.common.schemas.WorkflowResponse(**response.json())
@@ -3260,15 +3455,15 @@ class HTTPRunDB(RunDBInterface):
     ) -> str:
         """
         Loading a project remotely from the given source.
-        :param name:            project name
-        :param url:             git or tar.gz or .zip sources archive path e.g.:
-                                git://github.com/mlrun/demo-xgb-project.git
-                                http://mysite/archived-project.zip
-                                The git project should include the project yaml file.
-        :param secrets:         Secrets to store in project in order to load it from the provided url.
-                                For more information see :py:func:`mlrun.load_project` function.
-        :param save_secrets:    Whether to store secrets in the loaded project.
-                                Setting to False will cause waiting for the process completion.
+        :param name:    project name
+        :param url:     git or tar.gz or .zip sources archive path e.g.:
+        git://github.com/mlrun/demo-xgb-project.git
+        http://mysite/archived-project.zip
+        The git project should include the project yaml file.
+        :param secrets:         Secrets to store in project in order to load it from the provided url. For more
+        information see :py:func:`mlrun.load_project` function.
+        :param save_secrets:    Whether to store secrets in the loaded project. Setting to False will cause waiting
+        for the process completion.
 
         :returns:               The terminal state of load project process.
         """
@@ -3299,24 +3494,38 @@ class HTTPRunDB(RunDBInterface):
         self, name: str, project: str
     ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles") + f"/{name}"
+        _path = self._path_of("datastore-profiles", project, name)
 
-        res = self.api_call(method="GET", path=path)
-        if res and res._content:
-            public_wrapper = json.loads(res._content)
+        res = self.api_call(method="GET", path=_path)
+        if res:
+            public_wrapper = res.json()
             datastore = DatastoreProfile2Json.create_from_json(
-                public_json=public_wrapper["body"]
+                public_json=public_wrapper["object"]
             )
             return datastore
         return None
 
     def delete_datastore_profile(self, name: str, project: str):
-        pass
+        project = project or config.default_project
+        _path = self._path_of("datastore-profiles", project, name)
+        self.api_call(method="DELETE", path=_path)
+        return None
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
-        pass
+        project = project or config.default_project
+        _path = self._path_of("datastore-profiles", project)
+
+        res = self.api_call(method="GET", path=_path)
+        if res:
+            public_wrapper = res.json()
+            datastores = [
+                DatastoreProfile2Json.create_from_json(x["object"])
+                for x in public_wrapper
+            ]
+            return datastores
+        return None
 
     def store_datastore_profile(
         self, profile: mlrun.common.schemas.DatastoreProfile, project: str
@@ -3326,9 +3535,9 @@ class HTTPRunDB(RunDBInterface):
         :returns: None
         """
         project = project or config.default_project
-        path = self._path_of("projects", project, "datastore_profiles")
+        _path = self._path_of("datastore-profiles", project)
 
-        self.api_call(method="PUT", path=path, body=json.dumps(profile.dict()))
+        self.api_call(method="PUT", path=_path, json=profile.dict())
 
 
 def _as_json(obj):

@@ -30,24 +30,22 @@ import sqlalchemy.orm
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import mlrun.api.api.utils
-import mlrun.api.crud
-import mlrun.api.main
-import mlrun.api.utils.background_tasks
-import mlrun.api.utils.clients.log_collector
-import mlrun.api.utils.singletons.db
-import mlrun.api.utils.singletons.k8s
-import mlrun.api.utils.singletons.logs_dir
-import mlrun.api.utils.singletons.project_member
-import mlrun.api.utils.singletons.scheduler
 import mlrun.artifacts.dataset
 import mlrun.artifacts.model
 import mlrun.common.schemas
 import mlrun.errors
+import server.api.api.utils
+import server.api.crud
+import server.api.main
+import server.api.utils.auth.verifier
+import server.api.utils.clients.log_collector
+import server.api.utils.singletons.db
+import server.api.utils.singletons.project_member
+import server.api.utils.singletons.scheduler
 import tests.api.conftest
 import tests.api.utils.clients.test_log_collector
-from mlrun.api.db.sqldb.models import (
-    Artifact,
+from server.api.db.sqldb.models import (
+    ArtifactV2,
     Entity,
     Feature,
     FeatureSet,
@@ -59,20 +57,18 @@ from mlrun.api.db.sqldb.models import (
     _classes,
 )
 
-ORIGINAL_VERSIONED_API_PREFIX = mlrun.api.main.BASE_VERSIONED_API_PREFIX
+ORIGINAL_VERSIONED_API_PREFIX = server.api.main.BASE_VERSIONED_API_PREFIX
 
 
 @pytest.fixture(params=["leader", "follower"])
 def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
-        mlrun.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
-            db
-        )
+        server.api.utils.singletons.project_member.initialize_project_member()
+        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
         mlrun.config.config.httpdb.projects.leader = "mlrun"
-        mlrun.api.utils.singletons.project_member.initialize_project_member()
+        server.api.utils.singletons.project_member.initialize_project_member()
     else:
         raise NotImplementedError(
             f"Provided project member mode is not supported. mode={request.param}"
@@ -156,7 +152,7 @@ def test_get_non_existing_project(
     not found - which "ruined" the `mlrun.get_or_create_project` logic - so adding a specific test to verify it works
     """
     project = "does-not-exist"
-    mlrun.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
+    server.api.utils.auth.verifier.AuthVerifier().query_project_permissions = (
         unittest.mock.AsyncMock(side_effect=mlrun.errors.MLRunUnauthorizedError("bla"))
     )
     response = client.get(f"projects/{project}")
@@ -408,7 +404,7 @@ def test_list_project_summaries_different_installation_modes(
     response = client.post("projects", json=empty_project.dict())
     assert response.status_code == HTTPStatus.CREATED.value
 
-    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+    server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(0, None, [])
     )
     # Enterprise installation configuration post 3.4.0
@@ -554,7 +550,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
@@ -573,7 +568,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
-        (artifact["db_key"], artifact["iter"])
+        (artifact["spec"]["db_key"], artifact["metadata"]["iter"])
         for artifact in response.json()["artifacts"]
     }
     assert len(distinct_artifact_keys) < len(response.json()["artifacts"])
@@ -600,10 +595,9 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same feature_vector name
     assert len(distinct_feature_vector_names) < len(response.json()["feature_vectors"])
 
-    mlrun.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().del_artifact = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
-    mlrun.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_function = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_feature_set = unittest.mock.Mock()
+    server.api.utils.singletons.db.get_db().delete_feature_vector = unittest.mock.Mock()
     # deletion strategy - check - should fail because there are resources
     response = client.delete(
         f"projects/{project_name}",
@@ -613,17 +607,14 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
 
-    assert mlrun.api.utils.singletons.db.get_db().delete_function.call_count == len(
+    assert server.api.utils.singletons.db.get_db().delete_function.call_count == len(
         distinct_function_names
     )
-    assert mlrun.api.utils.singletons.db.get_db().del_artifact.call_count == len(
-        distinct_artifact_keys
-    )
-    assert mlrun.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
+    assert server.api.utils.singletons.db.get_db().delete_feature_set.call_count == len(
         distinct_feature_set_names
     )
     assert (
-        mlrun.api.utils.singletons.db.get_db().delete_feature_vector.call_count
+        server.api.utils.singletons.db.get_db().delete_feature_vector.call_count
         == len(distinct_feature_vector_names)
     )
 
@@ -691,9 +682,9 @@ def test_delete_project_with_stop_logs(
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
 
-    log_collector = mlrun.api.utils.clients.log_collector.LogCollectorClient()
+    log_collector = server.api.utils.clients.log_collector.LogCollectorClient()
     with unittest.mock.patch.object(
-        mlrun.api.utils.clients.log_collector.LogCollectorClient,
+        server.api.utils.clients.log_collector.LogCollectorClient,
         "_call",
         return_value=tests.api.utils.clients.test_log_collector.BaseLogCollectorResponse(
             True, ""
@@ -725,7 +716,7 @@ def test_list_projects_leader_format(
         project = mlrun.common.schemas.Project(
             metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
         )
-        mlrun.api.utils.singletons.db.get_db().create_project(db, project)
+        server.api.utils.singletons.db.get_db().create_project(db, project)
         project_names.append(project_name)
 
     # list in leader format
@@ -911,12 +902,45 @@ def test_projects_crud(
     _list_project_names_and_assert(client, [name2])
 
 
+def test_project_with_parameters(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
+) -> None:
+    # validate that leading/trailing whitespaces in the keys and values are removed
+
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(),
+    )
+
+    # create project
+    response = client.post("projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    project.spec.params = {"aa": "1", "aa ": "1", "aa   ": "1", " bb ": "   2"}
+    expected_params = {"aa": "1", "bb": "2"}
+
+    # store project request to save the parameters
+    response = client.put(f"projects/{project.metadata.name}", json=project.dict())
+    assert response.status_code == HTTPStatus.OK.value
+
+    # get project request
+    response = client.get(f"projects/{project.metadata.name}")
+    assert response.status_code == HTTPStatus.OK.value
+    response_body = response.json()
+
+    # validate that the parameters are as expected
+    assert response_body["spec"]["params"] == expected_params
+
+
 def _create_resources_of_all_kinds(
     db_session: Session,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
     project: str,
 ):
-    db = mlrun.api.utils.singletons.db.get_db()
+    db = server.api.utils.singletons.db.get_db()
     # add labels to project
     project_schema = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(
@@ -924,7 +948,7 @@ def _create_resources_of_all_kinds(
         ),
         spec=mlrun.common.schemas.ProjectSpec(description="some desc"),
     )
-    mlrun.api.utils.singletons.project_member.get_project_member().store_project(
+    server.api.utils.singletons.project_member.get_project_member().store_project(
         db_session, project, project_schema
     )
 
@@ -956,29 +980,34 @@ def _create_resources_of_all_kinds(
                 )
 
     # Create several artifacts with several tags
-    artifact = {
-        "bla": "blabla",
-        "labels": labels,
+    artifact_template = {
+        "metadata": {"labels": labels},
+        "spec": {},
+        "kind": "artifact",
         "status": {"bla": "blabla"},
     }
     artifact_keys = ["artifact_key_1", "artifact_key_2", "artifact_key_3"]
-    artifact_uids = ["some_uid", "some_uid2", "some_uid3"]
+    artifact_trees = ["some_tree", "some_tree2", "some_tree3"]
     artifact_tags = ["some-tag", "some-tag2", "some-tag3"]
     for artifact_key in artifact_keys:
-        for artifact_uid in artifact_uids:
+        for artifact_tree in artifact_trees:
             for artifact_tag in artifact_tags:
                 for artifact_iter in range(3):
-                    artifact["iter"] = artifact_iter
-                    artifact["tag"] = artifact_tag
-                    artifact["uid"] = artifact_uid
+                    artifact = copy.deepcopy(artifact_template)
+                    artifact["metadata"]["iter"] = artifact_iter
+                    artifact["metadata"]["tag"] = artifact_tag
+                    artifact["metadata"]["tree"] = artifact_tree
+
+                    # pass a copy of the artifact to the store function, otherwise the store function will change the
+                    # original artifact
                     db.store_artifact(
                         db_session,
                         artifact_key,
                         artifact,
-                        artifact_uid,
-                        artifact_iter,
-                        artifact_tag,
-                        project,
+                        iter=artifact_iter,
+                        tag=artifact_tag,
+                        project=project,
+                        producer_id=artifact_tree,
                     )
 
     # Create several runs
@@ -1009,7 +1038,7 @@ def _create_resources_of_all_kinds(
     log = b"some random log"
     log_uids = ["some_uid", "some_uid2", "some_uid3"]
     for log_uid in log_uids:
-        mlrun.api.crud.Logs().store_log(log, project, log_uid)
+        server.api.crud.Logs().store_log(log, project, log_uid)
 
     # Create several schedule
     schedule = {
@@ -1019,7 +1048,7 @@ def _create_resources_of_all_kinds(
     schedule_cron_trigger = mlrun.common.schemas.ScheduleCronTrigger(year=1999)
     schedule_names = ["schedule_name_1", "schedule_name_2", "schedule_name_3"]
     for schedule_name in schedule_names:
-        mlrun.api.utils.singletons.scheduler.get_scheduler().create_schedule(
+        server.api.utils.singletons.scheduler.get_scheduler().create_schedule(
             db_session,
             mlrun.common.schemas.AuthInfo(),
             project,
@@ -1095,7 +1124,7 @@ def _create_resources_of_all_kinds(
     ds_profile = mlrun.common.schemas.DatastoreProfile(
         name="datastore_test_profile_name",
         type="datastore_test_profile_type",
-        body="datastore_test_profile_body",
+        object="datastore_test_profile_body",
         project=project,
     )
     # create a datasource profile
@@ -1132,7 +1161,7 @@ def _assert_schedules_in_project(
     assert_no_resources: bool = False,
 ) -> int:
     number_of_schedules = len(
-        mlrun.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
+        server.api.utils.singletons.scheduler.get_scheduler()._list_schedules_from_scheduler(
             project
         )
     )
@@ -1147,7 +1176,7 @@ def _assert_logs_in_project(
     project: str,
     assert_no_resources: bool = False,
 ) -> int:
-    logs_path = mlrun.api.api.utils.project_logs_path(project)
+    logs_path = server.api.api.utils.project_logs_path(project)
     number_of_log_files = 0
     if logs_path.exists():
         number_of_log_files = len(
@@ -1186,6 +1215,7 @@ def _assert_db_resources_in_project(
             or cls.__tablename__ == "data_versions"
             or cls.__name__ == "Feature"
             or cls.__name__ == "Entity"
+            or cls.__name__ == "Artifact"
             or cls.__name__ == "Log"
             or (
                 cls.__tablename__ == "projects_labels"
@@ -1198,6 +1228,9 @@ def _assert_db_resources_in_project(
         # Label doesn't have project attribute
         # Project (obviously) doesn't have project attribute
         if cls.__name__ != "Label" and cls.__name__ != "Project":
+            if cls.__name__ == "Tag" and cls.__tablename__ == "artifacts_tags":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                continue
             number_of_cls_records = (
                 db_session.query(cls).filter_by(project=project).count()
             )
@@ -1216,11 +1249,11 @@ def _assert_db_resources_in_project(
                     .filter(Run.project == project)
                     .count()
                 )
-            if cls.__tablename__ == "artifacts_labels":
+            if cls.__tablename__ == "artifacts_v2_labels":
                 number_of_cls_records = (
-                    db_session.query(Artifact)
+                    db_session.query(ArtifactV2)
                     .join(cls)
-                    .filter(Artifact.project == project)
+                    .filter(ArtifactV2.project == project)
                     .count()
                 )
             if cls.__tablename__ == "feature_sets_labels":
@@ -1267,6 +1300,9 @@ def _assert_db_resources_in_project(
                     .filter(Project.name == project)
                     .count()
                 )
+            if cls.__tablename__ == "artifacts_labels":
+                # Artifact table is deprecated, we are using ArtifactV2 instead
+                continue
         elif cls.__name__ == "Project":
             number_of_cls_records = (
                 db_session.query(Project).filter(Project.name == project).count()
@@ -1456,7 +1492,7 @@ def _mock_pipelines(project_name):
     for status, count in status_count_map.items():
         for index in range(count):
             pipelines.append({"status": status, "project": project_name})
-    mlrun.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+    server.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
         return_value=(None, None, pipelines)
     )
     return status_count_map[mlrun.run.RunStatuses.running]

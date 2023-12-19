@@ -67,7 +67,7 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
-    def abort_run(self, uid, project="", iter=0, timeout=45):
+    def abort_run(self, uid, project="", iter=0, timeout=45, status_text=""):
         pass
 
     def read_run(self, uid, project="", iter=0):
@@ -104,10 +104,12 @@ class NopDB(RunDBInterface):
     def del_runs(self, name="", project="", labels=None, state="", days_ago=0):
         pass
 
-    def store_artifact(self, key, artifact, uid, iter=None, tag="", project=""):
+    def store_artifact(
+        self, key, artifact, uid=None, iter=None, tag="", project="", tree=None
+    ):
         pass
 
-    def read_artifact(self, key, tag="", iter=None, project=""):
+    def read_artifact(self, key, tag="", iter=None, project="", tree=None, uid=None):
         pass
 
     def list_artifacts(
@@ -122,10 +124,11 @@ class NopDB(RunDBInterface):
         best_iteration: bool = False,
         kind: str = None,
         category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ):
         pass
 
-    def del_artifact(self, key, tag="", project=""):
+    def del_artifact(self, key, tag="", project="", tree=None, uid=None):
         pass
 
     def del_artifacts(self, name="", project="", tag="", labels=None):
@@ -193,7 +196,7 @@ class NopDB(RunDBInterface):
     def list_projects(
         self,
         owner: str = None,
-        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
+        format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.name_only,
         labels: List[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
@@ -505,7 +508,7 @@ class NopDB(RunDBInterface):
     def delete_datastore_profile(self, name: str, project: str):
         pass
 
-    def list_datastore_profile(
+    def list_datastore_profiles(
         self, project: str
     ) -> List[mlrun.common.schemas.DatastoreProfile]:
         pass

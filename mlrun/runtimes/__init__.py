@@ -23,6 +23,7 @@ __all__ = [
     "ServingRuntime",
     "DaskCluster",
     "RemoteSparkRuntime",
+    "Spark3Runtime",
     "DatabricksRuntime",
 ]
 
@@ -31,7 +32,7 @@ from mlrun.runtimes.utils import resolve_spark_operator_version
 from .base import BaseRuntime, RunError, RuntimeClassMode  # noqa
 from .constants import MPIJobCRDVersions
 from .daskjob import DaskCluster  # noqa
-from .databricks.databricks import DatabricksRuntime
+from .databricks_job.databricks_runtime import DatabricksRuntime
 from .function import RemoteRuntime
 from .kubejob import KubejobRuntime  # noqa
 from .local import HandlerRuntime, LocalRuntime  # noqa
@@ -120,6 +121,7 @@ class RuntimeKinds(object):
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
         ]
 
     @staticmethod
@@ -129,6 +131,10 @@ class RuntimeKinds(object):
             RuntimeKinds.spark,
             RuntimeKinds.remotespark,
             RuntimeKinds.mpijob,
+            RuntimeKinds.databricks,
+            RuntimeKinds.local,
+            RuntimeKinds.handler,
+            "",
         ]
 
     @staticmethod
@@ -177,22 +183,6 @@ class RuntimeKinds(object):
         return False
 
     @staticmethod
-    def is_watchable(kind):
-        """
-        Returns True if the runtime kind is watchable, False otherwise.
-        Runtimes that are not watchable are blocking, meaning that the run() method will not return until the runtime
-        is completed.
-        """
-        # "" or None counted as local
-        if not kind:
-            return False
-        return kind not in [
-            RuntimeKinds.local,
-            RuntimeKinds.handler,
-            RuntimeKinds.dask,
-        ]
-
-    @staticmethod
     def requires_absolute_artifacts_path(kind):
         """
         Returns True if the runtime kind requires absolute artifacts' path (i.e. is local), False otherwise.
@@ -208,6 +198,14 @@ class RuntimeKinds(object):
         ]:
             return True
         return False
+
+    @staticmethod
+    def requires_image_name_for_execution(kind):
+        if RuntimeKinds.is_local_runtime(kind):
+            return False
+
+        # both spark and remote spark uses different mechanism for assigning images
+        return kind not in [RuntimeKinds.spark, RuntimeKinds.remotespark]
 
 
 def get_runtime_class(kind: str):

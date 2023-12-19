@@ -3207,6 +3207,7 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = (
             f"projects/{api_gateway.project}/nuclio/api-gateways/{api_gateway.name}"
         )
+        error = "create api gateways"
         response = self.api_call(
             "POST", endpoint_path, error, json=api_gateway.to_scheme(auth=auth).dict()
         )

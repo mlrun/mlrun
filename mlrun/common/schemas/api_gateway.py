@@ -16,8 +16,6 @@ import typing
 
 import pydantic
 
-import mlrun.common.types
-
 
 class APIGateway(pydantic.BaseModel):
     function: typing.List[str]

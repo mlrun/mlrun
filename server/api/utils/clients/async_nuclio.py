@@ -14,7 +14,6 @@
 #
 import copy
 import urllib.parse
-from typing import Union
 
 import aiohttp
 
@@ -181,7 +180,7 @@ class Client:
             authentication_mode
             == mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
         ):
-            if username and password:
+            if api_gateway.username and api_gateway.password:
                 body["spec"]["authentication"] = {
                     "basicAuth": {
                         "username": api_gateway.username,

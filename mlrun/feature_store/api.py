@@ -91,11 +91,6 @@ def _features_to_vector_and_check_permissions(features, update_stats):
     return vector
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'get_offline_features' will be removed in 1.8.0, use 'FeatureVector.get_offline_features()' instead",
-    category=FutureWarning,
-)
 def get_offline_features(
     feature_vector: Union[str, FeatureVector],
     entity_rows=None,
@@ -229,12 +224,6 @@ def get_offline_features(
     )
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'get_online_feature_service' will be removed in 1.8.0,"
-    "use 'FeatureVector.get_online_feature_service()' instead",
-    category=FutureWarning,
-)
 def get_online_feature_service(
     feature_vector: Union[str, FeatureVector],
     run_config: RunConfig = None,
@@ -371,11 +360,6 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
         return get_caller_globals()
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'ingest' will be removed in 1.8.0, use 'FeatureSet.ingest()' instead",
-    category=FutureWarning,
-)
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
@@ -685,11 +669,6 @@ def ingest(
         return df
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'preview' will be removed in 1.8.0, use 'FeatureSet.preview()' instead",
-    category=FutureWarning,
-)
 def preview(
     featureset: FeatureSet,
     source,
@@ -801,12 +780,6 @@ def _run_ingestion_job(
     return run_ingestion_job(name, featureset, run_config, source.schedule)
 
 
-@deprecated(
-    version="1.6.0",
-    reason="'deploy_ingestion_service_v2' will be removed in 1.8.0,"
-    "use 'FeatureSet.deploy_ingestion_service()' instead",
-    category=FutureWarning,
-)
 def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,

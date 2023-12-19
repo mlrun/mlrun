@@ -770,6 +770,7 @@ class BaseMerger(abc.ABC):
 
         raise mlrun.errors.MLRunRuntimeError("Failed to merge")
 
+    @classmethod
     def get_default_image(cls, kind):
         return mlrun.mlconf.feature_store.default_job_image
 

@@ -323,12 +323,9 @@ class Runs(
                 "Run is already in terminal state, can not be aborted"
             )
 
-        # ensure we are not triggering multiple internal aborts
-        abort_task_id = run.get("status", {}).get("abort_task_id")
+        # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
         if (
-            new_background_task_id
-            == abort_task_id
-            == server.api.constants.internal_abort_task_id
+            new_background_task_id == server.api.constants.internal_abort_task_id
             and current_run_state
             in [
                 mlrun.runtimes.constants.RunStates.aborting,
@@ -336,7 +333,9 @@ class Runs(
             ]
         ):
             logger.warning(
-                "Run was aborted by monitoring, skipping abort",
+                "Run is aborting/aborted, skipping internal abort",
+                new_background_task_id=new_background_task_id,
+                current_run_state=current_run_state,
             )
             return
 

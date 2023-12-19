@@ -55,13 +55,7 @@ class Client:
         self,
         project_name: str,
         api_gateway_name: str,
-        functions: list,
-        host: Union[str, None] = None,
-        path="/",
-        description="",
-        username: Union[str, None] = None,
-        password: Union[str, None] = None,
-        canary: Union[list, None] = None,
+        api_gateway: mlrun.common.schemas.APIGateway
     ):
         headers = {}
 
@@ -71,13 +65,7 @@ class Client:
         body = self._generate_nuclio_api_gateway_body(
             project_name=project_name,
             api_gateway_name=api_gateway_name,
-            functions=functions,
-            host=host,
-            path=path,
-            description=description,
-            username=username,
-            password=password,
-            canary=canary,
+            api_gateway=api_gateway,
         )
 
         return await self._send_request_to_api(
@@ -146,40 +134,34 @@ class Client:
 
     def _generate_nuclio_api_gateway_body(
         self,
-        project_name,
-        api_gateway_name,
-        functions,
-        host,
-        path,
-        description="",
-        username=None,
-        password=None,
-        canary=None,
+        project_name: str,
+        api_gateway_name: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
     ) -> dict:
-        if not functions:
+        if not api_gateway.function:
             raise ValueError("functions should contain at least one object")
 
         host = (
-            host
+            api_gateway.host
             or f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
         )
 
         authentication_mode = (
             mlrun.runtimes.api_gateway.NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
-            if not username and not password
+            if not api_gateway.username and not api_gateway.password
             else mlrun.runtimes.api_gateway.BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
         )
         body = {
             "spec": {
                 "name": api_gateway_name,
-                "description": description,
-                "path": path,
+                "description": api_gateway.description,
+                "path": api_gateway.path,
                 "authenticationMode": authentication_mode,
                 "upstreams": [
                     {
                         "kind": "nucliofunction",
                         "nucliofunction": {
-                            "name": functions[0],
+                            "name": api_gateway.function[0],
                         },
                         "percentage": 0,
                     }
@@ -202,8 +184,8 @@ class Client:
             if username and password:
                 body["spec"]["authentication"] = {
                     "basicAuth": {
-                        "username": username,
-                        "password": password,
+                        "username": api_gateway.username,
+                        "password": api_gateway.password,
                     }
                 }
             else:
@@ -212,8 +194,8 @@ class Client:
                 )
 
         # Handle canary function info
-        if canary:
-            if len(canary) != len(functions):
+        if api_gateway.canary:
+            if len(api_gateway.canary) != len(api_gateway.function):
                 raise ValueError(
                     "Functions list should be the same length as canary list"
                 )
@@ -223,7 +205,7 @@ class Client:
                     "nucliofunction": {"name": function_name},
                     "percentage": percentage,
                 }
-                for function_name, percentage in zip(functions, canary)
+                for function_name, percentage in zip(api_gateway.function, api_gateway.canary)
             ]
             body["spec"]["upstreams"] = upstream
 

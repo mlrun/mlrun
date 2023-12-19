@@ -119,27 +119,27 @@ def test__generate_nuclio_api_gateway_body(
         nuclio_client._generate_nuclio_api_gateway_body(
             project_name="default",
             api_gateway_name="gw",
-            functions=[],
-            host=None,
-            path="/",
+            api_gateway=mlrun.common.schemas.APIGateway(function=[],
+                                                        host=None,
+                                                        path="/")
         )
     with pytest.raises(ValueError):
         nuclio_client._generate_nuclio_api_gateway_body(
             project_name="default",
             api_gateway_name="gw",
-            functions=[],
-            host=None,
-            path="/",
-            canary=[50],
+            api_gateway=mlrun.common.schemas.APIGateway(function=[],
+                                                        host=None,
+                                                        path="/",
+                                                        canary=[50])
         )
     nuclio_client._nuclio_domain = "nuclio.default-tenant.app.dev62.lab.iguazeng.com"
     result = nuclio_client._generate_nuclio_api_gateway_body(
         project_name="default",
         api_gateway_name="gw",
-        functions=["f1", "f2"],
-        host=None,
-        path="/",
-        canary=[50, 50],
+        api_gateway=mlrun.common.schemas.APIGateway(function=["f1", "f2"],
+                                                    host=None,
+                                                    path="/",
+                                                    canary=[50, 50], )
     )
     assert result == {
         "spec": {

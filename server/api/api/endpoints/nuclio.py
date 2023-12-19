@@ -55,31 +55,11 @@ async def list_api_gateways(
 async def create_api_gateway(
     project: str,
     gateway: str,
-    functions: list = Query(alias="functions"),
-    host: Union[str, None] = None,
-    path: Union[str, None] = None,
-    description: Union[str, None] = None,
-    username: Union[str, None] = None,
-    password: Union[str, None] = None,
-    canary: Union[list, None] = None,
+    api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
-    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
-        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
-        project,
-        gateway,
-        mlrun.common.schemas.AuthorizationAction.create,
-        auth_info,
-    )
-
     await server.api.utils.clients.async_nuclio.Client(auth_info).create_api_gateway(
         project_name=project,
         api_gateway_name=gateway,
-        functions=functions,
-        host=host,
-        path=path,
-        description=description,
-        username=username,
-        password=password,
-        canary=canary,
+        api_gateway=api_gateway,
     )

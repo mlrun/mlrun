@@ -18,6 +18,7 @@ from typing import Optional, Union
 import requests
 
 import mlrun
+import mlrun.common.schemas
 
 BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "basicAuth"
 NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
@@ -74,6 +75,20 @@ class APIGateway:
         return urllib.parse.urljoin(
             f"{self.name}-{self.project}.{common_hostname}", self.path
         )
+
+    def to_scheme(self, auth: Optional[tuple[str, str]] = None) -> mlrun.common.schemas.APIGateway:
+        api_gateway = mlrun.common.schemas.APIGateway(
+            function=self.functions,
+            host=self.host,
+            path=self.path,
+            description=self.description,
+            canary=self.canary
+        )
+        if auth:
+            username, password = auth
+            api_gateway.username = username
+            api_gateway.password = password
+        return api_gateway
 
     @classmethod
     def from_values(

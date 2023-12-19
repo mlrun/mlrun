@@ -21,7 +21,6 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 
 import fastapi
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -640,8 +639,7 @@ def test_store_run_masking(db: Session, client: TestClient, k8s_secrets_mock):
         assert value == expected_value
 
 
-@pytest.mark.asyncio
-async def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
+def test_abort_run_already_in_progress(db: Session, client: TestClient) -> None:
     project = "some-project"
     background_task_name = "background-task-name"
     run_in_progress = {

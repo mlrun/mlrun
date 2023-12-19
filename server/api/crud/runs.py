@@ -309,20 +309,21 @@ class Runs(
     ):
         project = project or mlrun.mlconf.default_project
         run_updates = run_updates or {}
-        logger.debug("Aborting run", project=project, uid=uid, iter=iter)
-
         run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        logger.debug(
+            "Aborting run",
+            project=project,
+            uid=uid,
+            iter=iter,
+            new_background_task_id=new_background_task_id,
+        )
+
         if not run:
             run = server.api.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
 
         current_run_state = run.get("status", {}).get("state")
-        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
-            raise mlrun.errors.MLRunConflictError(
-                "Run is already in terminal state, can not be aborted"
-            )
-
         # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
         if (
             new_background_task_id == server.api.constants.internal_abort_task_id
@@ -338,6 +339,11 @@ class Runs(
                 current_run_state=current_run_state,
             )
             return
+
+        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
+            raise mlrun.errors.MLRunConflictError(
+                "Run is already in terminal state, can not be aborted"
+            )
 
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():

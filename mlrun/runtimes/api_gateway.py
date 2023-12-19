@@ -111,10 +111,6 @@ class APIGateway:
             .get("nuclio.io/project-name")
         )
         spec = dict_values.get("spec", {})
-        authentication_mode = spec.get(
-            "authenticationMode", NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
-        )
-        authentication = spec.get("authentication", {}).get(authentication_mode, {})
         upstreams = spec.get("upstreams", [])
         functions, canary = cls._process_canary(upstreams)
         if not functions:

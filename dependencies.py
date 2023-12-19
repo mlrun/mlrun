@@ -34,12 +34,11 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "s3": [
             "boto3>=1.28.0,<1.29.0",
             "aiobotocore>=2.5.0,<2.8",
-            "s3fs==2023.9.1",
+            "s3fs==2023.9.2",
         ],
         "azure-blob-storage": [
             "msrest~=0.6.21",
             "azure-core~=1.24",
-            "azure-storage-blob>=12.13, !=12.18.0",
             "adlfs==2023.9.0",
             "pyopenssl>=23",
         ],
@@ -59,13 +58,12 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         "graphviz": ["graphviz~=0.20.0"],
         # google-cloud is mainly used for QA, that is why we are not including it in complete
         "google-cloud": [
-            # because of kfp 1.8.13 requiring google-cloud-storage<2.0.0, >=1.20.0
-            "google-cloud-storage~=1.20",
-            "google-cloud-bigquery[pandas, bqstorage]~=3.2",
-            "google-cloud~=0.34",
+            "google-cloud-storage==2.14.0",
+            "google-cloud-bigquery[pandas, bqstorage]==3.14.1",
+            "google-cloud==0.34",
         ],
-        "google-cloud-storage": ["gcsfs==2023.9.1"],
-        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]~=3.2"],
+        "google-cloud-storage": ["gcsfs==2023.9.2"],
+        "google-cloud-bigquery": ["google-cloud-bigquery[pandas, bqstorage]==3.14.1"],
         "kafka": [
             "kafka-python~=2.0",
             # because confluent kafka supports avro format by default
@@ -73,7 +71,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         ],
         "redis": ["redis~=4.3"],
         "mlflow": ["mlflow~=2.8"],
-        "databricks-sdk": ["databricks-sdk~=0.3.0"],
+        "databricks-sdk": ["databricks-sdk~=0.15.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
             "dask~=2023.9.0",

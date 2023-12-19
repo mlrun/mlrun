@@ -759,7 +759,6 @@ def _build_function(
                     model_monitoring_access_key = None
                 if serving_to_monitor:
                     try:
-
                         if serving_to_monitor:
                             # Handle model monitoring
                             logger.info(
@@ -788,9 +787,7 @@ def _build_function(
                                 )
 
                             # deploy model monitoring stream, model monitoring batch job,
-                            monitoring_deploy = (
-                                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                            )
+                            monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
                             monitoring_deploy.deploy_monitoring_functions(
                                 project=fn.metadata.project,
                                 db_session=db_session,
@@ -821,9 +818,7 @@ def _build_function(
                             access_key=model_monitoring_access_key,
                         )
                     # apply stream trigger to monitoring application
-                    monitoring_deploy = (
-                        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                    )
+                    monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
                     fn = monitoring_deploy._apply_stream_trigger(
                         project=fn.metadata.project,
                         function=fn,

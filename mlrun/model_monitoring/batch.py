@@ -526,12 +526,14 @@ class BatchProcessor:
         )
 
         # Get drift thresholds from the model monitoring configuration
+        # fmt: off
         self.default_possible_drift_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.possible_drift
         )
         self.default_drift_detected_threshold = (
             mlrun.mlconf.model_endpoint_monitoring.drift_thresholds.default.drift_detected
         )
+        # fmt: on
 
         # Get a runtime database
 

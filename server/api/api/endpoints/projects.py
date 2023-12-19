@@ -238,11 +238,9 @@ async def list_projects(
             auth_info.projects_role,
             auth_info.session,
         )
-        allowed_project_names = await (
-            server.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
-                projects_output.projects,
-                auth_info,
-            )
+        allowed_project_names = await server.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            projects_output.projects,
+            auth_info,
         )
     return await run_in_threadpool(
         get_project_member().list_projects,

@@ -411,7 +411,6 @@ class Imputer(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-
         for feature in event.columns:
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
@@ -451,7 +450,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-
             one_hot_encoding = {
                 f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
                 for category in encoding
@@ -476,7 +474,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         return encoded_values
 
     def _do_pandas(self, event):
-
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)

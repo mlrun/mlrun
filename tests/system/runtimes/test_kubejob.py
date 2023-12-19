@@ -35,7 +35,6 @@ def exec_run(args):
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestKubejobRuntime(tests.system.base.TestMLRunSystem):
-
     project_name = "kubejob-system-test"
 
     def test_deploy_function(self):

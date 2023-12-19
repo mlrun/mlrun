@@ -793,9 +793,8 @@ class ProjectSpec(ModelObj):
         for name, function in self._function_definitions.items():
             if hasattr(function, "to_dict"):
                 spec = function.to_dict(strip=True)
-                if (
-                    function.spec.build.source
-                    and function.spec.build.source.startswith(self._source_repo())
+                if function.spec.build.source and function.spec.build.source.startswith(
+                    self._source_repo()
                 ):
                     update_in(spec, "spec.build.source", "./")
                 functions.append({"name": name, "spec": spec})

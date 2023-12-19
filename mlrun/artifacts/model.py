@@ -138,7 +138,6 @@ class ModelArtifact(Artifact):
         model_dir=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         model_file = str(model_file or "")
         if model_file and "/" in model_file:
@@ -309,7 +308,6 @@ class ModelArtifact(Artifact):
         spec_target_path = None
 
         if mlrun.mlconf.artifacts.generate_target_path_from_artifact_hash:
-
             # resolving target_path for the model spec
             _, spec_target_path = self.resolve_body_target_hash_path(
                 body=spec_body, artifact_path=artifact_path
@@ -337,7 +335,6 @@ class ModelArtifact(Artifact):
         artifact_path: str,
         target_model_path: str = None,
     ):
-
         body = self.spec.get_body()
         if body:
             if not target_model_path:
@@ -432,7 +429,6 @@ class LegacyModelArtifact(LegacyArtifact):
         model_target_file=None,
         **kwargs,
     ):
-
         super().__init__(key, body, format=format, target_path=target_path, **kwargs)
         self._inputs: ObjectList = None
         self._outputs: ObjectList = None
@@ -507,7 +503,6 @@ class LegacyModelArtifact(LegacyArtifact):
             self.labels["framework"] = self.framework
 
     def upload(self):
-
         target_model_path = path.join(self.target_path, self.model_file)
         body = self.get_body()
         if body:

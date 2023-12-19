@@ -869,7 +869,6 @@ def test_create_step_backoff():
             for _ in range(0, step_occurrences):
                 assert step_value, next(backoff)
         else:
-
             # Run another 10 iterations:
             for _ in range(0, 10):
                 assert step_value, next(backoff)

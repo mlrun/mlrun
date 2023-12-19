@@ -938,7 +938,6 @@ def _verify_request_cookie(headers: dict, session: str):
     if "Cookie" in headers:
         assert headers["Cookie"] == expected_session_value
     elif "cookies" in headers:
-
         # in async client we get the `cookies` key while it contains the cookies in form of a dict
         # use requests to construct it back to a string as expected above
         cookie = "; ".join(

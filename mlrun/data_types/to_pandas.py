@@ -61,7 +61,6 @@ def toPandas(spark_df):
             require_minimum_pyarrow_version()
             to_arrow_schema(spark_df.schema)
         except Exception as e:
-
             if spark_df.sql_ctx._conf.arrowPySparkFallbackEnabled():
                 msg = (
                     "toPandas attempted Arrow optimization because "

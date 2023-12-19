@@ -324,7 +324,6 @@ def test_load_project(
     project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
 
     for temp_file in temp_files:
-
         # verify that the context directory was cleaned if clone is True
         assert os.path.exists(os.path.join(context, temp_file)) is not clone
 

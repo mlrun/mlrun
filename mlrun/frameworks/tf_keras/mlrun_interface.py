@@ -148,7 +148,12 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
             kwargs["validation_data"] = kwargs.get("validation_data", None)
 
             # Call the pre fit method:
-            (callbacks, verbose, steps_per_epoch, validation_steps,) = self._pre_fit(
+            (
+                callbacks,
+                verbose,
+                steps_per_epoch,
+                validation_steps,
+            ) = self._pre_fit(
                 callbacks=kwargs["callbacks"],
                 verbose=kwargs["verbose"],
                 steps_per_epoch=kwargs["steps_per_epoch"],

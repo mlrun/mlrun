@@ -45,7 +45,6 @@ class TrackerManager(metaclass=Singleton):
 
         # Check general config for tracking usage, if false we return an empty manager
         if mlconf.external_platform_tracking.enabled:
-
             # Check if the available trackers were collected:
             if _AVAILABLE_TRACKERS is None:
                 self._collect_available_trackers()

@@ -79,7 +79,7 @@ _PACKAGERS_TESTERS = [
 
 
 def _get_tests_tuples(
-    test_type: Union[Type[PackTest], Type[UnpackTest], Type[PackToUnpackTest]]
+    test_type: Union[Type[PackTest], Type[UnpackTest], Type[PackToUnpackTest]],
 ) -> List[Tuple[Type[PackagerTester], PackTest]]:
     return [
         (tester, test)

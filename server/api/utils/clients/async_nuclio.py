@@ -55,7 +55,7 @@ class Client:
         self,
         project_name: str,
         api_gateway_name: str,
-        api_gateway: mlrun.common.schemas.APIGateway
+        api_gateway: mlrun.common.schemas.APIGateway,
     ):
         headers = {}
 
@@ -205,7 +205,9 @@ class Client:
                     "nucliofunction": {"name": function_name},
                     "percentage": percentage,
                 }
-                for function_name, percentage in zip(api_gateway.function, api_gateway.canary)
+                for function_name, percentage in zip(
+                    api_gateway.function, api_gateway.canary
+                )
             ]
             body["spec"]["upstreams"] = upstream
 

@@ -76,13 +76,15 @@ class APIGateway:
             f"{self.name}-{self.project}.{common_hostname}", self.path
         )
 
-    def to_scheme(self, auth: Optional[tuple[str, str]] = None) -> mlrun.common.schemas.APIGateway:
+    def to_scheme(
+        self, auth: Optional[tuple[str, str]] = None
+    ) -> mlrun.common.schemas.APIGateway:
         api_gateway = mlrun.common.schemas.APIGateway(
             function=self.functions,
             host=self.host,
             path=self.path,
             description=self.description,
-            canary=self.canary
+            canary=self.canary,
         )
         if auth:
             username, password = auth

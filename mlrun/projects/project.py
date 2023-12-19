@@ -3452,7 +3452,12 @@ class MlrunProject(ModelObj):
         self,
         name: str,
         functions: Union[
-            list[Union[RemoteRuntime, ServingRuntime, ]],
+            list[
+                Union[
+                    RemoteRuntime,
+                    ServingRuntime,
+                ]
+            ],
             Union[RemoteRuntime, ServingRuntime],
         ] = [],
         host: Optional[str] = None,
@@ -3500,8 +3505,10 @@ class MlrunProject(ModelObj):
                         "Input function is not a Nuclio function"
                     )
             if func.metadata.project != self.name:
-                raise mlrun.errors.MLRunInvalidArgumentError(f"input function {func.metadata.name} "
-                                                             f"should belong to the project")
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"input function {func.metadata.name} "
+                    f"should belong to the project"
+                )
 
         function_names = [func.uri for func in functions]
         gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(

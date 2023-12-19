@@ -3207,7 +3207,9 @@ class HTTPRunDB(RunDBInterface):
         endpoint_path = (
             f"projects/{api_gateway.project}/nuclio/api-gateways/{api_gateway.name}"
         )
-        response = self.api_call("POST", endpoint_path, error, json=api_gateway.to_scheme(auth=auth).dict())
+        response = self.api_call(
+            "POST", endpoint_path, error, json=api_gateway.to_scheme(auth=auth).dict()
+        )
         return response.ok if response else False
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:

@@ -1963,7 +1963,8 @@ class SQLDB(DBInterface):
         # remove leading & trailing whitespaces from the project parameters keys and values to prevent duplications
         if project.spec.params:
             project.spec.params = {
-                key.strip(): value.strip() for key, value in project.spec.params.items()
+                str(key).strip(): value.strip() if isinstance(value, str) else value
+                for key, value in project.spec.params.items()
             }
 
     def patch_project(

@@ -324,7 +324,14 @@ class Runs(
             )
 
         abort_task_id = run.get("status", {}).get("abort_task_id")
-        if abort_task_id == server.api.constants.internal_abort_task_id:
+        if (
+            abort_task_id == server.api.constants.internal_abort_task_id
+            and current_run_state
+            in [
+                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]
+        ):
             logger.warning(
                 "Run was aborted by monitoring, skipping abort",
             )

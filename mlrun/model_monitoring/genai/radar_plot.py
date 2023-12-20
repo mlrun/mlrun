@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Credit to huggingface's evaluate package
-
+# Credit to huggingface's evaluate package and the following post:
+# https://towardsdatascience.com/how-to-create-and-visualize-complex-radar-charts-f7764d0f3652
 
 import textwrap
 
@@ -23,24 +23,20 @@ import pandas as pd
 
 
 class ComplexRadar:
-    """Create a complex radar chart with different scales for each variable
-    Args:
-    fig (`matplotlib.figure`) :  A matplotlib figure object to add the axes on.
-    variables (`list`) : a list of variables to. plot
-    ranges (`list` of `tuples`): A list of ranges (min, max) for each variable
-    n_ring_levels (`int): Number of ordinate or ring levels to draw.
-        Default: 5.
-    show_scales (`bool`): Indicates if we the ranges for each variable are plotted.
-        Default: True.
-    format_cfg (`dict`): A dictionary with formatting configurations.
-        Default: None.
-    Returns:
-    `matplotlib.figure.Figure`: a radar plot.
-    """
+    """Create a complex radar chart with different scales for each variable"""
 
     def __init__(
         self, fig, variables, ranges, n_ring_levels=5, show_scales=True, format_cfg=None
     ):
+        """
+        Create a complex radar chart with different scales for each variable
+        :param fig: A matplotlib figure object to add the axes on.
+        :param variables: a list of variables to. plot
+        :param ranges: A list of ranges (min, max) for each variable
+        :param n_ring_levels: Number of ordinate or ring levels to draw.
+        :param show_scales: Indicates if we the ranges for each variable are plotted.
+        :param format_cfg: A dictionary with formatting configurations.
+        """
         self.format_cfg = format_cfg
 
         # Calculate angles and create for each variable an axes
@@ -141,7 +137,14 @@ class ComplexRadar:
         self.ax.tick_params(axis="both", pad=self.format_cfg["theta_tick_lbls_pad"])
 
     def _scale_data(self, data, ranges):
-        """Scales data[1:] to ranges[0]"""
+        """
+        Scales data[1:] to ranges[0]
+
+        :param data: A list of data points
+        :param ranges: A list of ranges (min, max) for each variable
+
+        :return: A list of scaled data points
+        """
         for d, (y1, y2) in zip(data[1:], ranges[1:]):
             assert (y1 <= d <= y2) or (y2 <= d <= y1)
         x1, x2 = ranges[0]
@@ -152,7 +155,15 @@ class ComplexRadar:
         return sdata
 
     def plot(self, data, *args, **kwargs):
-        """Plots a line"""
+        """
+        Plots a line
+
+        :params data: A list of data points
+        :params *args: Arguments passed to the plot function
+        :params **kwargs: Keyword arguments passed to the plot function
+
+        :return: None
+        """
         sdata = self._scale_data(data, self.ranges)
         self.ax1.plot(self.angle, np.r_[sdata, sdata[0]], *args, **kwargs)
         self.plot_counter = self.plot_counter + 1
@@ -165,14 +176,14 @@ class ComplexRadar:
 def radar_plot(data, model_names, invert_range=[], config=None, fig=None):
     """Create a complex radar chart with different scales for each variable
     Source: https://towardsdatascience.com/how-to-create-and-visualize-complex-radar-charts-f7764d0f3652
-    Args:
-        data (`List[dict]`): the results (list of metric + value pairs).
+
+    :params data (`List[dict]`): the results (list of metric + value pairs).
             E.g. data = [{"accuracy": 0.9, "precision":0.8},{"accuracy": 0.7, "precision":0.6}]
-        names (`List[dict]`): model names.
+    :params names (`List[dict]`): model names.
             E.g. names = ["model1", "model 2", ...]
-        invert_range (`List[dict]`, optional): the metrics to invert (in cases when smaller is better, e.g. speed)
+    :params invert_range (`List[dict]`, optional): the metrics to invert (in cases when smaller is better, e.g. speed)
             E.g. invert_range=["latency_in_seconds"]
-        config (`dict`, optional) : a specification of the formatting configurations, namely:
+    :params config (`dict`, optional) : a specification of the formatting configurations, namely:
             - rad_ln_args (`dict`, default `{"visible": True}`): The visibility of the radial (circle) lines.
             - outer_ring (`dict`, default `{"visible": True}`): The visibility of the outer ring.
             - angle_ln_args (`dict`, default `{"visible": True}`): The visibility of the angle lines.
@@ -186,9 +197,8 @@ def radar_plot(data, model_names, invert_range=[], config=None, fig=None):
             - markersize (`int`, default `3`): the shape of the marker used in the radar plot.
             - legend_loc (`str`, default `"upper right"`): the location of the legend in the radar plot. Must be one of: 'upper left', 'upper right', 'lower left', 'lower right'.
             - bbox_to_anchor (`tuple`, default `(2, 1)`: anchor for the legend.
-        fig (`matplotlib.figure.Figure`, optional): figure used to plot the radar plot.
-    Returns:
-        `matplotlib.figure.Figure`
+    :params fig (`matplotlib.figure.Figure`, optional): figure used to plot the radar plot.
+    :returns: `matplotlib.figure.Figure`
     """
     data = pd.DataFrame(data)
     data.index = model_names

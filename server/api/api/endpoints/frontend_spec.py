@@ -46,7 +46,9 @@ def get_frontend_spec(
     session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
-        model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(session)
+        model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(
+            session
+        )
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
@@ -101,8 +103,9 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     if grafana_service_url:
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
         return (
-            grafana_service_url + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}"
-                                  "&var-filter={filter_value}"
+            grafana_service_url
+            + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}"
+            "&var-filter={filter_value}"
         )
     return None
 
@@ -110,8 +113,10 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
 def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str]:
     grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
-        return grafana_service_url + ("/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
-                                      "&var-MODELENDPOINT={model_endpoint}")
+        return grafana_service_url + (
+            "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
+            "&var-MODELENDPOINT={model_endpoint}"
+        )
     return None
 
 

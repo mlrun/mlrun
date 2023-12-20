@@ -35,46 +35,10 @@ from mlrun.model import ModelObj, ObjectList
 from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 from mlrun.model_monitoring.genai.radar_plot import radar_plot
+from mlrun.model_monitoring.application import MonitoringApplication, ModelMonitoringApplicationResult
 
 
-class MonitoringAppResult:
-    def __init__(
-        self,
-        app_name: str,
-        tsdb_record: Dict[str, float],
-        drift_result: Tuple[DriftStatus, float, DriftKind] = None,
-    ):
-        self.app_name = app_name
-        self.tsdb_record = tsdb_record.update({"record_type": "drift_measures"})
-        self.drift_result = drift_result
-
-
-class DriftStatus(Enum):
-    """
-    Enum for the drift status values.
-    """
-
-    NO_DRIFT = "NO_DRIFT"
-    DRIFT_DETECTED = "DRIFT_DETECTED"
-    POSSIBLE_DRIFT = "POSSIBLE_DRIFT"
-    NONE = "NONE"
-
-
-class DriftKind(Enum):
-    """
-    Enum for the drift kind.
-    """
-
-    DATA_DRIFT = "DATA_DRIFT"
-    CONCEPT_DRIFT = "CONCEPT_DRIFT"
-    MODEL_PERFORMANCE_DRIFT = "MODEL_PERFORMANCE_DRIFT"
-    SYSTEM_PERFORMANCE_DRIFT = "SYSTEM_PERFORMANCE_DRIFT"
-
-
-# A type for representing a drift result, a tuple of the status and the drift mean:
-DriftResultType = Tuple[DriftStatus, float, DriftKind]
-
-
+# A decorator for aggregating the metrics values
 def aggregate(agg_type):
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -99,30 +63,20 @@ def aggregate(agg_type):
     return decorator
 
 
-class LLMMonitoringApp(ModelObj, ABC):
+class LLMMonitoringApp(ModelMonitoringApplication):
     kind = "LLM_monitoring_app"
 
     def __init__(
         self,
         name: Optional[str] = None,
         metrics: Optional[List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]] = None,
-        possible_drift_threshold: float = None,
-        obvious_drift_threshold: float = None,
+        possible_drift_threshold: Union[int, float] = None,
+        obvious_drift_threshold: Union[int, float] = None,
     ):
         self.name = name
         self.metrics = ObjectList.from_list(metrics)
         self.possible_drift_threshold = possible_drift_threshold
         self.obvious_drift_threshold = obvious_drift_threshold
-
-    def do(
-        self,
-        train_histograms_path: str = None,
-        sample_histograms_path: str = None,
-        train_df_path: str = None,
-        sample_df_path: str = None,
-        **kwargs,
-    ) -> MonitoringAppResult:
-        pass
 
     @property
     def metrics(self) -> List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]:
@@ -154,20 +108,53 @@ class LLMMonitoringApp(ModelObj, ABC):
         """
         Calculate one metric value - helper for the user .
         """
-        res = metric.compute_over_data(sample_df, train_df)
-        
+        res_df = metric.compute_over_data(sample_df, train_df)
+        score_cols = [col for col in res_df.columns if "score" in col]
         return res
 
-    @staticmethod
     def build_radar_chart(self, metrics_res: Dict[str, Any]):
         """
         Create a radar chart for the metrics values.
         """
         pass
 
-    @staticmethod
     def build_report(self, metrics_res: Dict[str, Any]):
         """
         Create a report for the metrics values.
         """
         pass
+
+
+    def run_application(
+            self,
+            application_name: str,
+            sample_df_stats: pd.DataFrame,
+            feature_stats: pd.DataFrame,
+            sample_df: pd.DataFrame,
+            start_infer_time: pd.Timestamp,
+            end_infer_time: pd.Timestamp,
+            latest_request: pd.Timestamp,
+            endpoint_id: str,
+            output_stream_uri: str,
+        ) -> Union[
+            ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
+        ]:
+            """
+            Implement this method with your custom monitoring logic.
+    
+            :param application_name:         (str) the app name
+            :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
+            :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
+            :param sample_df:               (pd.DataFrame) The new sample DataFrame.
+            :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+            :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
+            :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+            :param endpoint_id:             (str) ID of the monitored model endpoint
+            :param output_stream_uri:       (str) URI of the output stream for results
+    
+            :returns:                       (ModelMonitoringApplicationResult) or
+                                            (list[ModelMonitoringApplicationResult]) of the application results.
+            """
+
+
+            raise NotImplementedError

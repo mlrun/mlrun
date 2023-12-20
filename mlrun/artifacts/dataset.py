@@ -266,7 +266,10 @@ class DatasetArtifact(Artifact):
 
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+
+        # reset index while dropping existing index
+        # that way it wont create another index if one already there
+        preview_df = preview_df.reset_index(drop=True)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()

@@ -58,6 +58,8 @@ Examples could be included beblow for your reference. Make sure you understand t
 You must return the following fields in your output:
 - score: a numerical score of {name} for the response
 - explanation: a explanation about how did you determine the score step-by-step
+
+[Output]:
 """
 
 PAIR_GRADE_PROMPT = """

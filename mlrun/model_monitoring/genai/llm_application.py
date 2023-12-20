@@ -21,12 +21,12 @@
 # TODO: need to figure out a way to compute the nlp metrics (these need the y_true and y_pred)
 # TODO: The attributes from the event should have y_prediction to be able to compute the metrics
 # The following code is based on this design https://raw.githubusercontent.com/iguazio/dev-docs/development/Model-Monitoring/src/ApplicationDiagram.dio.svg?token=GHSAT0AAAAAACKIWG5MFXFNC6TFGWONCNASZMDIG3Q
-# Please note the current event dosn't have the y_prediction, it has the sample_df and train_df to compute the statistics
+# Please note the current event dosn't have the y_prediction, y_true, it has the sample_df and train_df to compute the statistics
 # Please note the following class assumes the sample_df has y_prediction and y_true
 # The sample_df should have the following columns
-# 1. question
-# 2. answer
-# 3. reference
+# 1. question (the question text)
+# 2. answer (the y_prediction)
+# 3. reference (the y_true)
 
 from statistics import mean, median
 from typing import Dict, List, Optional, Union
@@ -46,7 +46,9 @@ def aggregate(agg_type):
     def decorator(func):
         def wrapper(*args, **kwargs):
             values = func(*args, **kwargs)
-
+            # if it's a dict, then it's a evaluate metrics, doesn't need aggregation
+            if isinstance(values, dict):
+                return values
             if not isinstance(values, list) or not all(
                 isinstance(x, (int, float)) for x in values
             ):
@@ -99,7 +101,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         self._metrics = ObjectList.from_list(metrics)
 
     def compute_metrics_over_data(
-        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
+        self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None, **kwargs
     ) -> Dict[str, Any]:
         """
         Compute the metrics values from the given data this will not do any aggregation.
@@ -107,16 +109,19 @@ class LLMMonitoringApp(ModelMonitoringApplication):
 
         :param sample_df:   (pd.DataFrame) The new sample DataFrame.
         :param train_df:    (pd.DataFrame) The train sample DataFrame.
+        :param kwargs:      (Dict[str, Any]) Other parameters for evaluate metrics
         :return:            (Dict[str, Any]) The metrics values, explanation with metrics name as key.
         """
         res = {}
         for metric in self.metrics:
             if isinstance(metric, LLMEvaluateMetric):
-                # TODO need to figure out a way to compute the nlp metrics
-                # These need the y_true and y_pred
+                predictions = sample_df['answer'].tolist()
+                references = sample_df['reference'].tolist()
                 logger.info(
-                    f"metrics {metric.name} is LLMEvaluateMetric type, need y_true to compute the value"
+                    f"metrics {metric.name} is LLMEvaluateMetric type, this metrics may need other params to compute"
                 )
+                res[metric.name] = metric.compute_over_data(predictions, references, **kwargs)
+                res[metric.name]["kind"] = metric.kind
             else:
                 res[metric.name] = metric.compute_over_data(sample_df, train_df)
                 res[metric.name]["kind"] = metric.kind
@@ -128,28 +133,30 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         metric: Union[LLMEvaluateMetric, LLMJudgeBaseMetric],
         sample_df: pd.DataFrame,
         train_df: pd.DataFrame = None,
-    ) -> List[Union[int, float]]:
+        **kwargs,
+    ) -> List[Union[int, float, Dict[str, Any]]]:
         """
         Calculate one kind of metric from the given data, and aggregate the values.
 
         :param metric:      (Union[LLMEvaluateMetric, LLMJudgeBaseMetric]) The metric to calculate.
         :param sample_df:   (pd.DataFrame) The new sample DataFrame.
         :param train_df:    (pd.DataFrame) The train sample DataFrame.
+        :param kwargs:      (Dict[str, Any]) Other parameters for evaluate metrics
         :return:            (List[Union[int, float]]) The aggregated values.
         """
         if isinstance(metric, LLMEvaluateMetric):
-            # TODO need to figure out a way to compute the nlp metrics
-            # These need the y_true and y_pred
             logger.info(
-                f"metrics {metric.name} is LLMEvaluateMetric type, need y_true to compute the value"
+                f"metrics {metric.name} is LLMEvaluateMetric type, this type will return a dict, not a list"
             )
+            predictions = sample_df['answer'].tolist()
+            references = sample_df['reference'].tolist()
+            return metric.compute_over_data(predictions, references, **kwargs)
         else:
             res_df = metric.compute_over_data(sample_df, train_df)
             score_cols = [col for col in res_df.columns if "score" in col]
             if len(score_cols) == 1:
                 return res_df[score_cols[0]].tolist()
-            else:
-                return res_df["score_of_assistant_a"].tolist()
+            return res_df["score_of_assistant_a"].tolist()
 
     def build_radar_chart(self, metrics_res: Dict[str, Any], **kwargs):
         """
@@ -224,5 +231,4 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
         # instead, we want to send all the questions and answers that are below the threshold with explanation
         # for now assume sample_df has the y_pred with in it. clearly it's not the case for now
-
         raise NotImplementedError

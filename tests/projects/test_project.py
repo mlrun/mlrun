@@ -1643,7 +1643,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[0].functions == ["fff"]
 
     assert (
-        gateways[1]._invoke_url
-        == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com"
+        gateways[1].generate_invoke_url()
+        == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com/"
     )
-    assert gateways[1]._auth == "Basic dGVzdDp0ZXN0"
+    assert gateways[1]._generate_auth("test", "test") == "Basic dGVzdDp0ZXN0"

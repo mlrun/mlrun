@@ -42,8 +42,9 @@ class APIGateway:
         self.path = path
         self.description = description
         self.canary = canary
+        self._invoke_url = None
         if host:
-            self._invoke_url = self.get_invoke_url()
+            self._invoke_url = self.generate_invoke_url()
 
     def invoke(self, auth: Optional[tuple[str, str]]):
         if not self._invoke_url:
@@ -130,20 +131,10 @@ class APIGateway:
             canary=canary,
         )
 
-    def get_invoke_url(
-        self, nuclio_dashboard_url: str = mlrun.mlconf.nuclio_dashboard_url
+    def generate_invoke_url(
+        self,
     ):
-        nuclio_hostname = urllib.parse.urlparse(nuclio_dashboard_url).netloc
-
-        # Remove the 'nuclio' prefix from the hostname
-        # For example, from `nuclio.default-tenant.app.dev62.lab.iguazeng.com`,
-        # it becomes `default-tenant.app.dev62.lab.iguazeng.com`
-        common_hostname = nuclio_hostname[nuclio_hostname.find(".") + 1 :]
-
-        # Generate a unique invoke URL which contains the API gateway name and project name
-        return urllib.parse.urljoin(
-            f"{self.name}-{self.project}.{common_hostname}", self.path
-        )
+        return f"{self.host}{self.path}"
 
     def set_invoke_url(self, invoke_url: str):
         self._invoke_url = invoke_url

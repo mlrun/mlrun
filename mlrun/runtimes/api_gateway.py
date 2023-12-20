@@ -29,11 +29,11 @@ class APIGateway:
         self,
         project,
         name: str,
-        host: Optional[str],
         path: str,
         description: str,
         functions: list[str],
-        canary: Optional[list[int]],
+        host: Optional[str] = None,
+        canary: Optional[list[int]] = None,
     ):
         self.project = project
         self.name = name
@@ -42,9 +42,14 @@ class APIGateway:
         self.path = path
         self.description = description
         self.canary = canary
-        self._invoke_url = self.get_invoke_url() if not host else host
+        if host:
+            self._invoke_url = self.get_invoke_url()
 
     def invoke(self, auth: Optional[tuple[str, str]]):
+        if not self._invoke_url:
+            raise ValueError(
+                "Invocation url is not set. Use set_invoke_url method to set it."
+            )
         headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
         return requests.post(self._invoke_url, headers=headers)
 

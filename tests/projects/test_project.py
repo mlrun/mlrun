@@ -1473,10 +1473,39 @@ def test_load_project_from_yaml_with_function(context):
     ],
 )
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_api_gateway")
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "list_api_gateways")
 def test_create_api_gateway_valid(
-    patched_create_api_gateway, context, kind_1, kind_2, canary
+    patched_list_api_gateways,
+    patched_create_api_gateway,
+    context,
+    kind_1,
+    kind_2,
+    canary,
 ):
     patched_create_api_gateway.return_value = True
+    patched_list_api_gateways.return_value = patched_list_api_gateways.return_value = [
+        {
+            "metadata": {
+                "name": "gateway-f1-f2",
+                "namespace": "default-tenant",
+                "labels": {
+                    "iguazio.com/username": "admin",
+                    "nuclio.io/project-name": "project-name",
+                },
+                "creationTimestamp": "2023-12-13T13:00:09Z",
+            },
+            "spec": {
+                "host": "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com",
+                "name": "gateway-f1-f2",
+                "path": "/",
+                "authenticationMode": "none",
+                "upstreams": [
+                    {"kind": "nucliofunction", "nucliofunction": {"name": "fff"}}
+                ],
+            },
+            "status": {"name": "gateway-f1-f2", "state": "ready"},
+        }
+    ]
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)
     f1 = mlrun.code_to_function(
@@ -1502,12 +1531,9 @@ def test_create_api_gateway_valid(
     gateway = project.create_api_gateway(
         name="gateway-f1-f2", functions=functions, canary=canary
     )
-    gateway._nuclio_dashboard_url = (
-        "https://nuclio.default-tenant.app.dev.lab.iguazeng.com/"
-    )
-    gateway._generate_invoke_url()
+
     assert (
-        gateway._generate_invoke_url()
+        gateway._invoke_url
         == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
     )
 

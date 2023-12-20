@@ -39,6 +39,7 @@ from mlrun.model_monitoring.application import (
     ModelMonitoringApplication,
 )
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
+from mlrun.model_monitoring.genai.radar_plot import radar_plot
 from mlrun.utils import logger
 
 
@@ -179,7 +180,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
             kwargs.get("model_name", "custom_model"),
             kwargs.get("benchmark_model_name", "benchmark_model"),
         ]
-        plot = radar_chart(data, model_names)
+        plot = radar_plot(data, model_names)
         return plot
 
     def build_report(self, metrics_res: Dict[str, Any]):

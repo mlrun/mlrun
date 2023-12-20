@@ -1089,10 +1089,10 @@ def load_and_run(
                 workflow=workflow_log_message,
                 exc=err_to_str(exc),
             )
-        finally:
-            pipeline_state, _, _ = project.get_run_status(run)
-            context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-            if pipeline_state != mlrun.run.RunStatuses.succeeded:
-                raise RuntimeError(
-                    f"Workflow {workflow_log_message} failed, state={pipeline_state}"
-                )
+
+        pipeline_state, _, _ = project.get_run_status(run)
+        context.log_result(key="workflow_state", value=pipeline_state, commit=True)
+        if pipeline_state != mlrun.run.RunStatuses.succeeded:
+            raise RuntimeError(
+                f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+            )

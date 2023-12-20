@@ -36,6 +36,7 @@ import pandas as pd
 from mlrun.model import ObjectList
 from mlrun.model_monitoring.application import (
     ModelMonitoringApplicationResult,
+    ModelMonitoringApplication,
 )
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 from mlrun.utils import logger

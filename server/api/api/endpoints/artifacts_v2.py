@@ -125,6 +125,7 @@ async def store_artifact(
         iter,
         project,
         producer_id=producer_id,
+        auth_info=auth_info,
     )
     return await run_in_threadpool(
         server.api.crud.Artifacts().get_artifact,

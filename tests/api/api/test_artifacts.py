@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import tempfile
 import unittest.mock
 from http import HTTPStatus
 
@@ -424,6 +425,36 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
                 ignore_order=True,
             )
         ) == {}
+
+
+def test_store_artifact_calculate_size(db: Session, client: TestClient):
+    _create_project(client)
+
+    # create a temp file with some content
+    tmp_file = tempfile.NamedTemporaryFile(mode="w")
+    file_path = tmp_file.name
+    with open(file_path, "w") as fp:
+        fp.write("1234567")
+    file_length = 7
+
+    # mock the get_allowed_path_prefixes_list function since we use a local path here for the testing
+    with unittest.mock.patch(
+        "server.api.api.utils.get_allowed_path_prefixes_list", return_value="/"
+    ):
+        # create the artifact
+        artifact = mlrun.artifacts.Artifact(key=KEY, target_path=file_path)
+        resp = client.post(
+            STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=UID, key=KEY, tag=TAG),
+            data=artifact.to_json(),
+        )
+        assert resp.status_code == HTTPStatus.OK.value
+
+    # validate that the size of the artifact is calculated
+    resp = client.get(GET_API_ARTIFACT_PATH.format(project=PROJECT, key=KEY, tag=TAG))
+    assert resp.status_code == HTTPStatus.OK.value
+    artifact = resp.json()
+
+    assert artifact["data"]["spec"]["size"] == file_length
 
 
 def test_legacy_get_artifact_with_tree_as_tag_fallback(

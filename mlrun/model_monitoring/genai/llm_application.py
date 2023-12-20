@@ -32,8 +32,6 @@ from statistics import mean, median
 from typing import Dict, List, Optional, Union, Any
 
 import pandas as pd
-
-from mlrun.model import ObjectList
 from mlrun.model_monitoring.application import (
     ModelMonitoringApplicationResult,
     ModelMonitoringApplication,
@@ -89,7 +87,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         :param obvious_drift_threshold:     (Union[int, float]) The threshold for obvious drift.
         """
         self.name = name
-        self.metrics = ObjectList.from_list(metrics)
+        self.metrics = metrics
         self.possible_drift_threshold = possible_drift_threshold
         self.obvious_drift_threshold = obvious_drift_threshold
 
@@ -100,7 +98,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
 
     @metrics.setter
     def metrics(self, metrics: List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]):
-        self._metrics = ObjectList.from_list(metrics)
+        self._metrics = metrics
 
     def compute_metrics_over_data(
         self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None, **kwargs

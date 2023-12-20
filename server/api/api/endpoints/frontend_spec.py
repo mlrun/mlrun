@@ -42,9 +42,11 @@ def get_frontend_spec(
     ),
 ):
     jobs_dashboard_url = None
+    model_monitoring_dashboard_url = None
     session = auth_info.session
     if session and is_iguazio_session_cookie(session):
         jobs_dashboard_url = _resolve_jobs_dashboard_url(session)
+        model_monitoring_dashboard_url = _resolve_model_monitoring_dashboard_url(session)
     feature_flags = _resolve_feature_flags()
     registry, repository = mlrun.utils.helpers.get_parsed_docker_registry()
     repository = mlrun.utils.helpers.get_docker_repository_or_default(repository)
@@ -63,6 +65,7 @@ def get_frontend_spec(
     )
     return mlrun.common.schemas.FrontendSpec(
         jobs_dashboard_url=jobs_dashboard_url,
+        model_monitoring_dashboard_url=model_monitoring_dashboard_url,
         abortable_function_kinds=mlrun.runtimes.RuntimeKinds.abortable_runtimes(),
         feature_flags=feature_flags,
         default_function_priority_class_name=config.default_function_priority_class_name,
@@ -91,9 +94,18 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
     if grafana_service_url:
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
         return (
-            f"{grafana_service_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={{filter_name}}"
-            f"&var-filter={{filter_value}}"
+            grafana_service_url + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}"
+                                  "&var-filter={filter_value}"
         )
+    return None
+
+
+def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str]:
+    iguazio_client = server.api.utils.clients.iguazio.Client()
+    grafana_service_url = iguazio_client.try_get_grafana_service_url(session)
+    if grafana_service_url:
+        return grafana_service_url + ("/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
+                                      "&var-MODELENDPOINT={model_endpoint}")
     return None
 
 

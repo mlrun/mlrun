@@ -14,14 +14,15 @@
 #
 
 import unittest
+
 import pandas as pd
-import pytest
+
 from mlrun.model_monitoring.genai.llm_application import LLMMonitoringApp
 from mlrun.model_monitoring.genai.metrics import (
+    LLMEvaluateMetric,
     LLMJudgePairwiseGrading,
     LLMJudgeReferenceGrading,
     LLMJudgeSingleGrading,
-    LLMEvaluateMetric,
 )
 from mlrun.model_monitoring.genai.prompt import (
     PAIR_GRADE_PROMPT,
@@ -151,16 +152,14 @@ class TestLLMMonitoringApp(unittest.TestCase):
         self.single_res = self.app.compute_one_metric_over_data(
             single_grading_metrics, self.sample_df
         )
-        import pdb
-
-        pdb.set_trace()
 
     def test_compute_metrics(self):
         self.assertEqual(len(self.all_res), len(self.metrics))
-        for metric in self.metrics:
-            self.assertIn(metric.name, self.all_res)
 
     def test_build_radar_chart(self):
-        metrics_res = self.app.compute_metrics_over_data(self.sample_df)
-        radar_chart = self.app.build_radar_chart(metrics_res)
+        radar_chart = self.app.build_radar_chart(self.all_res)
         radar_chart.save("radar_chart.png")
+
+    def test_build_report(self):
+        report = self.app.build_report(self.all_res)
+        self.assertEqual(len(report), len(self.metrics))

@@ -30,19 +30,20 @@
 # 3. reference (the y_true)
 
 from statistics import mean, median
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+
 from mlrun.model_monitoring.application import (
-    ModelMonitoringApplicationResult,
     ModelMonitoringApplication,
+    ModelMonitoringApplicationResult,
 )
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 from mlrun.model_monitoring.genai.radar_plot import radar_plot
 from mlrun.utils import logger
 
 
-# A decorator for aggregating the metrics values
+# A decorator for aggregating the metrics values for one sinlge metrics with mutiple data points
 def aggregate(agg_type):
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -170,13 +171,21 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         data = [{}, {}]
         for key, value in metrics_res.items():
+            # singlegrading doesn't have benchmark model to compare
             if value["kind"] == "llm_judge_single_grading":
                 logger.info(
                     f"metrics {key} is llm_judge_single_grading type, no benchmark, the reslut is {value}"
                 )
+            # evaluate metric doesn't have benchmark model to compare
+            elif value["kind"] == "llm_evaluate_metric":
+                logger.info(
+                    f"metrics {key} is llm_evaluate_metric type, no benchmark, the reslut is {value}"
+                )
             else:
+                # for each different metrics get the scores of the custom model and benchmark model
                 data[0][key] = value["score_of_assistant_a"]
                 data[1][key] = value["score_of_assistant_b"]
+
         model_names = [
             kwargs.get("model_name", "custom_model"),
             kwargs.get("benchmark_model_name", "benchmark_model"),

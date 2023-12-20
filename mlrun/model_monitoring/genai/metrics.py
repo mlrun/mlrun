@@ -87,14 +87,14 @@ def open_mpi_handler(
             even_chunk_size = len(sample_df) // size
             chunk_start = rank * even_chunk_size
             chunk_end = (
-                (rank + 1) * even_chunk_size if rank + 1 < size else len(input_argument)
+                (rank + 1) * even_chunk_size if rank + 1 < size else len(sample_df)
             )
             logger.info(
                 f"Rank #{rank}: Processing input chunk sample dataframe"
                 f"from index {chunk_start} to {chunk_end}."
             )
             sample_df = sample_df.iloc[chunk_start:chunk_end:, :]
-            kwargs[worker_input] = sample_df
+            kwargs[worker_inputs] = sample_df
 
             # Run the worker:
             output = handler(**kwargs)
@@ -120,7 +120,7 @@ class LLMEvaluateMetric(ModelObj):
     """
 
     _dict_fields = ["name"]
-    kind = "llm_metric"
+    kind = "llm_evaluate_metric"
     default_name: ClassVar[str] = "llm_metric"
 
     def __init__(self, name: str):

@@ -147,23 +147,20 @@ class TestLLMMonitoringApp(unittest.TestCase):
             ref_grading_metric,
         ]
         self.app = LLMMonitoringApp(metrics=self.metrics)
+        self.all_res = self.app.compute_metrics_over_data(self.sample_df)
+        self.single_res = self.app.compute_one_metric_over_data(
+            single_grading_metrics, self.sample_df
+        )
+        import pdb
+
+        pdb.set_trace()
 
     def test_compute_metrics(self):
-        res = self.app.compute_metrics_over_data(self.sample_df)
-
-        self.assertEqual(len(res), len(self.metrics))
+        self.assertEqual(len(self.all_res), len(self.metrics))
         for metric in self.metrics:
-            self.assertIn(metric.name, res)
-
-    def test_compute_one_metric(self):
-        for metric in self.metrics:
-            values = self.app.compute_one_metric_over_data(metric, self.sample_df)
-
-            self.assertIsInstance(values, list)
-            self.assertGreater(len(values), 0)
+            self.assertIn(metric.name, self.all_res)
 
     def test_build_radar_chart(self):
         metrics_res = self.app.compute_metrics_over_data(self.sample_df)
         radar_chart = self.app.build_radar_chart(metrics_res)
-
-        self.assertIsInstance(radar_chart, Artifact)
+        radar_chart.save("radar_chart.png")

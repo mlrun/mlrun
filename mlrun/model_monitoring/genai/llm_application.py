@@ -26,7 +26,7 @@
 import pandas as pd
 import json
 from abc import ABC, abstractmethod
-from functools import wraps, decrator
+from functools import wraps
 from statistics import mean, median
 from typing import List, Optional, Union, Dict
 from mlrun.artifacts import Artifact
@@ -35,7 +35,10 @@ from mlrun.model import ModelObj, ObjectList
 from mlrun.utils import logger
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 from mlrun.model_monitoring.genai.radar_plot import radar_plot
-from mlrun.model_monitoring.application import MonitoringApplication, ModelMonitoringApplicationResult
+from mlrun.model_monitoring.application import (
+    MonitoringApplication,
+    ModelMonitoringApplicationResult,
+)
 
 
 # A decorator for aggregating the metrics values
@@ -91,7 +94,11 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         self, sample_df: pd.DataFrame, train_df: pd.DataFrame = None
     ) -> Dict[str, Any]:
         """
-        Calculate metrics values - helper for the user .
+        Compute the metrics values from the given data this will not do any aggregation.
+
+        :param sample_df:   (pd.DataFrame) The new sample DataFrame.
+        :param train_df:    (pd.DataFrame) The train sample DataFrame.
+        :return:            (Dict[str, Any]) The metrics values, explanation with metrics name as key.
         """
         res = {}
         for metric in self.metrics:
@@ -106,10 +113,19 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         train_df: pd.DataFrame = None,
     ) -> List[Union[int, float]]:
         """
-        Calculate one metric value - helper for the user .
+        Calculate one kind of metric from the given data, and aggregate the values.
+
+        :param metric:      (Union[LLMEvaluateMetric, LLMJudgeBaseMetric]) The metric to calculate.
+        :param sample_df:   (pd.DataFrame) The new sample DataFrame.
+        :param train_df:    (pd.DataFrame) The train sample DataFrame.
+        :return:            (List[Union[int, float]]) The aggregated values.
         """
         res_df = metric.compute_over_data(sample_df, train_df)
         score_cols = [col for col in res_df.columns if "score" in col]
+        if len(score_cols) == 1:
+            return res_df[score_cols[0]].tolist()
+        else:
+            return res_df["score_of_assistant_a"].tolist()
         return res
 
     def build_radar_chart(self, metrics_res: Dict[str, Any]):
@@ -124,37 +140,37 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         pass
 
-
     def run_application(
-            self,
-            application_name: str,
-            sample_df_stats: pd.DataFrame,
-            feature_stats: pd.DataFrame,
-            sample_df: pd.DataFrame,
-            start_infer_time: pd.Timestamp,
-            end_infer_time: pd.Timestamp,
-            latest_request: pd.Timestamp,
-            endpoint_id: str,
-            output_stream_uri: str,
-        ) -> Union[
-            ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-        ]:
-            """
-            Implement this method with your custom monitoring logic.
-    
-            :param application_name:         (str) the app name
-            :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
-            :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
-            :param sample_df:               (pd.DataFrame) The new sample DataFrame.
-            :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
-            :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
-            :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
-            :param endpoint_id:             (str) ID of the monitored model endpoint
-            :param output_stream_uri:       (str) URI of the output stream for results
-    
-            :returns:                       (ModelMonitoringApplicationResult) or
-                                            (list[ModelMonitoringApplicationResult]) of the application results.
-            """
+        self,
+        application_name: str,
+        sample_df_stats: pd.DataFrame,
+        feature_stats: pd.DataFrame,
+        sample_df: pd.DataFrame,
+        start_infer_time: pd.Timestamp,
+        end_infer_time: pd.Timestamp,
+        latest_request: pd.Timestamp,
+        endpoint_id: str,
+        output_stream_uri: str,
+    ) -> Union[
+        ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
+    ]:
+        """
+        Implement this method with your custom monitoring logic.
 
+        :param application_name:         (str) the app name
+        :param sample_df_stats:         (pd.DataFrame) The new sample distribution DataFrame.
+        :param feature_stats:           (pd.DataFrame) The train sample distribution DataFrame.
+        :param sample_df:               (pd.DataFrame) The new sample DataFrame.
+        :param start_infer_time:        (pd.Timestamp) Start time of the monitoring schedule.
+        :param end_infer_time:          (pd.Timestamp) End time of the monitoring schedule.
+        :param latest_request:          (pd.Timestamp) Timestamp of the latest request on this endpoint_id.
+        :param endpoint_id:             (str) ID of the monitored model endpoint
+        :param output_stream_uri:       (str) URI of the output stream for results
 
-            raise NotImplementedError
+        :returns:                       (ModelMonitoringApplicationResult) or
+                                        (list[ModelMonitoringApplicationResult]) of the application results.
+        """
+        # for the llm monitoring app, we care about the
+        # if some answer is below the threshold, we will send the result to the output stream
+
+        raise NotImplementedError

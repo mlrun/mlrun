@@ -41,7 +41,6 @@ class ComplexRadar:
     def __init__(
         self, fig, variables, ranges, n_ring_levels=5, show_scales=True, format_cfg=None
     ):
-
         self.format_cfg = format_cfg
 
         # Calculate angles and create for each variable an axes
@@ -52,7 +51,7 @@ class ComplexRadar:
                 [0.1, 0.1, 0.9, 0.9],
                 polar=True,
                 label="axes{}".format(i),
-                **self.format_cfg["axes_args"]
+                **self.format_cfg["axes_args"],
             )
             for i in range(len(variables) + 1)
         ]
@@ -65,7 +64,6 @@ class ComplexRadar:
 
         # Writing the ranges on each axes
         for i, ax in enumerate(axes):
-
             # Here we do the trick by repeating the first iteration
             j = 0 if (i == 0 or i == 1) else i - 1
             ax.set_ylim(*ranges[j])
@@ -79,7 +77,7 @@ class ComplexRadar:
                 grid,
                 labels=gridlabel,
                 angle=angles[j],
-                **self.format_cfg["rgrid_tick_lbls_args"]
+                **self.format_cfg["rgrid_tick_lbls_args"],
             )
 
             ax.set_ylim(*ranges[j])

@@ -19,7 +19,10 @@
 # 3. create a report for the metrics values. (this should be logged as an artifact)
 # 4. it's even better if we can offer a UI for this
 # TODO: need to figure out a way to compute the nlp metrics (these need the y_true and y_pred)
-
+# TODO: The attributes from the event should have y_prediction to be able to compute the metrics
+# The following code is based on this design https://raw.githubusercontent.com/iguazio/dev-docs/development/Model-Monitoring/src/ApplicationDiagram.dio.svg?token=GHSAT0AAAAAACKIWG5MFXFNC6TFGWONCNASZMDIG3Q
+# Please note the current event dosn't have the y_prediction, it has the sample_df and train_df to compute the statistics
+# Please note the following class assumes the sample_df has y_prediction and y_true
 
 import pandas as pd
 import json
@@ -74,6 +77,14 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         possible_drift_threshold: Union[int, float] = None,
         obvious_drift_threshold: Union[int, float] = None,
     ):
+        """
+        Initialize the LLM monitoring application.
+
+        :param name:                        (Optional[str]) The name of the application.
+        :param metrics:                     (Optional[List[Union[LLMEvaluateMetric, LLMJudgeBaseMetric]]])
+        :param possible_drift_threshold:    (Union[int, float]) The threshold for possible drift.
+        :param obvious_drift_threshold:     (Union[int, float]) The threshold for obvious drift.
+        """
         self.name = name
         self.metrics = ObjectList.from_list(metrics)
         self.possible_drift_threshold = possible_drift_threshold
@@ -93,6 +104,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
     ) -> Dict[str, Any]:
         """
         Compute the metrics values from the given data this will not do any aggregation.
+        There is a strong assumption that the sample_df has y_prediction
 
         :param sample_df:   (pd.DataFrame) The new sample DataFrame.
         :param train_df:    (pd.DataFrame) The train sample DataFrame.
@@ -212,5 +224,8 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
         # instead, we want to send all the questions and answers that are below the threshold with explanation
+        # for now assume sample_df has the y_pred with in it. clearly it's not the case for now
+
+
 
         raise NotImplementedError

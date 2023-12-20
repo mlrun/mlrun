@@ -490,11 +490,6 @@ class SQLDB(DBInterface):
 
         original_uid = uid
 
-        # record with the given tag/uid
-        existing_artifact = self._get_existing_artifact(
-            session, project, key, uid, producer_id=producer_id, iteration=iter
-        )
-
         if isinstance(artifact, dict):
             artifact_dict = artifact
         else:
@@ -517,6 +512,11 @@ class SQLDB(DBInterface):
         # for easier querying, we mark artifacts without iteration as best iteration
         if not best_iteration and (iter is None or iter == 0):
             best_iteration = True
+
+        # try to get an existing artifact with the same calculated uid
+        existing_artifact = self._get_existing_artifact(
+            session, project, key, uid, producer_id=producer_id, iteration=iter
+        )
 
         # if the object is not new, we need to check if we need to update it or create a new one
         if existing_artifact:
@@ -950,6 +950,8 @@ class SQLDB(DBInterface):
             artifacts_to_commit.append(previous_best_iteration_artifacts)
 
         self._upsert(session, artifacts_to_commit)
+
+        return artifact_record.uid
 
     def _update_artifact_record_from_dict(
         self,

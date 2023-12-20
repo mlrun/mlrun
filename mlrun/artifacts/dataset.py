@@ -24,12 +24,13 @@ from pandas.io.json import build_table_schema
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.helpers
+from mlrun.config import config as mlconf
 
 from ..datastore import is_store_uri, store_manager
 from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
-max_preview_columns = 100
+max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
 max_csv = 10000
 ddf_sample_pct = 0.2
 max_ddf_size = 1
@@ -105,6 +106,7 @@ class DatasetArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "schema",
         "header",
+        "header_original_length",
         "length",
         "column_metadata",
         "features",
@@ -117,6 +119,7 @@ class DatasetArtifactSpec(ArtifactSpec):
         super().__init__()
         self.schema = None
         self.header = None
+        self.header_original_length = None
         self.length = None
         self.column_metadata = None
         self.features = None
@@ -267,6 +270,7 @@ class DatasetArtifact(Artifact):
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
         preview_df = preview_df.reset_index()
+        artifact.spec.header_original_length = len(preview_df.columns)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()

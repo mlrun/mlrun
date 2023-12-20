@@ -131,6 +131,9 @@ default_config = {
         # migration progress.
         "artifact_migration_batch_size": 200,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
+        "datasets": {
+            "max_preview_columns": 100,
+        },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly

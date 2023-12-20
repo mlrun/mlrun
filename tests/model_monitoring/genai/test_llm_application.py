@@ -16,7 +16,7 @@
 import unittest
 import pandas as pd
 import pytest
-from mlrun.model_monitoring.genai.application import LLMMonitoringApp
+from mlrun.model_monitoring.genai.llm_application import LLMMonitoringApp
 from mlrun.model_monitoring.genai.metrics import (
     LLMJudgePairwiseGrading,
     LLMJudgeReferenceGrading,

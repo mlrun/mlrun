@@ -88,9 +88,16 @@ def get_frontend_spec(
     )
 
 
+def try_get_grafana_service_url(session):
+    if mlrun.mlconf.external_grafana_url:
+        return mlrun.mlconf.external_grafana_url
+    else:
+        iguazio_client = server.api.utils.clients.iguazio.Client()
+        return iguazio_client.try_get_grafana_service_url(session)
+
+
 def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
-    iguazio_client = server.api.utils.clients.iguazio.Client()
-    grafana_service_url = iguazio_client.try_get_grafana_service_url(session)
+    grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
         # FIXME: this creates a heavy coupling between mlrun and the grafana dashboard (name and filters) + org id
         return (
@@ -101,8 +108,7 @@ def _resolve_jobs_dashboard_url(session: str) -> typing.Optional[str]:
 
 
 def _resolve_model_monitoring_dashboard_url(session: str) -> typing.Optional[str]:
-    iguazio_client = server.api.utils.clients.iguazio.Client()
-    grafana_service_url = iguazio_client.try_get_grafana_service_url(session)
+    grafana_service_url = try_get_grafana_service_url(session)
     if grafana_service_url:
         return grafana_service_url + ("/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}"
                                       "&var-MODELENDPOINT={model_endpoint}")

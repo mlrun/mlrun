@@ -668,17 +668,23 @@ class BaseMerger(abc.ABC):
         ):
 
             name_head = linked_list_relation.head.name
-            left_keys, right_keys = feature_set_objects[name_head].check_relation(
-                self.vector.get_feature_set_relations(feature_set_objects[name_head]),
+            left_keys = feature_set_objects[name_head].extract_relation_keys(
                 feature_set_objects[fs_name_in],
-                head_order < name_in_order,
+                self.vector.get_feature_set_relations(feature_set_objects[name_head]),
             )
-            if left_keys and right_keys:
+            if left_keys == list(
+                feature_set_objects[name_head].spec.entities.keys()
+            ) and not (head_order < name_in_order):
+                left_keys = []
+
+            if left_keys:
                 linked_list_relation.add_last(
                     BaseMerger._Node(
                         fs_name_in,
                         left_keys=left_keys,
-                        right_keys=right_keys,
+                        right_keys=list(
+                            feature_set_objects[fs_name_in].spec.entities.keys()
+                        ),
                         order=name_in_order,
                     )
                 )
@@ -686,17 +692,15 @@ class BaseMerger(abc.ABC):
             return linked_list_relation
 
         def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-
-            left_keys, right_keys = feature_set_objects[fs_name].check_connection_to_df(
-                entity_rows_keys
-            )
-
-            if left_keys and right_keys:
+            keys = None
+            if feature_set_objects[fs_name].is_connectable_to_df(entity_rows_keys):
+                keys = list(feature_set_objects[fs_name].spec.entities.keys())
+            if keys:
                 entity_rows_relation.add_last(
                     BaseMerger._Node(
                         fs_name,
-                        left_keys=left_keys,
-                        right_keys=right_keys,
+                        left_keys=keys,
+                        right_keys=keys,
                         order=fs_order,
                     )
                 )

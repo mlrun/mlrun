@@ -1030,30 +1030,33 @@ class FeatureSet(ModelObj):
             self, source, targets, name, run_config, verbose
         )
 
-    def check_relation(
+    def extract_relation_keys(
         self,
-        relation: Dict[str, Union[str, Entity]],
-        right_fset_fields,
-        ordered: bool = True,
-    ):
-        right_feature_set_entity_list = right_fset_fields.spec.entities
+        other_feature_set,
+        relation: Dict[str, Union[str, Entity]] = None,
+    ) -> list[str]:
+        """
+        This method checks if the other feature set can be merged to the right of this feature set
 
-        if (
-            all(ent in self.spec.entities for ent in right_feature_set_entity_list)
-            and len(right_feature_set_entity_list) == len(self.spec.entities)
-            and ordered
-        ):
+        :param other_feature_set:   The feature set you want to merge to the right of this feature set
+        :param relation:            All the relation that where defined on this feature set.
+
+        :return:                    If those 2 feature set are merge able it returns a list of the left join keys
+                                    otherwise it returns an empty list.
+                                    (The right join keys are always the entities of the other feature set)
+        """
+        right_feature_set_entity_list = other_feature_set.spec.entities
+
+        if all(
+            ent in self.spec.entities for ent in right_feature_set_entity_list
+        ) and len(right_feature_set_entity_list) == len(self.spec.entities):
             # entities wise
-            return list(self.spec.entities.keys()), list(
-                right_feature_set_entity_list.keys()
-            )
+            return list(self.spec.entities.keys())
         elif all(ent in self.spec.entities for ent in right_feature_set_entity_list):
             # entities wise when the right fset have lower number of entities
-            return list(right_feature_set_entity_list.keys()), list(
-                right_feature_set_entity_list.keys()
-            )
+            return list(right_feature_set_entity_list.keys())
 
-        else:
+        elif relation:
             # relation wise
             curr_col_relation_list = list(
                 map(
@@ -1067,18 +1070,24 @@ class FeatureSet(ModelObj):
             )
 
             if all(curr_col_relation_list):
-                return curr_col_relation_list, list(
-                    right_feature_set_entity_list.keys()
-                )
+                return curr_col_relation_list
 
-        return [], []
+        return []
 
-    def check_connection_to_df(self, df_columns: list[str]):
-        if df_columns is not None and all(
-            ent in df_columns for ent in list(self.spec.entities.keys())
-        ):
-            return list(self.spec.entities.keys()), list(self.spec.entities.keys())
-        return [], []
+    def is_connectable_to_df(self, df_columns: list[str]) -> bool:
+        """
+        This method checks if the data frame can be merged to the left of this feature set
+
+        :param df_columns:  The columns of the data frame you want to merge to the left of this feature set
+        :return:            True if the data frame can be merged to the left of this feature set
+                            and otherwise returns False
+        """
+        return (
+            True
+            if df_columns is not None
+            and all(ent in df_columns for ent in list(self.spec.entities.keys()))
+            else False
+        )
 
 
 class SparkAggregateByKey(StepToDict):

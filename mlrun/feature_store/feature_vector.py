@@ -404,9 +404,16 @@ class _JoinStep(ModelObj):
         vector,
         entity_rows_keys: List[str] = None,
     ):
-        self.left_keys, self.right_keys = feature_set_objects[
-            self.right_feature_set_name
-        ].check_connection_to_df(entity_rows_keys)
+        if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
+            entity_rows_keys
+        ):
+            self.left_keys, self.right_keys = [
+                list(
+                    feature_set_objects[
+                        self.right_feature_set_name
+                    ].spec.entities.keys()
+                )
+            ] * 2
 
         if (
             self.join_type == JoinGraph.first_join_type
@@ -420,17 +427,20 @@ class _JoinStep(ModelObj):
             return
 
         for left_fset in self.left_feature_set_names:
-            left_keys, right_keys = feature_set_objects[left_fset].check_relation(
-                vector.get_feature_set_relations(feature_set_objects[left_fset]),
+            current_left_keys = feature_set_objects[left_fset].extract_relation_keys(
                 feature_set_objects[self.right_feature_set_name],
+                vector.get_feature_set_relations(feature_set_objects[left_fset]),
             )
-            for i in range(len(left_keys)):
+            current_right_keys = list(
+                feature_set_objects[self.right_feature_set_name].spec.entities.keys()
+            )
+            for i in range(len(current_left_keys)):
                 if (
-                    left_keys[i] not in self.left_keys
-                    and right_keys[i] not in self.right_keys
+                    current_left_keys[i] not in self.left_keys
+                    and current_right_keys[i] not in self.right_keys
                 ):
-                    self.left_keys.append(left_keys[i])
-                    self.right_keys.append(right_keys[i])
+                    self.left_keys.append(current_left_keys[i])
+                    self.right_keys.append(current_right_keys[i])
 
         if not self.left_keys:
             raise mlrun.errors.MLRunRuntimeError(

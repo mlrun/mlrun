@@ -106,7 +106,6 @@ class DatasetArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + [
         "schema",
         "header",
-        "header_original_length",
         "length",
         "column_metadata",
         "features",
@@ -119,7 +118,6 @@ class DatasetArtifactSpec(ArtifactSpec):
         super().__init__()
         self.schema = None
         self.header = None
-        self.header_original_length = None
         self.length = None
         self.column_metadata = None
         self.features = None
@@ -273,7 +271,7 @@ class DatasetArtifact(Artifact):
         # reset index while dropping existing index
         # that way it wont create another index if one already there
         preview_df = preview_df.reset_index(drop=True)
-        artifact.spec.header_original_length = len(preview_df.columns)
+        artifact.status.header_original_length = len(preview_df.columns)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()

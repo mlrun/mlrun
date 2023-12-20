@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# This is the application that can include mutiple metrcs from evaluat and llm_judge
+# This is the application can include mutiple metrcs from evaluat and llm_judge
 # This class should perform the following:
 # 1. calculate the metrics values for the given data.
 # 2. create a radar chart for the metrics values. (this shoud be logged as an artifact)
 # 3. create a report for the metrics values. (this should be logged as an artifact)
 # 4. it's even better if we can offer a UI for this
+# TODO: need to figure out a way to compute the nlp metrics (these need the y_true and y_pred)
 
 
 import pandas as pd

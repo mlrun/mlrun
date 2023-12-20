@@ -1,4 +1,5 @@
 import pytest
+
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric
 
 

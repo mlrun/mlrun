@@ -16,29 +16,24 @@
 # This is the base classes of using evluate to compute the metrics score and
 # Using LLM as a Judge to compute the metrics score
 import re
-import torch
 from abc import ABC, abstractmethod
 from functools import wraps
-import mpi4py
-from typing import Union, List, Optional, Dict, Any, ClassVar, Tuple
-import mlrun
-from mlrun.utils import logger
-from mlrun.model import ModelObj
-from mlrun.model_monitoring.genai.prompt import (
-    SINGLE_GRADE_PROMPT,
-    PAIR_GRADE_PROMPT,
-    REF_GRADE_PROMPT,
-)
-import transformers
-import pandas as pd
+from typing import Any, ClassVar, Dict, List, Tuple, Union
 
+import mpi4py
+import pandas as pd
+import transformers
+
+import mlrun
+from mlrun.model import ModelObj
+from mlrun.utils import logger
 
 """
 @misc{zheng2023judging,
       title={Judging LLM-as-a-judge with MT-Bench and Chatbot Arena},
-      author={Lianmin Zheng and Wei-Lin Chiang and Ying Sheng and Siyuan Zhuang 
-      and Zhanghao Wu and Yonghao Zhuang and Zi Lin and Zhuohan Li 
-      and Dacheng Li and Eric. P Xing and Hao Zhang and Joseph E. Gonzalez 
+      author={Lianmin Zheng and Wei-Lin Chiang and Ying Sheng and Siyuan Zhuang
+      and Zhanghao Wu and Yonghao Zhuang and Zi Lin and Zhuohan Li
+      and Dacheng Li and Eric. P Xing and Hao Zhang and Joseph E. Gonzalez
       and Ion Stoica},
       year={2023},
       eprint={2306.05685},
@@ -217,7 +212,7 @@ class LLMJudgeBaseMetric(ModelObj, ABC):
         :param prompt_config: the prompt config to fill the template with
         :return: the filled prompt
         """
-        logger.info(f"Filling the prompt template with the prompt config")
+        logger.info("Filling the prompt template with the prompt config")
         return self.prompt_template.format(**self.prompt_config)
 
     @abstractmethod
@@ -357,7 +352,7 @@ class LLMJudgeSingleGrading(LLMJudgeBaseMetric):
         self.prepare_judge()
         res_df = pd.DataFrame(columns=["question", "answer", "score", "explanation"])
 
-        logger.info(f"Computing the metrics over all data")
+        logger.info("Computing the metrics over all data")
         for i in range(len(sample_df)):
             res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"], sample_df.loc[i, "answer"]
@@ -555,11 +550,11 @@ class LLMJudgePairwiseGrading(LLMJudgeBaseMetric):
         for i in range(len(sample_df)):
             res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"],
-                sample_df.loc[i, "answerA"],
+                sample_df.loc[i, "answer"],
             )
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
-                sample_df.loc[i, "answerA"],
+                sample_df.loc[i, "answer"],
                 res_dic["answerB"],
                 res_dic["score_of_assistant_a"],
                 res_dic["explanation_of_assistant_a"],
@@ -707,12 +702,12 @@ class LLMJudgeReferenceGrading(LLMJudgePairwiseGrading):
         for i in range(len(sample_df)):
             res_dic = self.compute_over_one_data(
                 sample_df.loc[i, "question"],
-                sample_df.loc[i, "answerA"],
+                sample_df.loc[i, "answer"],
                 sample_df.loc[i, "reference"],
             )
             res_df.loc[i] = [
                 sample_df.loc[i, "question"],
-                sample_df.loc[i, "answerA"],
+                sample_df.loc[i, "answer"],
                 sample_df.loc[i, "reference"],
                 res_dic["answerB"],
                 res_dic["score_of_assistant_a"],

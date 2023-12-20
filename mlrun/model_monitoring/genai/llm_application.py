@@ -23,23 +23,22 @@
 # The following code is based on this design https://raw.githubusercontent.com/iguazio/dev-docs/development/Model-Monitoring/src/ApplicationDiagram.dio.svg?token=GHSAT0AAAAAACKIWG5MFXFNC6TFGWONCNASZMDIG3Q
 # Please note the current event dosn't have the y_prediction, it has the sample_df and train_df to compute the statistics
 # Please note the following class assumes the sample_df has y_prediction and y_true
+# The sample_df should have the following columns
+# 1. question
+# 2. answer
+# 3. reference
+
+from statistics import mean, median
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
-import json
-from abc import ABC, abstractmethod
-from functools import wraps
-from statistics import mean, median
-from typing import List, Optional, Union, Dict
-from mlrun.artifacts import Artifact
-from mlrun.datastore import DataItem
-from mlrun.model import ModelObj, ObjectList
-from mlrun.utils import logger
-from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
-from mlrun.model_monitoring.genai.radar_plot import radar_plot
+
+from mlrun.model import ObjectList
 from mlrun.model_monitoring.application import (
-    MonitoringApplication,
     ModelMonitoringApplicationResult,
 )
+from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
+from mlrun.utils import logger
 
 
 # A decorator for aggregating the metrics values
@@ -225,7 +224,5 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
         # instead, we want to send all the questions and answers that are below the threshold with explanation
         # for now assume sample_df has the y_pred with in it. clearly it's not the case for now
-
-
 
         raise NotImplementedError

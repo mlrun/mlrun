@@ -14,20 +14,20 @@
 #
 
 
-import pytest
 import pandas as pd
-from mlrun.utils import logger
+import pytest
+
 from mlrun.model_monitoring.genai.metrics import (
-    LLMJudgeSingleGrading,
     LLMJudgePairwiseGrading,
     LLMJudgeReferenceGrading,
+    LLMJudgeSingleGrading,
 )
-
 from mlrun.model_monitoring.genai.prompt import (
-    SINGLE_GRADE_PROMPT,
     PAIR_GRADE_PROMPT,
     REF_GRADE_PROMPT,
+    SINGLE_GRADE_PROMPT,
 )
+from mlrun.utils import logger
 
 JUDGE_MODEL = "TheBloke/Mistral-7B-OpenOrca-GPTQ"
 JUDGE_CONFIG = {
@@ -56,19 +56,19 @@ def prompt_fixture():
         "name": "accuracy",
         "definition": "The accuracy of the provided answer.",
         "rubric": """Accuracy: This rubric assesses the accuracy of the provided answer. The details for different scores are as follows:
-            - Score 1: The answer is completely incorrect or irrelevant to the question. It demonstrates a fundamental 
+            - Score 1: The answer is completely incorrect or irrelevant to the question. It demonstrates a fundamental
               misunderstanding of the topic or question.
-            - Score 2: The answer contains significant inaccuracies, though it shows some understanding of the topic. Key 
+            - Score 2: The answer contains significant inaccuracies, though it shows some understanding of the topic. Key
               elements of the question are addressed incorrectly.
-            - Score 3: The answer is partially correct but has noticeable inaccuracies or omissions. It addresses the 
+            - Score 3: The answer is partially correct but has noticeable inaccuracies or omissions. It addresses the
               question but lacks depth or precision.
-            - Score 4: The answer is mostly correct, with only minor inaccuracies or omissions. It provides a generally 
+            - Score 4: The answer is mostly correct, with only minor inaccuracies or omissions. It provides a generally
               accurate response to the question.
-            - Score 5: The answer is completely correct and thorough. It demonstrates a deep and accurate understanding of 
+            - Score 5: The answer is completely correct and thorough. It demonstrates a deep and accurate understanding of
               the topic, addressing all elements of the question effectively.""",
         "examples": """
             Question: What is the capital of France?
-            
+
             Score 1: Completely Incorrect
             Answer: "The capital of France is Berlin."
             Explanation: This answer is entirely incorrect and irrelevant, as Berlin is the capital of Germany, not France.
@@ -139,7 +139,7 @@ def test_pairwise_grading_scores(prompt_fixture):
     q2 = "What is the capital of France?"
     a2 = "The capital of France is Paris"
 
-    sample_df = pd.DataFrame({"question": [q1, q2], "answerA": [a1, a2]})
+    sample_df = pd.DataFrame({"question": [q1, q2], "answer": [a1, a2]})
     result = metric.compute_over_data(sample_df)
     logger.info(f"result: {result}")
     assert all(0 <= score <= 5 for score in result["score_of_assistant_a"].to_list())
@@ -173,7 +173,7 @@ def test_reference_grading_scores(prompt_fixture):
     ref2 = "Paris"
 
     sample_df = pd.DataFrame(
-        {"question": [q1, q2], "answerA": [a1, a2], "reference": [ref1, ref2]}
+        {"question": [q1, q2], "answer": [a1, a2], "reference": [ref1, ref2]}
     )
 
     result = metric.compute_over_data(sample_df)

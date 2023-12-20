@@ -620,7 +620,7 @@ class BatchProcessor:
 
         if not mlrun.mlconf.is_ce_mode():
             # Create v3io stream based on the input stream
-            response = self.v3io.create_stream(
+            response = self.v3io.stream.create(
                 container=self.stream_container,
                 path=self.stream_path,
                 shard_count=1,

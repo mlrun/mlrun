@@ -877,8 +877,7 @@ class TestArtifacts:
         assert project_to_files_count[project] == 5
 
     def test_migrate_artifacts_to_v2(self, db: DBInterface, db_session: Session):
-        artifact_key = "artifact1"
-        artifact_uid = "uid1"
+        artifact_tree = "tree1"
         artifact_tag = "artifact-tag-1"
         project = "project1"
 
@@ -894,18 +893,32 @@ class TestArtifacts:
         )
 
         # create an artifact in the old format
-        artifact_body = self._generate_artifact(artifact_key, artifact_uid, "artifact")
-        artifact_body["metadata"]["key"] = artifact_key
-        artifact_body["metadata"]["iter"] = 2
-        artifact_body["metadata"]["project"] = project
-        artifact_body["metadata"]["tag"] = artifact_tag
+        artifact_key_1 = "artifact1"
+        artifact_body_1 = self._generate_artifact(
+            artifact_key_1, artifact_tree, "artifact", project=project
+        )
+        artifact_body_1["metadata"]["iter"] = 2
+        artifact_body_1["metadata"]["tag"] = artifact_tag
         db.store_artifact_v1(
             db_session,
-            artifact_key,
-            artifact_body,
-            artifact_uid,
+            artifact_key_1,
+            artifact_body_1,
+            artifact_tree,
             project=project,
             tag=artifact_tag,
+        )
+
+        # create an artifact without an iteration and tag
+        artifact_key_2 = "artifact2"
+        artifact_body_2 = self._generate_artifact(
+            artifact_key_2, artifact_tree, "model", project=project
+        )
+        db.store_artifact_v1(
+            db_session,
+            artifact_key_2,
+            artifact_body_2,
+            artifact_tree,
+            project=project,
         )
 
         # create a legacy artifact in the old format
@@ -945,7 +958,7 @@ class TestArtifacts:
             server.api.db.sqldb.models.ArtifactV2,
         )
         new_artifacts = query_all.all()
-        assert len(new_artifacts) == 2
+        assert len(new_artifacts) == 3
 
         # validate there are 4 tags in total - the specific tag and the latest tag for each artifact
         query_all_tags = db._query(
@@ -953,21 +966,28 @@ class TestArtifacts:
             new_artifacts[0].Tag,
         )
         new_artifact_tags = query_all_tags.all()
-        assert len(new_artifact_tags) == 4
+        assert len(new_artifact_tags) == 5
 
         for expected in [
             {
-                "key": artifact_key,
-                "uid": artifact_uid,
+                "key": artifact_key_1,
+                "uid": artifact_tree,
                 "project": project,
                 "iter": 2,
                 "tag": artifact_tag,
             },
             {
+                "key": artifact_key_2,
+                "uid": artifact_tree,
+                "project": project,
+                "iter": 0,
+                "tag": None,
+            },
+            {
                 "key": legacy_artifact_key,
                 "uid": legacy_artifact_uid,
                 "project": None,
-                "iter": None,
+                "iter": 0,
                 "tag": legacy_artifact_tag,
             },
         ]:
@@ -994,6 +1014,16 @@ class TestArtifacts:
 
             # the uid should be the generated uid and not the original one
             assert artifact_dict["metadata"]["uid"] != expected["uid"]
+
+            if expected["tag"] is not None:
+                # query the artifact tags and validate the tag exists
+                query = db._query(
+                    db_session,
+                    artifact.Tag,
+                    name=expected["tag"],
+                )
+                tag = query.one_or_none()
+                assert tag is not None
 
             # validate the original artifact was deleted
             with pytest.raises(mlrun.errors.MLRunNotFoundError):

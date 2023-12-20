@@ -137,7 +137,6 @@ def test__generate_nuclio_api_gateway_body(
         api_gateway_name="gw",
         api_gateway=mlrun.common.schemas.APIGateway(
             function=["f1", "f2"],
-            host=None,
             path="/",
             canary=[50, 50],
         ),

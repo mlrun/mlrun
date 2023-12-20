@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# This is the application can include mutiple metrcs from evaluat and llm_judge
+
+
+# This is the application can include mutiple metrics from evaluate and llm_judge
 # This class should perform the following:
 # 1. calculate the metrics values for the given data.
 # 2. create a radar chart for the metrics values. (this shoud be logged as an artifact)
@@ -115,12 +116,14 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         res = {}
         for metric in self.metrics:
             if isinstance(metric, LLMEvaluateMetric):
-                predictions = sample_df['answer'].tolist()
-                references = sample_df['reference'].tolist()
+                predictions = sample_df["answer"].tolist()
+                references = sample_df["reference"].tolist()
                 logger.info(
                     f"metrics {metric.name} is LLMEvaluateMetric type, this metrics may need other params to compute"
                 )
-                res[metric.name] = metric.compute_over_data(predictions, references, **kwargs)
+                res[metric.name] = metric.compute_over_data(
+                    predictions, references, **kwargs
+                )
                 res[metric.name]["kind"] = metric.kind
             else:
                 res[metric.name] = metric.compute_over_data(sample_df, train_df)
@@ -148,8 +151,8 @@ class LLMMonitoringApp(ModelMonitoringApplication):
             logger.info(
                 f"metrics {metric.name} is LLMEvaluateMetric type, this type will return a dict, not a list"
             )
-            predictions = sample_df['answer'].tolist()
-            references = sample_df['reference'].tolist()
+            predictions = sample_df["answer"].tolist()
+            references = sample_df["reference"].tolist()
             return metric.compute_over_data(predictions, references, **kwargs)
         else:
             res_df = metric.compute_over_data(sample_df, train_df)
@@ -189,13 +192,11 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         :return:            (Artifact) The report artifact.
         """
         report = {}
-
         for key, value in metrics_res.items():
             if type(value) == pd.DataFrame:
                 report[key] = value.to_dict()
             else:
                 report[key] = value
-
         return report
 
     def run_application(

@@ -3281,13 +3281,9 @@ class HTTPRunDB(RunDBInterface):
 
         @return: True if the API Gateway was created successfully, False otherwise
         """
-        endpoint_path = (
-            f"projects/{project}/nuclio/api-gateways/{name}"
-        )
+        endpoint_path = f"projects/{project}/nuclio/api-gateways/{name}"
         error = "create api gateways"
-        response = self.api_call(
-            "POST", endpoint_path, error, json=api_gateway.dict()
-        )
+        response = self.api_call("POST", endpoint_path, error, json=api_gateway.dict())
         return response.ok if response else False
 
     def trigger_migrations(self) -> Optional[mlrun.common.schemas.BackgroundTask]:

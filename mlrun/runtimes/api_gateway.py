@@ -52,9 +52,13 @@ class APIGateway:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invocation url is not set. Use set_invoke_url method to set it."
             )
-        if self.authentication_mode == BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE and not auth:
-            raise mlrun.errors.MLRunInvalidArgumentError("Gateway invocation requires authentication. Please"
-                                                         "pass credentials")
+        if (
+            self.authentication_mode == BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            and not auth
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Gateway invocation requires authentication. Please" "pass credentials"
+            )
         headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
         return requests.post(self._invoke_url, headers=headers)
 

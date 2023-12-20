@@ -3545,7 +3545,7 @@ class MlrunProject(ModelObj):
                 description=description,
                 username=username,
                 password=password,
-            )
+            ),
         )
 
         # if api gateway was created and host wasn't defined by user, we request created api gateway to resolve the host

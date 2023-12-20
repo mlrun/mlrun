@@ -219,6 +219,22 @@ def test_get_log_dataset_dont_duplicate_index_column():
     assert index_counter == 1
 
 
+def test_log_dataset_with_column_overflow(monkeypatch):
+    context = mlrun.get_or_create_ctx("test")
+    source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
+    df = mlrun.get_dataitem(source_url).as_df()
+
+    monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 10)
+    artifact = context.log_dataset("iris", df=df, upload=False)
+    assert len(artifact.spec.header) == 5
+    assert artifact.status.header_original_length == 5
+
+    monkeypatch.setattr(mlrun.artifacts.dataset, "max_preview_columns", 2)
+    artifact = context.log_dataset("iris", df=df, upload=False)
+    assert len(artifact.spec.header) == 2
+    assert artifact.status.header_original_length == 5
+
+
 def test_dataset_preview_size_limit_from_large_dask_dataframe(monkeypatch):
     """
     To simplify testing the behavior of a large Dask DataFrame as a mlrun

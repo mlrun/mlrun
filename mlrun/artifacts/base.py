@@ -153,12 +153,13 @@ class ArtifactSpec(ModelObj):
 
 
 class ArtifactStatus(ModelObj):
-    _dict_fields = ["state", "stats", "preview"]
+    _dict_fields = ["state", "stats", "preview", "header_original_length"]
 
     def __init__(self):
         self.state = "created"
         self.stats = None
         self.preview = None
+        self.header_original_length = None
 
     def base_dict(self):
         return super().to_dict()

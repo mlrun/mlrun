@@ -13,8 +13,10 @@
 # limitations under the License.
 #
 import typing
+from http import HTTPStatus
 
 import sqlalchemy.orm
+from fastapi import HTTPException
 
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
@@ -22,6 +24,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
+from mlrun.utils import logger
 
 
 class Artifacts(
@@ -37,6 +40,7 @@ class Artifacts(
         iter: int = 0,
         project: str = None,
         producer_id: str = None,
+        auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         project = project or mlrun.mlconf.default_project
         # In case project is an empty string the setdefault won't catch it
@@ -48,6 +52,10 @@ class Artifacts(
                 f"Conflicting project name - storing artifact with project {artifact['project']}"
                 f" into a different project: {project}."
             )
+
+        # calculate the size of the artifact
+        self._resolve_artifact_size(artifact, auth_info)
+
         return server.api.utils.singletons.db.get_db().store_artifact(
             db_session,
             key,
@@ -58,6 +66,23 @@ class Artifacts(
             project,
             producer_id=producer_id,
         )
+
+    @staticmethod
+    def _resolve_artifact_size(artifact, auth_info):
+        if "spec" in artifact and "size" not in artifact["spec"]:
+            if "target_path" in artifact["spec"]:
+                path = artifact["spec"].get("target_path")
+                try:
+                    file_stat = server.api.crud.Files().get_filestat(
+                        auth_info, path=path
+                    )
+                    artifact["spec"]["size"] = file_stat["size"]
+                except HTTPException as exc:
+                    if (
+                        exc.status_code == HTTPStatus.NOT_FOUND.value
+                    ):  # if the path was not found the size will be N/A
+                        logger.debug("Path was not found", path=path)
+                        pass
 
     def create_artifact(
         self,

@@ -44,7 +44,6 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
         status_code: typing.Optional[int] = None,
         **kwargs,
     ):
-
         # because response object is probably with an error, it returns False, so we
         # should use 'is None' specifically
         if response is None:

@@ -38,7 +38,11 @@ def upgrade():
         new_column_name="secret_params",
         type_=sa.JSON(),
     )
-    op.add_column("runs_notifications", sa.Column("params", sa.JSON(), nullable=True)),
+    (
+        op.add_column(
+            "runs_notifications", sa.Column("params", sa.JSON(), nullable=True)
+        ),
+    )
     # ### end Alembic commands ###
 
 

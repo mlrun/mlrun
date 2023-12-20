@@ -189,6 +189,7 @@ default_config = {
                 "migrations": "3600",
                 "load_project": "60",
                 "run_abortion": "600",
+                "abort_grace_period": "10",
             },
             "runtimes": {"dask": "600"},
         },
@@ -456,7 +457,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.

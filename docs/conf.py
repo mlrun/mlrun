@@ -22,7 +22,6 @@ def current_version():
     root = path.dirname(path.dirname(path.abspath(__file__)))
     with open(f"{root}/mlrun/__init__.py") as fp:
         for line in fp:
-
             # __version__ = '0.4.6'
             match = re.search(r"__version__\s*=\s*'([^']+)'", line)
             if match:

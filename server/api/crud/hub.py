@@ -191,7 +191,6 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         tag: Optional[str] = None,
         version: Optional[str] = None,
     ) -> List[mlrun.common.schemas.IndexedHubSource]:
-
         hub_sources = server.api.utils.singletons.db.get_db().list_hub_sources(
             db_session
         )

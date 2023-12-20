@@ -305,7 +305,6 @@ class OutputStream:
         self._mock_queue = []
 
         if create and not mock:
-
             # this import creates an import loop via the utils module, so putting it in execution path
             from mlrun.utils.helpers import logger
 
@@ -318,7 +317,7 @@ class OutputStream:
                 retention_in_hours=retention_in_hours,
             )
 
-            response = self._v3io_client.create_stream(
+            response = self._v3io_client.stream.create(
                 container=self._container,
                 path=self._stream_path,
                 shard_count=shards or 1,
@@ -343,7 +342,7 @@ class OutputStream:
             # for mock testing
             self._mock_queue.extend(records)
         else:
-            self._v3io_client.put_records(
+            self._v3io_client.stream.put_records(
                 container=self._container, path=self._stream_path, records=records
             )
 
@@ -368,7 +367,6 @@ class HTTPOutputStream:
             data = [data]
 
         for record in data:
-
             # Convert the new record to the required format
             serialized_record = dump_record(record)
             response = requests.post(self._stream_path, data=serialized_record)

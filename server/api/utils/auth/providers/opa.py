@@ -69,7 +69,6 @@ class Provider(
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
             results = await asyncio.gather(

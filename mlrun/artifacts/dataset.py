@@ -59,7 +59,6 @@ class TableArtifact(Artifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -146,7 +145,6 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -348,7 +346,6 @@ class LegacyTableArtifact(LegacyArtifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -417,7 +414,6 @@ class LegacyDatasetArtifact(LegacyArtifact):
         ignore_preview_limits: bool = False,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:

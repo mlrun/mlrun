@@ -158,6 +158,13 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def error_states():
+        return [
+            RunStates.error,
+            RunStates.aborted,
+        ]
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
 

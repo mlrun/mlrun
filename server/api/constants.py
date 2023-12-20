@@ -16,6 +16,8 @@ from enum import Enum
 
 from mlrun.common.types import StrEnum
 
+internal_abort_task_id = "internal-abort"
+
 
 class LogSources(Enum):
     AUTO = "auto"

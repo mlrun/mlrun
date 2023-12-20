@@ -317,7 +317,6 @@ class DataStore:
                     kwargs["storage_options"] = storage_options
                 df = reader(url, **kwargs)
             else:
-
                 file = url
                 # Workaround for ARROW-12472 affecting pyarrow 3.x and 4.x.
                 if file_system.protocol != "file":

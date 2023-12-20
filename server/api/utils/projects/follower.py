@@ -323,7 +323,6 @@ class Member(
                 self._sync_session, self._synced_until_datetime
             )
         except Exception:
-
             # if we failed to get projects from the leader, we'll try get all the
             # projects without the updated_at filter
             leader_projects, latest_updated_at = self._leader_client.list_projects(
@@ -332,7 +331,6 @@ class Member(
         return leader_projects, latest_updated_at
 
     def _store_projects_from_leader(self, db_session, db_projects, leader_projects):
-
         db_projects_names = [project.metadata.name for project in db_projects.projects]
 
         # Don't add projects in non-terminal state if they didn't exist before to prevent race conditions
@@ -388,7 +386,6 @@ class Member(
 
     def _update_latest_synced_datetime(self, latest_updated_at):
         if latest_updated_at:
-
             # sanity and defensive programming - if the leader returned a latest_updated_at that is older
             # than the epoch, we'll set it to the epoch
             epoch = pytz.UTC.localize(datetime.datetime.utcfromtimestamp(0))

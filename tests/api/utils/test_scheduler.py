@@ -291,7 +291,6 @@ async def test_create_schedule_mlrun_function(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-
     project_name = config.default_project
     create_project(db, project_name)
 

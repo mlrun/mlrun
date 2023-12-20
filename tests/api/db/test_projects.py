@@ -168,7 +168,6 @@ def test_list_project_names_filter(
     db: DBInterface,
     db_session: sqlalchemy.orm.Session,
 ):
-
     project_names = ["project-1", "project-2", "project-3", "project-4", "project-5"]
     for project in project_names:
         db.create_project(

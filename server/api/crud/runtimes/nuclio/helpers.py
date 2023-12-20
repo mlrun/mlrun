@@ -92,7 +92,6 @@ def enrich_function_with_ingress(config, mode, service_type):
     # we would enrich it with an ingress
     http_trigger = resolve_function_http_trigger(config["spec"])
     if not http_trigger:
-
         # if there are no http triggers and default http trigger creation disabled,
         # function is not invokable
         if config["spec"].get("disableDefaultHTTPTrigger", False):
@@ -123,7 +122,6 @@ def enrich_function_with_ingress(config, mode, service_type):
         mode
         == mlrun.runtimes.constants.NuclioIngressAddTemplatedIngressModes.on_cluster_ip
     ):
-
         # service type is not cluster ip, bail out
         if service_type and service_type.lower() != "clusterip":
             return
@@ -284,7 +282,6 @@ def compile_nuclio_archive_config(
 
     # git
     if code_entry_type == "git":
-
         # change git:// to https:// as nuclio expects it to be
         if source.startswith("git://"):
             source = source.replace("git://", "https://")

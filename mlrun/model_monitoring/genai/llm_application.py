@@ -14,13 +14,10 @@
 #
 # This is the application that can include mutiple metrcs from evaluat and llm_judge
 # This class should perform the following:
-# 1. decide which metrics to use, if there is no y_true, we can only use
-#    metrics from llm_judge for single grading and pairwise grading. otherwise,
-#    we can use metrics from evaluate and llm_judge for reference grading.
-# 2. calculate the metrics values for the given data.
-# 3. create a radar chart for the metrics values. (this shoud be logged as an artifact)
-# 4. create a report for the metrics values. (this should be logged as an artifact)
-# 5. it's even better if we can offer a UI for this
+# 1. calculate the metrics values for the given data.
+# 2. create a radar chart for the metrics values. (this shoud be logged as an artifact)
+# 3. create a report for the metrics values. (this should be logged as an artifact)
+# 4. it's even better if we can offer a UI for this
 
 
 import pandas as pd
@@ -102,7 +99,15 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         res = {}
         for metric in self.metrics:
-            res[metric.name] = metric.compute_over_data(sample_df, train_df)
+            if isinstance(metric, LLMEvaluateMetric):
+                # TODO need to figure out a way to compute the nlp metrics
+                # These need the y_true and y_pred
+                logger.info(
+                    f"metrics {metric.name} is LLMEvaluateMetric type, need y_true to compute the value"
+                )
+            else:
+                res[metric.name] = metric.compute_over_data(sample_df, train_df)
+                res[metric.name]["kind"] = metric.kind
         return res
 
     @aggregate("mean")
@@ -120,25 +125,59 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         :param train_df:    (pd.DataFrame) The train sample DataFrame.
         :return:            (List[Union[int, float]]) The aggregated values.
         """
-        res_df = metric.compute_over_data(sample_df, train_df)
-        score_cols = [col for col in res_df.columns if "score" in col]
-        if len(score_cols) == 1:
-            return res_df[score_cols[0]].tolist()
+        if isinstance(metric, LLMEvaluateMetric):
+            # TODO need to figure out a way to compute the nlp metrics
+            # These need the y_true and y_pred
+            logger.info(
+                f"metrics {metric.name} is LLMEvaluateMetric type, need y_true to compute the value"
+            )
         else:
-            return res_df["score_of_assistant_a"].tolist()
-        return res
+            res_df = metric.compute_over_data(sample_df, train_df)
+            score_cols = [col for col in res_df.columns if "score" in col]
+            if len(score_cols) == 1:
+                return res_df[score_cols[0]].tolist()
+            else:
+                return res_df["score_of_assistant_a"].tolist()
 
-    def build_radar_chart(self, metrics_res: Dict[str, Any]):
+    def build_radar_chart(self, metrics_res: Dict[str, Any], **kwargs):
         """
-        Create a radar chart for the metrics values.
+        Create a radar chart for the metrics values with the benchmark model values.
+
+        :param metrics_res: (Dict[str, Any]) The metrics values, explanation with metrics name as key.
+        :return:            (Artifact) The radar chart artifact.
         """
-        pass
+        data = [{}, {}]
+        for key, value in metrics_res.items():
+            if value["kind"] == "llm_judge_single_grading":
+                logger.info(
+                    f"metrics {key} is llm_judge_single_grading type, no benchmark, the reslut is {value}"
+                )
+            else:
+                data[0][key] = value["score_of_assistant_a"]
+                data[1][key] = value["score_of_assistant_b"]
+        model_names = [
+            kwargs.get("model_name", "custom_model"),
+            kwargs.get("benchmark_model_name", "benchmark_model"),
+        ]
+        plot = radar_chart(data, model_names)
+        return plot
 
     def build_report(self, metrics_res: Dict[str, Any]):
         """
         Create a report for the metrics values.
+
+        :param metrics_res: (Dict[str, Any]) The metrics values, explanation with metrics name as key.
+        :return:            (Artifact) The report artifact.
         """
-        pass
+        report = {}
+
+        for key, value in metrics_res.items():
+            if type(value) == pd.DataFrame:
+                report[key] = value.to_dict()
+            else:
+                report[key] = value
+
+        return report
 
     def run_application(
         self,
@@ -170,7 +209,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         :returns:                       (ModelMonitoringApplicationResult) or
                                         (list[ModelMonitoringApplicationResult]) of the application results.
         """
-        # for the llm monitoring app, we care about the
-        # if some answer is below the threshold, we will send the result to the output stream
+        # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
+        # instead, we want to send all the questions and answers that are below the threshold with explanation
 
         raise NotImplementedError

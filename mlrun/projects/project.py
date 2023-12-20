@@ -3460,7 +3460,6 @@ class MlrunProject(ModelObj):
             ],
             Union[RemoteRuntime, ServingRuntime],
         ],
-        host: Optional[str] = None,
         path: Optional[str] = "",
         description: Optional[str] = "",
         username: Optional[str] = None,
@@ -3520,7 +3519,6 @@ class MlrunProject(ModelObj):
         gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(
             project=self.name,
             name=name,
-            host=host,
             path=path,
             description=description,
             functions=function_names,
@@ -3532,11 +3530,15 @@ class MlrunProject(ModelObj):
         )
 
         # if api gateway was created and host wasn't defined by user, we request created api gateway to resolve the host
-
-        if ok and not host:
-            self.list_api_gateways()
-
-        return gateway_instance if ok else None
+        if ok:
+            # resolving host name
+            # TODO: rework to request specific api gateway by name
+            api_gateways_list = self.list_api_gateways()
+            for gw in api_gateways_list:
+                if gw.project == self.name and gw.name == name:
+                    gateway_instance.set_invoke_url(gw.host)
+                    return gateway_instance
+        return None
 
     def list_api_gateways(self) -> list[mlrun.runtimes.api_gateway.APIGateway]:
         """

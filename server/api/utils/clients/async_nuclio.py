@@ -140,10 +140,7 @@ class Client:
         if not api_gateway.function:
             raise ValueError("functions should contain at least one object")
 
-        host = (
-            api_gateway.host
-            or f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
-        )
+        host = f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
 
         authentication_mode = (
             mlrun.runtimes.api_gateway.NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE

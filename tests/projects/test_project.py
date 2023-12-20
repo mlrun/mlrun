@@ -1525,8 +1525,6 @@ def test_create_api_gateway_valid(
 def test_create_api_gateway_invalid(
     patched_create_api_gateway, context, kind_1, kind_2, canary
 ):
-    project_name = "project-name"
-    project = mlrun.new_project(project_name, context=str(context), save=False)
     patched_create_api_gateway.return_value = True
     project_name = "project-name"
     project = mlrun.new_project(project_name, context=str(context), save=False)

@@ -29,7 +29,7 @@ class APIGateway:
         self,
         project,
         name: str,
-        host: str,
+        host: Optional[str],
         path: str,
         description: str,
         functions: list[str],
@@ -42,8 +42,7 @@ class APIGateway:
         self.path = path
         self.description = description
         self.canary = canary
-        self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._invoke_url = self._generate_invoke_url() if not host else host
+        self._invoke_url = self.get_invoke_url() if not host else host
 
     def invoke(self, auth: Optional[tuple[str, str]]):
         headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
@@ -54,7 +53,6 @@ class APIGateway:
     ) -> mlrun.common.schemas.APIGateway:
         api_gateway = mlrun.common.schemas.APIGateway(
             function=self.functions,
-            host=self.host,
             path=self.path,
             description=self.description,
             canary=self.canary,
@@ -70,7 +68,6 @@ class APIGateway:
         cls,
         project,
         name: str,
-        host: str,
         path: str,
         description: str,
         functions: list[str],
@@ -97,7 +94,6 @@ class APIGateway:
         return cls(
             project=project,
             name=name,
-            host=host,
             path=path,
             description=description,
             functions=functions,
@@ -129,8 +125,10 @@ class APIGateway:
             canary=canary,
         )
 
-    def _generate_invoke_url(self):
-        nuclio_hostname = urllib.parse.urlparse(self._nuclio_dashboard_url).netloc
+    def get_invoke_url(
+        self, nuclio_dashboard_url: str = mlrun.mlconf.nuclio_dashboard_url
+    ):
+        nuclio_hostname = urllib.parse.urlparse(nuclio_dashboard_url).netloc
 
         # Remove the 'nuclio' prefix from the hostname
         # For example, from `nuclio.default-tenant.app.dev62.lab.iguazeng.com`,
@@ -141,6 +139,9 @@ class APIGateway:
         return urllib.parse.urljoin(
             f"{self.name}-{self.project}.{common_hostname}", self.path
         )
+
+    def set_invoke_url(self, invoke_url: str):
+        self._invoke_url = invoke_url
 
     @staticmethod
     def _generate_auth(username: str, password: str):

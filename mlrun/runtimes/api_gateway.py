@@ -80,12 +80,16 @@ class APIGateway:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway name cannot be empty"
             )
-
         if canary:
             if len(functions) != len(canary):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "Lengths of function and canary lists do not match"
                 )
+            for canary_percent in canary:
+                if canary_percent < 0 or canary_percent > 100:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "The percentage value must be in the range from 0 to 100"
+                    )
             if sum(canary) != 100:
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "The sum of canary function percents should be equal to 100"

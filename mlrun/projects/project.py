@@ -3459,7 +3459,7 @@ class MlrunProject(ModelObj):
                 ]
             ],
             Union[RemoteRuntime, ServingRuntime],
-        ] = [],
+        ],
         host: Optional[str] = None,
         path: Optional[str] = "",
         description: Optional[str] = "",
@@ -3473,8 +3473,8 @@ class MlrunProject(ModelObj):
         :param name (str): API Gateway name.
         :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
             List of Nuclio functions or Nuclio function.
-
-        :param host (str): API Gateway host (optional).
+        :param host (str): API Gateway host name (optional). If not specified, nuclio will automatically set it
+            to `<api-gateway-name>-<project>.<system-domain>`
         :param path (str): API Gateway path (optional).
         :param description (str): description for the API Gateway (optional).
         :param username (str): Username for authentication (optional).
@@ -3530,6 +3530,12 @@ class MlrunProject(ModelObj):
             gateway_instance,
             auth,
         )
+
+        # if api gateway was created and host wasn't defined by user, we request created api gateway to resolve the host
+
+        if ok and not host:
+            self.list_api_gateways()
+
         return gateway_instance if ok else None
 
     def list_api_gateways(self) -> list[mlrun.runtimes.api_gateway.APIGateway]:

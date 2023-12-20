@@ -1081,10 +1081,18 @@ def load_and_run(
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
-        run.wait_for_completion()
-        pipeline_state, _, _ = project.get_run_status(run)
-        context.log_result(key="workflow_state", value=pipeline_state, commit=True)
-        if pipeline_state != mlrun.run.RunStatuses.succeeded:
-            raise RuntimeError(
-                f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+        try:
+            run.wait_for_completion()
+        except Exception as exc:
+            logger.error(
+                "Failed waiting for workflow completion",
+                workflow=workflow_log_message,
+                exc=err_to_str(exc),
             )
+        finally:
+            pipeline_state, _, _ = project.get_run_status(run)
+            context.log_result(key="workflow_state", value=pipeline_state, commit=True)
+            if pipeline_state != mlrun.run.RunStatuses.succeeded:
+                raise RuntimeError(
+                    f"Workflow {workflow_log_message} failed, state={pipeline_state}"
+                )

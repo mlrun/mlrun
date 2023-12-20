@@ -67,7 +67,7 @@ class TableArtifact(Artifact):
 
         if df is not None:
             self._is_df = True
-            self.spec.header = df.reset_index().columns.values.tolist()
+            self.spec.header = df.reset_index(drop=True).columns.values.tolist()
             self.spec.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -266,7 +266,10 @@ class DatasetArtifact(Artifact):
 
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+
+        # reset index while dropping existing index
+        # that way it wont create another index if one already there
+        preview_df = preview_df.reset_index(drop=True)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()
@@ -354,7 +357,7 @@ class LegacyTableArtifact(LegacyArtifact):
 
         if df is not None:
             self._is_df = True
-            self.header = df.reset_index().columns.values.tolist()
+            self.header = df.reset_index(drop=True).columns.values.tolist()
             self.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -493,7 +496,7 @@ class LegacyDatasetArtifact(LegacyArtifact):
 
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+        preview_df = preview_df.reset_index(drop=True)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()

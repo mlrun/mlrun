@@ -3460,7 +3460,7 @@ class MlrunProject(ModelObj):
             ],
             Union[RemoteRuntime, ServingRuntime],
         ],
-        path: Optional[str] = "",
+        path: Optional[str] = "/",
         description: Optional[str] = "",
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -3486,9 +3486,14 @@ class MlrunProject(ModelObj):
 
         @return: API Gateway object if successful, else None.
         """
+        if not name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API Gateway name cannot be empty"
+            )
         if not isinstance(functions, list):
             functions = [functions]
 
+        # validating function's type
         for func in functions:
             if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
                 if hasattr(func, "name"):
@@ -3508,6 +3513,22 @@ class MlrunProject(ModelObj):
                     f"input function {func.metadata.name} "
                     f"should belong to the project"
                 )
+
+        # validating canary
+        if canary:
+            if len(functions) != len(canary):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Lengths of function and canary lists do not match"
+                )
+            for canary_percent in canary:
+                if canary_percent < 0 or canary_percent > 100:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "The percentage value must be in the range from 0 to 100"
+                    )
+            if sum(canary) != 100:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The sum of canary function percents should be equal to 100"
+                )
         if username and not password:
             raise mlrun.errors.MLRunInvalidArgumentError("Password is not specified")
 
@@ -3515,18 +3536,16 @@ class MlrunProject(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError("Username is not specified")
 
         function_names = [func.uri for func in functions]
-        auth = (username, password) if username and password else None
-        gateway_instance = mlrun.runtimes.api_gateway.APIGateway.from_values(
+        ok = mlrun.db.get_run_db().create_api_gateway(
             project=self.name,
             name=name,
-            path=path,
-            description=description,
-            functions=function_names,
-            canary=canary,
-        )
-        ok = mlrun.db.get_run_db().create_api_gateway(
-            gateway_instance,
-            auth,
+            api_gateway=mlrun.common.schemas.APIGateway(
+                function=function_names,
+                path=path,
+                description=description,
+                username=username,
+                password=password,
+            )
         )
 
         # if api gateway was created and host wasn't defined by user, we request created api gateway to resolve the host
@@ -3536,8 +3555,7 @@ class MlrunProject(ModelObj):
             api_gateways_list = self.list_api_gateways()
             for gw in api_gateways_list:
                 if gw.project == self.name and gw.name == name:
-                    gateway_instance.set_invoke_url(gw.host)
-                    return gateway_instance
+                    return gw
         return None
 
     def list_api_gateways(self) -> list[mlrun.runtimes.api_gateway.APIGateway]:

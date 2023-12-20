@@ -496,6 +496,8 @@ class NopDB(RunDBInterface):
 
     def create_api_gateway(
         self,
+        name: str,
+        project: str,
         api_gateway: mlrun.runtimes.api_gateway.APIGateway,
         auth: tuple,
     ) -> bool:

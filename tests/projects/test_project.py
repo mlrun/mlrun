@@ -1534,8 +1534,10 @@ def test_create_api_gateway_valid(
 
     assert (
         gateway._invoke_url
-        == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com"
+        == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com/"
     )
+
+    assert gateway.authentication_mode == "none"
 
 
 @pytest.mark.parametrize(

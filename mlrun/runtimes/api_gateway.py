@@ -31,6 +31,7 @@ class APIGateway:
         path: str,
         description: str,
         functions: list[str],
+        authentication_mode: Optional[str] = NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE,
         host: Optional[str] = None,
         canary: Optional[list[int]] = None,
     ):
@@ -40,6 +41,7 @@ class APIGateway:
         self.functions = functions
         self.path = path
         self.description = description
+        self.authentication_mode = authentication_mode
         self.canary = canary
         self._invoke_url = None
         if host:
@@ -47,63 +49,14 @@ class APIGateway:
 
     def invoke(self, auth: Optional[tuple[str, str]]):
         if not self._invoke_url:
-            raise ValueError(
+            raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invocation url is not set. Use set_invoke_url method to set it."
             )
+        if self.authentication_mode == BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE and not auth:
+            raise mlrun.errors.MLRunInvalidArgumentError("Gateway invocation requires authentication. Please"
+                                                         "pass credentials")
         headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
         return requests.post(self._invoke_url, headers=headers)
-
-    def to_scheme(
-        self, auth: Optional[tuple[str, str]] = None
-    ) -> mlrun.common.schemas.APIGateway:
-        api_gateway = mlrun.common.schemas.APIGateway(
-            function=self.functions,
-            path=self.path,
-            description=self.description,
-            canary=self.canary,
-        )
-        if auth:
-            username, password = auth
-            api_gateway.username = username
-            api_gateway.password = password
-        return api_gateway
-
-    @classmethod
-    def from_values(
-        cls,
-        project,
-        name: str,
-        path: str,
-        description: str,
-        functions: list[str],
-        canary: Optional[list[int]],
-    ) -> "APIGateway":
-        if not name:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "API Gateway name cannot be empty"
-            )
-        if canary:
-            if len(functions) != len(canary):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Lengths of function and canary lists do not match"
-                )
-            for canary_percent in canary:
-                if canary_percent < 0 or canary_percent > 100:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "The percentage value must be in the range from 0 to 100"
-                    )
-            if sum(canary) != 100:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "The sum of canary function percents should be equal to 100"
-                )
-        return cls(
-            project=project,
-            name=name,
-            path=path,
-            description=description,
-            functions=functions,
-            canary=canary,
-        )
 
     @classmethod
     def from_dict(
@@ -125,6 +78,7 @@ class APIGateway:
             name=spec.get("name"),
             host=spec.get("host"),
             path=spec.get("path", ""),
+            authentication_mode=spec.get("authenticationMode"),
             description=spec.get("description", ""),
             functions=functions,
             canary=canary,

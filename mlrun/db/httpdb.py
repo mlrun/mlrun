@@ -3270,8 +3270,9 @@ class HTTPRunDB(RunDBInterface):
 
     def create_api_gateway(
         self,
-        api_gateway: mlrun.runtimes.api_gateway.APIGateway,
-        auth: Optional[tuple[str, str]] = None,
+        project: str,
+        name: str,
+        api_gateway: mlrun.common.schemas.APIGateway,
     ) -> bool:
         """
         Creates an API Gateway.
@@ -3281,11 +3282,11 @@ class HTTPRunDB(RunDBInterface):
         @return: True if the API Gateway was created successfully, False otherwise
         """
         endpoint_path = (
-            f"projects/{api_gateway.project}/nuclio/api-gateways/{api_gateway.name}"
+            f"projects/{project}/nuclio/api-gateways/{name}"
         )
         error = "create api gateways"
         response = self.api_call(
-            "POST", endpoint_path, error, json=api_gateway.to_scheme(auth=auth).dict()
+            "POST", endpoint_path, error, json=api_gateway.dict()
         )
         return response.ok if response else False
 

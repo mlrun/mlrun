@@ -778,11 +778,6 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
     def test_ingest_large_parquet(self):
-        import numpy as np
-        import pandas as pd
-
-        from mlrun.datastore.targets import ParquetTarget
-
         num_rows = 17000  # because max events default == 10000
 
         # Generate random data

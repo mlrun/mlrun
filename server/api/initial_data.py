@@ -577,14 +577,13 @@ def _migrate_artifacts_batch(
 
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
-        if iteration is not None:
-            new_artifact.iteration = int(iteration)
+        new_artifact.iteration = int(iteration) if iteration else 0
 
         # best iteration
         # if iteration == 0 it means it is from a single run since link artifacts were already
         # handled above - so we can set is as best iteration.
         # otherwise set to false, the best iteration artifact will be updated later
-        if iteration is not None and iteration == 0:
+        if new_artifact.iteration == 0:
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False

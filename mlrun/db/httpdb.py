@@ -3276,7 +3276,7 @@ class HTTPRunDB(RunDBInterface):
     ) -> bool:
         """
         Creates an API Gateway.
-        :param api_gateway (mlrun.runtimes.api_gateway.APIGateway): API Gateway entity.
+        :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`: API Gateway entity.
         :param auth (Tuple[str, str]): Pair of (username, password) if authentication is required.
 
         @return: True if the API Gateway was created successfully, False otherwise

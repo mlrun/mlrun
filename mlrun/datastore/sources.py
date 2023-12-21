@@ -871,7 +871,7 @@ class StreamSource(OnlineSource):
         container, stream_path = split_path(stream_path)
         res = v3io_client.stream.create(
             container=container,
-            path=stream_path,
+            stream_path=stream_path,
             shard_count=self.attributes["shards"],
             retention_period_hours=self.attributes["retention_in_hours"],
             raise_for_status=v3io.dataplane.RaiseForStatus.never,

@@ -20,7 +20,6 @@ import os.path
 import pathlib
 import re
 import subprocess
-import sys
 import typing
 
 import packaging.version
@@ -358,20 +357,14 @@ def _run_command(command, args=None):
     if args:
         command += " " + " ".join(args)
 
-    if sys.version_info[0] >= 3:
-        process = subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            capture_output=True,
-            encoding="utf-8",
-        )
-        output = process.stdout
-    else:
-        output = subprocess.check_output(
-            command,
-            shell=True,
-        )
+    process = subprocess.run(
+        command,
+        shell=True,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+    )
+    output = process.stdout
 
     return output
 

@@ -16,7 +16,6 @@ import builtins
 import importlib
 import itertools
 import re
-import sys
 import typing
 
 from mlrun.errors import MLRunInvalidArgumentError
@@ -225,10 +224,6 @@ class TypeHintUtils:
 
         :return: The reduced type hint as list of hinted types or an empty list if the type hint could not be reduced.
         """
-        # TODO: Remove when we'll no longer support Python 3.7:
-        if sys.version_info[1] < 8:
-            return []
-
         # If it's not a typing type (meaning it's an actual object type) then we can't reduce it further:
         if not TypeHintUtils.is_typing_type(type_hint=type_hint):
             return []

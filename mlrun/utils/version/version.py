@@ -14,14 +14,10 @@
 #
 import json
 import sys
+from importlib.resources import read_text
 
 import mlrun.utils
 from mlrun.utils.singleton import Singleton
-
-if sys.version_info >= (3, 7):
-    from importlib.resources import read_text
-else:
-    from importlib_resources import read_text
 
 
 class _VersionInfo:

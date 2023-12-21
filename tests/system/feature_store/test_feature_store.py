@@ -785,13 +785,13 @@ class TestFeatureStore(TestMLRunSystem):
             "Column1": range(0, num_rows),
             "Column2": np.random.choice(["A", "B", "C"], size=num_rows),
         }
-
+        path = f"{str(self.results_path / _generate_random_name())}.parquet"
         # Create the DataFrame
         df = pd.DataFrame(data)
         targets = [
             ParquetTarget(
                 name="my_target",
-                path=f"{str(self.results_path)}/test_{uuid.uuid4()}.parquet",
+                path=path,
             )
         ]
 

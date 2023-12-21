@@ -4519,7 +4519,7 @@ class TestFeatureStore(TestMLRunSystem):
 
         feature_set = fstore.FeatureSet(
             "basic_account",
-            entities=[fstore.Entity("party_id"), fstore.Entity("account_id")],
+            entities=[fstore.Entity("account_id"), fstore.Entity("party_id")],
             engine="storey",
         )
 

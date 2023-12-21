@@ -1076,17 +1076,13 @@ class FeatureSet(ModelObj):
 
     def is_connectable_to_df(self, df_columns: list[str]) -> bool:
         """
-        This method checks if the data frame can be merged to the left of this feature set
+        This method checks if the dataframe can be left-joined with this feature set
 
         :param df_columns:  The columns of the data frame you want to merge to the left of this feature set
-        :return:            True if the data frame can be merged to the left of this feature set
-                            and otherwise returns False
+        :return:            True if it can be left-joined and False otherwise
         """
-        return (
-            True
-            if df_columns is not None
-            and all(ent in df_columns for ent in list(self.spec.entities.keys()))
-            else False
+        return df_columns and all(
+            ent in df_columns for ent in self.spec.entities.keys()
         )
 
 

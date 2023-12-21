@@ -3471,7 +3471,7 @@ class MlrunProject(ModelObj):
 
         :param name (str): API Gateway name.
         :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
-            List of Nuclio functions or Nuclio function.
+              List of Nuclio functions or a single Nuclio function.
         :param path (str): API Gateway path (optional).
         :param description (str): description for the API Gateway (optional).
         :param username (str): Username for authentication (optional).

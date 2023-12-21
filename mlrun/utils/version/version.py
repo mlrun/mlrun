@@ -52,5 +52,5 @@ class Version(metaclass=Singleton):
         return self.python_version
 
     @staticmethod
-    def _resolve_python_version() -> sys.version_info:
+    def _resolve_python_version() -> _VersionInfo:
         return _VersionInfo(*sys.version_info[:3])

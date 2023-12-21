@@ -442,8 +442,7 @@ class MLRunPatcher:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
         )
-        for line in proc.stdout:
-            yield line
+        yield from proc.stdout
         proc.stdout.close()
         ret_code = proc.wait()
         if ret_code:

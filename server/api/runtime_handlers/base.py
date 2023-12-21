@@ -49,7 +49,7 @@ class BaseRuntimeHandler(ABC):
     kind = "base"
     class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    pod_grace_period_seconds = 0
+    pod_grace_period_seconds = 60
 
     @abstractmethod
     def run(

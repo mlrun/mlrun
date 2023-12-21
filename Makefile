@@ -600,7 +600,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code using Ruff
 	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix
+	python -m ruff check --fix-only
 	python -m ruff format
 
 .PHONY: lint-imports

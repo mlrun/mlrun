@@ -94,7 +94,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Default: 'epoch'.
         """
-        super(_PyTorchTensorboardLogger, self).__init__(
+        super().__init__(
             statistics_functions=statistics_functions,
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -322,7 +322,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
                                           or the 'update_frequency' was incorrect.
         """
-        super(TensorboardLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -396,7 +396,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param metric_functions: The metric functions to be stored in this callback.
         :param scheduler:        The scheduler to be stored in this callback.
         """
-        super(TensorboardLoggingCallback, self).on_setup(
+        super().on_setup(
             model=model,
             training_set=training_set,
             validation_set=validation_set,
@@ -439,7 +439,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         for logging. Epoch 0 (pre-run state) will be logged here.
         """
         # Setup all the results and hyperparameters dictionaries:
-        super(TensorboardLoggingCallback, self).on_run_begin()
+        super().on_run_begin()
 
         # Log the initial summary of the run:
         self._logger.write_initial_summary_text()
@@ -470,7 +470,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         # Write the final summary of the run:
         self._logger.write_final_summary_text()
 
-        super(TensorboardLoggingCallback, self).on_run_end()
+        super().on_run_end()
 
     def on_validation_end(
         self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
@@ -482,9 +482,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param loss_value:    The loss summary of this validation.
         :param metric_values: The metrics summaries of this validation.
         """
-        super(TensorboardLoggingCallback, self).on_validation_end(
-            loss_value=loss_value, metric_values=metric_values
-        )
+        super().on_validation_end(loss_value=loss_value, metric_values=metric_values)
 
         # Check if this run was part of an evaluation:
         if not self._is_training:
@@ -503,7 +501,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
         :param epoch: The epoch that has just ended.
         """
-        super(TensorboardLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Log the weights statistics:
         self._logger.log_weights_statistics()
@@ -540,9 +538,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param y_true: The true value part of the current batch.
         :param y_pred: The prediction (output) of the model for this batch's input ('x').
         """
-        super(TensorboardLoggingCallback, self).on_train_batch_end(
-            batch=batch, x=x, y_true=y_true, y_pred=y_pred
-        )
+        super().on_train_batch_end(batch=batch, x=x, y_true=y_true, y_pred=y_pred)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_training_results()
@@ -559,9 +555,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param y_true: The true value part of the current batch.
         :param y_pred: The prediction (output) of the model for this batch's input ('x').
         """
-        super(TensorboardLoggingCallback, self).on_validation_batch_end(
-            batch=batch, x=x, y_true=y_true, y_pred=y_pred
-        )
+        super().on_validation_batch_end(batch=batch, x=x, y_true=y_true, y_pred=y_pred)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_validation_results()

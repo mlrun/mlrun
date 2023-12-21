@@ -40,7 +40,7 @@ class LoggingCallback(Callback):
                                         The parameter expects a list of all the hyperparameters names to track our of
                                         the `params` dictionary.
         """
-        super(LoggingCallback, self).__init__()
+        super().__init__()
         self._logger = Logger()
         self._dynamic_hyperparameters_keys = (
             dynamic_hyperparameters if dynamic_hyperparameters is not None else {}

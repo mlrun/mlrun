@@ -75,7 +75,7 @@ class ROCCurvePlan(MLPlotPlan):
         self._labels = labels
 
         # Continue the initialization for the MLPlan:
-        super(ROCCurvePlan, self).__init__(need_probabilities=True)
+        super().__init__(need_probabilities=True)
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """

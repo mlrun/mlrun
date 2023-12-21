@@ -105,7 +105,7 @@ class MLModelHandler(ModelHandler, ABC):
         self._feature_weights = None  # type: List[float]
 
         # Continue the initialization:
-        super(MLModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -281,7 +281,7 @@ class MLModelHandler(ModelHandler, ABC):
             self.set_feature_weights(feature_weights=feature_weights)
 
         # Continue with the handler logging:
-        super(MLModelHandler, self).log(
+        super().log(
             tag=tag,
             labels=labels,
             parameters=parameters,
@@ -336,7 +336,7 @@ class MLModelHandler(ModelHandler, ABC):
             self._feature_weights = feature_weights
 
         # Continue with the handler update:
-        super(MLModelHandler, self).update(
+        super().update(
             labels=labels,
             parameters=parameters,
             inputs=inputs,

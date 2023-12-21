@@ -136,7 +136,7 @@ class PyTorchModelHandler(DLModelHandler):
             )
 
         # Set up the base handler class:
-        super(PyTorchModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -162,7 +162,7 @@ class PyTorchModelHandler(DLModelHandler):
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(PyTorchModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
+        super().set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_CLASS_NAME] = self._model_class_name
@@ -182,7 +182,7 @@ class PyTorchModelHandler(DLModelHandler):
         :raise MLRunInvalidArgumentError: If an output path was not given, yet a context was not provided in
                                           initialization.
         """
-        super(PyTorchModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         # Set the output path:
         if output_path is None:
@@ -207,7 +207,7 @@ class PyTorchModelHandler(DLModelHandler):
 
         :raise MLRunInvalidArgumentError: If the model's class is not in the custom objects map.
         """
-        super(PyTorchModelHandler, self).load()
+        super().load()
 
         # Validate the model's class is in the custom objects map:
         if (
@@ -406,7 +406,7 @@ class PyTorchModelHandler(DLModelHandler):
         ]
 
         # Continue collecting from abstract class:
-        super(PyTorchModelHandler, self)._collect_files_from_store_object()
+        super()._collect_files_from_store_object()
 
     def _collect_files_from_local_path(self):
         """
@@ -443,7 +443,7 @@ class PyTorchModelHandler(DLModelHandler):
         """
         # Supported types:
         if isinstance(sample, np.ndarray):
-            return super(PyTorchModelHandler, self)._read_sample(sample=sample)
+            return super()._read_sample(sample=sample)
         elif isinstance(sample, torch.Tensor):
             return Feature(
                 value_type=PyTorchUtils.convert_torch_dtype_to_value_type(

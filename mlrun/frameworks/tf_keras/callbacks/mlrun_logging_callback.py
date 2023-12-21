@@ -97,7 +97,7 @@ class MLRunLoggingCallback(LoggingCallback):
                                          trying to track common static and dynamic hyperparameters such as learning
                                          rate.
         """
-        super(MLRunLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -134,7 +134,7 @@ class MLRunLoggingCallback(LoggingCallback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
-        super(MLRunLoggingCallback, self).on_test_end(logs=logs)
+        super().on_test_end(logs=logs)
 
         # Check if its part of evaluation. If so, end the run:
         if self._logger.mode == LoggingMode.EVALUATION:
@@ -151,7 +151,7 @@ class MLRunLoggingCallback(LoggingCallback):
                       performed. Validation result keys are prefixed with `val_`. For training epoch, the values of the
                       `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
         """
-        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Log the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)

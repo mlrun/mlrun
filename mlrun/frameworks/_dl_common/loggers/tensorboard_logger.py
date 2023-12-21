@@ -94,7 +94,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         :raise MLRunInvalidArgumentError: If the `update_frequency` is illegal or if `tensorboard_directory` and
                                           `context` were not given.
         """
-        super(TensorboardLogger, self).__init__(context=context)
+        super().__init__(context=context)
 
         # Validate the context and tensorboard directory combination:
         if tensorboard_directory is None and context is None:

@@ -67,7 +67,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
                                       update. Notice that writing to tensorboard too frequently may cause the training
                                       to be slower. Default: 'epoch'.
         """
-        super(_TFKerasTensorboardLogger, self).__init__(
+        super().__init__(
             statistics_functions=statistics_functions,
             context=context,
             tensorboard_directory=tensorboard_directory,
@@ -325,7 +325,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :raise MLRunInvalidArgumentError: In case both 'context' and 'tensorboard_directory' parameters were not given
                                           or the 'update_frequency' was incorrect.
         """
-        super(TensorboardLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -408,7 +408,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs: Currently the output of the last call to `on_epoch_end()` is passed to this argument for this
                      method but that may change in the future.
         """
-        super(TensorboardLoggingCallback, self).on_train_end()
+        super().on_train_end()
 
         # Write the final run summary:
         self._logger.write_final_summary_text()
@@ -453,7 +453,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs: Currently no data is passed to this argument for this method but that may change in the
                      future.
         """
-        super(TensorboardLoggingCallback, self).on_test_end(logs=logs)
+        super().on_test_end(logs=logs)
 
         # Check if needed to end the run (in case of evaluation and not training):
         if not self._is_training:
@@ -477,7 +477,7 @@ class TensorboardLoggingCallback(LoggingCallback):
                       `Model`'s metrics are returned. Example : `{'loss': 0.2, 'acc': 0.7}`.
         """
         # Update the dynamic hyperparameters
-        super(TensorboardLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Log the weights statistics:
         self._logger.log_weights_statistics()
@@ -515,9 +515,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs:  Aggregated metric results up until this batch.
         """
         # Log the batch's results:
-        super(TensorboardLoggingCallback, self).on_train_batch_end(
-            batch=batch, logs=logs
-        )
+        super().on_train_batch_end(batch=batch, logs=logs)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_training_results()
@@ -540,9 +538,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         :param logs:  Aggregated metric results up until this batch.
         """
         # Log the batch's results:
-        super(TensorboardLoggingCallback, self).on_test_batch_end(
-            batch=batch, logs=logs
-        )
+        super().on_test_batch_end(batch=batch, logs=logs)
 
         # Write the batch loss and metrics results to their graphs:
         self._logger.write_validation_results()
@@ -569,7 +565,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         After the trainer / evaluator run begins, this method will be called to setup the results, hyperparameters
         and weights dictionaries for logging.
         """
-        super(TensorboardLoggingCallback, self)._setup_run()
+        super()._setup_run()
 
         # Check if needed to track weights:
         if self._tracked_weights is False:

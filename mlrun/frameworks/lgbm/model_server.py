@@ -100,7 +100,7 @@ class LGBMModelServer(V2ModelServer):
         :param protocol:                 -
         :param class_args:               -
         """
-        super(LGBMModelServer, self).__init__(
+        super().__init__(
             context=context,
             name=name,
             model_path=model_path,

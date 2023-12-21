@@ -50,7 +50,7 @@ class CalibrationCurvePlan(MLPlotPlan):
         self._strategy = strategy
 
         # Continue the initialization for the MLPlan:
-        super(CalibrationCurvePlan, self).__init__(need_probabilities=True)
+        super().__init__(need_probabilities=True)
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """

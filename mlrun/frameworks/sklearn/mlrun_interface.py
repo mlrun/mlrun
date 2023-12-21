@@ -74,9 +74,7 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
             cls._REPLACED_METHODS.remove("predict_proba")
 
         # Add the interface to the model:
-        super(SKLearnMLRunInterface, cls).add_interface(
-            obj=obj, restoration=restoration
-        )
+        super().add_interface(obj=obj, restoration=restoration)
 
         # Restore the '_REPLACED_METHODS' list for next models:
         if "predict_proba" not in cls._REPLACED_METHODS:

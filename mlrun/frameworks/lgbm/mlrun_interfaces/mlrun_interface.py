@@ -88,7 +88,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
                 globals().update({"lightgbm": lgb, "lgb": lgb})
 
         # Add the interface to the provided lightgbm module:
-        super(LGBMMLRunInterface, cls).add_interface(obj=obj, restoration=restoration)
+        super().add_interface(obj=obj, restoration=restoration)
 
     @staticmethod
     def mlrun_train(*args, **kwargs):

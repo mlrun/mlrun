@@ -283,7 +283,7 @@ class ModelArtifact(Artifact):
         if not self.spec.model_file:
             raise ValueError("model_file attr must be specified")
 
-        super(ModelArtifact, self).before_log()
+        super().before_log()
 
         if self.spec.framework:
             self.metadata.labels = self.metadata.labels or {}
@@ -504,7 +504,7 @@ class LegacyModelArtifact(LegacyArtifact):
         if not self.model_file:
             raise ValueError("model_file attr must be specified")
 
-        super(LegacyModelArtifact, self).before_log()
+        super().before_log()
 
         if self.framework:
             self.labels = self.labels or {}

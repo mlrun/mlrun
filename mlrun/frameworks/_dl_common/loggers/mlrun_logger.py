@@ -63,7 +63,7 @@ class MLRunLogger(Logger):
         :param context:              MLRun context to log to. The context parameters can be logged as static
                                      hyperparameters.
         """
-        super(MLRunLogger, self).__init__(context=context)
+        super().__init__(context=context)
 
         # Prepare the artifacts collection:
         self._artifacts = {}  # type: Dict[str, Artifact]

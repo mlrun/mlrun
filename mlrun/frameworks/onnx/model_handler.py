@@ -60,7 +60,7 @@ class ONNXModelHandler(ModelHandler):
         :raise MLRunInvalidArgumentError: There was no model or model directory supplied.
         """
         # Setup the base handler class:
-        super(ONNXModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -81,7 +81,7 @@ class ONNXModelHandler(ModelHandler):
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
-        super(ONNXModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         # Set the output path:
         if output_path is None:
@@ -97,7 +97,7 @@ class ONNXModelHandler(ModelHandler):
         """
         Load the specified model in this handler.
         """
-        super(ONNXModelHandler, self).load()
+        super().load()
 
         # Check that the model is well-formed:
         # TODO: Currently not working well with HuggingFace models so we skip it

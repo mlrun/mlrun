@@ -65,7 +65,7 @@ class HuggingFaceModelServer(V2ModelServer):
                                 framework of the `model`, or to PyTorch if no model is provided
         :param class_args:      -
         """
-        super(HuggingFaceModelServer, self).__init__(
+        super().__init__(
             context=context,
             name=name,
             model_path=model_path,

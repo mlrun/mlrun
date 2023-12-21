@@ -445,7 +445,7 @@ class RegexValidator(Validator):
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict = None):
-        new_obj = super(RegexValidator, cls).from_dict(
+        new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
         if hasattr(new_obj, "regex"):

@@ -107,7 +107,7 @@ class MLRunLoggingCallback(LoggingCallback):
         :param auto_log:                 Whether or not to enable auto logging for logging the context parameters and
                                          trying to track common static and dynamic hyperparameters.
         """
-        super(MLRunLoggingCallback, self).__init__(
+        super().__init__(
             dynamic_hyperparameters=dynamic_hyperparameters,
             static_hyperparameters=static_hyperparameters,
             auto_log=auto_log,
@@ -160,7 +160,7 @@ class MLRunLoggingCallback(LoggingCallback):
 
         :param epoch: The epoch that has just ended.
         """
-        super(MLRunLoggingCallback, self).on_epoch_end(epoch=epoch)
+        super().on_epoch_end(epoch=epoch)
 
         # Create child context to hold the current epoch's results:
         self._logger.log_epoch_to_context(epoch=epoch)

@@ -56,7 +56,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         self._normalize = normalize
 
         # Continue the initialization for the MLPlan:
-        super(ConfusionMatrixPlan, self).__init__()
+        super().__init__()
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """

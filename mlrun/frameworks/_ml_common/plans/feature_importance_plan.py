@@ -38,7 +38,7 @@ class FeatureImportancePlan(MLPlotPlan):
         An example of use can be seen at the Scikit-Learn docs here:
         https://scikit-learn.org/stable/auto_examples/ensemble/plot_forest_importances.html
         """
-        super(FeatureImportancePlan, self).__init__()
+        super().__init__()
 
     def is_ready(self, stage: MLPlanStages, is_probabilities: bool) -> bool:
         """

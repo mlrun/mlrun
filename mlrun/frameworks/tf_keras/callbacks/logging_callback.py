@@ -70,7 +70,7 @@ class LoggingCallback(Callback):
         :param auto_log:                Whether or not to enable auto logging, trying to track common static and dynamic
                                         hyperparameters.
         """
-        super(LoggingCallback, self).__init__()
+        super().__init__()
         self._supports_tf_logs = True
 
         # Store the configurations:

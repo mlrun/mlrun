@@ -174,7 +174,7 @@ class TFKerasModelHandler(DLModelHandler):
         self._weights_file = None  # type: str
 
         # Setup the base handler class:
-        super(TFKerasModelHandler, self).__init__(
+        super().__init__(
             model=model,
             model_path=model_path,
             model_name=model_name,
@@ -200,7 +200,7 @@ class TFKerasModelHandler(DLModelHandler):
         :param to_remove: A list of labels keys to remove.
         """
         # Update the user's labels:
-        super(TFKerasModelHandler, self).set_labels(to_add=to_add, to_remove=to_remove)
+        super().set_labels(to_add=to_add, to_remove=to_remove)
 
         # Set the required labels:
         self._labels[self._LabelKeys.MODEL_FORMAT] = self._model_format
@@ -221,7 +221,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         :return The saved model additional artifacts (if needed) dictionary if context is available and None otherwise.
         """
-        super(TFKerasModelHandler, self).save(output_path=output_path)
+        super().save(output_path=output_path)
 
         # Setup the returning model artifacts list:
         artifacts = {}  # type: Dict[str, Artifact]
@@ -291,7 +291,7 @@ class TFKerasModelHandler(DLModelHandler):
                 "Loading a model using checkpoint is not yet implemented."
             )
 
-        super(TFKerasModelHandler, self).load()
+        super().load()
 
         # ModelFormats.H5 - Load from a h5 file:
         if self._model_format == TFKerasModelHandler.ModelFormats.H5:
@@ -487,7 +487,7 @@ class TFKerasModelHandler(DLModelHandler):
             ].local()
 
         # Continue collecting from abstract class:
-        super(TFKerasModelHandler, self)._collect_files_from_store_object()
+        super()._collect_files_from_store_object()
 
     def _collect_files_from_local_path(self):
         """
@@ -554,7 +554,7 @@ class TFKerasModelHandler(DLModelHandler):
         """
         # Supported types:
         if isinstance(sample, np.ndarray):
-            return super(TFKerasModelHandler, self)._read_sample(sample=sample)
+            return super()._read_sample(sample=sample)
         elif isinstance(sample, tf.TensorSpec):
             return Feature(
                 name=sample.name,

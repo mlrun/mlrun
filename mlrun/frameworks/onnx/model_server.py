@@ -76,7 +76,7 @@ class ONNXModelServer(V2ModelServer):
         :param protocol:            -
         :param class_args:          -
         """
-        super(ONNXModelServer, self).__init__(
+        super().__init__(
             context=context,
             name=name,
             model_path=model_path,

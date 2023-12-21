@@ -108,18 +108,19 @@ def _get_or_create_project_deletion_background_task(
         Due to the nature of the project deletion flow, we need to wrap the task as:
             MLRunPreDeletionTask(LeaderDeletionJob(MLRunDeletionTask))
 
-        1. Create a background task for pre deletion of the project
-        2. This background task will send a request to the projects leader to delete the project
-        3. The background task will wait for the project to be deleted using the leader's job id
-           During:
-           1. The leader will send a second delete project request to the follower
-           2. The leader will wait for the project to be deleted using the follower's background task id
-              During:
-              1. Now create a background task for deleting the project
-              2. The background task will delete the project resources and then project itself
-              3. Finish task
-           3. Finish job
-        4. Finish task
+        1. Create MLRunPreDeletionTask
+        2. MLRunPreDeletionTask will send a request to the projects leader to delete the project
+        3. MLRunPreDeletionTask will wait for the project to be deleted using LeaderDeletionJob job id
+           During (In leader):
+           1. Create LeaderDeletionJob
+           2. LeaderDeletionJob will send a second delete project request to the follower
+           3. LeaderDeletionJob will wait for the project to be deleted using the MLRunDeletionTask task id
+              During (Back here in follower):
+              1. Create MLRunDeletionTask
+              2. MLRunDeletionTask will delete the project resources and then project itself.
+              3. Finish MLRunDeletionTask
+           3. Finish LeaderDeletionJob
+        4. Finish MLRunPreDeletionTask
     """
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the

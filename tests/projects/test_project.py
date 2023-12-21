@@ -1102,6 +1102,14 @@ def test_set_workflow_local_engine():
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
 
 
+def test_run_non_existing_workflow():
+    proj = mlrun.new_project("proj", save=False)
+    proj.set_function("hub://describe", "describe")
+    proj.set_workflow("main", "workflow.py")
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        proj.run("non-existing-workflow")
+
+
 def test_project_ops():
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")

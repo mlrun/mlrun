@@ -79,8 +79,9 @@ def convert_to_cron_string(
     minute_delay: Minutes = Minutes(0),
 ) -> str:
     """Convert the batch interval `ScheduleCronTrigger` into a cron trigger expression"""
-    return f"{add_minutes_offset(cron_trigger.minute, minute_delay)} {cron_trigger.hour} {cron_trigger.day} * *".replace(
-        "None", "*"
+    return (
+        f"{add_minutes_offset(cron_trigger.minute, minute_delay)} {cron_trigger.hour} {cron_trigger.day} "
+        "* *".replace("None", "*")
     )
 
 

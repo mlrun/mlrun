@@ -33,7 +33,10 @@ from statistics import mean, median
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-
+from mlrun.common.schemas.model_monitoring.constants import (
+    ResultKindApp,
+    ResultStatusApp,
+)
 from mlrun.model_monitoring.application import (
     ModelMonitoringApplication,
     ModelMonitoringApplicationResult,
@@ -122,12 +125,14 @@ class LLMMonitoringApp(ModelMonitoringApplication):
                 logger.info(
                     f"metrics {metric.name} is LLMEvaluateMetric type, this metrics may need other params to compute"
                 )
-                res[metric.name] = metric.compute_over_data(
+                res[metric.name]["value"] = metric.compute_over_data(
                     predictions, references, **kwargs
                 )
                 res[metric.name]["kind"] = metric.kind
             else:
-                res[metric.name] = metric.compute_over_data(sample_df, train_df)
+                res[metric.name]["value"] = metric.compute_over_data(
+                    sample_df, train_df
+                )
                 res[metric.name]["kind"] = metric.kind
         return res
 
@@ -240,5 +245,32 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
         # instead, we want to send all the questions and answers that are below the threshold with explanation
-        # for now assume sample_df has the y_pred with in it. clearly it's not the case for now
-        raise NotImplementedError
+        # for now assume sample_df has the y_pred and y_true in it. y_pred is answer, y_true is reference
+
+        self.context.logger.info("Running llm application")
+        # compute all the metrics for the sample_df
+        all_metrics_res = self.compute_metrics_over_data(sample_df)
+        # log each metric result as a separate artifact
+        for key, value in all_metrics_res.items():
+            if isinstance(value["value"], pd.DataFrame):
+                self.context.log_dataset(
+                    key, df=value["value"], index=True, format="csv"
+                )
+            else:
+                # TODO log the dict as a json
+                self.context.log_dataset(key, value["value"])
+        plot = self.build_radar_chart(all_metrics_res)
+        # TODO confirm it can be logged as plot artifact
+        self.context.log_artifact("radar_chart", body=plot)
+
+        # The return value doesn't have anything meaningful for now
+        return ModelMonitoringApplicationResult(
+            application_name=self.name,
+            endpoint_id=endpoint_id,
+            start_infer_time=start_infer_time,
+            end_infer_time=end_infer_time,
+            result_name="data_drift_test",
+            result_value=0.5,
+            result_kind=ResultKindApp.data_drift,
+            result_status=ResultStatusApp.potential_detection,
+        )

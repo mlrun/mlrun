@@ -91,8 +91,8 @@ def get_frontend_spec(
 
 
 def try_get_grafana_service_url(session):
-    if mlrun.mlconf.external_grafana_url:
-        return mlrun.mlconf.external_grafana_url
+    if mlrun.mlconf.grafana_url:
+        return mlrun.mlconf.grafana_url
     else:
         iguazio_client = server.api.utils.clients.iguazio.Client()
         return iguazio_client.try_get_grafana_service_url(session)

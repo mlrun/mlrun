@@ -142,7 +142,10 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     assert response.status_code == http.HTTPStatus.OK.value
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert frontend_spec.jobs_dashboard_url is None
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called()
+    assert (
+        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        == 2
+    )
 
     # happy scenario - grafana url found, verify returned correctly
     grafana_url = "some-url.com"
@@ -155,10 +158,18 @@ def test_get_frontend_spec_jobs_dashboard_url_resolution(
     frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
     assert (
         frontend_spec.jobs_dashboard_url
-        == f"{grafana_url}/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1"
-        f"&var-groupBy={{filter_name}}&var-filter={{filter_value}}"
+        == grafana_url
+        + "/d/mlrun-jobs-monitoring/mlrun-jobs-monitoring?orgId=1&var-groupBy={filter_name}&var-filter={filter_value}"
     )
-    server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.assert_called()
+    assert (
+        frontend_spec.model_monitoring_dashboard_url
+        == grafana_url
+        + "/d/AohIXhAMk/model-monitoring-details?var-PROJECT={project}&var-MODELENDPOINT={model_endpoint}"
+    )
+    assert (
+        server.api.utils.clients.iguazio.Client().try_get_grafana_service_url.call_count
+        == 2
+    )
 
 
 def test_get_frontend_spec_nuclio_streams(

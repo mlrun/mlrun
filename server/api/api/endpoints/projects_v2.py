@@ -33,7 +33,9 @@ router = fastapi.APIRouter()
 
 
 class Constants:
-    project_deletion_wrapper_background_task_name_format = "project_deletion_wrapper_{0}"
+    project_deletion_wrapper_background_task_name_format = (
+        "project_deletion_wrapper_{0}"
+    )
     project_deletion_background_task_name_format = "project_deletion_{0}"
 
 

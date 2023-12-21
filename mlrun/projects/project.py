@@ -1114,7 +1114,8 @@ class MlrunProject(ModelObj):
             self.sync_functions()
         except mlrun.errors.MLRunMissingDependencyError as exc:
             logger.error(
-                "Failed to resolve all dependencies specified by the new project source. Aborting"
+                "Failed to resolve all function related dependencies "
+                "while working with the new project source. Aborting"
             )
             raise exc
 

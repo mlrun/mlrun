@@ -127,10 +127,11 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         background_tasks: fastapi.BackgroundTasks,
         function,
+        name: str = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
-        name = str(uuid.uuid4())
+        name = name or str(uuid.uuid4())
         # sanity
         if name in self._internal_background_tasks:
             raise RuntimeError("Background task name already exists")
@@ -150,12 +151,15 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def get_background_task(
         self,
         name: str,
+        raise_on_not_found: bool = False,
     ) -> mlrun.common.schemas.BackgroundTask:
         """
         :return: returns the background task object and bool whether exists
         """
         if name in self._internal_background_tasks:
             return self._internal_background_tasks[name]
+        elif raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(f"Background task {name} not found")
         else:
             return self._generate_background_task_not_found_response(name)
 

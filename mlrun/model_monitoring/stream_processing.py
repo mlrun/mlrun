@@ -278,7 +278,7 @@ class EventStreamProcessor:
             graph.add_step(
                 "ProcessBeforeEndpointUpdate",
                 name="ProcessBeforeEndpointUpdate",
-                after="sample",
+                after="Rename",
             )
 
         apply_process_before_endpoint_update()

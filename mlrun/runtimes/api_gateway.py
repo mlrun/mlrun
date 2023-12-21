@@ -21,6 +21,7 @@ import mlrun.common.schemas
 
 BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "basicAuth"
 NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
+PROJECT_NAME_LABEL = "nuclio.io/project-name"
 
 
 class APIGateway:
@@ -47,7 +48,7 @@ class APIGateway:
         if host:
             self._invoke_url = self.generate_invoke_url()
 
-    def invoke(self, auth: Optional[tuple[str, str]]):
+    def invoke(self, headers: dict = {}, auth: Optional[tuple[str, str]] = None):
         if not self._invoke_url:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Invocation url is not set. Use set_invoke_url method to set it."
@@ -59,7 +60,8 @@ class APIGateway:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway invocation requires authentication. Please pass credentials"
             )
-        headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
+        if auth:
+            headers["Authorization"] = self._generate_auth(*auth)
         return requests.post(self._invoke_url, headers=headers)
 
     @classmethod
@@ -68,9 +70,7 @@ class APIGateway:
         dict_values,
     ):
         project = (
-            dict_values.get("metadata", {})
-            .get("labels", {})
-            .get("nuclio.io/project-name")
+            dict_values.get("metadata", {}).get("labels", {}).get(PROJECT_NAME_LABEL)
         )
         spec = dict_values.get("spec", {})
         upstreams = spec.get("upstreams", [])

@@ -1489,7 +1489,6 @@ def test_create_api_gateway_valid(
                 "name": "gateway-f1-f2",
                 "namespace": "default-tenant",
                 "labels": {
-                    "iguazio.com/username": "admin",
                     "nuclio.io/project-name": "project-name",
                 },
                 "creationTimestamp": "2023-12-13T13:00:09Z",
@@ -1587,7 +1586,6 @@ def test_list_api_gateways(patched_list_api_gateways, context):
                 "name": "test",
                 "namespace": "default-tenant",
                 "labels": {
-                    "iguazio.com/username": "admin",
                     "nuclio.io/project-name": "default",
                 },
                 "creationTimestamp": "2023-12-13T13:00:09Z",
@@ -1608,7 +1606,6 @@ def test_list_api_gateways(patched_list_api_gateways, context):
                 "name": "test-basic",
                 "namespace": "default-tenant",
                 "labels": {
-                    "iguazio.com/username": "admin",
                     "nuclio.io/project-name": "default",
                 },
                 "creationTimestamp": "2023-11-16T12:42:48Z",

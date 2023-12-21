@@ -166,7 +166,7 @@ class Client:
             },
             "metadata": {
                 "labels": {
-                    "nuclio.io/project-name": project_name,
+                    mlrun.runtimes.api_gateway.PROJECT_NAME_LABEL: project_name,
                 },
                 "name": api_gateway_name,
             },

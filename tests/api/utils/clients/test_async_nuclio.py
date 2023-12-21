@@ -59,7 +59,6 @@ async def test_nuclio_list_api_gateways(
                 "name": "test-basic",
                 "namespace": "default-tenant",
                 "labels": {
-                    "iguazio.com/username": "admin",
                     "nuclio.io/project-name": "default",
                 },
                 "creationTimestamp": "2023-11-16T12:42:48Z",

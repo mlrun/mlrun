@@ -316,10 +316,9 @@ class OutputStream:
                 shards=shards,
                 retention_in_hours=retention_in_hours,
             )
-
             response = self._v3io_client.stream.create(
                 container=self._container,
-                path=self._stream_path,
+                stream_path=self._stream_path,
                 shard_count=shards or 1,
                 retention_period_hours=retention_in_hours or 24,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
@@ -343,7 +342,9 @@ class OutputStream:
             self._mock_queue.extend(records)
         else:
             self._v3io_client.stream.put_records(
-                container=self._container, path=self._stream_path, records=records
+                container=self._container,
+                stream_path=self._stream_path,
+                records=records,
             )
 
 

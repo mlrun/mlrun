@@ -622,7 +622,7 @@ class BatchProcessor:
             # Create v3io stream based on the input stream
             response = self.v3io.stream.create(
                 container=self.stream_container,
-                path=self.stream_path,
+                stream_path=self.stream_path,
                 shard_count=1,
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
                 access_key=self.v3io_access_key,

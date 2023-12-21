@@ -3506,13 +3506,10 @@ class SQLDB(DBInterface):
         return query.one_or_none()
 
     def _get_run(self, session, uid, project, iteration):
-        try:
-            resp = self._query(
-                session, Run, uid=uid, project=project, iteration=iteration
-            ).one_or_none()
-            return resp
-        finally:
-            pass
+        resp = self._query(
+            session, Run, uid=uid, project=project, iteration=iteration
+        ).one_or_none()
+        return resp
 
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()

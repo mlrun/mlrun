@@ -215,9 +215,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default name per target type is allowed (please specify name for {0} target)".format(
-                target_types_requiring_name
-            )
+            "Only one default name per target type is allowed (please "
+            f"specify name for {target_types_requiring_name} target)"
         )
 
     target_names_count = Counter(
@@ -232,9 +231,8 @@ def validate_target_list(targets):
 
     if targets_with_same_name:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique name (more than one target with those names found {0})".format(
-                targets_with_same_name
-            )
+            "Each target must have a unique name (more than one target with "
+            f"those names found {targets_with_same_name})"
         )
 
     no_path_target_types_count = Counter(
@@ -252,9 +250,8 @@ def validate_target_list(targets):
     ]
     if target_types_requiring_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Only one default path per target type is allowed (please specify path for {0} target)".format(
-                target_types_requiring_path
-            )
+            "Only one default path per target type is allowed (please specify "
+            f"path for {target_types_requiring_path} target)"
         )
 
     target_paths_count = Counter(
@@ -269,9 +266,8 @@ def validate_target_list(targets):
 
     if targets_with_same_path:
         raise mlrun.errors.MLRunInvalidArgumentError(
-            "Each target must have a unique path (more than one target with those names found {0})".format(
-                targets_with_same_path
-            )
+            "Each target must have a unique path (more than one target "
+            f"with those names found {targets_with_same_path})"
         )
 
 

@@ -3545,9 +3545,7 @@ class MlrunProject(ModelObj):
             ),
         )
 
-        # if api gateway was created and host wasn't defined by user, we request created api gateway to resolve the host
         if ok:
-            # resolving host name
             # TODO: rework to request specific api gateway by name
             api_gateways_list = self.list_api_gateways()
             for gw in api_gateways_list:

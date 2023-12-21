@@ -44,6 +44,7 @@ from mlrun.model_monitoring.application import (
 from mlrun.model_monitoring.genai.metrics import LLMEvaluateMetric, LLMJudgeBaseMetric
 from mlrun.model_monitoring.genai.radar_plot import radar_plot
 from mlrun.utils import logger
+from mlrun.artifacts import PlotlyArtifact
 
 
 # A decorator for aggregating the metrics values for one sinlge metrics with mutiple data points
@@ -243,13 +244,12 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         :returns:                       (ModelMonitoringApplicationResult) or
                                         (list[ModelMonitoringApplicationResult]) of the application results.
         """
-        # for the open ended questions, it doesn't make sense to send the aggregated result to the output stream
-        # instead, we want to send all the questions and answers that are below the threshold with explanation
         # for now assume sample_df has the y_pred and y_true in it. y_pred is answer, y_true is reference
-
         self.context.logger.info("Running llm application")
         # compute all the metrics for the sample_df
         all_metrics_res = self.compute_metrics_over_data(sample_df)
+
+
         # log each metric result as a separate artifact
         for key, value in all_metrics_res.items():
             if isinstance(value["value"], pd.DataFrame):
@@ -257,11 +257,11 @@ class LLMMonitoringApp(ModelMonitoringApplication):
                     key, df=value["value"], index=True, format="csv"
                 )
             else:
-                # TODO log the dict as a json
-                self.context.log_dataset(key, value["value"])
+                self.context.log_results(value)
+
         plot = self.build_radar_chart(all_metrics_res)
-        # TODO confirm it can be logged as plot artifact
-        self.context.log_artifact("radar_chart", body=plot)
+        plot_artifact = PlotArtifact(figure = plot, key="radar_chart")
+        self.context.log_artifact(plot_artifact)
 
         # The return value doesn't have anything meaningful for now
         return ModelMonitoringApplicationResult(

@@ -791,7 +791,7 @@ class TestFeatureStore(TestMLRunSystem):
         targets = [
             ParquetTarget(
                 name="my_target",
-                path=f"v3io:///bigdata/large_df/test_{uuid.uuid4()}.parquet",
+                path=f"{str(self.results_path)}/test_{uuid.uuid4()}.parquet",
             )
         ]
 

@@ -33,7 +33,7 @@ router = fastapi.APIRouter()
 
 
 class Constants:
-    project_pre_deletion_background_task_name_format = "project_pre_deletion_{0}"
+    project_deletion_wrapper_background_task_name_format = "project_deletion_wrapper_{0}"
     project_deletion_background_task_name_format = "project_deletion_{0}"
 
 
@@ -106,11 +106,11 @@ def _get_or_create_project_deletion_background_task(
 
         When MLRun is a follower:
         Due to the nature of the project deletion flow, we need to wrap the task as:
-            MLRunPreDeletionTask(LeaderDeletionJob(MLRunDeletionTask))
+            MLRunDeletionWrapperTask(LeaderDeletionJob(MLRunDeletionTask))
 
-        1. Create MLRunPreDeletionTask
-        2. MLRunPreDeletionTask will send a request to the projects leader to delete the project
-        3. MLRunPreDeletionTask will wait for the project to be deleted using LeaderDeletionJob job id
+        1. Create MLRunDeletionWrapperTask
+        2. MLRunDeletionWrapperTask will send a request to the projects leader to delete the project
+        3. MLRunDeletionWrapperTask will wait for the project to be deleted using LeaderDeletionJob job id
            During (In leader):
            1. Create LeaderDeletionJob
            2. LeaderDeletionJob will send a second delete project request to the follower
@@ -120,13 +120,13 @@ def _get_or_create_project_deletion_background_task(
               2. MLRunDeletionTask will delete the project resources and then project itself.
               3. Finish MLRunDeletionTask
            4. Finish LeaderDeletionJob
-        4. Finish MLRunPreDeletionTask
+        4. Finish MLRunDeletionWrapperTask
     """
 
     # If the request is from the leader, or MLRun is the leader, we create a background task for deleting the
-    # project. Otherwise, we create a background task for pre deletion of the project.
+    # project. Otherwise, we create a wrapper background task for deletion of the project.
     background_task_name_format = (
-        Constants.project_pre_deletion_background_task_name_format
+        Constants.project_deletion_wrapper_background_task_name_format
     )
     if (
         _is_request_from_leader(auth_info.projects_role)

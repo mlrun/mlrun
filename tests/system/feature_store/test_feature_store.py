@@ -785,7 +785,7 @@ class TestFeatureStore(TestMLRunSystem):
             "Column1": range(0, num_rows),
             "Column2": np.random.choice(["A", "B", "C"], size=num_rows),
         }
-        path = f"{str(self.results_path / _generate_random_name())}.parquet"
+        path = f"{self.results_path / _generate_random_name()}.parquet"
         # Create the DataFrame
         df = pd.DataFrame(data)
         targets = [

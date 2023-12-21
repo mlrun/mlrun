@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # flake8: noqa  - this is until we take care of the F401 violations with respect to __all__ & sphinx
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 
 from torch.nn import Module
 from torch.optim import Optimizer

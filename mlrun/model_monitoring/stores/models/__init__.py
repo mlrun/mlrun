@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Type, Union
+from typing import Optional, Union
 
 from .mysql import ModelEndpointsTable as MySQLModelEndpointsTable
 from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable

@@ -167,14 +167,50 @@ redis_profile = project.get_datastore_profile("my_profile")
 local_redis_profile = DatastoreProfileRedis(redis_profile.name, redis_profile.endpoint_url, username="mylocaluser", password="mylocalpassword")
 register_temporary_client_datastore_profile(local_redis_profile)
 ```
-```{admonition}
+```{admonition} Note
 Datastore profile does not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
 
 ### Azure data store profile
+```
+profile = DatastoreProfileAzureBlob(name="test_profile",connection_string=connection_string)
+ParquetTarget(path="ds://test_profile/az_blob/path/to/parquet.pq")
+```
 
+`DatastoreProfileAzureBlob` init parameters:
+- `name` &mdash; Name of the profile.
+- `connection_string` &mdash; The Azure connection string that points at a storage account.
+For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CONNECTION_STRING".
+for example:<br>
+`DefaultEndpointsProtocol=https;AccountName=myAcct;AccountKey=XXXX;EndpointSuffix=core.windows.net`
 
+The following variables allow alternative methods of authentication. All of these variables require 
+`account_name`.
+- `account_name` &mdash; This parameter represents the name of the Azure Storage account.
+Each Azure Storage account has a unique name, and it serves as a globally-unique identifier for the storage account within the Azure cloud.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_ACCOUNT_NAME".
+- `account_key` &mdash; The storage account key is a security credential associated with an Azure Storage account.
+It is a primary access key used for authentication and authorization purposes.
+This key is sensitive information and is kept confidential.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_ACCOUNT_KEY".
+- `sas_token` &mdash; Shared Access Signature (SAS) token for time-bound access.
+This token is ensitive information. Equivalent to "AZURE_STORAGE_SAS_TOKEN" in environment authentication.
+
+Authentication against Azure services using a Service Principal:
+- `client_id` &mdash; This variable holds the client ID associated with an Azure Active Directory (AAD) application,
+which represents the Service Principal. In Azure, a Service Principal is used for non-interactive authentication, allowing applications to access Azure resources.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CLIENT_ID".
+- `client_secret` &mdash; This variable stores the client secret associated with the Azure AD application (Service Principal).
+The client secret is a credential that proves the identity of the application when it requests access to Azure resources.
+This key is sensitive information and is kept confidential.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CLIENT_SECRET".
+- `tenant_id` &mdash; This variable holds the Azure AD tenant ID, which uniquely identifies the organization or directory in Azure Active Directory.
+The equivalent to this parameter in environment authentication is "AZURE_STORAGE_TENANT_ID".
+credential authenrication:
+- `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
+This variable is sensitive information and is kept confidential.
 
 ### DBFS data store profile
 
@@ -184,10 +220,10 @@ ParquetTarget(path="ds://test_profile/path/to/parquet.pq")
 ```
 
 `DatastoreProfileDBFS` init parameters:
-- `name`: name of the profile.
-- `endpoint_url` (optional): A string representing the endpoint URL of the DBFS service.
+- `name` &mdash; Name of the profile.
+- `endpoint_url` &mdash; A string representing the endpoint URL of the DBFS service.
 The equivalent to this parameter in environment authentication is "DATABRICKS_HOST".
-- `token` (optional): A string representing the secret key used for authentication to the DBFS service. 
+- `token` &mdash; A string representing the secret key used for authentication to the DBFS service. 
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "DATABRICKS_TOKEN".
 
@@ -198,10 +234,10 @@ ParquetTarget(path="ds://test_profile/gcs_bucket/path/to/parquet.pq")
 ```
 
 `DatastoreProfileGCS` init parameters:
-- `name`: name of the profile.
-- `credentials_path` (optional): A string representing the local JSON file path that contains the authentication parameters required by the GCS API.
+- `name` &mdash; Name of the profile.
+- `credentials_path` &mdash; A string representing the local JSON file path that contains the authentication parameters required by the GCS API.
 The equivalent to this parameter in environment authentication is "GOOGLE_APPLICATION_CREDENTIALS."
-- `gcp_credentials` (optional): A JSON in a string format representing the authentication parameters required by GCS API. 
+- `gcp_credentials` &mdash; A JSON in a string format representing the authentication parameters required by GCS API. 
 For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
 The equivalent to this parameter in environment authentication is "GCP_CREDENTIALS".
 The code prioritizes `credentials_path` over `gcp_credentials` if both are not None.
@@ -215,11 +251,11 @@ target = KafkaTarget(path="ds://test_profile")
 ```
 
 `DatastoreProfileKafkaTarget` class parameters:
-- `name`: Name of the profile
-- `bootstrap_servers`: A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
-- `topic`: A string that denotes the Kafka topic to which data will be sent or from which data will be received.
-- `kwargs_public` (optional): This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
-- `kwargs_private` (optional): This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
+- `name` &mdash; Name of the profile
+- `bootstrap_servers` &mdash; A string representing the 'bootstrap servers' for Kafka. These are the initial contact points you use to discover the full set of servers in the Kafka cluster, typically provided in the format `host1:port1,host2:port2,...`.
+- `topic` &mdash; A string that denotes the Kafka topic to which data will be sent or from which data will be received.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) meant to hold a collection of key-value pairs that could represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. The default value for `kwargs_public` is `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is designed to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are also passed as parameters to the underlying `kafka.KafkaConsumer()` constructor. It defaults to `None`.
 
 
 ```
@@ -228,16 +264,16 @@ target = KafkaSource(path="ds://test_profile")
 ```
 
 `DatastoreProfileKafkaSource` class parameters:
-- `name`: name of the profile
-- `brokers`: This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
-- `topics`: A string or list of strings that denote the Kafka topics from which data will be sourced or read.
-- `group` (optional): A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
-- `initial_offset` (optional): A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
-- `partitions` (optional): This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
-- `sasl_user` (optional): A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
-- `sasl_pass` (optional): A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
-- `kwargs_public` (optional): This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
-- `kwargs_private` (optional): This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+- `name` &mdash; Name of the profile
+- `brokers` &mdash; This parameter can either be a single string or a list of strings representing the Kafka brokers. Brokers serve as the contact points for clients to connect to the Kafka cluster.
+- `topics` &mdash; A string or list of strings that denote the Kafka topics from which data will be sourced or read.
+- `group` &mdash; A string representing the consumer group name. Consumer groups are used in Kafka to allow multiple consumers to coordinate and consume messages from topics. The default consumer group is set to `"serving"`.
+- `initial_offset` &mdash; A string that defines the starting point for the Kafka consumer. It can be set to `"earliest"` to start consuming from the beginning of the topic, or `"latest"` to start consuming new messages only. The default is `"earliest"`.
+- `partitions` &mdash; This can either be a single string or a list of strings representing the specific partitions from which the consumer should read. If not specified, the consumer can read from all partitions.
+- `sasl_user` &mdash; A string representing the username for SASL authentication, if required by the Kafka cluster. It's tagged as private for security reasons.
+- `sasl_pass` &mdash; A string representing the password for SASL authentication, correlating with the `sasl_user`. It's tagged as private for security considerations.
+- `kwargs_public` &mdash; This is a dictionary (`Dict`) that holds a collection of key-value pairs used to represent settings or configurations deemed public. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
+- `kwargs_private` &mdash; This dictionary (`Dict`) is used to store key-value pairs, typically representing configurations that are of a private or sensitive nature. These pairs are subsequently passed as parameters to the underlying `kafka.KafkaProducer()` constructor. It defaults to `None`.
 
 ### Redis data store profile
 
@@ -255,13 +291,13 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 ```
 
 `DatastoreProfileS3` init parameters:
-- `name`: name of the profile
-- `endpoint_url` (optional): A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`.
-- `force_non_anonymous` (optional): A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set.
-- `profile_name` (optional): A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`.
-- `assume_role_arn` (optional): A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`.
-- `access_key` (optional): A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
-- `secret_key` (optional): A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`.
+- `name` &mdash; Name of the profile
+- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`.
+- `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set.
+- `profile_name` &mdash; A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`.
+- `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`.
+- `access_key` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
+- `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`.
 
 
 

@@ -13,16 +13,26 @@
 # limitations under the License.
 
 import uuid
+import warnings
 from typing import Union
 
 import pandas as pd
+import semver
 
 from mlrun.model_monitoring.application import ModelMonitoringApplication
+
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.7")
 
 _HAS_EVIDENTLY = False
 try:
     import evidently  # noqa: F401
 
+    if evidently.__version__ != SUPPORTED_EVIDENTLY_VERSION:
+        warnings.warn(
+            f"Evidently version {evidently.__version__} is not tested, use at "
+            "your own risk. The Supported evidently version is "
+            f"{SUPPORTED_EVIDENTLY_VERSION}."
+        )
     _HAS_EVIDENTLY = True
 except ModuleNotFoundError:
     pass

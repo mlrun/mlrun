@@ -4507,7 +4507,6 @@ class TestFeatureStore(TestMLRunSystem):
         assert offline_features_df.equals(expected_result)
 
     def test_merge_different_number_of_entities(self):
-
         feature_set = fstore.FeatureSet(
             "basic_party", entities=[fstore.Entity("party_id")], engine="storey"
         )

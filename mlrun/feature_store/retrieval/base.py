@@ -664,7 +664,6 @@ class BaseMerger(abc.ABC):
         def _build_relation(
             fs_name_in: str, name_in_order, linked_list_relation, head_order
         ):
-
             name_head = linked_list_relation.head.name
             left_keys = feature_set_objects[name_head].extract_relation_keys(
                 feature_set_objects[fs_name_in],

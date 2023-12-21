@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 import os
-from typing import Dict, List, Tuple, Type, Union
+from typing import Union
 
 import numpy as np
 import torch
@@ -50,9 +50,9 @@ class PyTorchModelHandler(DLModelHandler):
         model: Module = None,
         model_path: str = None,
         model_name: str = None,
-        model_class: Union[Type[Module], str] = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        model_class: Union[type[Module], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
@@ -152,8 +152,8 @@ class PyTorchModelHandler(DLModelHandler):
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -169,7 +169,7 @@ class PyTorchModelHandler(DLModelHandler):
 
     def save(
         self, output_path: str = None, **kwargs
-    ) -> Union[Dict[str, Artifact], None]:
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path.
 
@@ -233,10 +233,10 @@ class PyTorchModelHandler(DLModelHandler):
     def to_onnx(
         self,
         model_name: str = None,
-        input_sample: Union[torch.Tensor, Tuple[torch.Tensor, ...]] = None,
-        input_layers_names: List[str] = None,
-        output_layers_names: List[str] = None,
-        dynamic_axes: Dict[str, Dict[int, str]] = None,
+        input_sample: Union[torch.Tensor, tuple[torch.Tensor, ...]] = None,
+        input_layers_names: list[str] = None,
+        output_layers_names: list[str] = None,
+        dynamic_axes: dict[str, dict[int, str]] = None,
         is_batched: bool = True,
         optimize: bool = True,
         output_path: str = None,

@@ -14,7 +14,7 @@
 #
 import os
 import pickle
-from typing import Dict, List, Union
+from typing import Union
 
 import cloudpickle
 import lightgbm as lgb
@@ -56,8 +56,8 @@ class LGBMModelHandler(MLModelHandler):
         model_name: str = None,
         model_path: str = None,
         model: LGBMTypes.ModelType = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
         model_format: str = ModelFormats.PKL,
@@ -152,8 +152,8 @@ class LGBMModelHandler(MLModelHandler):
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.

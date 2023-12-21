@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Union
 
 import torch
 from torch import Tensor
@@ -53,20 +53,20 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: PyTorchModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_parameters: Dict[str, PyTorchTypes.TrackableType] = None,
-        log_model_extra_data: Dict[
+        log_model_labels: dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_parameters: dict[str, PyTorchTypes.TrackableType] = None,
+        log_model_extra_data: dict[
             str, Union[PyTorchTypes.TrackableType, Artifact]
         ] = None,
-        dynamic_hyperparameters: Dict[
+        dynamic_hyperparameters: dict[
             str,
-            Tuple[
+            tuple[
                 str,
-                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
         ] = None,
         auto_log: bool = False,
     ):

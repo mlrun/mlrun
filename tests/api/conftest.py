@@ -15,8 +15,8 @@
 import datetime
 import typing
 import unittest.mock
+from collections.abc import Generator
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Generator
 
 import deepdiff
 import httpx

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import List
 
 import mlrun
 
@@ -34,8 +33,8 @@ class MLRunLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx,
-        dynamic_hyperparameters: List[str] = None,
-        static_hyperparameters: List[str] = None,
+        dynamic_hyperparameters: list[str] = None,
+        static_hyperparameters: list[str] = None,
         logging_frequency: int = 100,
     ):
         """

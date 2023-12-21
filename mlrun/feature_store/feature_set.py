@@ -13,7 +13,7 @@
 # limitations under the License.
 import warnings
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
@@ -119,9 +119,9 @@ class FeatureSetSpec(ModelObj):
 
         self.owner = owner
         self.description = description
-        self.entities: List[Union[Entity, str]] = entities or []
-        self.relations: Dict[str, Union[Entity, str]] = relations or {}
-        self.features: List[Feature] = features or []
+        self.entities: list[Union[Entity, str]] = entities or []
+        self.relations: dict[str, Union[Entity, str]] = relations or {}
+        self.features: list[Feature] = features or []
         self.partition_keys = partition_keys or []
         self.timestamp_key = timestamp_key
         self.source = source
@@ -136,12 +136,12 @@ class FeatureSetSpec(ModelObj):
         self.with_default_targets = True
 
     @property
-    def entities(self) -> List[Entity]:
+    def entities(self) -> list[Entity]:
         """feature set entities (indexes)"""
         return self._entities
 
     @entities.setter
-    def entities(self, entities: List[Union[Entity, str]]):
+    def entities(self, entities: list[Union[Entity, str]]):
         if entities:
             # if the entity is a string, convert it to Entity class
             for i, entity in enumerate(entities):
@@ -163,21 +163,21 @@ class FeatureSetSpec(ModelObj):
         self._entities = ObjectList.from_list(Entity, entities)
 
     @property
-    def features(self) -> List[Feature]:
+    def features(self) -> list[Feature]:
         """feature set features list"""
         return self._features
 
     @features.setter
-    def features(self, features: List[Feature]):
+    def features(self, features: list[Feature]):
         self._features = ObjectList.from_list(Feature, features)
 
     @property
-    def targets(self) -> List[DataTargetBase]:
+    def targets(self) -> list[DataTargetBase]:
         """list of desired targets (material storage)"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTargetBase]):
+    def targets(self, targets: list[DataTargetBase]):
         self._targets = ObjectList.from_list(DataTargetBase, targets)
 
     @property
@@ -230,12 +230,12 @@ class FeatureSetSpec(ModelObj):
         self._source = source
 
     @property
-    def relations(self) -> Dict[str, Entity]:
+    def relations(self) -> dict[str, Entity]:
         """feature set relations dict"""
         return self._relations
 
     @relations.setter
-    def relations(self, relations: Dict[str, Entity]):
+    def relations(self, relations: dict[str, Entity]):
         for col, ent in relations.items():
             if isinstance(ent, str):
                 relations[col] = Entity(ent)
@@ -284,12 +284,12 @@ class FeatureSetStatus(ModelObj):
         self.run_uri = run_uri
 
     @property
-    def targets(self) -> List[DataTarget]:
+    def targets(self) -> list[DataTarget]:
         """list of material storage targets + their status/path"""
         return self._targets
 
     @targets.setter
-    def targets(self, targets: List[DataTarget]):
+    def targets(self, targets: list[DataTarget]):
         self._targets = ObjectList.from_list(DataTarget, targets)
 
     def update_target(self, target: DataTarget):
@@ -327,11 +327,11 @@ class FeatureSet(ModelObj):
         self,
         name: str = None,
         description: str = None,
-        entities: List[Union[Entity, str]] = None,
+        entities: list[Union[Entity, str]] = None,
         timestamp_key: str = None,
         engine: str = None,
         label_column: str = None,
-        relations: Dict[str, Union[Entity, str]] = None,
+        relations: dict[str, Union[Entity, str]] = None,
         passthrough: bool = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
@@ -532,7 +532,7 @@ class FeatureSet(ModelObj):
                     self, **(class_args if class_args is not None else {})
                 )
 
-    def purge_targets(self, target_names: List[str] = None, silent: bool = False):
+    def purge_targets(self, target_names: list[str] = None, silent: bool = False):
         """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
         :param silent: Fail silently if target doesn't exist in featureset status"""
@@ -560,7 +560,7 @@ class FeatureSet(ModelObj):
 
     def update_targets_for_ingest(
         self,
-        targets: List[DataTargetBase],
+        targets: list[DataTargetBase],
         overwrite: bool = None,
     ):
         if not targets:
@@ -581,7 +581,7 @@ class FeatureSet(ModelObj):
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
-        self, target_names: List[str] = None, silent: bool = False
+        self, target_names: list[str] = None, silent: bool = False
     ):
         try:
             self.reload(update_spec=False)
@@ -602,9 +602,7 @@ class FeatureSet(ModelObj):
                         pass
                     else:
                         raise mlrun.errors.MLRunNotFoundError(
-                            "Target not found in status (fset={0}, target={1})".format(
-                                self.metadata.name, target_name
-                            )
+                            f"Target not found in status (fset={self.metadata.name}, target={target_name})"
                         )
         else:
             targets = self.status.targets
@@ -621,7 +619,7 @@ class FeatureSet(ModelObj):
         name: str,
         value_type: mlrun.data_types.ValueType = None,
         description: str = None,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         """add/set an entity (dataset index)
 
@@ -983,7 +981,7 @@ class FeatureSet(ModelObj):
     def ingest(
         self,
         source=None,
-        targets: List[DataTargetBase] = None,
+        targets: list[DataTargetBase] = None,
         namespace=None,
         return_df: bool = True,
         infer_options: InferOptions = InferOptions.default(),
@@ -1021,11 +1019,11 @@ class FeatureSet(ModelObj):
     def deploy_ingestion_service(
         self,
         source: DataSource = None,
-        targets: List[DataTargetBase] = None,
+        targets: list[DataTargetBase] = None,
         name: str = None,
         run_config: RunConfig = None,
         verbose=False,
-    ) -> Tuple[str, BaseRuntime]:
+    ) -> tuple[str, BaseRuntime]:
         return mlrun.feature_store.api._deploy_ingestion_service_v2(
             self, source, targets, name, run_config, verbose
         )
@@ -1100,10 +1098,10 @@ class SparkAggregateByKey(StepToDict):
 
     def __init__(
         self,
-        key_columns: List[str],
+        key_columns: list[str],
         time_column: str,
-        aggregates: List[Dict],
-        emit_policy: Union[EmitPolicy, Dict] = None,
+        aggregates: list[dict],
+        emit_policy: Union[EmitPolicy, dict] = None,
     ):
         self.key_columns = key_columns
         self.time_column = time_column

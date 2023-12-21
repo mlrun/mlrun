@@ -14,7 +14,7 @@
 #
 import os
 import pickle
-from typing import Dict, List, Union
+from typing import Union
 
 import cloudpickle
 
@@ -47,8 +47,8 @@ class XGBoostModelHandler(MLModelHandler):
         model: XGBoostTypes.ModelType = None,
         model_path: str = None,
         model_name: str = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         context: mlrun.MLClientCtx = None,
         model_format: str = ModelFormats.PKL,

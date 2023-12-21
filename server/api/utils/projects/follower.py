@@ -101,10 +101,8 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if self._is_request_from_leader(projects_role):
             server.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
@@ -143,10 +141,8 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if self._is_request_from_leader(projects_role):
             server.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -174,10 +170,8 @@ class Member(
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
-    ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+        if self._is_request_from_leader(projects_role):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
@@ -239,12 +233,12 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         # needed only for external usage when requesting leader format
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.schemas.ProjectsFormat.leader
@@ -271,11 +265,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
         projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole] = None,
         leader_session: typing.Optional[str] = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await server.api.crud.Projects().list_project_summaries(
             db_session, owner, labels, state, names
@@ -406,13 +400,13 @@ class Member(
 
     @staticmethod
     def _is_project_matching_labels(
-        labels: typing.List[str], project: mlrun.common.schemas.Project
+        labels: list[str], project: mlrun.common.schemas.Project
     ):
         if not project.metadata.labels:
             return False
         for label in labels:
             if "=" in label:
-                name, value = [v.strip() for v in label.split("=", 1)]
+                name, value = (v.strip() for v in label.split("=", 1))
                 if name not in project.metadata.labels:
                     return False
                 return value == project.metadata.labels[name]

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -79,7 +78,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         model: MLTypes.ModelType = None,
         x: MLTypes.DatasetType = None,
         **kwargs,
-    ) -> Dict[str, Artifact]:
+    ) -> dict[str, Artifact]:
         """
         Produce the confusion matrix according to the ground truth (y) and predictions (y_pred) values. If predictions
         are not available, the model and a dataset can be given to produce them.

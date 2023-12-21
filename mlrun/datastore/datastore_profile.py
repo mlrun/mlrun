@@ -30,7 +30,7 @@ from ..secrets import get_secret_or_env
 class DatastoreProfile(pydantic.BaseModel):
     type: str
     name: str
-    _private_attributes: typing.List = ()
+    _private_attributes: list = ()
 
     class Config:
         extra = pydantic.Extra.forbid
@@ -81,8 +81,8 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     _private_attributes = "kwargs_private"
     bootstrap_servers: str
     topic: str
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {"bootstrap_servers": self.bootstrap_servers}
@@ -96,15 +96,15 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
 class DatastoreProfileKafkaSource(DatastoreProfile):
     type: str = pydantic.Field("kafka_source")
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
-    brokers: typing.Union[str, typing.List[str]]
-    topics: typing.Union[str, typing.List[str]]
+    brokers: typing.Union[str, list[str]]
+    topics: typing.Union[str, list[str]]
     group: typing.Optional[str] = "serving"
     initial_offset: typing.Optional[str] = "earliest"
-    partitions: typing.Optional[typing.Union[str, typing.List[str]]]
+    partitions: typing.Optional[typing.Union[str, list[str]]]
     sasl_user: typing.Optional[str]
     sasl_pass: typing.Optional[str]
-    kwargs_public: typing.Optional[typing.Dict]
-    kwargs_private: typing.Optional[typing.Dict]
+    kwargs_public: typing.Optional[dict]
+    kwargs_private: typing.Optional[dict]
 
     def attributes(self):
         attributes = {}

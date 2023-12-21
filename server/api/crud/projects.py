@@ -215,9 +215,9 @@ class Projects(
         session: sqlalchemy.orm.Session,
         owner: str = None,
         format_: mlrun.common.schemas.ProjectsFormat = mlrun.common.schemas.ProjectsFormat.full,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return server.api.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
@@ -227,9 +227,9 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         owner: str = None,
-        labels: typing.List[str] = None,
+        labels: list[str] = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[typing.List[str]] = None,
+        names: typing.Optional[list[str]] = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         projects_output = await fastapi.concurrency.run_in_threadpool(
             self.list_projects,
@@ -256,8 +256,8 @@ class Projects(
         return project_summaries[0]
 
     async def generate_projects_summaries(
-        self, projects: typing.List[str]
-    ) -> typing.List[mlrun.common.schemas.ProjectSummary]:
+        self, projects: list[str]
+    ) -> list[mlrun.common.schemas.ProjectSummary]:
         (
             project_to_files_count,
             project_to_schedule_count,
@@ -289,14 +289,14 @@ class Projects(
 
     async def _get_project_resources_counters(
         self,
-    ) -> typing.Tuple[
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, int],
-        typing.Dict[str, typing.Union[int, None]],
+    ) -> tuple[
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, int],
+        dict[str, typing.Union[int, None]],
     ]:
         now = datetime.datetime.now()
         if (
@@ -347,7 +347,7 @@ class Projects(
 
     async def _calculate_pipelines_counters(
         self,
-    ) -> typing.Dict[str, typing.Union[int, None]]:
+    ) -> dict[str, typing.Union[int, None]]:
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)

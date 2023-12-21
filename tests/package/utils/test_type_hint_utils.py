@@ -42,8 +42,8 @@ class AnotherClass(SomeClass):
     [
         (typing.Optional[int], True),
         (typing.Union[str, int], True),
-        (typing.List, True),
-        (typing.Tuple[int, str], True),
+        (list, True),
+        (tuple[int, str], True),
         (typing.TypeVar("A", int, str), True),
         (typing.ForwardRef("pandas.DataFrame"), True),
         (list, False),
@@ -56,7 +56,7 @@ class AnotherClass(SomeClass):
         # (str | int, True),
     ],
 )
-def test_is_typing_type(type_hint: typing.Type, expected_result: bool):
+def test_is_typing_type(type_hint: type, expected_result: bool):
     """
     Test the `TypeHintUtils.is_typing_type` function with multiple types.
 
@@ -154,7 +154,7 @@ def test_is_matching(
     "type_hint, expected_result",
     [
         # `typing.TypeVar` usages:
-        (typing.TypeVar("A", int, str, typing.List[int]), {int, str, typing.List[int]}),
+        (typing.TypeVar("A", int, str, list[int]), {int, str, list[int]}),
         (typing.TypeVar("A"), set()),
         (typing.TypeVar, set()),
         # `typing.ForwardRef` usage:
@@ -173,7 +173,7 @@ def test_is_matching(
         # `typing.Callable` usages:
         (typing.Callable, {collections.abc.Callable}),
         (
-            typing.Callable[[int, int], typing.Tuple[str, str]],
+            typing.Callable[[int, int], tuple[str, str]],
             {collections.abc.Callable},
         ),
         (collections.abc.Callable, set()),
@@ -187,8 +187,8 @@ def test_is_matching(
             {int, float, str, list},
         ),
         (
-            typing.Union[int, str, typing.List[typing.Tuple[int, str, SomeClass]]],
-            {int, str, typing.List[typing.Tuple[int, str, SomeClass]]},
+            typing.Union[int, str, list[tuple[int, str, SomeClass]]],
+            {int, str, list[tuple[int, str, SomeClass]]},
         ),
         (typing.Union, set()),
         # `typing.Optional` usages:
@@ -200,37 +200,33 @@ def test_is_matching(
         (typing.Annotated, set()),
         # `typing.Final` usages:
         (
-            typing.Final[typing.List[typing.Tuple[int, str, SomeClass]]],
-            {typing.List[typing.Tuple[int, str, SomeClass]]},
+            typing.Final[list[tuple[int, str, SomeClass]]],
+            {list[tuple[int, str, SomeClass]]},
         ),
         (typing.Final, set()),
         # `typing.ClassVar` usages:
         (
-            typing.ClassVar[
-                typing.Union[int, str, typing.List[typing.Tuple[int, str, SomeClass]]]
-            ],
-            {typing.Union[int, str, typing.List[typing.Tuple[int, str, SomeClass]]]},
+            typing.ClassVar[typing.Union[int, str, list[tuple[int, str, SomeClass]]]],
+            {typing.Union[int, str, list[tuple[int, str, SomeClass]]]},
         ),
         (typing.ClassVar, set()),
         # Other `typing`:
-        (typing.List, {list}),
-        (typing.List[typing.Tuple[int, str, SomeClass]], {list}),
-        (typing.Tuple[int, str, SomeClass], {tuple}),
+        (list, {list}),
+        (list[tuple[int, str, SomeClass]], {list}),
+        (tuple[int, str, SomeClass], {tuple}),
         # `collections` types:
         (typing.OrderedDict[str, int], {collections.OrderedDict}),
         (typing.OrderedDict, {collections.OrderedDict}),
         (collections.OrderedDict, set()),
         # Multiple types to reduce:
-        ({int, str, typing.List[int]}, {list}),
+        ({int, str, list[int]}, {list}),
         # TODO: Uncomment once we support Python >= 3.9:
         # (list[str], {list}),
         # TODO: Uncomment once we support Python >= 3.10:
         # (str | int, {str, int}),
     ],
 )
-def test_reduce_type_hint(
-    type_hint: typing.Type, expected_result: typing.Set[typing.Type]
-):
+def test_reduce_type_hint(type_hint: type, expected_result: set[type]):
     """
     Test the `TypeHintUtils.reduce_type_hint` function with multiple type hints.
 

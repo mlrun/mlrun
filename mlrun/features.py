@@ -14,7 +14,7 @@
 #
 import math
 import re
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from .data_types import ValueType, python_type_to_value_type
 from .errors import MLRunRuntimeError, err_to_str
@@ -44,7 +44,7 @@ class Entity(ModelObj):
         name: str = None,
         value_type: Union[ValueType, str] = None,
         description: str = None,
-        labels: Optional[Dict[str, str]] = None,
+        labels: Optional[dict[str, str]] = None,
     ):
         """data entity (index key)
 
@@ -82,13 +82,13 @@ class Feature(ModelObj):
     def __init__(
         self,
         value_type: Union[ValueType, str] = None,
-        dims: List[int] = None,
+        dims: list[int] = None,
         description: str = None,
         aggregate: bool = None,
         name: str = None,
         validator=None,
         default: str = None,
-        labels: Dict[str, str] = None,
+        labels: dict[str, str] = None,
     ):
         """data feature
 

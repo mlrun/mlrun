@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Callable, Dict, List, Union
+from typing import Callable, Union
 
 import tensorflow as tf
 from packaging import version
@@ -38,7 +38,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: List[Callable[[Union[Variable]], Union[float, Variable]]],
+        statistics_functions: list[Callable[[Union[Variable]], Union[float, Variable]]],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
@@ -255,15 +255,15 @@ class TensorboardLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
-        weights: Union[bool, List[str]] = False,
-        statistics_functions: List[
+        weights: Union[bool, list[str]] = False,
+        statistics_functions: list[
             Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
         ] = None,
-        dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: dict[
+            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[TFKerasTypes.TrackableType, List[Union[str, int]]]
+        static_hyperparameters: dict[
+            str, Union[TFKerasTypes.TrackableType, list[Union[str, int]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -352,7 +352,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         self._logged_model = False
         self._logged_hyperparameters = False
 
-    def get_weights(self) -> Dict[str, Variable]:
+    def get_weights(self) -> dict[str, Variable]:
         """
         Get the weights tensors tracked. The weights will be stored in a dictionary where each key is the weight's name
         and the value is the weight's parameter (tensor).
@@ -361,7 +361,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         """
         return self._logger.weights
 
-    def get_weights_statistics(self) -> Dict[str, Dict[str, List[float]]]:
+    def get_weights_statistics(self) -> dict[str, dict[str, list[float]]]:
         """
         Get the weights mean results logged. The results will be stored in a dictionary where each key is the weight's
         name and the value is a list of mean values per epoch.
@@ -555,7 +555,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
     @staticmethod
     def get_default_weight_statistics_list() -> (
-        List[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]
+        list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]
     ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.

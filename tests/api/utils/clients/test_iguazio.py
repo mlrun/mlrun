@@ -957,7 +957,7 @@ def _assert_auth_info(
     session: str,
     data_session: str,
     user_id: str,
-    user_group_ids: typing.List[str],
+    user_group_ids: list[str],
 ):
     assert auth_info.username == username
     assert auth_info.session == session

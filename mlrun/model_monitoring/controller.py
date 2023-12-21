@@ -17,7 +17,8 @@ import datetime
 import json
 import os
 import re
-from typing import Any, Iterator, NamedTuple, Optional, Union, cast
+from collections.abc import Iterator
+from typing import Any, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
 
@@ -130,7 +131,7 @@ class _BatchWindow:
 
     def get_intervals(
         self,
-    ) -> Iterator[_Interval]:
+    ) -> Iterator[tuple[datetime.datetime, datetime.datetime]]:
         """Generate the batch interval time ranges."""
         if self._start is not None and self._stop is not None:
             entered = False
@@ -405,7 +406,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[dict[str, list[str]]]:
+    ) -> Optional[tuple[str, Exception]]:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data

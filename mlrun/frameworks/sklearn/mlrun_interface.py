@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 from abc import ABC
-from typing import List
 
 import mlrun
 
@@ -154,8 +153,8 @@ class SKLearnMLRunInterface(MLRunInterface, ABC):
     def configure_logging(
         self,
         context: mlrun.MLClientCtx = None,
-        plans: List[MLPlan] = None,
-        metrics: List[Metric] = None,
+        plans: list[MLPlan] = None,
+        metrics: list[Metric] = None,
         x_test: SKLearnTypes.DatasetType = None,
         y_test: SKLearnTypes.DatasetType = None,
         model_handler: MLModelHandler = None,

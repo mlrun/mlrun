@@ -142,7 +142,7 @@ def test_set_and_load_default_config():
     env_path = os.path.expanduser(mlrun.config.default_env_file)
     env_body = None
     if os.path.isfile(env_path):
-        with open(env_path, "r") as fp:
+        with open(env_path) as fp:
             env_body = fp.read()
 
     # set two config (mlrun and custom vars) and read/verify the default .env file

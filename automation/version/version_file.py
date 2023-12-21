@@ -257,7 +257,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     git_commit = "unknown"
     try:
         git_commit = _run_command("git", args=["rev-parse", "HEAD"]).strip()
-        logger.debug("Found git commit: {}".format(git_commit))
+        logger.debug(f"Found git commit: {git_commit}")
 
     except Exception as exc:
         logger.warning("Failed to get version", exc_info=exc)
@@ -268,7 +268,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         git_branch = _run_command(
             "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
         ).strip()
-        logger.debug("Found git branch: {}".format(git_branch))
+        logger.debug(f"Found git branch: {git_branch}")
     except Exception as exc:
         logger.warning("Failed to get git branch", exc_info=exc)
 
@@ -304,7 +304,7 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
         "git_commit": git_commit,
     }
 
-    logger.info("Writing version info to file: {}".format(str(version_info)))
+    logger.info(f"Writing version info to file: {str(version_info)}")
     with open(version_file_path, "w+") as version_file:
         json.dump(version_info, version_file, sort_keys=True, indent=2)
 

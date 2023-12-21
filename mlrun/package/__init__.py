@@ -40,9 +40,9 @@ from .utils import (
 
 
 def handler(
-    labels: Dict[str, str] = None,
-    outputs: List[Union[str, Dict[str, str]]] = None,
-    inputs: Union[bool, Dict[str, Union[str, Type]]] = True,
+    labels: dict[str, str] = None,
+    outputs: list[Union[str, dict[str, str]]] = None,
+    inputs: Union[bool, dict[str, Union[str, type]]] = True,
 ):
     """
     MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using

@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from enum import Enum
-from typing import Dict, Union
+from typing import Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact, DatasetArtifact
@@ -124,7 +124,7 @@ class DatasetPlan(MLPlan):
         y: MLTypes.DatasetType = None,
         target_columns_names: MLTypes.TargetColumnsNamesType = None,
         **kwargs,
-    ) -> Dict[str, Artifact]:
+    ) -> dict[str, Artifact]:
         """
         Produce the dataset artifact according to this plan.
 

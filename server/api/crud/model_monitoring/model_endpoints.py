@@ -338,7 +338,7 @@ class ModelEndpoints:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         endpoint_id: str,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         feature_analysis: bool = False,
@@ -409,12 +409,12 @@ class ModelEndpoints:
         project: str,
         model: str = None,
         function: str = None,
-        labels: typing.List[str] = None,
-        metrics: typing.List[str] = None,
+        labels: list[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
         top_level: bool = False,
-        uids: typing.List[str] = None,
+        uids: list[str] = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects, wrapped in `ModelEndpointList` object. Each `ModelEndpoint`
@@ -590,7 +590,7 @@ class ModelEndpoints:
     @staticmethod
     def _adjust_feature_names_and_stats(
         model_endpoint,
-    ) -> typing.Tuple[typing.Dict, typing.List]:
+    ) -> tuple[dict, list]:
         """
         Create a clean matching version of feature names for both `feature_stats` and `feature_names`. Please note that
         label names exist only in `feature_stats` and `label_names`.
@@ -618,7 +618,7 @@ class ModelEndpoints:
     def _add_real_time_metrics(
         model_endpoint_store: mlrun.model_monitoring.ModelEndpointStore,
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: typing.List[str] = None,
+        metrics: list[str] = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> mlrun.common.schemas.ModelEndpoint:
@@ -661,7 +661,7 @@ class ModelEndpoints:
 
     @staticmethod
     def _convert_into_model_endpoint_object(
-        endpoint: typing.Dict[str, typing.Any], feature_analysis: bool = False
+        endpoint: dict[str, typing.Any], feature_analysis: bool = False
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Create a `ModelEndpoint` object according to a provided model endpoint dictionary.

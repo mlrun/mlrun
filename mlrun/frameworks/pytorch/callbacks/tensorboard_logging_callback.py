@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from datetime import datetime
-from typing import Callable, Dict, List, Tuple, Union
+from typing import Callable, Union
 
 import torch
 from torch import Tensor
@@ -63,7 +63,7 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: List[
+        statistics_functions: list[
             Callable[[Union[Parameter]], Union[float, Parameter]]
         ],
         context: mlrun.MLClientCtx = None,
@@ -249,19 +249,19 @@ class TensorboardLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str = None,
         run_name: str = None,
-        weights: Union[bool, List[str]] = False,
-        statistics_functions: List[
+        weights: Union[bool, list[str]] = False,
+        statistics_functions: list[
             Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
         ] = None,
-        dynamic_hyperparameters: Dict[
+        dynamic_hyperparameters: dict[
             str,
-            Tuple[
+            tuple[
                 str,
-                Union[List[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
+                Union[list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]],
             ],
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[PyTorchTypes.TrackableType, Tuple[str, List[Union[str, int]]]]
+        static_hyperparameters: dict[
+            str, Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]]
         ] = None,
         update_frequency: Union[int, str] = "epoch",
         auto_log: bool = False,
@@ -345,7 +345,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         # Save the configurations:
         self._tracked_weights = weights
 
-    def get_weights(self) -> Dict[str, Parameter]:
+    def get_weights(self) -> dict[str, Parameter]:
         """
         Get the weights tensors tracked. The weights will be stored in a dictionary where each key is the weight's name
         and the value is the weight's parameter (tensor).
@@ -354,7 +354,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         """
         return self._logger.weights
 
-    def get_weights_statistics(self) -> Dict[str, Dict[str, List[float]]]:
+    def get_weights_statistics(self) -> dict[str, dict[str, list[float]]]:
         """
         Get the weights mean results logged. The results will be stored in a dictionary where each key is the weight's
         name and the value is a list of mean values per epoch.
@@ -365,7 +365,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
     @staticmethod
     def get_default_weight_statistics_list() -> (
-        List[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
+        list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
     ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
@@ -381,7 +381,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: List[PyTorchTypes.MetricFunctionType] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] = None,
         scheduler=None,
     ):
         """
@@ -473,7 +473,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         super(TensorboardLoggingCallback, self).on_run_end()
 
     def on_validation_end(
-        self, loss_value: PyTorchTypes.MetricValueType, metric_values: List[float]
+        self, loss_value: PyTorchTypes.MetricValueType, metric_values: list[float]
     ):
         """
         Before the validation (in a training case it will be per epoch) ends, this method will be called to log the

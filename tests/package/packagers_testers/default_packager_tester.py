@@ -14,7 +14,6 @@
 #
 import os
 import tempfile
-from typing import Tuple
 
 import cloudpickle
 
@@ -42,7 +41,7 @@ def validate_some_class_result(result: str) -> bool:
     return result == "6"
 
 
-def prepare_new_class() -> Tuple[str, str]:
+def prepare_new_class() -> tuple[str, str]:
     temp_directory = tempfile.mkdtemp()
     pkl_path = os.path.join(temp_directory, "my_class.pkl")
     some_class = NewClass(a=1, b=2, c=3)

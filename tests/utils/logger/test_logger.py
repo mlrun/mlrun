@@ -15,7 +15,6 @@
 import dataclasses
 import datetime
 from io import StringIO
-from typing import Generator
 
 import pydantic
 import pytest

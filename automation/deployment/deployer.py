@@ -158,7 +158,7 @@ class CommunityEditionDeployer:
         minikube: bool = False,
         sqlite: str = None,
         upgrade: bool = False,
-        custom_values: typing.List[str] = None,
+        custom_values: list[str] = None,
     ) -> None:
         """
         Deploy MLRun CE stack.
@@ -653,7 +653,7 @@ class CommunityEditionDeployer:
             raise exc
 
     def _set_mlrun_version_in_helm_values(
-        self, helm_values: typing.Dict[str, str], mlrun_version: str
+        self, helm_values: dict[str, str], mlrun_version: str
     ) -> None:
         """
         Set the mlrun version in all the image tags in the helm values.
@@ -668,7 +668,7 @@ class CommunityEditionDeployer:
 
     def _override_image_in_helm_values(
         self,
-        helm_values: typing.Dict[str, str],
+        helm_values: dict[str, str],
         image_helm_value: str,
         overriden_image: str,
     ) -> None:
@@ -691,8 +691,8 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
-    def _toggle_component_in_helm_values(
-        self, helm_values: typing.Dict[str, str], component: str, disable: bool
+    def _disable_deployment_in_helm_values(
+        self, helm_values: dict[str, str], deployment: str
     ) -> None:
         """
         Disable a deployment in the helm values.

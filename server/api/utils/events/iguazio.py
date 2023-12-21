@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import typing
 
 import igz_mgmt.schemas.events
 
@@ -76,7 +75,7 @@ class Client(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str] = None,
+        secret_keys: list[str] = None,
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ) -> igz_mgmt.Event:
         """
@@ -139,7 +138,7 @@ class Client(base_events.BaseEventClient):
         )
 
     def _generate_project_secret_created_event(
-        self, project: str, secret_name: str, secret_keys: typing.List[str]
+        self, project: str, secret_name: str, secret_keys: list[str]
     ) -> igz_mgmt.Event:
         normalized_secret_keys = self._list_to_string(secret_keys)
         return igz_mgmt.Event(
@@ -167,7 +166,7 @@ class Client(base_events.BaseEventClient):
         self,
         project: str,
         secret_name: str,
-        secret_keys: typing.List[str],
+        secret_keys: list[str],
     ) -> igz_mgmt.Event:
         normalized_secret_keys = self._list_to_string(secret_keys)
         return igz_mgmt.Event(
@@ -213,5 +212,5 @@ class Client(base_events.BaseEventClient):
         )
 
     @staticmethod
-    def _list_to_string(list_to_convert: typing.List[str]) -> str:
+    def _list_to_string(list_to_convert: list[str]) -> str:
         return ", ".join(list_to_convert)

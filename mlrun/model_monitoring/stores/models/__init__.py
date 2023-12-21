@@ -20,7 +20,7 @@ from .sqlite import ModelEndpointsTable as SQLiteModelEndpointsTable
 
 def get_model_endpoints_table(
     connection_string: Optional[str] = None,
-) -> Union[Type[MySQLModelEndpointsTable], Type[SQLiteModelEndpointsTable]]:
+) -> Union[type[MySQLModelEndpointsTable], type[SQLiteModelEndpointsTable]]:
     """Return ModelEndpointsTable based on the provided connection string"""
     if connection_string and "mysql:" in connection_string:
         return MySQLModelEndpointsTable

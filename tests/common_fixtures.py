@@ -21,7 +21,7 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -272,9 +272,9 @@ class RunDBMock:
     def list_runs(
         self,
         name: Optional[str] = None,
-        uid: Optional[Union[str, List[str]]] = None,
+        uid: Optional[Union[str, list[str]]] = None,
         project: Optional[str] = None,
-        labels: Optional[Union[str, List[str]]] = None,
+        labels: Optional[Union[str, list[str]]] = None,
         state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,

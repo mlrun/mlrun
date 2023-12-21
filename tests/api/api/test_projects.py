@@ -17,7 +17,6 @@ import datetime
 import http
 import json.decoder
 import os
-import typing
 import unittest.mock
 from http import HTTPStatus
 from uuid import uuid4
@@ -1183,7 +1182,7 @@ def _assert_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Tuple[typing.Dict, typing.Dict]:
+) -> tuple[dict, dict]:
     object_type_records_count_map = {
         "Logs": _assert_logs_in_project(project, assert_no_resources),
         "Schedules": _assert_schedules_in_project(project, assert_no_resources),
@@ -1244,7 +1243,7 @@ def _assert_db_resources_in_project(
     project_member_mode: str,
     project: str,
     assert_no_resources: bool = False,
-) -> typing.Dict:
+) -> dict:
     table_name_records_count_map = {}
     for cls in _classes:
         # User support is not really implemented or in use
@@ -1370,7 +1369,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: typing.List[str], params: typing.Dict = None
+    client: TestClient, expected_names: list[str], params: dict = None
 ):
     params = params or {}
     params["format"] = mlrun.common.schemas.ProjectsFormat.name_only

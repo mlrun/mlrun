@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import transformers
@@ -104,7 +104,7 @@ class HuggingFaceModelServer(V2ModelServer):
             framework=self.framework,
         )
 
-    def predict(self, request: Dict[str, Any]) -> List:
+    def predict(self, request: dict[str, Any]) -> list:
         """
         Generate model predictions from sample.
         :param request: The request to the model. The input to the model will be read from the "inputs" key.
@@ -135,7 +135,7 @@ class HuggingFaceModelServer(V2ModelServer):
 
         return result
 
-    def explain(self, request: Dict) -> str:
+    def explain(self, request: dict) -> str:
         """
         Return a string explaining what model is being served in this serving function and the function name.
         :param request: A given request.

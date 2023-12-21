@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Callable, Dict, List, Union
+from typing import Callable, Union
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -50,16 +50,16 @@ class MLRunLoggingCallback(LoggingCallback):
         context: mlrun.MLClientCtx,
         model_handler: TFKerasModelHandler,
         log_model_tag: str = "",
-        log_model_labels: Dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_parameters: Dict[str, TFKerasTypes.TrackableType] = None,
-        log_model_extra_data: Dict[
+        log_model_labels: dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_parameters: dict[str, TFKerasTypes.TrackableType] = None,
+        log_model_extra_data: dict[
             str, Union[TFKerasTypes.TrackableType, Artifact]
         ] = None,
-        dynamic_hyperparameters: Dict[
-            str, Union[List[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
+        dynamic_hyperparameters: dict[
+            str, Union[list[Union[str, int]], Callable[[], TFKerasTypes.TrackableType]]
         ] = None,
-        static_hyperparameters: Dict[
-            str, Union[TFKerasTypes, List[Union[str, int]]]
+        static_hyperparameters: dict[
+            str, Union[TFKerasTypes, list[Union[str, int]]]
         ] = None,
         auto_log: bool = False,
     ):

@@ -132,7 +132,7 @@ class MockSpecificCalls:
     def __init__(
         self,
         original_function: typing.Callable,
-        call_indexes_to_mock: typing.List[int],
+        call_indexes_to_mock: list[int],
         return_value: typing.Any,
     ):
         self.original_function = original_function

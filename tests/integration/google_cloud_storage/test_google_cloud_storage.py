@@ -39,7 +39,7 @@ with config_file_path.open() as fp:
     config = yaml.safe_load(fp)
 
 test_filename = here / "test.txt"
-with open(test_filename, "r") as f:
+with open(test_filename) as f:
     test_string = f.read()
 
 credential_params = ["credentials_json_file"]
@@ -72,17 +72,9 @@ class TestGoogleCloudStorage:
         self.object_dir = "test_mlrun_gcs_objects"
         self.profile_name = "gcs_profile"
         self.credentials_path = config["env"].get("credentials_json_file")
-
-        try:
-            credentials = json.loads(self.credentials_path)
-            token = credentials
-            self.credentials = self.credentials_path
-        except json.JSONDecodeError:
-            token = self.credentials_path
-            with open(self.credentials_path, "r") as gcs_credentials_path:
-                self.credentials = gcs_credentials_path.read()
-
-        self._gcs_fs = fsspec.filesystem("gcs", token=token)
+        with open(self.credentials_path) as gcs_credentials_path:
+            self.credentials = gcs_credentials_path.read()
+        self._gcs_fs = fsspec.filesystem("gcs", token=self.credentials_path)
         self.clean_test_directory(
             bucket_name=self._bucket_name,
             object_dir=self.object_dir,

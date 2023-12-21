@@ -51,7 +51,7 @@ def run_command(cmd):
 
 def create_ingress_resource(domain_name, ipadd):
     # Replace the placeholder string with the actual domain name
-    yaml_manifest = """
+    yaml_manifest = f"""
     apiVersion: networking.k8s.io/v1
     kind: Ingress
     metadata:
@@ -59,7 +59,7 @@ def create_ingress_resource(domain_name, ipadd):
         nginx.ingress.kubernetes.io/auth-cache-duration: 200 202 5m, 401 30s
         nginx.ingress.kubernetes.io/auth-cache-key: $host$http_x_remote_user$http_cookie$http_authorization
         nginx.ingress.kubernetes.io/proxy-body-size: "0"
-        nginx.ingress.kubernetes.io/whitelist-source-range: "{}"
+        nginx.ingress.kubernetes.io/whitelist-source-range: "{ipadd}"
         nginx.ingress.kubernetes.io/service-upstream: "true"
         nginx.ingress.kubernetes.io/ssl-redirect: "false"
       labels:
@@ -69,7 +69,7 @@ def create_ingress_resource(domain_name, ipadd):
     spec:
       ingressClassName: nginx
       rules:
-      - host: {}
+      - host: {domain_name}
         http:
           paths:
           - backend:
@@ -81,9 +81,9 @@ def create_ingress_resource(domain_name, ipadd):
             pathType: ImplementationSpecific
       tls:
       - hosts:
-        - {}
+        - {domain_name}
         secretName: ingress-tls
-    """.format(ipadd, domain_name, domain_name)
+    """
     subprocess.run(
         ["kubectl", "apply", "-f", "-"], input=yaml_manifest.encode(), check=True
     )

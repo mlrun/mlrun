@@ -151,7 +151,7 @@ class TypeHintUtils:
     @staticmethod
     def is_matching(
         object_type: type,
-        type_hint: typing.Union[type, typing.Set[type]],
+        type_hint: typing.Union[type, set[type]],
         include_subclasses: bool = True,
         reduce_type_hint: bool = True,
     ) -> bool:
@@ -189,8 +189,8 @@ class TypeHintUtils:
 
     @staticmethod
     def reduce_type_hint(
-        type_hint: typing.Union[type, typing.Set[type]],
-    ) -> typing.Set[type]:
+        type_hint: typing.Union[type, set[type]],
+    ) -> set[type]:
         """
         Reduce a type hint (or a set of type hints) using the `_reduce_type_hint` function.
 
@@ -212,7 +212,7 @@ class TypeHintUtils:
         )
 
     @staticmethod
-    def _reduce_type_hint(type_hint: type) -> typing.List[type]:
+    def _reduce_type_hint(type_hint: type) -> list[type]:
         """
         Reduce a type hint. If the type hint is a `typing` module, it will be reduced to its original hinted types. For
         example: `typing.Union[int, float, typing.List[int]]` will return `[int, float, List[int]]` and

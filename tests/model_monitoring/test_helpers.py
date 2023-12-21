@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import datetime
-from contextlib import AbstractContextManager
-from contextlib import nullcontext as does_not_raise
-from typing import Iterator, NamedTuple, Optional
+import typing
+from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -123,42 +122,11 @@ def test_pad_features_hist(
 class TestBatchInterval:
     @staticmethod
     @pytest.fixture
-    def timedelta_seconds(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.timedelta_seconds.__name__
-        ):
-            return marker.args[0]
-        return int(datetime.timedelta(minutes=6).total_seconds())
-
-    @staticmethod
-    @pytest.fixture
-    def first_request(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.first_request.__name__
-        ):
-            return marker.args[0]
-        return int(
-            datetime.datetime(
-                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def last_updated(request: pytest.FixtureRequest) -> int:
-        if marker := request.node.get_closest_marker(
-            TestBatchInterval.last_updated.__name__
-        ):
-            return marker.args[0]
-        return int(
-            datetime.datetime(
-                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
-            ).timestamp()
-        )
-
-    @staticmethod
-    @pytest.fixture(autouse=True)
-    def mock_kv() -> Iterator[None]:
+    def intervals(
+        timedelta_seconds: int = int(datetime.timedelta(minutes=6).total_seconds()),
+        first_request: int = int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
+        last_updated: int = int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
+    ) -> list[tuple[datetime.datetime, datetime.datetime]]:
         mock = Mock(spec=["kv"])
         mock.kv.get = Mock(side_effect=HttpResponseError)
         with patch(
@@ -168,49 +136,9 @@ class TestBatchInterval:
             yield
 
     @staticmethod
-    @pytest.fixture
-    def intervals(
-        timedelta_seconds: int,
-        first_request: int,
-        last_updated: int,
-    ) -> list[_Interval]:
-        return list(
-            _BatchWindow(
-                project="project",
-                endpoint="ep",
-                application="app",
-                timedelta_seconds=timedelta_seconds,
-                first_request=first_request,
-                last_updated=last_updated,
-            ).get_intervals()
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def expected_intervals() -> list[_Interval]:
-        def dt(hour: int, minute: int) -> datetime.datetime:
-            return datetime.datetime(
-                2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
-            )
-
-        def interval(start: tuple[int, int], end: tuple[int, int]) -> _Interval:
-            return _Interval(dt(*start), dt(*end))
-
-        return [
-            interval((12, 0), (12, 6)),
-            interval((12, 6), (12, 12)),
-            interval((12, 12), (12, 18)),
-            interval((12, 18), (12, 24)),
-            interval((12, 24), (12, 30)),
-            interval((12, 30), (12, 36)),
-            interval((12, 36), (12, 42)),
-            interval((12, 42), (12, 48)),
-            interval((12, 48), (12, 54)),
-            interval((12, 54), (13, 0)),
-        ]
-
-    @staticmethod
-    def test_touching_intervals(intervals: list[_Interval]) -> None:
+    def test_touching_intervals(
+        intervals: list[tuple[datetime.datetime, datetime.datetime]],
+    ) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):
             assert prev[1] == curr[0], "The intervals should be touching"

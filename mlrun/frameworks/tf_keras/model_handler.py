@@ -15,7 +15,7 @@
 import os
 import shutil
 import zipfile
-from typing import Dict, List, Union
+from typing import Union
 
 import numpy as np
 import tensorflow as tf
@@ -67,8 +67,8 @@ class TFKerasModelHandler(DLModelHandler):
         model_name: str = None,
         model_format: str = ModelFormats.SAVED_MODEL,
         context: mlrun.MLClientCtx = None,
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str] = None,
-        custom_objects_map: Union[Dict[str, Union[str, List[str]]], str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] = None,
         custom_objects_directory: str = None,
         save_traces: bool = False,
         **kwargs,
@@ -190,8 +190,8 @@ class TFKerasModelHandler(DLModelHandler):
 
     def set_labels(
         self,
-        to_add: Dict[str, Union[str, int, float]] = None,
-        to_remove: List[str] = None,
+        to_add: dict[str, Union[str, int, float]] = None,
+        to_remove: list[str] = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -211,7 +211,7 @@ class TFKerasModelHandler(DLModelHandler):
     @without_mlrun_interface(interface=TFKerasMLRunInterface)
     def save(
         self, output_path: str = None, **kwargs
-    ) -> Union[Dict[str, Artifact], None]:
+    ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -308,7 +308,7 @@ class TFKerasModelHandler(DLModelHandler):
         # ModelFormats.JSON_ARCHITECTURE_H5_WEIGHTS - Load from a json architecture file and a h5 weights file:
         else:
             # Load the model architecture (json):
-            with open(self._model_file, "r") as json_file:
+            with open(self._model_file) as json_file:
                 model_architecture = json_file.read()
             self._model = keras.models.model_from_json(
                 model_architecture, custom_objects=self._custom_objects
@@ -321,7 +321,7 @@ class TFKerasModelHandler(DLModelHandler):
         model_name: str = None,
         optimize: bool = True,
         input_signature: Union[
-            List[tf.TensorSpec], List[np.ndarray], tf.TensorSpec, np.ndarray
+            list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray
         ] = None,
         output_path: str = None,
         log: bool = None,

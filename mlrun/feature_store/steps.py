@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -156,7 +156,7 @@ class MapValues(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        mapping: Dict[str, Dict[Union[str, int, bool], Any]],
+        mapping: dict[str, dict[Union[str, int, bool], Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,
@@ -377,7 +377,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Dict[str, Any] = None,
+        mapping: dict[str, Any] = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -423,7 +423,7 @@ class Imputer(StepToDict, MLRunStep):
 
 
 class OneHotEncoder(StepToDict, MLRunStep):
-    def __init__(self, mapping: Dict[str, List[Union[int, str]]], **kwargs):
+    def __init__(self, mapping: dict[str, list[Union[int, str]]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -514,7 +514,7 @@ class DateExtractor(StepToDict, MLRunStep):
 
     def __init__(
         self,
-        parts: Union[Dict[str, str], List[str]],
+        parts: Union[dict[str, str], list[str]],
         timestamp_col: str = None,
         **kwargs,
     ):
@@ -695,7 +695,7 @@ class SetEventMetadata(MapClass):
 
 
 class DropFeatures(StepToDict, MLRunStep):
-    def __init__(self, features: List[str], **kwargs):
+    def __init__(self, features: list[str], **kwargs):
         """Drop all the features from feature list
 
         :param features:    string list of the features names to drop

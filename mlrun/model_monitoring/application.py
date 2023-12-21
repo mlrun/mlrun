@@ -14,9 +14,7 @@
 
 import dataclasses
 import json
-import re
-from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -165,7 +163,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     def _resolve_event(
         cls,
         event: dict[str, Any],
-    ) -> Tuple[
+    ) -> tuple[
         str,
         pd.DataFrame,
         pd.DataFrame,

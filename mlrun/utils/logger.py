@@ -99,7 +99,7 @@ class HumanReadableExtendedFormatter(HumanReadableFormatter):
         )
 
 
-class Logger(object):
+class Logger:
     def __init__(
         self,
         level,

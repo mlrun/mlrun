@@ -15,9 +15,8 @@ import copy
 import importlib.util
 import pathlib
 import sys
-import typing
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 import pandas as pd
 from deprecated import deprecated
@@ -103,7 +102,7 @@ def get_offline_features(
     entity_timestamp_column: str = None,
     target: DataTargetBase = None,
     run_config: RunConfig = None,
-    drop_columns: List[str] = None,
+    drop_columns: list[str] = None,
     start_time: Union[str, datetime] = None,
     end_time: Union[str, datetime] = None,
     with_indexes: bool = False,
@@ -111,7 +110,7 @@ def get_offline_features(
     engine: str = None,
     engine_args: dict = None,
     query: str = None,
-    order_by: Union[str, List[str]] = None,
+    order_by: Union[str, list[str]] = None,
     spark_service: str = None,
     timestamp_for_filtering: Union[str, Dict[str, str]] = None,
 ):
@@ -413,7 +412,7 @@ def _rename_source_dataframe_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
+def _get_namespace(run_config: RunConfig) -> dict[str, Any]:
     # if running locally, we need to import the file dynamically to get its namespace
     if run_config and run_config.local and run_config.function:
         filename = run_config.function.spec.filename
@@ -431,7 +430,7 @@ def _get_namespace(run_config: RunConfig) -> Dict[str, Any]:
 def ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -876,7 +875,7 @@ def _preview(
 def _run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
@@ -901,7 +900,7 @@ def _run_ingestion_job(
 def deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
@@ -1011,7 +1010,7 @@ def _deploy_ingestion_service_v2(
 def deploy_ingestion_service(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     name: str = None,
     run_config: RunConfig = None,
     verbose=False,
@@ -1054,7 +1053,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: List[BaseStoreTarget] = None,
+    targets: list[BaseStoreTarget] = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
@@ -1207,7 +1206,7 @@ def _infer_from_static_df(
 def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
-    targets: List[DataTargetBase] = None,
+    targets: list[DataTargetBase] = None,
     parameters: dict = None,
     infer_options: InferOptions = InferOptions.Null,
     overwrite=None,

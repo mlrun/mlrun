@@ -49,7 +49,7 @@ from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 @dataclass
 class _AppData:
-    class_: typing.Type[ModelMonitoringApplicationBase]
+    class_: type[ModelMonitoringApplication]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)

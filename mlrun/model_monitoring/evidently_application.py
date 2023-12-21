@@ -21,7 +21,7 @@ import semver
 
 from mlrun.model_monitoring.application import ModelMonitoringApplication
 
-SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.7")
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.12")
 
 _HAS_EVIDENTLY = False
 try:
@@ -42,7 +42,8 @@ if _HAS_EVIDENTLY:
     from evidently.renderers.notebook_utils import determine_template
     from evidently.report.report import Report
     from evidently.suite.base_suite import Suite
-    from evidently.ui.workspace import STR_UUID, Workspace
+    from evidently.ui.type_aliases import STR_UUID
+    from evidently.ui.workspace import Workspace
     from evidently.utils.dashboard import TemplateParams
 
 

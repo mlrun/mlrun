@@ -7,6 +7,7 @@ Every release of MLRun includes several images for different usages. The build a
 - [Using images](#using-images)
 - [MLRun images](#mlrun-images)
 - [Building MLRun images](#building-mlrun-images)
+- [Building a docker image using a dockerfile and using it](#building-a-docker-image-using-a-dockerfile-and-using-it)
 - [MLRun images and external docker images](#mlrun-images-and-external-docker-images)
 
 ## Using images
@@ -20,12 +21,12 @@ Every release of MLRun includes several images for different usages. All images 
 
 The images are:
 
-`mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI. Useful as a base image for simple jobs.
-`mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
-`mlrun/ml-base`: The image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like `mlrun/mlrun` with the addition of Miniconda and other python packages.
-`mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
-`mlrun/mlrun-api`: The image used for running the MLRun API.
-`mlrun/mlrun-ui`: The image used for running the MLRun UI.
+- `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI. Useful as a base image for simple jobs.
+- `mlrun/mlrun-gpu`: The same as `mlrun/mlrun` but for GPUs, including Open MPI. 
+- `mlrun/ml-base`: The image for file acquisition, compression, dask jobs, simple training jobs and other utilities. Like `mlrun/mlrun` with the addition of Miniconda and other python packages.
+- `mlrun/jupyter`: An image with Jupyter giving a playground to use MLRun in the open source. Built on top of jupyter/scipy-notebook, with the addition of MLRun and several demos and examples.
+- `mlrun/mlrun-api`: The image used for running the MLRun API.
+- `mlrun/mlrun-ui`: The image used for running the MLRun UI.
 
 ## Building MLRun images
 
@@ -69,7 +70,7 @@ This flow describes how to build the image externally, put it your private repo,
 	```
 	docker build -t your_docker_registry/your_image_name:tag
 	```
-   2. Push the image:
+   3. Push the image:
    ```
    docker push your_docker_registry/your_image_name:tag
    ```

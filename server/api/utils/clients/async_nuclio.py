@@ -186,7 +186,7 @@ class Client:
                 }
             else:
                 raise mlrun.errors.MLRunPreconditionFailedError(
-                    "basicAuth authentication requires username and " "password"
+                    "basicAuth authentication requires username and password"
                 )
 
         # Handle canary function info

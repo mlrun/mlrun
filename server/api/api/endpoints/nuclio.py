@@ -57,6 +57,13 @@ async def create_api_gateway(
     api_gateway: mlrun.common.schemas.APIGateway,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
 ):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.api_gateway,
+        project,
+        gateway,
+        mlrun.common.schemas.AuthorizationAction.create,
+        auth_info,
+    )
     await server.api.utils.clients.async_nuclio.Client(auth_info).create_api_gateway(
         project_name=project,
         api_gateway_name=gateway,

@@ -57,7 +57,7 @@ class APIGateway:
             and not auth
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "Gateway invocation requires authentication. Please" "pass credentials"
+                "API Gateway invocation requires authentication. Please pass credentials"
             )
         headers = {} if not auth else {"Authorization": self._generate_auth(*auth)}
         return requests.post(self._invoke_url, headers=headers)

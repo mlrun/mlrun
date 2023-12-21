@@ -3472,8 +3472,6 @@ class MlrunProject(ModelObj):
         :param name (str): API Gateway name.
         :param functions (Union[list[Union[RemoteRuntime, ServingRuntime]], Union[RemoteRuntime, ServingRuntime]]):
             List of Nuclio functions or Nuclio function.
-        :param host (str): API Gateway host name (optional). If not specified, nuclio will automatically set it
-            to `<api-gateway-name>-<project>.<system-domain>`
         :param path (str): API Gateway path (optional).
         :param description (str): description for the API Gateway (optional).
         :param username (str): Username for authentication (optional).
@@ -3493,32 +3491,31 @@ class MlrunProject(ModelObj):
         if not isinstance(functions, list):
             functions = [functions]
 
-        # validating function's type
+        # validating functions
+        if not 1 <= len(functions) <= 2:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Gateway can be created from one or two functions, "
+                f"but the number of functions is passed {len(functions)}"
+            )
         for func in functions:
+            function_name = (
+                func.metadata.name if hasattr(func, "metadata") else func.name
+            )
             if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
-                if hasattr(func, "name"):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Input function {func.name} is not a Nuclio function"
-                    )
-                elif hasattr(func, "metadata"):
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Input function {func.metadata.name} is not a Nuclio function"
-                    )
-                else:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        "Input function is not a Nuclio function"
-                    )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Input function {function_name} is not a Nuclio function"
+                )
             if func.metadata.project != self.name:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"input function {func.metadata.name} "
-                    f"should belong to the project"
+                    f"input function {function_name} "
+                    f"does not belong to this project"
                 )
 
         # validating canary
         if canary:
             if len(functions) != len(canary):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Lengths of function and canary lists do not match"
+                    "Function and canary lists lengths do not match"
                 )
             for canary_percent in canary:
                 if canary_percent < 0 or canary_percent > 100:

@@ -1495,7 +1495,7 @@ def test_create_api_gateway_valid(
                 "creationTimestamp": "2023-12-13T13:00:09Z",
             },
             "spec": {
-                "host": "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com",
+                "host": "gateway-f1-f2-project-name.some-domain.com",
                 "name": "gateway-f1-f2",
                 "path": "/",
                 "authenticationMode": "none",
@@ -1532,10 +1532,7 @@ def test_create_api_gateway_valid(
         name="gateway-f1-f2", functions=functions, canary=canary
     )
 
-    assert (
-        gateway._invoke_url
-        == "gateway-f1-f2-project-name.default-tenant.app.dev.lab.iguazeng.com/"
-    )
+    assert gateway._invoke_url == "gateway-f1-f2-project-name.some-domain.com/"
 
     assert gateway.authentication_mode == "none"
 
@@ -1596,7 +1593,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
                 "creationTimestamp": "2023-12-13T13:00:09Z",
             },
             "spec": {
-                "host": "test-default.default-tenant.app.dev62.lab.iguazeng.com",
+                "host": "test-default.domain.com",
                 "name": "test",
                 "path": "/",
                 "authenticationMode": "none",
@@ -1617,7 +1614,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
                 "creationTimestamp": "2023-11-16T12:42:48Z",
             },
             "spec": {
-                "host": "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com",
+                "host": "test-basic-default.domain.com",
                 "name": "test-basic",
                 "path": "/",
                 "authenticationMode": "basicAuth",
@@ -1641,11 +1638,8 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     gateways = project.list_api_gateways()
 
     assert gateways[0].name == "test"
-    assert gateways[0].host == "test-default.default-tenant.app.dev62.lab.iguazeng.com"
+    assert gateways[0].host == "test-default.domain.com"
     assert gateways[0].functions == ["fff"]
 
-    assert (
-        gateways[1].generate_invoke_url()
-        == "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com/"
-    )
+    assert gateways[1].generate_invoke_url() == "test-basic-default.domain.com/"
     assert gateways[1]._generate_auth("test", "test") == "Basic dGVzdDp0ZXN0"

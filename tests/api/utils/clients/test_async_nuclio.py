@@ -65,7 +65,7 @@ async def test_nuclio_list_api_gateways(
                 "creationTimestamp": "2023-11-16T12:42:48Z",
             },
             "spec": {
-                "host": "test-basic-default.default-tenant.app.dev62.lab.iguazeng.com",
+                "host": "test-basic-default.domain.com",
                 "name": "test-basic",
                 "path": "/",
                 "authenticationMode": "basicAuth",
@@ -131,7 +131,7 @@ def test__generate_nuclio_api_gateway_body(
                 function=[], host=None, path="/", canary=[50]
             ),
         )
-    nuclio_client._nuclio_domain = "nuclio.default-tenant.app.dev62.lab.iguazeng.com"
+    nuclio_client._nuclio_domain = "nuclio.domain.com"
     result = nuclio_client._generate_nuclio_api_gateway_body(
         project_name="default",
         api_gateway_name="gw",
@@ -159,7 +159,7 @@ def test__generate_nuclio_api_gateway_body(
                     "percentage": 50,
                 },
             ],
-            "host": "gw-default.default-tenant.app.dev62.lab.iguazeng.com",
+            "host": "gw-default.domain.com",
         },
         "metadata": {"labels": {"nuclio.io/project-name": "default"}, "name": "gw"},
     }

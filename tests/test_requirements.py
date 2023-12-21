@@ -98,7 +98,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.6.10"},
+        "storey": {"~=1.6.12"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -113,10 +113,10 @@ def test_requirement_specifiers_convention():
         "v3io-generator": {
             " @ git+https://github.com/v3io/data-science.git#subdirectory=generator"
         },
-        "fsspec": {">=2023.9,<=2023.9.1"},
+        "fsspec": {"==2023.9.2"},
         "adlfs": {"==2023.9.0"},
-        "s3fs": {"==2023.9.0"},
-        "gcsfs": {"==2023.9.0"},
+        "s3fs": {"==2023.9.2"},
+        "gcsfs": {"==2023.9.2"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that
@@ -131,7 +131,7 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >= 3.1.30"},
         "pydantic": {"~=1.10, >=1.10.8"},
         "pyopenssl": {">=23"},
-        "google-cloud-bigquery": {"[pandas, bqstorage]~=3.2"},
+        "google-cloud-bigquery": {"[pandas, bqstorage]==3.14.1"},
         # plotly artifact body in 5.12.0 may contain chars that are not encodable in 'latin-1' encoding
         # so, it cannot be logged as artifact (raised UnicodeEncode error - ML-3255)
         "plotly": {"~=5.4, <5.12.0"},
@@ -144,7 +144,6 @@ def test_requirement_specifiers_convention():
         "protobuf": {"~=3.20.3", ">=3.20.3, <4"},
         "pyyaml": {">=5.4.1, <6"},
         # other requirements
-        "azure-storage-blob": {">=12.13, !=12.18.0"},
         "aiohttp": {"~=3.8, <3.8.4"},
     }
 

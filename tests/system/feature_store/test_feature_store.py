@@ -777,6 +777,36 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
+    def test_ingest_large_parquet(self):
+        num_rows = 17000  # because max events default == 10000
+
+        # Generate random data
+        data = {
+            "Column1": range(0, num_rows),
+            "Column2": np.random.choice(["A", "B", "C"], size=num_rows),
+        }
+
+        # Create the DataFrame
+        df = pd.DataFrame(data)
+        targets = [
+            ParquetTarget(
+                name="my_target",
+                path=f"v3io:///bigdata/large_df/test_{uuid.uuid4()}.parquet",
+            )
+        ]
+
+        fset = fstore.FeatureSet(
+            name="gcs_system_test", entities=[fstore.Entity("Column1")]
+        )
+        fset.set_targets(with_defaults=False)
+        fstore.ingest(fset, df, targets=targets)
+        target_file_path = fset.get_target_path()
+        result = ParquetSource(path=target_file_path).to_dataframe()
+        result.reset_index(inplace=True, drop=False)
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )
+
     def test_csv_time_columns(self):
         df = pd.DataFrame(
             {

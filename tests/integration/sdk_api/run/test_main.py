@@ -40,7 +40,6 @@ echo "abc123" $1
 
 
 class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
-
     assets_path = (
         pathlib.Path(__file__).absolute().parent.parent.parent.parent / "run" / "assets"
     )

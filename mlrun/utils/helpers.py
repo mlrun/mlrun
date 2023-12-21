@@ -65,6 +65,10 @@ DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
 
 
+class OverwriteBuildParamsWarning(FutureWarning):
+    pass
+
+
 # TODO: remove in 1.7.0
 @deprecated(
     version="1.5.0",
@@ -121,7 +125,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -183,7 +187,7 @@ def verify_field_regex(
             if mode == mlrun.common.schemas.RegexMatchModes.all:
                 if raise_on_failure:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Field '{field_name}' is malformed. {field_value} does not match required pattern: {pattern}"
+                        f"Field '{field_name}' is malformed. '{field_value}' does not match required pattern: {pattern}"
                     )
                 return False
         elif mode == mlrun.common.schemas.RegexMatchModes.any:
@@ -193,7 +197,7 @@ def verify_field_regex(
     elif mode == mlrun.common.schemas.RegexMatchModes.any:
         if raise_on_failure:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Field '{field_name}' is malformed. {field_value} does not match any of the"
+                f"Field '{field_name}' is malformed. '{field_value}' does not match any of the"
                 f" required patterns: {patterns}"
             )
         return False
@@ -333,7 +337,7 @@ def remove_image_protocol_prefix(image: str) -> str:
 def verify_field_of_type(field_name: str, field_value, expected_type: type):
     if not isinstance(field_value, expected_type):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Field '{field_name}' should be of type {expected_type.__name__} "
+            f"Field '{field_name}' should be of type '{expected_type.__name__}' "
             f"(got: {type(field_value).__name__} with value: {field_value})."
         )
 
@@ -355,16 +359,16 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} expected to be of type dict, got type : {type(dictionary)}"
+                f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
         try:
             verify_list_items_type(dictionary.keys(), expected_keys_types)
             verify_list_items_type(dictionary.values(), expected_values_types)
         except mlrun.errors.MLRunInvalidArgumentTypeError as exc:
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
-                f"{name} should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
+                f"'{name}' should be of type Dict[{get_pretty_types_names(expected_keys_types)},"
                 f"{get_pretty_types_names(expected_values_types)}]."
             ) from exc
 
@@ -407,7 +411,7 @@ def normalize_name(name: str, verbose: bool = True):
         if verbose:
             warnings.warn(
                 "Names with underscore '_' are about to be deprecated, use dashes '-' instead. "
-                f"Replacing {name} underscores with dashes.",
+                f"Replacing '{name}' underscores with dashes.",
                 FutureWarning,
             )
         name = name.replace("_", "-")
@@ -518,14 +522,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match
@@ -669,7 +673,7 @@ def parse_artifact_uri(uri, default_project=""):
             iteration = int(iteration)
         except ValueError:
             raise ValueError(
-                f"illegal store path {uri}, iteration must be integer value"
+                f"illegal store path '{uri}', iteration must be integer value"
             )
     return (
         group_dict["project"] or default_project,
@@ -691,12 +695,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -926,6 +932,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
@@ -934,11 +941,42 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
+
+    # restore original values
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    return uid
+
+
+def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
+    # remove artifact related fields before calculating hash
+    object_dict.setdefault("metadata", {})
+    labels = object_dict["metadata"].pop("labels", None)
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
+
+    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
+    # so further updates of the artifacts will have the same hash
+    db_key = object_dict.get("spec", {}).pop("db_key", None)
+
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
+
+    # calc hash and fill
+    uid = fill_object_hash(object_dict, "uid")
+
+    # restore original values
+    if labels:
+        object_dict["metadata"]["labels"] = labels
+    if object_updated_timestamp:
+        object_dict["metadata"]["updated"] = object_updated_timestamp
+    if db_key:
+        object_dict.setdefault("spec", {})["db_key"] = db_key
     return uid
 
 
@@ -1199,7 +1237,7 @@ def get_function(function, namespace):
         function_object = create_function(function)
     except (ImportError, ValueError) as exc:
         raise ImportError(
-            f"state/function init failed, handler {function} not found"
+            f"state/function init failed, handler '{function}' not found"
         ) from exc
     return function_object
 
@@ -1332,6 +1370,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
+
+
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
@@ -1383,7 +1430,7 @@ def get_in_artifact(artifact: dict, key, default=None, raise_on_missing=False):
 
         if raise_on_missing:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                f"artifact {artifact} is missing metadata/spec/status"
+                f"artifact '{artifact}' is missing metadata/spec/status"
             )
         return default
 
@@ -1419,7 +1466,7 @@ def is_running_in_jupyter_notebook() -> bool:
 
 def as_number(field_name, field_value):
     if isinstance(field_value, str) and not field_value.isnumeric():
-        raise ValueError(f"{field_name} must be numeric (str/int types)")
+        raise ValueError(f"'{field_name}' must be numeric (str/int types)")
     return int(field_value)
 
 

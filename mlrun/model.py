@@ -1258,13 +1258,14 @@ class RunObject(RunTemplate):
     def error(self) -> str:
         """error string if failed"""
         if self.status:
-            if self.status.state != "error":
-                return f"Run state ({self.status.state}) is not in error state"
+            unknown_error = ""
+            if self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+                unknown_error = "Unknown error"
             return (
                 self.status.error
                 or self.status.reason
                 or self.status.status_text
-                or "Unknown error"
+                or unknown_error
             )
         return ""
 

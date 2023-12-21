@@ -127,7 +127,6 @@ def get_current_version(
             continue
 
         for tag in tags:
-
             # work with semvar-like tags only
             if not re.match(r"^v[0-9]+\.[0-9]+\.[0-9]+.*$", tag):
                 continue
@@ -206,7 +205,6 @@ def resolve_next_version(
         # make current version align with base version
         suffix = ""
         if mode == "rc":
-
             # index 0 because we increment rc later on
             suffix += "-rc0"
         current_version = packaging.version.Version(base_version.base_version + suffix)
@@ -220,7 +218,6 @@ def resolve_next_version(
         current_version.micro,
     )
     if mode == "rc":
-
         # if current version is not RC, update its patch version
         if rc is None:
             patch = patch + 1

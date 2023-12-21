@@ -99,18 +99,19 @@ class WorkflowRunners(
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
-        workflow_spec = workflow_request.spec
-        schedule = workflow_spec.schedule
-        scheduled_object = {
-            "task": run_spec.to_dict(),
-            "schedule": schedule,
-        }
 
         if workflow_request.notifications:
             run_spec.spec.notifications = [
                 mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications
             ]
+
+        workflow_spec = workflow_request.spec
+        schedule = workflow_spec.schedule
+        scheduled_object = {
+            "task": run_spec.to_dict(),
+            "schedule": schedule,
+        }
 
         server.api.api.utils.get_scheduler().store_schedule(
             db_session=db_session,
@@ -262,7 +263,7 @@ class WorkflowRunners(
                 workflow_id = ""
             else:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"workflow id of run {project}:{uid} not found"
+                    f"Workflow id of run {project}:{uid} not found"
                 )
 
         return mlrun.common.schemas.GetWorkflowResponse(workflow_id=workflow_id)

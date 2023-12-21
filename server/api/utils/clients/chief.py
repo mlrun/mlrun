@@ -261,7 +261,6 @@ class Client(
         request_kwargs.get("headers", {}).pop("content-length", None)
 
         for cookie_name in list(request_kwargs.get("cookies", {}).keys()):
-
             # defensive programming - to avoid setting reserved cookie names and explode
             # e.g.: when setting "domain" cookie, it will explode, see python internal http client for more details.
             if http.cookies.Morsel().isReservedKey(cookie_name):
@@ -271,7 +270,6 @@ class Client(
             # we will url-encode them (aka quote), so the value would be safe against such escaping.
             # e.g.: instead of having "x":"y" being escaped to "\"x\":\"y\"", it will be escaped to "%22x%22:%22y%22"
             elif cookie_name == "session" and mlrun.mlconf.is_running_on_iguazio():
-
                 # unquote first, to avoid double quoting ourselves, in case the cookie is already quoted
                 unquoted_session = urllib.parse.unquote(
                     request_kwargs["cookies"][cookie_name]

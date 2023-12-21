@@ -134,6 +134,7 @@ class RunStates(object):
     pending = "pending"
     unknown = "unknown"
     aborted = "aborted"
+    aborting = "aborting"
 
     @staticmethod
     def all():
@@ -145,6 +146,7 @@ class RunStates(object):
             RunStates.pending,
             RunStates.unknown,
             RunStates.aborted,
+            RunStates.aborting,
         ]
 
     @staticmethod
@@ -156,8 +158,23 @@ class RunStates(object):
         ]
 
     @staticmethod
+    def error_states():
+        return [
+            RunStates.error,
+            RunStates.aborted,
+        ]
+
+    @staticmethod
     def non_terminal_states():
         return list(set(RunStates.all()) - set(RunStates.terminal_states()))
+
+    @staticmethod
+    def not_allowed_for_deletion_states():
+        return [
+            RunStates.running,
+            RunStates.pending,
+            # TODO: add aborting state once we have it
+        ]
 
 
 class SparkApplicationStates:

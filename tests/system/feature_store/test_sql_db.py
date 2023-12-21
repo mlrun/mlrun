@@ -378,7 +378,6 @@ class TestFeatureStoreSqlDB(TestMLRunSystem):
         assert ingest_df.equals(origin_df)
 
     def prepare_data(self):
-
         self.quotes = pd.DataFrame(
             {
                 "time": [

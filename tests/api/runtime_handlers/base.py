@@ -205,9 +205,7 @@ class TestRuntimeHandlerBase:
                     f"mlrun/project={self.project}",
                 ]
             )
-            assertion_func = (
-                TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
-            )
+            assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
         else:
             raise NotImplementedError("Unsupported group by value")
         resources = runtime_handler.list_resources(project, group_by=group_by)
@@ -505,6 +503,9 @@ class TestRuntimeHandlerBase:
         assert (
             get_k8s_helper().v1api.list_namespaced_pod.call_count
             == expected_number_of_calls
+        ), (
+            f"Unexpected number of calls to list_namespaced_pod "
+            f"{get_k8s_helper().v1api.list_namespaced_pod.call_count}, expected {expected_number_of_calls}"
         )
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()

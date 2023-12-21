@@ -74,9 +74,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support listing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return {}
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
@@ -123,9 +121,7 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
@@ -184,13 +180,9 @@ class BaseRuntimeHandler(ABC):
     def monitor_runs(self, db: DBInterface, db_session: Session) -> List[dict]:
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self._get_default_label_selector()
-        crd_group, crd_version, crd_plural = self._get_crd_info()
-        runtime_resource_is_crd = False
-        if crd_group and crd_version and crd_plural:
-            runtime_resource_is_crd = True
-            runtime_resources = self._list_crd_objects(namespace, label_selector)
-        else:
-            runtime_resources = self._list_pods(namespace, label_selector)
+        runtime_resources, runtime_resource_is_crd = self._get_runtime_resources(
+            label_selector, namespace
+        )
         project_run_uid_map = self._list_runs_for_monitoring(db, db_session)
         # project -> uid -> {"name": <runtime-resource-name>}
         run_runtime_resources_map = {}
@@ -544,9 +536,7 @@ class BaseRuntimeHandler(ABC):
                 # if found resource there is no need to continue
                 return
             last_update_str = run.get("status", {}).get("last_update")
-            debounce_period = (
-                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
-            )
+            debounce_period = config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
             if last_update_str is None:
                 logger.info(
                     "Runs monitoring found run in non-terminal state without last update time set, "
@@ -578,6 +568,28 @@ class BaseRuntimeHandler(ABC):
                     debounce_period=debounce_period,
                 )
             else:
+                # search for the resource once again for mitigation
+                label_selector = self.resolve_label_selector(
+                    project=project,
+                    object_id=run_uid,
+                    class_mode=RuntimeClassMode.run,
+                )
+                namespace = (
+                    server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
+                )
+                runtime_resources, _ = self._get_runtime_resources(
+                    label_selector, namespace
+                )
+                if runtime_resources:
+                    logger.debug(
+                        "Monitoring did not discover a runtime resource that corresponded to a run in a "
+                        "non-terminal state. but resource was discovered on second attempt. Debouncing",
+                        project=project,
+                        uid=run_uid,
+                        db_run_state=db_run_state,
+                    )
+                    return
+
                 logger.info(
                     "Updating run state", run_uid=run_uid, run_state=RunStates.error
                 )
@@ -587,6 +599,16 @@ class BaseRuntimeHandler(ABC):
                 ] = "A runtime resource related to this run could not be found"
                 run.setdefault("status", {})["last_update"] = now.isoformat()
                 db.store_run(db_session, run, run_uid, project)
+
+    def _get_runtime_resources(self, label_selector, namespace):
+        crd_group, crd_version, crd_plural = self._get_crd_info()
+        if crd_group and crd_version and crd_plural:
+            runtime_resource_is_crd = True
+            runtime_resources = self._list_crd_objects(namespace, label_selector)
+        else:
+            runtime_resource_is_crd = False
+            runtime_resources = self._list_pods(namespace, label_selector)
+        return runtime_resources, runtime_resource_is_crd
 
     def _add_object_label_selector_if_needed(
         self,
@@ -1508,13 +1530,21 @@ class BaseRuntimeHandler(ABC):
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
-
             if db_run_state == run_state:
+                return False, run_state, run
+
+            if db_run_state == RunStates.aborting:
+                logger.debug(
+                    "Run is in aborting state. Not changing state",
+                    project=project,
+                    uid=uid,
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                )
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
             if db_run_state in RunStates.terminal_states():
-
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
                 if run_state not in RunStates.terminal_states():
@@ -1550,6 +1580,8 @@ class BaseRuntimeHandler(ABC):
         logger.info("Updating run state", run_state=run_state)
         run.setdefault("status", {})["state"] = run_state
         run["status"]["last_update"] = now_date().isoformat()
+        run["status"]["reason"] = ""
+        run["status"]["error"] = ""
         db.store_run(db_session, run, uid, project)
 
         return True, run_state, run

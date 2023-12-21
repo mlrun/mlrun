@@ -25,7 +25,7 @@ from typing import Any, Dict, Generic, List, Type, Union
 import numpy as np
 
 import mlrun
-from mlrun.artifacts import Artifact, ModelArtifact
+from mlrun.artifacts import Artifact
 from mlrun.execution import MLClientCtx
 from mlrun.features import Feature
 
@@ -157,9 +157,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
         self._model_artifact = kwargs.get("model_artifact", None)  # type: ModelArtifact
 
         # If the model path is of a store model object, this will be the extra data as DataItems ready to be downloaded.
-        self._extra_data = kwargs.get(
-            "extra_data", {}
-        )  # type: Dict[str, CommonTypes.ExtraDataType]
+        self._extra_data = kwargs.get("extra_data", {})  # type: Dict[str, CommonTypes.ExtraDataType]
 
         # If the model key is passed, override the default:
         self._model_key = kwargs.get("model_key", "model")
@@ -1064,7 +1062,7 @@ class ModelHandler(ABC, Generic[CommonTypes.ModelType, CommonTypes.IOSampleType]
 
     @staticmethod
     def _validate_modules_parameter(
-        modules_map: Union[Dict[str, Union[None, str, List[str]]], str]
+        modules_map: Union[Dict[str, Union[None, str, List[str]]], str],
     ):
         """
         Validate the given modules parameter.

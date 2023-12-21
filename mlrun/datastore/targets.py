@@ -96,7 +96,7 @@ def get_default_targets(offline_only=False):
 def update_targets_run_id_for_ingest(overwrite, targets, targets_in_status):
     run_id = generate_target_run_id()
     for target in targets:
-        if overwrite or not (target.name in targets_in_status.keys()):
+        if overwrite or target.name not in targets_in_status.keys():
             target.run_id = run_id
         else:
             target.run_id = targets_in_status[target.name].run_id
@@ -192,7 +192,7 @@ def validate_target_list(targets):
 
     if not targets:
         return
-    targets_by_kind_name = [kind for kind in targets if type(kind) is str]
+    targets_by_kind_name = [kind for kind in targets if isinstance(kind, str)]
     no_name_target_types_count = Counter(
         [
             target.kind
@@ -898,7 +898,7 @@ class ParquetTarget(BaseStoreTarget):
 
         def delete_update_last_written(*arg, **kargs):
             result = original_to_dict(*arg, **kargs)
-            del result["class_args"]["update_last_written"]
+            result["class_args"].pop("update_last_written", None)
             return result
 
         # update_last_written is not serializable (ML-5108)

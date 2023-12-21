@@ -921,7 +921,7 @@ class OnlineVectorService:
                     for name in data.keys():
                         v = data[name]
                         if v is None or (
-                            type(v) == float and (np.isinf(v) or np.isnan(v))
+                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
                         ):
                             data[name] = self._impute_values.get(name, v)
                 if not self.vector.spec.with_indexes:

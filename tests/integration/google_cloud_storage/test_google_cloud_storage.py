@@ -59,7 +59,6 @@ def google_cloud_storage_configured():
 )
 @pytest.mark.parametrize("use_datastore_profile", [False, True])
 class TestGoogleCloudStorage:
-
     #  must be static, in order to get access from setup_class or teardown_class.
     @staticmethod
     def clean_test_directory(bucket_name, object_dir, gcs_fs):

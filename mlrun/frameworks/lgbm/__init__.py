@@ -106,7 +106,7 @@ def _apply_mlrun_on_model(
     parameters: Dict[str, Union[str, int, float]] = None,
     extra_data: Dict[str, LGBMTypes.ExtraDataType] = None,
     auto_log: bool = True,
-    **kwargs
+    **kwargs,
 ):
     # Create a model handler:
     model_handler_kwargs = (
@@ -205,7 +205,7 @@ def apply_mlrun(
     extra_data: Dict[str, LGBMTypes.ExtraDataType] = None,
     auto_log: bool = True,
     mlrun_logging_callback_kwargs: Dict[str, Any] = None,
-    **kwargs
+    **kwargs,
 ) -> Union[LGBMModelHandler, None]:
     """
     Apply MLRun's interface on top of LightGBM by wrapping the module itself or the given model, providing both with

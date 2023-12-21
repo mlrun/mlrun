@@ -134,7 +134,6 @@ def test_client_spec(
 def test_client_spec_response_based_on_client_version(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-
     response = client.get("client-spec")
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()

@@ -28,7 +28,6 @@ def resolve_nuclio_version():
     global cached_nuclio_version
 
     if not cached_nuclio_version:
-
         # config override everything
         nuclio_version = config.nuclio_version
         if not nuclio_version and config.nuclio_dashboard_url:

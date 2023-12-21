@@ -24,12 +24,13 @@ from pandas.io.json import build_table_schema
 import mlrun
 import mlrun.common.schemas
 import mlrun.utils.helpers
+from mlrun.config import config as mlconf
 
 from ..datastore import is_store_uri, store_manager
 from .base import Artifact, ArtifactSpec, LegacyArtifact, StorePrefix
 
 default_preview_rows_length = 20
-max_preview_columns = 100
+max_preview_columns = mlconf.artifacts.datasets.max_preview_columns
 max_csv = 10000
 ddf_sample_pct = 0.2
 max_ddf_size = 1
@@ -59,7 +60,6 @@ class TableArtifact(Artifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -68,7 +68,7 @@ class TableArtifact(Artifact):
 
         if df is not None:
             self._is_df = True
-            self.spec.header = df.reset_index().columns.values.tolist()
+            self.spec.header = df.reset_index(drop=True).columns.values.tolist()
             self.spec.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -146,7 +146,6 @@ class DatasetArtifact(Artifact):
         label_column: str = None,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -268,7 +267,11 @@ class DatasetArtifact(Artifact):
 
         if artifact.spec.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+
+        # reset index while dropping existing index
+        # that way it wont create another index if one already there
+        preview_df = preview_df.reset_index(drop=True)
+        artifact.status.header_original_length = len(preview_df.columns)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.spec.header = preview_df.columns.values.tolist()
@@ -348,7 +351,6 @@ class LegacyTableArtifact(LegacyArtifact):
         header=None,
         schema=None,
     ):
-
         if key:
             key_suffix = pathlib.Path(key).suffix
             if not format and key_suffix:
@@ -357,7 +359,7 @@ class LegacyTableArtifact(LegacyArtifact):
 
         if df is not None:
             self._is_df = True
-            self.header = df.reset_index().columns.values.tolist()
+            self.header = df.reset_index(drop=True).columns.values.tolist()
             self.format = "csv"  # todo other formats
             # if visible and not key_suffix:
             #     key += '.csv'
@@ -417,7 +419,6 @@ class LegacyDatasetArtifact(LegacyArtifact):
         ignore_preview_limits: bool = False,
         **kwargs,
     ):
-
         format = (format or "").lower()
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
@@ -497,7 +498,7 @@ class LegacyDatasetArtifact(LegacyArtifact):
 
         if artifact.length > preview_rows_length and not ignore_preview_limits:
             preview_df = df.head(preview_rows_length)
-        preview_df = preview_df.reset_index()
+        preview_df = preview_df.reset_index(drop=True)
         if len(preview_df.columns) > max_preview_columns and not ignore_preview_limits:
             preview_df = preview_df.iloc[:, :max_preview_columns]
         artifact.header = preview_df.columns.values.tolist()
@@ -611,7 +612,7 @@ def update_dataset_meta(
     mlrun.get_run_db().store_artifact(
         artifact_spec.spec.db_key,
         artifact_spec.to_dict(),
-        artifact_spec.metadata.tree,
+        tree=artifact_spec.metadata.tree,
         iter=artifact_spec.metadata.iter,
         project=artifact_spec.metadata.project,
     )

@@ -21,7 +21,6 @@ from .helpers import logger
 
 class AzureVaultStore:
     def __init__(self, vault_name):
-
         try:
             from azure.identity import EnvironmentCredential
             from azure.keyvault.secrets import SecretClient

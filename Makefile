@@ -66,6 +66,8 @@ MLRUN_PYTHON_VERSION_SUFFIX := $(if $(INCLUDE_PYTHON_VERSION_SUFFIX),$(MLRUN_ANA
 MLRUN_OLD_VERSION_ESCAPED = $(shell echo "$(MLRUN_OLD_VERSION)" | sed 's/\./\\\./g')
 MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH ?= $(shell pwd)
 
+CHECKED_IN_PYTHON_FILES := $(shell git ls-files | grep '\.py$$')
+
 # if MLRUN_SYSTEM_TESTS_COMPONENT isn't set, we'll run all system tests
 # if MLRUN_SYSTEM_TESTS_COMPONENT is set, we'll run only the system tests for the given component
 # if MLRUN_SYSTEM_TESTS_COMPONENT starts with "no_", we'll ignore that component in the system tests
@@ -599,9 +601,10 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 
 .PHONY: fmt
 fmt: ## Format the code using Ruff
-	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix-only
-	python -m ruff format
+	@echo "Running ruff check and fix..."
+	@python -m ruff check --fix-only $(CHECKED_IN_PYTHON_FILES)
+	@echo "Running ruff format..."
+	@python -m ruff format $(CHECKED_IN_PYTHON_FILES)
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -614,8 +617,9 @@ lint: fmt-check lint-imports ## Run lint on the code
 .PHONY: fmt-check
 fmt-check: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
-	python -m ruff check --exit-non-zero-on-fix
-	python -m ruff format --check
+	@python -m ruff check --exit-non-zero-on-fix $(CHECKED_IN_PYTHON_FILES)
+	@echo "Running ruff format check..."
+	@python -m ruff format --check $(CHECKED_IN_PYTHON_FILES)
 
 .PHONY: lint-go
 lint-go:

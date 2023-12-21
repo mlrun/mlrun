@@ -119,7 +119,7 @@ def _get_or_create_project_deletion_background_task(
               1. Create MLRunDeletionTask
               2. MLRunDeletionTask will delete the project resources and then project itself.
               3. Finish MLRunDeletionTask
-           3. Finish LeaderDeletionJob
+           4. Finish LeaderDeletionJob
         4. Finish MLRunPreDeletionTask
     """
 

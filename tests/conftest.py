@@ -18,7 +18,7 @@ from datetime import datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from subprocess import PIPE, run
+from subprocess import run
 from sys import executable, platform, stderr
 from time import monotonic, sleep
 from urllib.request import URLError, urlopen
@@ -119,7 +119,7 @@ def freeze(f, **kwargs):
 
 def exec_mlrun(args, cwd=None, op="run"):
     cmd = [executable, "-m", "mlrun", op] + args
-    out = run(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
+    out = run(cmd, capture_output=True, cwd=cwd)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=stderr)
         print(out.stdout.decode("utf-8"), file=stderr)

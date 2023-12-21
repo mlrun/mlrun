@@ -288,8 +288,7 @@ class PackageTester:
                 env=env,
                 shell=True,
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 encoding="utf-8",
             )
         except subprocess.CalledProcessError as exc:

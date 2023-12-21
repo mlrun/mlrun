@@ -171,7 +171,7 @@ def test_set_and_load_default_config():
 
 def _exec_mlrun(cmd, cwd=None):
     cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
-    out = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
+    out = subprocess.run(cmd, capture_output=True, cwd=cwd)
     if out.returncode != 0:
         print(out.stderr.decode("utf-8"), file=sys.stderr)
         print(out.stdout.decode("utf-8"), file=sys.stderr)

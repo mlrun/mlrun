@@ -44,7 +44,8 @@ from .assets.application import (
     NoCheckDemoMonitoringApp,
 )
 from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
-
+from mlrun.model_monitoring.genai.llm_application import LLMMonitoringApp
+from .assets.custom_llm_metrics import METRICS, SAMPLE_DF
 
 @dataclass
 class _AppData:
@@ -106,8 +107,8 @@ class _V3IORecordsChecker:
         cls._test_tsdb_record(ep_id)
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
-@pytest.mark.enterprise
+#@TestMLRunSystem.skip_test_if_env_not_configured
+#@pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-monitoring-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -130,8 +131,26 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             f"/v3io/projects/{cls.project_name}/artifacts/evidently-workspace"
         )
         cls.evidently_project_id = str(uuid.uuid4())
+        cls.metrics=METRICS
 
         cls.apps_data: list[_AppData] = [
+            _AppData(class_=LLMMonitoringApp, 
+                rel_path="../../../mlrun/model_monitoring/genai/llm_application.py",
+                requirements=[
+                    "evaluate",
+                    "transformers",
+                    "torch==2.0.0",
+                    "torchvision",
+                    "nltk",
+                    "rouge_score",
+                    "accelerate",
+                    "einops",
+                    "mpi4py",
+                    "openmpi",
+                ],
+                kwargs={ "metrics": cls.metrics
+                    },
+                ),
             _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,

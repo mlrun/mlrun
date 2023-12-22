@@ -94,6 +94,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
         """
         self.name = name
         self.metrics = metrics
+        #TODO for every different metrics, do we need a different threshold
         self.possible_drift_threshold = possible_drift_threshold
         self.obvious_drift_threshold = obvious_drift_threshold
 
@@ -269,7 +270,7 @@ class LLMMonitoringApp(ModelMonitoringApplication):
             endpoint_id=endpoint_id,
             start_infer_time=start_infer_time,
             end_infer_time=end_infer_time,
-            result_name="data_drift_test",
+            result_name="llm_drift_test",
             result_value=0.5,
             result_kind=ResultKindApp.data_drift,
             result_status=ResultStatusApp.potential_detection,

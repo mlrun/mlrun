@@ -26,7 +26,6 @@ import mlrun
 import mlrun.errors
 
 from ..data_types import InferOptions, get_infer_interface
-from ..datastore.datastore_profile import datastore_profile_embed_url_scheme
 from ..datastore.sources import BaseSourceDriver, StreamSource
 from ..datastore.store_resources import parse_store_uri
 from ..datastore.targets import (
@@ -541,21 +540,6 @@ def ingest(
 
     targets_to_ingest = targets or featureset.spec.targets
     targets_to_ingest = copy.deepcopy(targets_to_ingest)
-
-    if (
-        isinstance(source, DataSource)
-        and source.path
-        and source.path.startswith("ds://")
-    ):
-        source.path = datastore_profile_embed_url_scheme(source.path)
-
-    for target in targets_to_ingest:
-        if (
-            isinstance(target, DataTargetBase)
-            and target.path
-            and target.path.startswith("ds://")
-        ):
-            target.path = datastore_profile_embed_url_scheme(target.path)
 
     validate_target_paths_for_engine(targets_to_ingest, featureset.spec.engine, source)
 

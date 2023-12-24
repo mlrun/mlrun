@@ -29,16 +29,11 @@ results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 
 
 class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
-    extra_env = {"MLRUN_HTTPDB__REAL_PATH": "/"}
-
-    def setup_method(self, method, extra_env=None):
-        super().setup_method(method, extra_env=self.extra_env)
-
     def test_artifacts(self):
         db = mlrun.get_run_db()
         prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, "./")
-        artifact = mlrun.artifacts.Artifact(key, body, target_path="/a.txt")
+        artifact = mlrun.artifacts.Artifact(key, body, target_path="a.txt")
 
         db.store_artifact(key, artifact, tree=tree, project=prj)
         db.store_artifact(key, artifact, tree=tree, project=prj, iter=42)
@@ -62,13 +57,13 @@ class TestArtifacts(tests.integration.sdk_api.base.TestMLRunIntegration):
         prj, tree, key, body = "p9", "t19", "k802", "tomato"
         mlrun.get_or_create_project(prj, context="./")
         model_artifact = mlrun.artifacts.model.ModelArtifact(
-            key, body, target_path="/a.txt"
+            key, body, target_path="a.txt"
         )
 
         data = {"col1": [1, 2], "col2": [3, 4]}
         data_frame = pandas.DataFrame(data=data)
         dataset_artifact = mlrun.artifacts.dataset.DatasetArtifact(
-            key, df=data_frame, format="parquet", target_path="/b.pq"
+            key, df=data_frame, format="parquet", target_path="b.pq"
         )
 
         db = mlrun.get_run_db()

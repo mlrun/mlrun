@@ -64,10 +64,10 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         if resp:
             logger.info(f"MpiJob {meta.name} state={state or 'unknown'}")
             if state:
-                state = state.lower()
+                state = self._crd_state_to_run_state(state)
                 launcher, _ = self._get_launcher(meta.name, meta.namespace)
                 execution.set_hostname(launcher)
-                execution.set_state("running" if state == "active" else state)
+                execution.set_state(state)
                 txt = f"MpiJob {meta.name} launcher pod {launcher} state {state}"
                 logger.info(txt)
                 run.status.status_text = txt
@@ -163,3 +163,12 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             raise mlrun.runtimes.utils.RunError(
                 "Exception when creating MPIJob"
             ) from exc
+
+    @staticmethod
+    def _crd_state_to_run_state(state: str) -> str:
+        state = state.lower()
+        if state == "active":
+            return mlrun.runtimes.constants.RunStates.running
+        elif state == "failed":
+            return mlrun.runtimes.constants.RunStates.error
+        return state

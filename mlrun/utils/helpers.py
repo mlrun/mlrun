@@ -660,11 +660,18 @@ def dict_to_json(struct):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    """parse artifact uri into project, key, tag, iter, tree
+    uri format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+
+    :param uri:            uri to parse
+    :param default_project: default project name if not in uri
+    :returns: project, key, iter, tag, tree
+    """
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
-            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
         )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
@@ -680,7 +687,7 @@ def parse_artifact_uri(uri, default_project=""):
         group_dict["key"],
         iteration,
         group_dict["tag"],
-        group_dict["uid"],
+        group_dict["tree"],
     )
 
 

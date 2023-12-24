@@ -11,14 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import pathlib
 import typing
 
 import sqlalchemy.orm
 from fastapi import Depends
 
-import mlrun.common.schemas.model_monitoring
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.tracking_policy
@@ -417,12 +416,15 @@ class MonitoringDeployment:
         )
 
         # Create a new serving function for the streaming process
-        function = mlrun.code_to_function(
-            name="model-monitoring-stream",
-            project=project,
-            filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
-            kind="serving",
-            image=tracking_policy.stream_image,
+        function = typing.cast(
+            mlrun.runtimes.ServingRuntime,
+            mlrun.code_to_function(
+                name="model-monitoring-stream",
+                project=project,
+                filename=str(_STREAM_PROCESSING_FUNCTION_PATH),
+                kind=mlrun.run.RuntimeKinds.serving,
+                image=tracking_policy.stream_image,
+            ),
         )
 
         # Create monitoring serving graph
@@ -540,7 +542,7 @@ class MonitoringDeployment:
         )
 
         task.spec.parameters[
-            mlrun.common.schemas.model_monitoring.EventFieldType.BATCH_INTERVALS_DICT
+            mm_constants.EventFieldType.BATCH_INTERVALS_DICT
         ] = batch_dict
 
         data = {
@@ -697,13 +699,13 @@ class MonitoringDeployment:
         if function_name in mm_constants.MonitoringFunctionNames.all():
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
-                mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 server.api.utils.singletons.k8s.get_k8s_helper().get_project_secret_name(
                     project
                 ),
                 server.api.crud.secrets.Secrets().generate_client_project_secret_key(
                     server.api.crud.secrets.SecretsClientType.model_monitoring,
-                    mlrun.common.schemas.model_monitoring.ProjectSecretKeys.ACCESS_KEY,
+                    mm_constants.ProjectSecretKeys.ACCESS_KEY,
                 ),
             )
 

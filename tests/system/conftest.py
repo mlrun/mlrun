@@ -27,7 +27,6 @@ from _pytest.runner import CallInfo
 
 
 def pytest_sessionstart(session):
-
     # caching test results
     session.results = collections.defaultdict(TestReport)
 

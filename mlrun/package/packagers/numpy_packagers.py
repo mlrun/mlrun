@@ -514,7 +514,7 @@ class _NumPyNDArrayCollectionPackager(DefaultPackager):
 
     @staticmethod
     def _is_any_object_dtype(
-        array_collection: Union[np.ndarray, NumPyArrayCollectionType]
+        array_collection: Union[np.ndarray, NumPyArrayCollectionType],
     ):
         """
         Check if any of the arrays in a collection is of type `object`.

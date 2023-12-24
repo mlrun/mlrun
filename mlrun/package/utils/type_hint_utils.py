@@ -249,7 +249,9 @@ class TypeHintUtils:
                 if type_hint.__forward_module__:
                     arg = f"{type_hint.__forward_module__}.{arg}"
                 return [TypeHintUtils.parse_type_hint(type_hint=arg)]
-            except MLRunInvalidArgumentError:  # May be raised from `TypeHintUtils.parse_type_hint`
+            except (
+                MLRunInvalidArgumentError
+            ):  # May be raised from `TypeHintUtils.parse_type_hint`
                 logger.warn(
                     f"Could not reduce the type hint '{type_hint}' as it is a forward reference to a class without "
                     f"it's full module path. To enable importing forward references, please provide the full module "

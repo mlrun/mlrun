@@ -375,6 +375,7 @@ async def start_function(
         background_tasks,
         _start_function,
         background_timeout,
+        None,
         # args for _start_function
         function,
         auth_info,
@@ -759,7 +760,6 @@ def _build_function(
                     model_monitoring_access_key = None
                 if serving_to_monitor:
                     try:
-
                         if serving_to_monitor:
                             # Handle model monitoring
                             logger.info(
@@ -788,9 +788,7 @@ def _build_function(
                                 )
 
                             # deploy model monitoring stream, model monitoring batch job,
-                            monitoring_deploy = (
-                                server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                            )
+                            monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
                             monitoring_deploy.deploy_monitoring_functions(
                                 project=fn.metadata.project,
                                 db_session=db_session,
@@ -821,9 +819,7 @@ def _build_function(
                             access_key=model_monitoring_access_key,
                         )
                     # apply stream trigger to monitoring application
-                    monitoring_deploy = (
-                        server.api.crud.model_monitoring.deployment.MonitoringDeployment()
-                    )
+                    monitoring_deploy = server.api.crud.model_monitoring.deployment.MonitoringDeployment()
                     fn = monitoring_deploy._apply_stream_trigger(
                         project=fn.metadata.project,
                         function=fn,
@@ -1082,7 +1078,7 @@ def create_model_monitoring_stream(
             if monitoring_application
             else config.model_endpoint_monitoring.serving_stream_args
         )
-        response = v3io_client.create_stream(
+        response = v3io_client.stream.create(
             container=container,
             path=stream_path,
             shard_count=stream_args.shard_count,

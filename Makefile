@@ -563,6 +563,7 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
+		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
@@ -597,10 +598,10 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code (using black and isort)
-	@echo "Running black fmt..."
-	python -m black .
-	python -m isort .
+fmt: ## Format the code using Ruff
+	@echo "Running ruff checks and fixes..."
+	python -m ruff check --fix-only
+	python -m ruff format
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -608,18 +609,13 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: flake8 fmt-check lint-imports ## Run lint on the code
+lint: fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
-fmt-check: ## Format and check the code (using black)
-	@echo "Running black+isort fmt check..."
-	python -m black --check --diff .
-	python -m isort --check --diff .
-
-.PHONY: flake8
-flake8: ## Run flake8 lint
-	@echo "Running flake8 lint..."
-	python -m flake8 .
+fmt-check: ## Check the code (using ruff)
+	@echo "Running ruff checks..."
+	python -m ruff check --exit-non-zero-on-fix
+	python -m ruff format --check
 
 .PHONY: lint-go
 lint-go:

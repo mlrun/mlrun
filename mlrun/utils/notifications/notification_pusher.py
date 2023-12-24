@@ -36,7 +36,6 @@ class _NotificationPusherBase(object):
     def _push(
         self, sync_push_callback: typing.Callable, async_push_callback: typing.Callable
     ):
-
         if mlrun.utils.helpers.is_running_in_jupyter_notebook():
             # Running in Jupyter notebook.
             # In this case, we need to create a new thread, run a separate event loop in
@@ -88,7 +87,6 @@ class _NotificationPusherBase(object):
 
 
 class NotificationPusher(_NotificationPusherBase):
-
     messages = {
         "completed": "{resource} completed",
         "error": "{resource} failed",
@@ -384,7 +382,6 @@ class NotificationPusher(_NotificationPusherBase):
             # but also for human readability reasons.
             notification.reason = notification.reason[:255]
         else:
-
             # empty out the reason if the notification is in a non-error state
             # in case a retry would kick in (when such mechanism would be implemented)
             notification.reason = None

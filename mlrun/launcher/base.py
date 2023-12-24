@@ -177,7 +177,6 @@ class BaseLauncher(abc.ABC):
 
     def _validate_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():
-
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively

@@ -205,9 +205,7 @@ class TestRuntimeHandlerBase:
                     f"mlrun/project={self.project}",
                 ]
             )
-            assertion_func = (
-                TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
-            )
+            assertion_func = TestRuntimeHandlerBase._assert_list_resources_grouped_by_project_response
         else:
             raise NotImplementedError("Unsupported group by value")
         resources = runtime_handler.list_resources(project, group_by=group_by)

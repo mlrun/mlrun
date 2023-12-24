@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
+import datetime
 import typing
 
 import sqlalchemy.orm
@@ -26,7 +28,9 @@ import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import server.api.api.utils
 import server.api.constants
+import server.api.db.session
 import server.api.runtime_handlers
+import server.api.utils.background_tasks
 import server.api.utils.clients.log_collector
 import server.api.utils.singletons.db
 from mlrun.utils import logger
@@ -137,7 +141,7 @@ class Runs(
         requested_logs: bool = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-    ):
+    ) -> mlrun.lists.RunList:
         project = project or mlrun.mlconf.default_project
         return server.api.utils.singletons.db.get_db().list_runs(
             session=db_session,
@@ -184,6 +188,15 @@ class Runs(
             )
             return
 
+        run_state = run.get("status", {}).get("state")
+        if (
+            run_state
+            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Can not delete run in {run_state} state, consider aborting the run first."
+            )
+
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = server.api.runtime_handlers.get_runtime_handler(
@@ -209,7 +222,7 @@ class Runs(
 
         await self._post_delete_run(project, uid)
 
-    def delete_runs(
+    async def delete_runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
@@ -217,11 +230,72 @@ class Runs(
         labels=None,
         state=None,
         days_ago: int = 0,
+        runs_list: mlrun.lists.RunList = None,
     ):
         project = project or mlrun.mlconf.default_project
-        server.api.utils.singletons.db.get_db().del_runs(
-            db_session, name, project, labels, state, days_ago
-        )
+        if (
+            state
+            and state
+            in mlrun.runtimes.constants.RunStates.not_allowed_for_deletion_states()
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Can not delete runs in {state} state, consider aborting the run first."
+            )
+
+        if not runs_list:
+            start_time_from = None
+            if days_ago:
+                start_time_from = datetime.datetime.now(
+                    datetime.timezone.utc
+                ) - datetime.timedelta(days=days_ago)
+
+            runs_list = self.list_runs(
+                db_session,
+                name=name,
+                project=project,
+                labels=labels,
+                states=[state] if state else None,
+                start_time_from=start_time_from,
+                return_as_run_structs=False,
+            )
+
+        failed_deletions = 0
+        last_exception = None
+        while runs_list:
+            tasks = []
+            for run in runs_list[
+                : mlrun.config.config.crud.runs.batch_delete_runs_chunk_size
+            ]:
+                tasks.append(
+                    server.api.db.session.run_function_with_new_db_session(
+                        self.delete_run,
+                        run.uid,
+                        run.iteration,
+                        run.project,
+                    )
+                )
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    failed_deletions += 1
+                    last_exception = result
+                    run = runs_list[i]
+                    logger.warning(
+                        "Failed to delete run",
+                        run_uid=run.uid,
+                        run_name=run.name,
+                        project=run.project,
+                        error=mlrun.errors.err_to_str(result),
+                    )
+
+            runs_list = runs_list[
+                mlrun.config.config.crud.runs.batch_delete_runs_chunk_size :
+            ]
+
+        if failed_deletions:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to delete {failed_deletions} run(s). Error: {mlrun.errors.err_to_str(last_exception)}"
+            ) from last_exception
 
     def abort_run(
         self,
@@ -231,36 +305,86 @@ class Runs(
         iter: int = 0,
         run_updates: typing.Optional[dict] = None,
         run: typing.Optional[dict] = None,
+        new_background_task_id: typing.Optional[str] = None,
     ):
         project = project or mlrun.mlconf.default_project
-        logger.debug("Aborting run", project=project, uid=uid, iter=iter)
-
+        run_updates = run_updates or {}
         run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        logger.debug(
+            "Aborting run",
+            project=project,
+            uid=uid,
+            iter=iter,
+            new_background_task_id=new_background_task_id,
+        )
+
         if not run:
             run = server.api.utils.singletons.db.get_db().read_run(
                 db_session, uid, project, iter
             )
 
+        current_run_state = run.get("status", {}).get("state")
+        # ensure we are not triggering multiple internal aborts / internal abort on top of user abort
         if (
-            run.get("status", {}).get("state")
-            in mlrun.runtimes.constants.RunStates.terminal_states()
+            new_background_task_id == server.api.constants.internal_abort_task_id
+            and current_run_state
+            in [
+                mlrun.runtimes.constants.RunStates.aborting,
+                mlrun.runtimes.constants.RunStates.aborted,
+            ]
         ):
+            logger.warning(
+                "Run is aborting/aborted, skipping internal abort",
+                new_background_task_id=new_background_task_id,
+                current_run_state=current_run_state,
+            )
+            return
+
+        if current_run_state in mlrun.runtimes.constants.RunStates.terminal_states():
             raise mlrun.errors.MLRunConflictError(
                 "Run is already in terminal state, can not be aborted"
             )
+
         runtime_kind = run.get("metadata", {}).get("labels", {}).get("kind")
         if runtime_kind not in mlrun.runtimes.RuntimeKinds.abortable_runtimes():
             raise mlrun.errors.MLRunBadRequestError(
                 f"Run of kind {runtime_kind} can not be aborted"
             )
-        # aborting the run meaning deleting its runtime resources
-        # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
-        #  "knowledge" on the label selector
-        server.api.crud.RuntimeResources().delete_runtime_resources(
-            db_session,
-            label_selector=f"mlrun/project={project},mlrun/uid={uid}",
-            force=True,
+
+        # mark run as aborting
+        aborting_updates = {
+            "status.state": mlrun.runtimes.constants.RunStates.aborting,
+            "status.abort_task_id": new_background_task_id,
+        }
+        server.api.utils.singletons.db.get_db().update_run(
+            db_session, aborting_updates, uid, project, iter
         )
+
+        run_updates["status.state"] = mlrun.runtimes.constants.RunStates.aborted
+        try:
+            # aborting the run meaning deleting its runtime resources
+            # TODO: runtimes crud interface should ideally expose some better API that will hold inside itself the
+            #  "knowledge" on the label selector
+            server.api.crud.RuntimeResources().delete_runtime_resources(
+                db_session,
+                label_selector=f"mlrun/project={project},mlrun/uid={uid}",
+                force=True,
+            )
+
+        except Exception as exc:
+            err = mlrun.errors.err_to_str(exc)
+            logger.warning(
+                "Failed to abort run",
+                err=err,
+                project=project,
+                uid=uid,
+                iter=iter,
+            )
+            run_updates = {
+                "status.state": mlrun.runtimes.constants.RunStates.error,
+                "status.error": f"Failed to abort run, error: {err}",
+            }
+
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter
         )
@@ -271,7 +395,6 @@ class Runs(
             mlrun.mlconf.log_collector.mode
             != mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            await server.api.crud.Logs().stop_logs_for_run(project, uid)
             await server.api.crud.Logs().delete_run_logs(project, uid)
         else:
             await run_in_threadpool(

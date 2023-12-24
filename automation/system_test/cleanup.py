@@ -189,7 +189,7 @@ def _restart_docker_registry(registry_container_name: str) -> None:
 
 
 def _clean_images_from_local_docker_cache(
-    tags: typing.Dict[str, typing.List[str]]
+    tags: typing.Dict[str, typing.List[str]],
 ) -> None:
     """Clean images from local Docker cache."""
     command = ["docker", "rmi", "-f"]

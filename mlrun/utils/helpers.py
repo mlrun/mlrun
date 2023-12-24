@@ -33,6 +33,7 @@ from typing import Any, List, Optional, Tuple
 
 import anyio
 import git
+import inflection
 import numpy as np
 import packaging.version
 import pandas
@@ -125,7 +126,7 @@ def get_artifact_target(item: dict, project=None):
     if kind in ["dataset", "model", "artifact"] and db_key:
         target = f"{DB_SCHEMA}://{StorePrefix.Artifact}/{project_str}/{db_key}"
         if tree:
-            target = f"{target}:{tree}"
+            target = f"{target}@{tree}"
         return target
 
     return (
@@ -359,7 +360,7 @@ def verify_dict_items_type(
     expected_values_types: list = None,
 ):
     if dictionary:
-        if type(dictionary) != dict:
+        if not isinstance(dictionary, dict):
             raise mlrun.errors.MLRunInvalidArgumentTypeError(
                 f"'{name}' expected to be of type dict, got type: {type(dictionary)}"
             )
@@ -522,14 +523,14 @@ def match_labels(labels, conditions):
 
     for condition in conditions:
         if "~=" in condition:
-            l, val = splitter("~=", condition)
-            match = match and val in l
+            left, val = splitter("~=", condition)
+            match = match and val in left
         elif "!=" in condition:
-            l, val = splitter("!=", condition)
-            match = match and val != l
+            left, val = splitter("!=", condition)
+            match = match and val != left
         elif "=" in condition:
-            l, val = splitter("=", condition)
-            match = match and val == l
+            left, val = splitter("=", condition)
+            match = match and val == left
         else:
             match = match and (condition.strip() in labels)
     return match
@@ -695,12 +696,14 @@ def generate_object_uri(project, name, tag=None, hash_key=None):
     return uri
 
 
-def generate_artifact_uri(project, key, tag=None, iter=None):
+def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     artifact_uri = f"{project}/{key}"
     if iter is not None:
         artifact_uri = f"{artifact_uri}#{iter}"
     if tag is not None:
         artifact_uri = f"{artifact_uri}:{tag}"
+    if tree is not None:
+        artifact_uri = f"{artifact_uri}@{tree}"
     return artifact_uri
 
 
@@ -930,6 +933,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = None
     object_dict["metadata"]["updated"] = None
     object_created_timestamp = object_dict["metadata"].pop("created", None)
+
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
     # converted to string when dumping to JSON. This is not safe for de-serializing (since it won't know we
     # originated from a datetime, for example), but since this is a one-way dump only for hash calculation,
@@ -938,11 +942,42 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     h = hashlib.sha1()
     h.update(data)
     uid = h.hexdigest()
+
+    # restore original values
     object_dict["metadata"]["tag"] = tag
     object_dict["metadata"][uid_property_name] = uid
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    return uid
+
+
+def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
+    # remove artifact related fields before calculating hash
+    object_dict.setdefault("metadata", {})
+    labels = object_dict["metadata"].pop("labels", None)
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
+
+    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
+    # so further updates of the artifacts will have the same hash
+    db_key = object_dict.get("spec", {}).pop("db_key", None)
+
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
+
+    # calc hash and fill
+    uid = fill_object_hash(object_dict, "uid")
+
+    # restore original values
+    if labels:
+        object_dict["metadata"]["labels"] = labels
+    if object_updated_timestamp:
+        object_dict["metadata"]["updated"] = object_updated_timestamp
+    if db_key:
+        object_dict.setdefault("spec", {})["db_key"] = db_key
     return uid
 
 
@@ -1142,7 +1177,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None
@@ -1336,6 +1373,15 @@ def is_legacy_artifact(artifact):
         return not hasattr(artifact, "metadata")
 
 
+def is_link_artifact(artifact):
+    if isinstance(artifact, dict):
+        return (
+            artifact.get("kind") == mlrun.common.schemas.ArtifactCategories.link.value
+        )
+    else:
+        return artifact.kind == mlrun.common.schemas.ArtifactCategories.link.value
+
+
 def format_run(run: dict, with_project=False) -> dict:
     fields = [
         "id",
@@ -1369,6 +1415,12 @@ def format_run(run: dict, with_project=False) -> dict:
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None
+
+    # pipelines are yet to populate the status or workflow has failed
+    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # set to unknown to ensure a status is returned
+    if run["status"] is None:
+        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run
 

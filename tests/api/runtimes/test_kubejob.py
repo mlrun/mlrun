@@ -751,7 +751,6 @@ def my_func(context):
         with unittest.mock.patch(
             "server.api.utils.builder.make_kaniko_pod", unittest.mock.MagicMock()
         ):
-
             runtime = self._generate_runtime()
             runtime.spec.build.base_image = "some/image"
             runtime.spec.build.commands = copy.deepcopy(commands)

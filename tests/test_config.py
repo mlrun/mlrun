@@ -199,7 +199,7 @@ def test_decode_base64_config_and_load_to_object():
     decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "encoded_attribute", dict
     )
-    assert type(decoded_output) == dict
+    assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Hierarchical attribute loading without passing of expected type
@@ -207,7 +207,7 @@ def test_decode_base64_config_and_load_to_object():
     decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
-    assert type(decoded_output) == dict
+    assert isinstance(decoded_output, dict)
     assert decoded_output == expected_decoded_dict_output
 
     # Not defined attribute without passing of expected type
@@ -215,7 +215,7 @@ def test_decode_base64_config_and_load_to_object():
     decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute"
     )
-    assert type(decoded_output) == dict
+    assert isinstance(decoded_output, dict)
     assert decoded_output == {}
 
     # Not defined attribute with passing of expected type
@@ -223,7 +223,7 @@ def test_decode_base64_config_and_load_to_object():
     decoded_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute", list
     )
-    assert type(decoded_output) == list
+    assert isinstance(decoded_output, list)
     assert decoded_output == []
 
     # Non existing attribute loading
@@ -242,7 +242,7 @@ def test_decode_base64_config_and_load_to_object():
     decoded_list_output = mlconf.config.decode_base64_config_and_load_to_object(
         "for_test.encoded_attribute", list
     )
-    assert type(decoded_list_output) == list
+    assert isinstance(decoded_list_output, list)
     assert decoded_list_output == expected_decoded_list_output
 
 

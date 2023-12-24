@@ -221,7 +221,6 @@ class Logs(
                 )
                 if pods:
                     if len(pods) > 1:
-
                         # This shouldn't happen, but if it does, we log it here. No need to fail.
                         logger.debug(
                             "Got more than one pod in logger pods result",

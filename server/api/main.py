@@ -33,6 +33,7 @@ import mlrun.utils.notifications
 import mlrun.utils.version
 import server.api.api.utils
 import server.api.apiuvicorn as uvicorn
+import server.api.constants
 import server.api.crud
 import server.api.db.base
 import server.api.initial_data
@@ -43,7 +44,7 @@ from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.runtimes import RuntimeClassMode, RuntimeKinds
 from mlrun.utils import logger
-from server.api.api.api import api_router
+from server.api.api.api import api_router, api_v2_router
 from server.api.db.session import close_session, create_session
 from server.api.middlewares import init_middlewares
 from server.api.runtime_handlers import get_runtime_handler
@@ -63,6 +64,7 @@ from server.api.utils.singletons.scheduler import get_scheduler, initialize_sche
 
 API_PREFIX = "/api"
 BASE_VERSIONED_API_PREFIX = f"{API_PREFIX}/v1"
+V2_API_PREFIX = f"{API_PREFIX}/v2"
 
 # When pushing notifications, push notifications only for runs that entered a terminal state
 # since the last time we pushed notifications.
@@ -102,6 +104,7 @@ app = fastapi.FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router, prefix=BASE_VERSIONED_API_PREFIX)
+app.include_router(api_v2_router, prefix=V2_API_PREFIX)
 # This is for backward compatibility, that is why we still leave it here but not include it in the schema
 # so new users won't use the old un-versioned api.
 # /api points to /api/v1 since it is used externally, and we don't want to break it.
@@ -700,6 +703,10 @@ async def _abort_stale_runs(stale_runs: typing.List[dict]):
     async def abort_run(stale_run):
         # Using semaphore to limit the chunk we get from the thread pool for run aborting
         async with semaphore:
+            # mark abort as internal, it doesn't have a background task
+            stale_run[
+                "new_background_task_id"
+            ] = server.api.constants.internal_abort_task_id
             await fastapi.concurrency.run_in_threadpool(
                 server.api.db.session.run_function_with_new_db_session,
                 server.api.crud.Runs().abort_run,

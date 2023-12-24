@@ -73,9 +73,7 @@ class TestCollectRunSLogs:
             deepdiff.DeepDiff(
                 server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
-                ][
-                    "uids"
-                ],
+                ]["uids"],
                 run_uids,
                 ignore_order=True,
             )
@@ -159,9 +157,7 @@ class TestCollectRunSLogs:
             deepdiff.DeepDiff(
                 server.api.utils.singletons.db.get_db().update_runs_requested_logs.call_args[
                     1
-                ][
-                    "uids"
-                ],
+                ]["uids"],
                 run_uids,
                 ignore_order=True,
             )

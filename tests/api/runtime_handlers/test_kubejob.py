@@ -318,7 +318,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
                 )
 
                 # verifying monitoring was debounced
-                if type(expected_reached_state) == list:
+                if isinstance(expected_reached_state, list):
                     self._assert_run_reached_state(
                         db, self.project, self.run_uid, expected_reached_state[idx]
                     )
@@ -731,7 +731,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
             "server.api.db.sqldb.db.SQLDB.read_run",
             unittest.mock.Mock(return_value=run),
         ) as mock_read_run:
-
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
                 self.runtime_handler.monitor_runs(get_db(), db)
 
@@ -758,7 +757,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         with unittest.mock.patch(
             "server.api.db.sqldb.db.SQLDB.read_run", unittest.mock.Mock()
         ) as mock_read_run:
-
             for _ in range(expected_monitor_cycles_to_reach_expected_state):
                 self.runtime_handler.monitor_runs(get_db(), db)
 

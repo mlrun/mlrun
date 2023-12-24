@@ -45,11 +45,11 @@ def get_workflow_engine(engine_kind, local=False):
     if pipeline_context.is_run_local(local):
         if engine_kind == "kfp":
             logger.warning(
-                "running kubeflow pipeline locally, note some ops may not run locally!"
+                "Running kubeflow pipeline locally, note some ops may not run locally!"
             )
         elif engine_kind == "remote":
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
+                "Cannot run a remote pipeline locally using `kind='remote'` and `local=True`. "
                 "in order to run a local pipeline remotely, please use `engine='remote:local'` instead"
             )
         return _LocalRunner
@@ -481,7 +481,7 @@ class _PipelineRunner(abc.ABC):
     @abc.abstractmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         raise NotImplementedError(
-            f"save operation not supported in {cls.engine} pipeline engine"
+            f"Save operation not supported in {cls.engine} pipeline engine"
         )
 
     @classmethod
@@ -747,7 +747,7 @@ class _LocalRunner(_PipelineRunner):
             state = mlrun.run.RunStatuses.succeeded
         except Exception as exc:
             err = exc
-            logger.exception("workflow run failed")
+            logger.exception("Workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_id} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
@@ -879,7 +879,7 @@ class _RemoteRunner(_PipelineRunner):
 
         except Exception as exc:
             err = exc
-            logger.exception("workflow run failed")
+            logger.exception("Workflow run failed")
             project.notifiers.push(
                 f":x: Workflow {workflow_name} run failed!, error: {err_to_str(exc)}",
                 mlrun.common.schemas.NotificationSeverity.ERROR,
@@ -1081,6 +1081,15 @@ def load_and_run(
         raise RuntimeError(f"Workflow {workflow_log_message} failed") from run.exc
 
     if wait_for_completion:
+        try:
+            run.wait_for_completion()
+        except Exception as exc:
+            logger.error(
+                "Failed waiting for workflow completion",
+                workflow=workflow_log_message,
+                exc=err_to_str(exc),
+            )
+
         pipeline_state, _, _ = project.get_run_status(run)
         context.log_result(key="workflow_state", value=pipeline_state, commit=True)
         if pipeline_state != mlrun.run.RunStatuses.succeeded:

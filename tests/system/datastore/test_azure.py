@@ -153,3 +153,6 @@ class TestAzureBlobSystem(TestMLRunSystem):
         assert_frame_equal(
             df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
         )
+        fset.purge_targets([t.name for t in targets])
+        with pytest.raises(FileNotFoundError):
+            source_class(path=target_path).to_dataframe()

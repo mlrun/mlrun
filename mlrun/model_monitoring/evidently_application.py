@@ -13,16 +13,43 @@
 # limitations under the License.
 
 import uuid
+import warnings
 from typing import Union
 
 import pandas as pd
+import semver
 
+from mlrun.errors import MLRunIncompatibleVersionError
 from mlrun.model_monitoring.application import ModelMonitoringApplication
+
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
+
+
+def _check_evidently_version(*, cur: semver.Version, ref: semver.Version) -> None:
+    if ref.is_compatible(cur) or (
+        cur.major == ref.major == 0 and cur.minor == ref.minor and cur.patch > ref.patch
+    ):
+        return
+    if cur.major == ref.major == 0 and cur.minor > ref.minor:
+        warnings.warn(
+            f"Evidently version {cur} is not compatible with the tested "
+            f"version {ref}, use at your own risk."
+        )
+    else:
+        raise MLRunIncompatibleVersionError(
+            f"Evidently version {cur} is not supported, please change to "
+            f"{ref} (or another compatible version)."
+        )
+
 
 _HAS_EVIDENTLY = False
 try:
     import evidently  # noqa: F401
 
+    _check_evidently_version(
+        cur=semver.Version.parse(evidently.__version__),
+        ref=SUPPORTED_EVIDENTLY_VERSION,
+    )
     _HAS_EVIDENTLY = True
 except ModuleNotFoundError:
     pass
@@ -32,7 +59,8 @@ if _HAS_EVIDENTLY:
     from evidently.renderers.notebook_utils import determine_template
     from evidently.report.report import Report
     from evidently.suite.base_suite import Suite
-    from evidently.ui.workspace import STR_UUID, Workspace
+    from evidently.ui.type_aliases import STR_UUID
+    from evidently.ui.workspace import Workspace
     from evidently.utils.dashboard import TemplateParams
 
 

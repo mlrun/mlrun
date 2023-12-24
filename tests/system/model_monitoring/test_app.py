@@ -34,6 +34,7 @@ import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
@@ -136,7 +137,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
-                requirements=["evidently==0.4.7"],
+                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,

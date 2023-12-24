@@ -463,7 +463,7 @@ def _migrate_artifacts_table_v2(
     ).count()
 
     if total_artifacts_count == 0:
-        # no artifacts to migrate
+        logger.info("No v1 artifacts in the system, skipping migration")
         return
 
     logger.info(
@@ -590,7 +590,7 @@ def _migrate_artifacts_batch(
 
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
-            artifact_dict, iteration, new_artifact.producer_id
+            artifact_dict, new_artifact.iteration, new_artifact.producer_id
         )
         new_artifact.uid = uid
 

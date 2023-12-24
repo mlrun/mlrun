@@ -3160,16 +3160,19 @@ class MlrunProject(ModelObj):
             mock=mock,
         )
 
-    def get_artifact(self, key, tag=None, iter=None):
+    def get_artifact(self, key, tag=None, iter=None, tree=None):
         """Return an artifact object
 
         :param key: artifact key
         :param tag: version tag
         :param iter: iteration number (for hyper-param tasks)
+        :param tree: the producer id (tree)
         :return: Artifact object
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        artifact = db.read_artifact(key, tag, iter=iter, project=self.metadata.name)
+        artifact = db.read_artifact(
+            key, tag, iter=iter, project=self.metadata.name, tree=tree
+        )
         return dict_to_artifact(artifact)
 
     def list_artifacts(

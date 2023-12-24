@@ -1030,6 +1030,58 @@ class FeatureSet(ModelObj):
             self, source, targets, name, run_config, verbose
         )
 
+    def extract_relation_keys(
+        self,
+        other_feature_set,
+        relations: Dict[str, Union[str, Entity]] = None,
+    ) -> list[str]:
+        """
+        Checks whether a feature set can be merged to the right of this feature set.
+        :param other_feature_set:   The feature set to be merged to the right of this feature set.
+        :param relations:           The relations that were defined on this feature set.
+        :return:                    If the two feature sets can be merged, a list of the left join keys is returned.
+                                    Otherwise, an empty list is returned.
+                                    (The right join keys are always the entities of the other feature set)
+        """
+        right_feature_set_entity_list = other_feature_set.spec.entities
+
+        if all(
+            ent in self.spec.entities for ent in right_feature_set_entity_list
+        ) and len(right_feature_set_entity_list) == len(self.spec.entities):
+            # entities wise
+            return list(self.spec.entities.keys())
+        elif all(ent in self.spec.entities for ent in right_feature_set_entity_list):
+            # entities wise when the right fset have lower number of entities
+            return list(right_feature_set_entity_list.keys())
+
+        elif relations:
+            curr_col_relations_list = list(
+                map(
+                    lambda ent: (
+                        list(relations.keys())[list(relations.values()).index(ent)]
+                        if ent in relations.values()
+                        else False
+                    ),
+                    right_feature_set_entity_list,
+                )
+            )
+
+            if all(curr_col_relations_list):
+                return curr_col_relations_list
+
+        return []
+
+    def is_connectable_to_df(self, df_columns: list[str]) -> bool:
+        """
+        This method checks if the dataframe can be left-joined with this feature set
+
+        :param df_columns:  The columns of the data frame you want to merge to the left of this feature set
+        :return:            True if it can be left-joined and False otherwise
+        """
+        return df_columns and all(
+            ent in df_columns for ent in self.spec.entities.keys()
+        )
+
 
 class SparkAggregateByKey(StepToDict):
     _supported_operations = [

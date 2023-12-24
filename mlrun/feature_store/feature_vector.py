@@ -744,7 +744,7 @@ class FeatureVector(ModelObj):
         spark_service: str = None,
         timestamp_for_filtering: Union[str, Dict[str, str]] = None,
     ):
-        return mlrun.feature_store.api.get_offline_features(
+        return mlrun.feature_store.api._get_offline_features(
             self,
             entity_rows,
             entity_timestamp_column,
@@ -771,7 +771,7 @@ class FeatureVector(ModelObj):
         update_stats: bool = False,
         entity_keys: List[str] = None,
     ):
-        return mlrun.feature_store.api.get_online_feature_service(
+        return mlrun.feature_store.api._get_online_feature_service(
             self,
             run_config,
             fixed_window_type,

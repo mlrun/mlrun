@@ -1109,8 +1109,15 @@ class MlrunProject(ModelObj):
                 )
 
         self.spec.workdir = workdir or self.spec.workdir
-        # reset function objects (to recalculate build attributes)
-        self.sync_functions()
+        try:
+            # reset function objects (to recalculate build attributes)
+            self.sync_functions()
+        except mlrun.errors.MLRunMissingDependencyError as exc:
+            logger.error(
+                "Failed to resolve all function related dependencies "
+                "while working with the new project source. Aborting"
+            )
+            raise exc
 
     def get_artifact_uri(
         self, key: str, category: str = "artifact", tag: str = None, iter: int = None
@@ -2386,7 +2393,12 @@ class MlrunProject(ModelObj):
             else:
                 if not isinstance(f, dict):
                     raise ValueError("function must be an object or dict")
-                name, func = _init_function_from_dict(f, self, name)
+                try:
+                    name, func = _init_function_from_dict(f, self, name)
+                except FileNotFoundError as exc:
+                    raise mlrun.errors.MLRunMissingDependencyError(
+                        f"File {exc.filename} not found while syncing project functions"
+                    ) from exc
             func.spec.build.code_origin = origin
             funcs[name] = func
             if save:

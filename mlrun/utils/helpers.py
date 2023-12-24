@@ -33,6 +33,7 @@ from typing import Any, List, Optional, Tuple
 
 import anyio
 import git
+import inflection
 import numpy as np
 import packaging.version
 import pandas
@@ -1189,7 +1190,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None
@@ -1425,6 +1428,12 @@ def format_run(run: dict, with_project=False) -> dict:
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None
+
+    # pipelines are yet to populate the status or workflow has failed
+    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # set to unknown to ensure a status is returned
+    if run["status"] is None:
+        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run
 

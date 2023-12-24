@@ -1080,7 +1080,7 @@ def create_model_monitoring_stream(
         )
         response = v3io_client.stream.create(
             container=container,
-            path=stream_path,
+            stream_path=stream_path,
             shard_count=stream_args.shard_count,
             retention_period_hours=stream_args.retention_period_hours,
             raise_for_status=v3io.dataplane.RaiseForStatus.never,

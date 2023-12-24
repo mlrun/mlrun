@@ -992,7 +992,7 @@ class FeatureSet(ModelObj):
         spark_context=None,
         overwrite=None,
     ) -> Optional[pd.DataFrame]:
-        return mlrun.feature_store.api.ingest(
+        return mlrun.feature_store.api._ingest(
             self,
             source,
             targets,
@@ -1014,7 +1014,7 @@ class FeatureSet(ModelObj):
         verbose: bool = False,
         sample_size: int = None,
     ) -> pd.DataFrame:
-        return mlrun.feature_store.api.preview(
+        return mlrun.feature_store.api._preview(
             self, source, entity_columns, namespace, options, verbose, sample_size
         )
 
@@ -1026,7 +1026,7 @@ class FeatureSet(ModelObj):
         run_config: RunConfig = None,
         verbose=False,
     ) -> Tuple[str, BaseRuntime]:
-        return mlrun.feature_store.api.deploy_ingestion_service_v2(
+        return mlrun.feature_store.api._deploy_ingestion_service_v2(
             self, source, targets, name, run_config, verbose
         )
 

@@ -1177,7 +1177,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None

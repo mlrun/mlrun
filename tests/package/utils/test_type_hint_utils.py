@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections
 import typing
 
@@ -26,15 +26,11 @@ class SomeClass:
     To add a custom type for the type hinting test.
     """
 
-    pass
-
 
 class AnotherClass(SomeClass):
     """
     To add a custom inheriting class for match test.
     """
-
-    pass
 
 
 @pytest.mark.parametrize(
@@ -42,16 +38,14 @@ class AnotherClass(SomeClass):
     [
         (typing.Optional[int], True),
         (typing.Union[str, int], True),
-        (list, True),
         (tuple[int, str], True),
         (typing.TypeVar("A", int, str), True),
         (typing.ForwardRef("pandas.DataFrame"), True),
         (list, False),
         (int, False),
         (SomeClass, False),
-        # TODO: Uncomment once we support Python >= 3.9:
-        # (list[int], True),
-        # (tuple[int, str], True),
+        (list[int], True),
+        (tuple[int, str], True),
         # TODO: Uncomment once we support Python >= 3.10:
         # (str | int, True),
     ],
@@ -211,7 +205,7 @@ def test_is_matching(
         ),
         (typing.ClassVar, set()),
         # Other `typing`:
-        (list, {list}),
+        (list, set()),
         (list[tuple[int, str, SomeClass]], {list}),
         (tuple[int, str, SomeClass], {tuple}),
         # `collections` types:
@@ -220,8 +214,7 @@ def test_is_matching(
         (collections.OrderedDict, set()),
         # Multiple types to reduce:
         ({int, str, list[int]}, {list}),
-        # TODO: Uncomment once we support Python >= 3.9:
-        # (list[str], {list}),
+        (list[str], {list}),
         # TODO: Uncomment once we support Python >= 3.10:
         # (str | int, {str, int}),
     ],

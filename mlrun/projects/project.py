@@ -3154,6 +3154,7 @@ class MlrunProject(ModelObj):
         :param key: artifact key
         :param tag: version tag
         :param iter: iteration number (for hyper-param tasks)
+        :param tree: the producer id (tree)
         :return: Artifact object
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)

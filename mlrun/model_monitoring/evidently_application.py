@@ -21,7 +21,7 @@ import semver
 
 from mlrun.model_monitoring.application import ModelMonitoringApplication
 
-SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.12")
+SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
 
 _HAS_EVIDENTLY = False
 try:

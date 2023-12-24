@@ -100,7 +100,7 @@ class S3Store(DataStore):
         res = {}
         st = self.get_storage_options()
         if st.get("key"):
-            res["spark.hadoop.fs.s3.access.key"] = st.get("key")
+            res["spark.hadoop.fs.s3a.access.key"] = st.get("key")
         if st.get("secret"):
             res["spark.hadoop.fs.s3a.secret.key"] = st.get("secret")
         if st.get("endpoint_url"):

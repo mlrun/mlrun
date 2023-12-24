@@ -35,6 +35,7 @@ from ..datastore.targets import (
     kind_to_driver,
     validate_target_list,
     validate_target_paths_for_engine,
+    write_spark_dataframe_with_options,
 )
 from ..model import DataSource, DataTargetBase
 from ..runtimes import BaseRuntime, RuntimeKinds
@@ -973,13 +974,17 @@ def _ingest_with_spark(
                 df_to_write, key_columns, timestamp_key, spark_options
             )
             if overwrite:
-                df_to_write.write.mode("overwrite").save(**spark_options)
+                write_spark_dataframe_with_options(
+                    spark_options, df_to_write, "overwrite"
+                )
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
                 if df_to_write.count() > 0:
-                    df_to_write.write.mode("append").save(**spark_options)
+                    write_spark_dataframe_with_options(
+                        spark_options, df_to_write, "append"
+                    )
             target.update_resource_status("ready")
 
         if isinstance(source, BaseSourceDriver) and source.schedule:

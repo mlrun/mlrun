@@ -463,7 +463,7 @@ def _migrate_artifacts_table_v2(
     ).count()
 
     if total_artifacts_count == 0:
-        # no artifacts to migrate
+        logger.info("No v1 artifacts in the system, skipping migration")
         return
 
     logger.info(

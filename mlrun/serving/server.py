@@ -340,8 +340,13 @@ def v2_serving_init(context, namespace=None):
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
+    kwargs = {}
+    if hasattr(context, "is_mock"):
+        kwargs["is_mock"] = context.is_mock
     server.init_states(
-        context, namespace or get_caller_globals(), is_mock=context.is_mock
+        context,
+        namespace or get_caller_globals(),
+        **kwargs,
     )
     context.logger.info("Initializing graph steps")
     serving_handler = server.init_object(namespace or get_caller_globals())

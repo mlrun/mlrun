@@ -345,6 +345,6 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_infra)
             executor.submit(self._record_results)
 
-        time.sleep(1.2 * self.app_interval_seconds)
+        time.sleep(1.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)

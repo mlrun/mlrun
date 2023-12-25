@@ -1942,7 +1942,7 @@ class MlrunProject(ModelObj):
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
     ) -> dict:
-        """
+        r"""
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the

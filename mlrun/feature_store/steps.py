@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -633,11 +633,11 @@ class SetEventMetadata(MapClass):
 
     def __init__(
         self,
-        id_path: str = None,
-        key_path: str = None,
-        random_id: bool = None,
+        id_path: Optional[str] = None,
+        key_path: Optional[str] = None,
+        random_id: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Set the event metadata (id, key) from the event body
 
         set the event metadata fields (id and key) from the event body data structure

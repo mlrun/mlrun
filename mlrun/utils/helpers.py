@@ -661,11 +661,24 @@ def dict_to_json(struct):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    """
+    Parse artifact URI into project, key, tag, iter, tree
+    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+
+    :param uri:            uri to parse
+    :param default_project: default project name if not in URI
+    :returns: a tuple of:
+        [0] = project name
+        [1] = key
+        [2] = iteration
+        [3] = tag
+        [4] = tree
+    """
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
-            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
         )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
@@ -681,7 +694,7 @@ def parse_artifact_uri(uri, default_project=""):
         group_dict["key"],
         iteration,
         group_dict["tag"],
-        group_dict["uid"],
+        group_dict["tree"],
     )
 
 
@@ -1177,7 +1190,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None

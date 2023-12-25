@@ -14,6 +14,7 @@
 
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fsspec.registry import get_filesystem_class
 
@@ -75,8 +76,12 @@ class AzureBlobStore(DataStore):
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
-        path = Path(self.endpoint, key).as_posix()
-        return path
+        schema = urlparse(key).scheme
+        #  if called without passing dataitem - like in fset.purge_targets,
+        #  key will include schema.
+        if not schema:
+            key = Path(self.endpoint, key).as_posix()
+        return key
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)

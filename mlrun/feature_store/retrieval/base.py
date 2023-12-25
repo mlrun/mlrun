@@ -530,7 +530,9 @@ class BaseMerger(abc.ABC):
                 last_step.left_keys = node.left_keys
                 last_step.right_keys = node.right_keys
         else:
-            join_graph._init_all_join_keys(feature_set_objects, self.vector)
+            join_graph._init_all_join_keys(
+                feature_set_objects, self.vector, entity_rows_keys
+            )
         return join_graph
 
     class _Node:
@@ -649,23 +651,6 @@ class BaseMerger(abc.ABC):
                 )
             )
         relation_linked_lists = []
-        feature_set_entity_list_dict = {
-            name: feature_set_objects[name].spec.entities for name in feature_set_names
-        }
-        relation_val_list = {
-            name: list(
-                self.vector.get_feature_set_relations(
-                    feature_set_objects[name]
-                ).values()
-            )
-            for name in feature_set_names
-        }
-        relation_key_list = {
-            name: list(
-                self.vector.get_feature_set_relations(feature_set_objects[name]).keys()
-            )
-            for name in feature_set_names
-        }
 
         def _create_relation(name: str, order):
             relations = BaseMerger._LinkedList()
@@ -680,56 +665,34 @@ class BaseMerger(abc.ABC):
             fs_name_in: str, name_in_order, linked_list_relation, head_order
         ):
             name_head = linked_list_relation.head.name
-            feature_set_in_entity_list = feature_set_entity_list_dict[fs_name_in]
-            feature_set_in_entity_list_names = list(feature_set_in_entity_list.keys())
-            entity_relation_list = relation_val_list[name_head]
-            col_relation_list = relation_key_list[name_head]
-            curr_col_relation_list = list(
-                map(
-                    lambda ent: (
-                        col_relation_list[entity_relation_list.index(ent)]
-                        if ent in entity_relation_list
-                        else False
-                    ),
-                    feature_set_in_entity_list,
-                )
+            left_keys = feature_set_objects[name_head].extract_relation_keys(
+                feature_set_objects[fs_name_in],
+                self.vector.get_feature_set_relations(feature_set_objects[name_head]),
             )
+            if left_keys == list(
+                feature_set_objects[name_head].spec.entities.keys()
+            ) and not (head_order < name_in_order):
+                left_keys = []
 
-            if all(
-                curr_col_relation_list
-            ):  # checking if feature_set have relation with feature_set_in
-                # add to the link list feature set according to the defined relation
+            if left_keys:
                 linked_list_relation.add_last(
                     BaseMerger._Node(
                         fs_name_in,
-                        left_keys=curr_col_relation_list,
-                        right_keys=feature_set_in_entity_list_names,
+                        left_keys=left_keys,
+                        right_keys=list(
+                            feature_set_objects[fs_name_in].spec.entities.keys()
+                        ),
                         order=name_in_order,
                     )
                 )
-            elif name_in_order > head_order and sorted(
-                feature_set_in_entity_list_names
-            ) == sorted(feature_set_entity_list_dict[name_head].keys()):
-                # add to the link list feature set according to indexes match
-                keys = feature_set_in_entity_list_names
-                linked_list_relation.add_last(
-                    BaseMerger._Node(
-                        fs_name_in,
-                        left_keys=keys,
-                        right_keys=keys,
-                        order=name_in_order,
-                    )
-                )
+
             return linked_list_relation
 
         def _build_entity_rows_relation(entity_rows_relation, fs_name, fs_order):
-            feature_set_entity_list = feature_set_entity_list_dict[fs_name]
-            feature_set_entity_list_names = list(feature_set_entity_list.keys())
-
-            if all([ent in entity_rows_keys for ent in feature_set_entity_list_names]):
-                # add to the link list feature set according to indexes match,
-                # only if all entities in the feature set exist in the entity rows
-                keys = feature_set_entity_list_names
+            keys = None
+            if feature_set_objects[fs_name].is_connectable_to_df(entity_rows_keys):
+                keys = list(feature_set_objects[fs_name].spec.entities.keys())
+            if keys:
                 entity_rows_relation.add_last(
                     BaseMerger._Node(
                         fs_name,
@@ -738,6 +701,7 @@ class BaseMerger(abc.ABC):
                         order=fs_order,
                     )
                 )
+            return entity_rows_relation
 
         if entity_rows_keys is not None:
             entity_rows_linked_relation = _create_relation(
@@ -752,7 +716,9 @@ class BaseMerger(abc.ABC):
         for i, name in enumerate(feature_set_names):
             linked_relation = _create_relation(name, i)
             if entity_rows_linked_relation is not None:
-                _build_entity_rows_relation(entity_rows_linked_relation, name, i)
+                entity_rows_linked_relation = _build_entity_rows_relation(
+                    entity_rows_linked_relation, name, i
+                )
             for j, name_in in enumerate(feature_set_names):
                 if name != name_in:
                     linked_relation = _build_relation(name_in, j, linked_relation, i)

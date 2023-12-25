@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import collections
 import datetime
 import json
@@ -27,6 +27,7 @@ import mlrun.config
 import mlrun.datastore.targets
 import mlrun.feature_store.steps
 import mlrun.model_monitoring.prometheus
+import mlrun.serving.states
 import mlrun.utils
 import mlrun.utils.v3io_clients
 from mlrun.common.schemas.model_monitoring.constants import (
@@ -133,7 +134,7 @@ class EventStreamProcessor:
         self.tsdb_batching_max_events = tsdb_batching_max_events
         self.tsdb_batching_timeout_secs = tsdb_batching_timeout_secs
 
-    def apply_monitoring_serving_graph(self, fn):
+    def apply_monitoring_serving_graph(self, fn: mlrun.runtimes.ServingRuntime) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 20 steps
         of different operations that are executed on the events from the model server. Each event has
@@ -162,14 +163,20 @@ class EventStreamProcessor:
         :param fn: A serving function.
         """
 
-        graph = fn.set_topology("flow")
+        graph = typing.cast(
+            mlrun.serving.states.RootFlowStep,
+            fn.set_topology(mlrun.serving.states.StepKinds.flow),
+        )
 
         # Step 1 - Event routing based on the provided path
         def apply_event_routing():
-            graph.add_step(
-                "EventRouting",
-                full_event=True,
-                project=self.project,
+            typing.cast(
+                mlrun.serving.TaskStep,
+                graph.add_step(
+                    "EventRouting",
+                    full_event=True,
+                    project=self.project,
+                ),
             ).respond()
 
         apply_event_routing()
@@ -260,30 +267,18 @@ class EventStreamProcessor:
 
         apply_storey_aggregations()
 
-        # Step 8 - Emits the event in window size of events based on sample_window size (10 by default)
-        def apply_storey_sample_window():
-            graph.add_step(
-                "storey.steps.SampleWindow",
-                name="sample",
-                after="Rename",
-                window_size=self.sample_window,
-                key=EventFieldType.ENDPOINT_ID,
-            )
-
-        apply_storey_sample_window()
-
-        # Steps 9-11 - KV/SQL branch
-        # Step 9 - Filter relevant keys from the event before writing the data into the database table
+        # Steps 8-10 - KV/SQL branch
+        # Step 8 - Filter relevant keys from the event before writing the data into the database table
         def apply_process_before_endpoint_update():
             graph.add_step(
                 "ProcessBeforeEndpointUpdate",
                 name="ProcessBeforeEndpointUpdate",
-                after="sample",
+                after="Rename",
             )
 
         apply_process_before_endpoint_update()
 
-        # Step 10 - Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
+        # Step 9 - Write the filtered event to KV/SQL table. At this point, the serving graph updates the stats
         # about average latency and the amount of predictions over time
         def apply_update_endpoint():
             graph.add_step(
@@ -296,7 +291,7 @@ class EventStreamProcessor:
 
         apply_update_endpoint()
 
-        # Step 11 (only for KV target) - Apply infer_schema on the model endpoints table for generating schema file
+        # Step 10 (only for KV target) - Apply infer_schema on the model endpoints table for generating schema file
         # which will be used by Grafana monitoring dashboards
         def apply_infer_schema():
             graph.add_step(
@@ -310,6 +305,18 @@ class EventStreamProcessor:
 
         if self.model_endpoint_store_target == ModelEndpointTarget.V3IO_NOSQL:
             apply_infer_schema()
+
+        # Step 11 - Emits the event in window size of events based on sample_window size (10 by default)
+        def apply_storey_sample_window():
+            graph.add_step(
+                "storey.steps.SampleWindow",
+                name="sample",
+                after="Rename",
+                window_size=self.sample_window,
+                key=EventFieldType.ENDPOINT_ID,
+            )
+
+        apply_storey_sample_window()
 
         # Steps 12-19 - TSDB branch (skip to Prometheus if in CE env)
         # Steps 20-21 - Prometheus branch

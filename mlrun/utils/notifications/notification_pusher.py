@@ -250,6 +250,11 @@ class NotificationPusher(_NotificationPusherBase):
                     project=run.metadata.project,
                     labels=f"workflow={workflow_id}",
                 )
+                logger.debug(
+                    "Found workflow runs, extending notification runs",
+                    workflow_id=workflow_id,
+                    workflow_runs_amount=len(workflow_runs),
+                )
                 runs.extend(workflow_runs)
 
         message = (

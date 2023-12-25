@@ -26,6 +26,7 @@ import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
+import server.api.utils.helpers
 from mlrun.utils import logger
 from server.api.utils.singletons.project_member import get_project_member
 
@@ -88,7 +89,7 @@ async def delete_project(
     # as opposed to v1, we need to implement the `check` deletion strategy here, since we don't want
     # to spawn a background task for this, only to return a response
     if (
-        _is_request_from_leader(auth_info.projects_role)
+        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         and deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
     ):
         response.status_code = http.HTTPStatus.NO_CONTENT.value
@@ -142,7 +143,7 @@ def _get_or_create_project_deletion_background_task(
         Constants.project_deletion_wrapper_background_task_name_format
     )
     if (
-        _is_request_from_leader(auth_info.projects_role)
+        server.api.utils.helpers.is_request_from_leader(auth_info.projects_role)
         or mlrun.mlconf.httpdb.projects.leader == "mlrun"
     ):
         background_task_name_format = (
@@ -165,14 +166,6 @@ def _get_or_create_project_deletion_background_task(
             deletion_strategy=deletion_strategy,
             auth_info=auth_info,
         )
-
-
-def _is_request_from_leader(
-    projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole],
-) -> bool:
-    if projects_role and projects_role.value == mlrun.mlconf.httpdb.projects.leader:
-        return True
-    return False
 
 
 async def _delete_project(

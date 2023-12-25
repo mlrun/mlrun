@@ -91,7 +91,7 @@ You can merge two feature sets when the left one has more entities, only if all 
 When using a left join, you must explicitly specify whether you want to perform an `as_of` join or not. The left join type is the only one that 
 implements the "as_of" join.
 
-An example, assuming three feature sets: [fs1, fs2. fs3]:
+An example, assuming three feature sets: [fs1, fs2, fs3]:
 ```
 join_graph = JoinGraph(first_feature_set=fs_1).inner(fs_2).outer(fs_3)
 vector = FeatureVector("myvector", features, 

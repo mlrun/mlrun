@@ -39,7 +39,7 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         ):
             mlrun.get_run_db().api_call(
                 "POST",
-                "artifact/some-project/some-uid/some-key",
+                "projects/some-project/artifacts/some-uid/some-key",
                 body="not a valid json",
             )
 

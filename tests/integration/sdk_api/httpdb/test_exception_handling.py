@@ -34,8 +34,8 @@ class TestExceptionHandling(tests.integration.sdk_api.base.TestMLRunIntegration)
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
             match=rf"400 Client Error: Bad Request for url: http:\/\/(.*)\/"
-            rf"{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/artifacts\/some-uid\/some-key: details: "
-            "{'reason': 'bad JSON body'}",
+            rf"{mlrun.get_run_db().get_api_path_prefix()}\/projects\/some-project\/artifacts\/some-uid\/some-key: "
+            "details: {'reason': 'bad JSON body'}",
         ):
             mlrun.get_run_db().api_call(
                 "POST",

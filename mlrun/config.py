@@ -1146,7 +1146,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

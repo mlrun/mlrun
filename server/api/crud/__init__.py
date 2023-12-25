@@ -19,7 +19,6 @@ from .client_spec import ClientSpec
 from .clusterization_spec import ClusterizationSpec
 from .datastore_profiles import DatastoreProfiles
 from .feature_store import FeatureStore
-from .files import Files
 from .functions import Functions
 from .hub import Hub
 from .logs import Logs

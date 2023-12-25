@@ -397,24 +397,3 @@ def register_temporary_client_datastore_profile(profile: DatastoreProfile):
     It's beneficial for testing purposes.
     """
     TemporaryClientDatastoreProfiles().add(profile)
-
-
-def datastore_profile_embed_url_scheme(url):
-    profile = datastore_profile_read(url)
-    parsed_url = urlparse(url)
-    scheme = profile.type
-    # Add scheme as a password to the network location part
-    netloc = f"{parsed_url.username or ''}:{scheme}@{parsed_url.netloc}"
-
-    # Construct the new URL
-    new_url = urlunparse(
-        [
-            parsed_url.scheme,
-            netloc,
-            parsed_url.path,
-            parsed_url.params,
-            parsed_url.query,
-            parsed_url.fragment,
-        ]
-    )
-    return new_url

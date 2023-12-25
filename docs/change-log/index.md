@@ -872,6 +872,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
 |---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| v1.8.0       |v1.6.0    |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
+| v1.8.0       |v1.6.0    |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
+| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
+| v1.8.0       |v1.6.0    |Feature store: `deploy_ingestion_service_v2`                                         |`FeatureSet.deploy_ingestion_service()`|
+| v1.8.0       |v1.6.0    |Feature store: `preview`                                                             |`FeatureSet.preview()`|
+| v1.8.0       |v1.6.0    |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
 | v1.8.0       |v1.6.0    |Runtimes: `with_requirements` &mdash; `verify_base_image`                            |`prepare_image_for_deploy` param   |
 | v1.8.0       |v1.6.0    |Runtimes: `verify_base_image` method                                                 |`prepare_image_for_deploy`            |

@@ -451,6 +451,7 @@ def test_v2_stream_mode():
 def test_v2_raised_err():
     os.environ["SERVING_SPEC_ENV"] = json.dumps(raiser_spec)
     context = GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
 
     event = MockEvent(testdata, path="/v2/models/m6/infer")
@@ -463,6 +464,7 @@ def test_v2_async_mode():
     # model loading is async
     os.environ["SERVING_SPEC_ENV"] = json.dumps(asyncspec)
     context = GraphContext()
+    context.is_mock = True
     nuclio_init_hook(context, globals(), serving_subkind)
     context.logger.info("model initialized")
 

@@ -74,7 +74,9 @@ async def delete_project(
             deletion_strategy=deletion_strategy,
         )
         chief_client = server.api.utils.clients.chief.Client()
-        return await chief_client.delete_project(name=name, request=request)
+        return await chief_client.delete_project(
+            name=name, request=request, api_version="v2"
+        )
 
     # check if project exists
     try:

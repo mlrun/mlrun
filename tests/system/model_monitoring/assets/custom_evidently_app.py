@@ -39,6 +39,7 @@ if _HAS_EVIDENTLY:
     from evidently.report import Report
     from evidently.test_preset import DataDriftTestPreset
     from evidently.test_suite import TestSuite
+    from evidently.ui.base import Project
     from evidently.ui.dashboards import (
         CounterAgg,
         DashboardConfig,
@@ -48,7 +49,7 @@ if _HAS_EVIDENTLY:
         PlotType,
         ReportFilter,
     )
-    from evidently.ui.workspace import Project, Workspace
+    from evidently.ui.workspace import Workspace
 
     _PROJECT_NAME = "Iris Monitoring"
     _PROJECT_DESCRIPTION = "Test project using iris dataset"

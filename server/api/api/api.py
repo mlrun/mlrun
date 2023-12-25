@@ -29,7 +29,6 @@ from server.api.api.endpoints import (
     functions,
     grafana_proxy,
     healthz,
-    healthz_v2,
     hub,
     internal,
     jobs,
@@ -171,7 +170,7 @@ api_router.include_router(
 # v2 Router
 api_v2_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])
 api_v2_router.include_router(
-    healthz_v2.router,
+    healthz.router,
     tags=["healthz"],
 )
 api_v2_router.include_router(

@@ -85,6 +85,15 @@ async def delete_project(
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
+    # as opposed to v1, we need to implement the `check` deletion strategy here, since we don't want
+    # to spawn a background task for this, only to return a response
+    if (
+        _is_request_from_leader(auth_info.projects_role)
+        and deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
+    ):
+        response.status_code = http.HTTPStatus.NO_CONTENT.value
+        return server.api.crud.Projects().verify_project_is_empty(db_session, name)
+
     background_task = await run_in_threadpool(
         _get_or_create_project_deletion_background_task,
         name,

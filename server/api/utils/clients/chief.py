@@ -165,7 +165,7 @@ class Client(
         that is why we re-route requests to chief
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
-        # project resources (depends on the deletion strategy)
+        # project resources (depends on the deletion strategy and api version)
         return await self._proxy_request_to_chief(
             "DELETE", f"projects/{name}", request, timeout=120, version=api_version
         )

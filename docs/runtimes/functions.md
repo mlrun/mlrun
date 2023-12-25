@@ -1,22 +1,9 @@
 (Functions)=
 # Functions 
 
-All the executions in MLRun are based on serverless functions. Functions are essentially Python objects that know how to run locally or on a Kubernetes cluster. 
+All the executions in MLRun are based on serverless functions. Functions are essentially Python code that can be 
+executed locally or on a Kubernetes cluster. 
 MLRun functions are used to run jobs, deploy models, create pipelines, and more. 
-
-## Functions and projects
-Function are members of an [**MLRun project**](../projects/project.html), a container for all your work on a particular ML application. 
-Once you register a function within a project, you can execute it in your local 
-environment or at scale on a Kubernetes cluster.
-
-The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.html), and [**projects**](../projects/project.html), is as follows:
-
-![MLRun Function](../_static/images/mlrun_concepts_architecture.png)
-
-After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.html), they are invoked using the project object. 
-This workflow pairs especially well with {ref}`ci-cd-automate`.
-		
-## More about functions	
 
 There are various kinds of MLRun functions with different capabilities, however, 
 there are commonalities across all functions. In general, an MLRun function looks like the following:
@@ -38,14 +25,28 @@ and gets a new hash code upon changes.
 
 When you create a function, you specify its name, which appears in the MLRun UI, as well as the Kubernetes pod.
 
-Depending on the job type, the actual python function 
-can be included in the code as a {py:func}`~mlrun.handler`. You can also use the handler to log results and artifacts, see {ref}`decorators-and-auto-logging`.
+MLRun functionality such as logging results and artifacts can be added to existing code using the {py:func}`~mlrun.handler decorator`. 
+You can also use MLRun auto-logging to automatically track machine-learning processes seamlessly while they execute, such as training a model, and 
+recording results and artifacts. 
+See {ref}`decorators-and-auto-logging`. The handler decorator is effective by default.
+
+## Functions and projects
+Function are members of an [**MLRun project**](../projects/project.html), a container for all your work on a particular ML application. 
+Once you register a function within a project, you can execute it in your local 
+environment or at scale on a Kubernetes cluster.
+
+The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.html), and [**projects**](../projects/project.html), is as follows:
+
+![MLRun Function](../_static/images/mlrun_concepts_architecture.png)
+
+After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.html), they are invoked using the project object. 
+This workflow pairs especially well with {ref}`ci-cd-automate`.
 
 ## Function hub
 
 Since function objects are all-inclusive (code, spec, API, and metadata definitions), they can be stored in, 
-and reused from, a shared and versioned function hub. This means that different members of the team can produce or 
-consume functions. 
+and reused from, a shared and versioned function hub. This means that multiple users can share the same MLRun 
+project and get access to objects associated with it.
 
 MLRun has an open [public function hub](https://www.mlrun.org/hub/functions/) that stores many pre-developed functions for
 use in your projects. Read more in {ref}`load-from-hub`.
@@ -61,7 +62,7 @@ handle the orchestration and monitoring of the distributed task.
 
 ## Hyperparameters
 MLRun also supports iterative tasks for automatic and distributed execution of many tasks with variable 
-parameters (hyperparams). See {ref}`hyper-params`).
+parameters (hyperparams). See {ref}`hyper-params`.
 
 **In this section**
 

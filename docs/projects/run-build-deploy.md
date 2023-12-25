@@ -93,14 +93,14 @@ Example of `new_function` with `new_task`:
 
 ```
 import mlrun
-mlrun.get_or_create_project('xmhydasaoa')
+mlrun.get_or_create_project('example-project')
 ---
 
 from mlrun import RunTemplate, new_task, mlconf
 from os import path
 artifact_path = path.join(mlconf.artifact_path, '{{run.uid}}')
 def handler(context, param, model_names):
-    context.logger.info("blabla")
+    context.logger.info("Running handler")
     context.set_label('category', 'tests')
     for model_name, file_name in model_names:
         context.log_artifact(model_name, body=param.encode(), local_path=file_name)

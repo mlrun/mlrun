@@ -20,7 +20,6 @@ Artifacts metadata is stored in the project’s database.
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
-- [Customizing the allowed paths](#customizing-the-allowed-paths)
 
 **See also:**
 - {ref}`working-with-data-and-model-artifacts`

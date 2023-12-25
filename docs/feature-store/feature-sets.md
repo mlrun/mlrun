@@ -36,10 +36,10 @@ Create a {py:class}`~mlrun.feature_store.FeatureSet` with the base definitions:
    are determined by the relations field if it exists, and otherwise by the entities.
 * **timestamp_key** &mdash; (optional) Used for specifying the time field when joining by time.
 * **engine** &mdash; The processing engine type:
-   - Spark &mdash; Good for simple batch transformations
+   - spark &mdash; Good for simple batch transformations
    - pandas &mdash; Good for simple batch transformations
    - storey &mdash; Default. Stream processing engine that can handle complex workflows and real-time sources. (Some advanced functionalities are in the Beta state.)</br>
-   See more about [transformations](./transformations.html#supporting-multiple-engines).
+   See more about [transformations](./transformations.html#built-in-transformations).
 * **label_column** &mdash; Name of the label column (the one holding the target (y) values).
 * **relations** &mdash; (optional) Dictionary that indicates all of the relations between current feature set to other featuresets . It looks like: `{"<my_column_name>":Entity, ...}`. If the feature_set relations is None, the join is done based on feature_set entities. Relevant only for Dask and storey (local) engines.
    See more about joins in [Using joins in an offline feature vector](./feature-vectors.html#using-joins-in-an-offline-feature-vector). 

@@ -34,6 +34,7 @@ from os.path import expanduser
 from threading import Lock
 
 import dotenv
+import packaging.version
 import semver
 import yaml
 
@@ -1146,7 +1147,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not self.nuclio_version
+            or packaging.version.Version(self.nuclio_version)
+            >= packaging.version.Version("1.12.10")
         )
 
 

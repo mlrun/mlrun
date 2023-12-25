@@ -167,8 +167,8 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
     @staticmethod
     def _crd_state_to_run_state(state: str) -> str:
         state = state.lower()
-        if state == "active":
-            return mlrun.runtimes.constants.RunStates.running
-        elif state == "failed":
-            return mlrun.runtimes.constants.RunStates.error
-        return state
+        mapping = {
+            "active": mlrun.runtimes.constants.RunStates.running,
+            "failed": mlrun.runtimes.constants.RunStates.error,
+        }
+        return mapping.get(state, state)

@@ -304,7 +304,7 @@ class Client(
     async def _send_request_to_api(
         self, method, path, raise_on_failure: bool = False, version=None, **kwargs
     ) -> aiohttp.ClientResponse:
-        version = version or mlrun.mlconf.api_version
+        version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()
         url = f"{self._api_url}/api/{version}/{path}"
         if kwargs.get("timeout") is None:

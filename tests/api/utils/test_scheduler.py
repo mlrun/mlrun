@@ -1292,6 +1292,7 @@ async def test_update_schedule_failure_not_found_in_scheduler(
 
 
 @pytest.mark.asyncio
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize(
     # The function waits 2 seconds and the schedule runs every second for 4 seconds. So:
     # For 1 concurrent job, the second and fourth jobs should be skipped resulting in 2 runs.

@@ -901,6 +901,9 @@ class AutoMountType(str, Enum):
 
 
 class KubeResource(BaseRuntime):
+    """
+    A parent class for runtimes which generate k8s resources when executing.
+    """
     kind = "job"
     _is_nested = True
 
@@ -1186,7 +1189,7 @@ class KubeResource(BaseRuntime):
         For Iguazio we handle security context internally -
         see mlrun.common.schemas.function.SecurityContextEnrichmentModes
 
-        Example:
+        Example::
 
             from kubernetes import client as k8s_client
 

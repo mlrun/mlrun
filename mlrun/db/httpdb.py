@@ -499,6 +499,7 @@ class HTTPRunDB(RunDBInterface):
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
+
             * in case size = -1, return the state and the final offset
         """
         if size is None:
@@ -2995,14 +2996,15 @@ class HTTPRunDB(RunDBInterface):
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
         databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+
         :param project:                  Project name.
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
                                          is running. By default, the base period is 5 minutes.
-        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
-                 runtime object by calling ~mlrun.new_function.
+        :returns: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+                  runtime object by calling ~mlrun.new_function.
         """
 
         params = {

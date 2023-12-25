@@ -653,6 +653,7 @@ default_config = {
         # used for igz client when emitting events
         "access_key": "",
     },
+    "grafana_url": "",
 }
 
 _is_running_as_api = None

@@ -563,7 +563,6 @@ run-api: api ## Run mlrun api (dockerized)
 		--env MLRUN_HTTPDB__DSN=$(MLRUN_HTTPDB__DSN) \
 		--env MLRUN_LOG_LEVEL=$(MLRUN_LOG_LEVEL) \
 		--env MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS=$(MLRUN_SECRET_STORES__TEST_MODE_MOCK_SECRETS) \
-		--env MLRUN_HTTPDB__REAL_PATH=$(MLRUN_HTTPDB__REAL_PATH) \
 		$(MLRUN_API_IMAGE_NAME_TAGGED)
 
 .PHONY: run-test-db
@@ -600,7 +599,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: fmt
 fmt: ## Format the code using Ruff
 	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix
+	python -m ruff check --fix-only
 	python -m ruff format
 
 .PHONY: lint-imports

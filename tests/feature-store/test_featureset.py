@@ -22,7 +22,7 @@ from mlrun.feature_store.feature_set import FeatureSet
 from mlrun.model import DataSource, DataTargetBase
 
 
-@mock.patch("mlrun.feature_store.api.ingest")
+@mock.patch("mlrun.feature_store.api._ingest")
 def test_ingest_method(mock_ingest):
     # Create an instance of FeatureSet
     fs = FeatureSet()
@@ -66,7 +66,7 @@ def test_ingest_method(mock_ingest):
     )
 
 
-@mock.patch("mlrun.feature_store.api.preview")
+@mock.patch("mlrun.feature_store.api._preview")
 def test_preview_method(mock_preview):
     # Create an instance of FeatureSet
     fs = FeatureSet()
@@ -101,7 +101,7 @@ def test_preview_method(mock_preview):
     )
 
 
-@mock.patch("mlrun.feature_store.api.deploy_ingestion_service_v2")
+@mock.patch("mlrun.feature_store.api._deploy_ingestion_service_v2")
 def test_deploy_ingestion_service(mock_deploy):
     # Create an instance of FeatureSet
     fs = FeatureSet()

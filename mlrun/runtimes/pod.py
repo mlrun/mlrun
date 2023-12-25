@@ -1066,10 +1066,10 @@ class KubeResource(BaseRuntime):
         If the threshold is not set for a state, the default threshold will be used.
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
-            * pending_scheduled - The pod is scheduled on a node but not yet running
-            * pending_not_scheduled - The pod is not yet scheduled on a node
-            * running - The is running
-            * image_pull_backoff - The is in image pull backoff
+            * pending_scheduled - The pod/crd is scheduled on a node but not yet running
+            * pending_not_scheduled - The pod/crd is not yet scheduled on a node
+            * running - The pod/crd is running
+            * image_pull_backoff - The pod/crd is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)

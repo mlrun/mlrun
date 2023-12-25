@@ -22,7 +22,7 @@ from mlrun.feature_store.feature_vector import FeatureVector, FixedWindowType
 from mlrun.model import DataTargetBase
 
 
-@mock.patch("mlrun.feature_store.api.get_online_feature_service")
+@mock.patch("mlrun.feature_store.api._get_online_feature_service")
 def test_get_online_feature_service(mock_get_online_service):
     fv = FeatureVector()
 
@@ -50,7 +50,7 @@ def test_get_online_feature_service(mock_get_online_service):
     )
 
 
-@mock.patch("mlrun.feature_store.api.get_offline_features")
+@mock.patch("mlrun.feature_store.api._get_offline_features")
 def test_get_offline_features(mock_get_offline_features):
     fv = FeatureVector()
 

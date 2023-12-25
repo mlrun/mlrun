@@ -1006,6 +1006,19 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state:
+                        if force:
+                            raise mlrun.errors.MLRunPreconditionFailedError(
+                                "Could not resolve run state from CRD object"
+                            )
+
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1213,7 +1226,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1250,7 +1263,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})

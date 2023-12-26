@@ -978,7 +978,7 @@ class SQLDB(DBInterface):
             else artifact_dict["metadata"].pop("created", None)
         )
         # make sure we have a datetime object with timezone both in the artifact record and in the artifact dict
-        created_datetime = mlrun.utils.convert_to_datetime_with_timezone(
+        created_datetime = mlrun.utils.enrich_datetime_with_tz_info(
             created
         ) or datetime.now(timezone.utc)
         artifact_record.created = created_datetime

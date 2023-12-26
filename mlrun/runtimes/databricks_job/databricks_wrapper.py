@@ -97,7 +97,7 @@ def save_credentials(
 
 
 def run_mlrun_databricks_job(
-    context,
+    context: mlrun.MLClientCtx,
     task_parameters: dict,
     **kwargs,
 ):
@@ -209,4 +209,8 @@ def run_mlrun_databricks_job(
     logger.info(f"logs:\n{run_output.logs}")
     run_output_dict = run_output.as_dict()
     run_output_dict.pop("logs", None)
-    logger.info(f"Run output and metadata:\n{run_output_dict}\n")
+    context.log_artifact(
+        f"databricks_run_metadata_{context.uid}",
+        body=json.dumps(run_output_dict),
+        format="json",
+    )

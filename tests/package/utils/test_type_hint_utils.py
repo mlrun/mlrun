@@ -38,6 +38,8 @@ class AnotherClass(SomeClass):
     [
         (typing.Optional[int], True),
         (typing.Union[str, int], True),
+        (typing.List, True),  # noqa: UP006
+        (typing.Tuple[int, str], True),  # noqa: UP006
         (tuple[int, str], True),
         (typing.TypeVar("A", int, str), True),
         (typing.ForwardRef("pandas.DataFrame"), True),
@@ -205,7 +207,7 @@ def test_is_matching(
         ),
         (typing.ClassVar, set()),
         # Other `typing`:
-        (list, set()),
+        (typing.List, {list}),  # noqa: UP006
         (list[tuple[int, str, SomeClass]], {list}),
         (tuple[int, str, SomeClass], {tuple}),
         # `collections` types:

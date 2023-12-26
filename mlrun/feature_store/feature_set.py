@@ -1031,7 +1031,7 @@ class FeatureSet(ModelObj):
     def extract_relation_keys(
         self,
         other_feature_set,
-        relations: Dict[str, Union[str, Entity]] = None,
+        relations: dict[str, Union[str, Entity]] = None,
     ) -> list[str]:
         """
         Checks whether a feature set can be merged to the right of this feature set.

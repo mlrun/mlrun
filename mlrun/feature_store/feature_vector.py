@@ -398,7 +398,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: List[str] = None,
+        entity_rows_keys: list[str] = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys

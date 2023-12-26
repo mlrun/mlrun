@@ -1307,10 +1307,12 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
 
 
 def enrich_datetime_with_tz_info(timestamp_string):
-    if not timestamp_string or mlrun.utils.helpers.has_timezone(timestamp_string):
+    if not timestamp_string:
         return timestamp_string
 
-    timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
     return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
 
 

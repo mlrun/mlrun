@@ -18,8 +18,6 @@ import io
 import logging
 import os
 import subprocess
-import sys
-from contextlib import contextmanager
 from typing import List
 
 import click
@@ -38,9 +36,10 @@ class MLRunPatcher(object):
     class Consts(object):
         mandatory_fields = {"DATA_NODES", "SSH_USER", "SSH_PASSWORD", "DOCKER_REGISTRY"}
 
-    def __init__(self, conf_file, reset_db):
+    def __init__(self, conf_file, reset_db, tag):
         self._config = yaml.safe_load(conf_file)
         self._reset_db = reset_db
+        self._tag = tag
         self._validate_config()
 
     def patch_mlrun_api(self):
@@ -118,18 +117,10 @@ class MLRunPatcher(object):
         if self._reset_db and "DB_USER" not in self._config:
             raise RuntimeError("Must define DB_USER if requesting DB reset")
 
-    @contextmanager
-    def _add_mlrun_src_to_path(self):
-        mlrun_src = os.path.dirname(os.path.abspath(__file__)) + "/.."
-        sys.path.append(mlrun_src)
-        yield sys.path
-        sys.path.remove(mlrun_src)
-
     def _get_current_version(self) -> str:
-        with self._add_mlrun_src_to_path():
-            from version import version_file
-
-            return str(version_file.read_unstable_version_prefix())
+        if "unstable" in self._tag:
+            return "unstable"
+        return self._tag
 
     def _make_mlrun_api(self, image_tag) -> str:
         logger.info("Building mlrun-api docker image")
@@ -480,11 +471,17 @@ class MLRunPatcher(object):
 @click.option(
     "-r", "--reset-db", is_flag=True, help="Reset mlrun DB after deploying api"
 )
-def main(verbose, config, reset_db):
+@click.option(
+    "-t",
+    "--tag",
+    default="0.0.0+unstable",
+    help="Tag to use for the API. Defaults to unstable (latest and greatest)",
+)
+def main(verbose, config, reset_db, tag):
     if verbose:
         coloredlogs.set_level(logging.DEBUG)
 
-    MLRunPatcher(config, reset_db).patch_mlrun_api()
+    MLRunPatcher(config, reset_db, tag).patch_mlrun_api()
 
 
 if __name__ == "__main__":

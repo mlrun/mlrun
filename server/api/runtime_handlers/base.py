@@ -804,6 +804,8 @@ class BaseRuntimeHandler(ABC):
         namespace: str,
         deleted_pods: List[Dict],
         label_selector: str = None,
+        timeout: int = 180,
+        force: bool = False,
     ):
         deleted_pod_names = [pod_dict["metadata"]["name"] for pod_dict in deleted_pods]
 
@@ -821,19 +823,32 @@ class BaseRuntimeHandler(ABC):
                 )
 
         if deleted_pod_names:
-            timeout = 180
             logger.debug(
                 "Waiting for pods deletion",
                 timeout=timeout,
                 interval=self.wait_for_deletion_interval,
             )
-            mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval,
-                timeout,
-                logger,
-                True,
-                _verify_pods_removed,
-            )
+            try:
+                mlrun.utils.retry_until_successful(
+                    self.wait_for_deletion_interval,
+                    timeout,
+                    logger,
+                    True,
+                    _verify_pods_removed,
+                )
+            except mlrun.errors.MLRunRetryExhaustedError as exc:
+                if force:
+                    logger.warning(
+                        "Failed waiting for pods deletion, force deleting pods",
+                        exc=err_to_str(exc),
+                    )
+                    for deleted_pod_name in deleted_pod_names:
+                        server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                            deleted_pod_name, namespace, grace_period_seconds=0
+                        )
+                else:
+                    raise exc
+
             logger.debug(
                 "Successfully waited for pods deletion",
                 timeout=timeout,
@@ -968,8 +983,18 @@ class BaseRuntimeHandler(ABC):
                 logger.warning(
                     f"Cleanup failed processing pod {pod.metadata.name}: {repr(exc)}. Continuing"
                 )
+
         # TODO: don't wait for pods to be deleted, client should poll the deletion status
-        self._wait_for_pods_deletion(namespace, deleted_pods, label_selector)
+        timeout = 180
+        force = False
+        # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in terminating state,
+        # so we're forcing deletion after the grace period passed in this case.
+        if self.pod_grace_period_seconds > 0:
+            timeout = self.pod_grace_period_seconds + 10
+            force = True
+        self._wait_for_pods_deletion(
+            namespace, deleted_pods, label_selector, timeout, force
+        )
         return deleted_pods
 
     def _delete_crd_resources(

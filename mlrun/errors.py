@@ -194,6 +194,10 @@ class MLRunTimeoutError(MLRunHTTPStatusError, TimeoutError):
     error_status_code = HTTPStatus.GATEWAY_TIMEOUT.value
 
 
+class MLRunRetryExhaustedError(Exception):
+    pass
+
+
 class MLRunFatalFailureError(Exception):
     """
     Internal exception meant to be used inside mlrun.utils.helpers.retry_until_successful to signal the loop not to

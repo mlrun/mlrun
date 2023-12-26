@@ -10,36 +10,36 @@ there are commonalities across all functions. In general, an MLRun function look
 
 <img src="../_static/images/mlrun-functions.png" alt="mlrun-architecture" width="700"/><br>
 
-MLRun supports:
-- Real-time runtimes for: {ref}`serving <serving-graph>`, APIs, and stream processing (based on the high-performance {ref}`Nuclio <nuclio-real-time-functions>` engine). 
-- Batch runtimes (based on Kubernetes jobs, {ref}`Spark Operator<spark-operator>`, {ref}`Dask <dask-overview>`, {ref}`Horovod <horovod>`, etc.)
-
-The [different function runtimes](../concepts/functions-overview.html) take care of automatically transforming the code and spec to fully 
+MLRun supports numerous real-time and batch runtimes, described in {ref}`function_runtimes`. 
+The different function runtimes take care of automatically transforming the code and spec to fully 
 managed and elastic services over Kubernetes, which saves significant operational overhead, 
-addresses scalability, and reduces infrastructure costs. The function parameters and capabilities are explained in more detail in {ref}`create-and-use-functions`.
+addresses scalability, and reduces infrastructure costs. The function parameters and capabilities 
+are explained in more detail in {ref}`create-and-use-functions`.
 
 Function objects are all inclusive, containing the code and all the operational aspects: ({ref}`image <images-usage>`, required packages, 
 {ref}`pod resource congifuration (replicas, CPU/GPU/memory limits, volumes, Spot vs. On-demand nodes, pod priority, node affinity) <configuring-job-resources>`, 
-[storage](../runtimes/function-storage.html), environment, metadata definitions, etc.). Each function is versioned and stored in the MLRun database with a unique hash code, 
+[storage](../runtimes/function-storage.html), environment, metadata definitions, etc.). Each function is versioned and stored in the MLRun 
+database with a unique hash code, 
 and gets a new hash code upon changes.
 
 When you create a function, you specify its name, which appears in the MLRun UI, as well as the Kubernetes pod.
 
-MLRun functionality such as logging results and artifacts can be added to existing code using the {py:func}`~mlrun.handler decorator`. 
-You can also use MLRun auto-logging to automatically track machine-learning processes seamlessly while they execute, such as training a model, and 
-recording results and artifacts. 
-See {ref}`decorators-and-auto-logging`. The handler decorator is effective by default.
+MLRun functionality such as logging results and artifacts can be added to existing code using the {py:func}`~mlrun.handler` decorator. 
+You can also use MLRun auto-logging to automatically and seamlessly track machine-learning processes while they execute, such as training a model, and 
+recording results and artifacts. See {ref}`decorators-and-auto-logging`. The handler decorator is enabled by default.
 
 ## Functions and projects
 Function are members of an [**MLRun project**](../projects/project.html), a container for all your work on a particular ML application. 
 Once you register a function within a project, you can execute it in your local 
 environment or at scale on a Kubernetes cluster.
 
-The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.html), and [**projects**](../projects/project.html), is as follows:
+The relationship between **functions**, [**workflows**](../projects/build-run-workflows-pipelines.html), and [**projects**](../projects/project.html), 
+is as follows:
 
 ![MLRun Function](../_static/images/mlrun_concepts_architecture.png)
 
-After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.html), they are invoked using the project object. 
+After the MLRun functions and workflows are created and [**registered into the project**](../projects/create-project.html), they are invoked 
+using the project object. 
 This workflow pairs especially well with {ref}`ci-cd-automate`.
 
 ## Function hub

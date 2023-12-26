@@ -1019,7 +1019,7 @@ def my_func(context):
         state_thresholds = {
             "pending_not_scheduled": "1000s",
             "pending_scheduled": "1day 20m",
-            "running": "30h 19 min",
+            "executing": "30h 19 min",
             "image_pull_backoff": "-1",
         }
 
@@ -1033,7 +1033,7 @@ def my_func(context):
 
         override_state_thresholds = {
             "pending_not_scheduled": "250s",
-            "running": "40h 19 min",
+            "executing": "40h 19 min",
         }
         runtime.set_state_thresholds(
             state_thresholds=override_state_thresholds,

@@ -88,7 +88,7 @@ def test_validate_state_thresholds_success():
     server.api.launcher.ServerSideLauncher._validate_state_thresholds(
         state_thresholds={
             "pending_scheduled": "-1",
-            "running": "1000s",
+            "executing": "1000s",
             "image_pull_backoff": "3m",
         }
     )

@@ -632,7 +632,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         )
         running_overtime_pod.status.start_time = datetime.now(timezone.utc) - timedelta(
             seconds=server.api.utils.helpers.time_string_to_seconds(
-                mlrun.mlconf.function.spec.state_thresholds.default.running
+                mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
         )
         self._store_run(

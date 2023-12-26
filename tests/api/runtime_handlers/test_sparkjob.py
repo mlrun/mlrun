@@ -369,7 +369,7 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         (
             "image_pull_backoff",
             "pending_scheduled",
-            "running",
+            "executing",
         ),
     )
     def test_state_thresholds(self, db: Session, client: TestClient, threshold_state):
@@ -429,7 +429,9 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
             (new_job_uid, new_run_name),
         ]:
             pod_phase = (
-                PodPhases.pending if threshold_state != "running" else PodPhases.running
+                PodPhases.pending
+                if threshold_state != "executing"
+                else PodPhases.running
             )
             driver_pod = self._generate_pod(
                 pod_name,

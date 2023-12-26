@@ -702,7 +702,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
-        for state in ["pending_scheduled", "running", "image_pull_backoff"]:
+        for state in ["pending_scheduled", "executing", "image_pull_backoff"]:
             expected_run_updates.append(
                 {
                     "status.error": f"Run aborted due to exceeded state threshold: {state}",

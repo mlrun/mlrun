@@ -573,7 +573,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
-        for state in ["image_pull_backoff", "running"]:
+        for state in ["image_pull_backoff", "executing"]:
             expected_run_updates.append(
                 {
                     "status.error": f"Run aborted due to exceeded state threshold: {state}",

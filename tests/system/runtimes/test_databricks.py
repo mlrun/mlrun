@@ -14,6 +14,7 @@
 #
 import copy
 import inspect
+import json
 import os
 import time
 import uuid
@@ -98,7 +99,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
-        assert len(artifacts) == len(paths_dict)
+        assert len(artifacts) == len(paths_dict) + 1
         for expected_name, expected_dbfs_path in paths_dict.items():
             db_key = f"databricks-test-main_{expected_name}"
             artifact = self.project.get_artifact(key=db_key)
@@ -132,13 +133,24 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    @classmethod
-    def assert_print_kwargs(cls, print_kwargs_run):
+    def assert_print_kwargs(self, print_kwargs_run):
         assert print_kwargs_run.status.state == "completed"
-        logs = cls._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
+        logs = self._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
         #  Should be inside the metadata:
-        assert "run_id" in logs
+        artifacts = self.project.list_artifacts().to_objects()
+
+        assert len(artifacts) == 1
+        key = f"{print_kwargs_run.metadata.name}_databricks_run_metadata_{print_kwargs_run.uid()}"
+        artifact = self.project.get_artifact(key=key)
+        databricks_metadata = json.loads(artifact.to_dataitem().get()).get(
+            "metadata", {}
+        )
+        #  important metadata asserts:
+        assert databricks_metadata.get("run_id")
+        assert databricks_metadata.get("job_id")
+        assert databricks_metadata.get("run_name", None)
+        assert databricks_metadata.get("state").get("result_state") == "SUCCESS"
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)

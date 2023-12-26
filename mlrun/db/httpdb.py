@@ -2370,8 +2370,12 @@ class HTTPRunDB(RunDBInterface):
                 == mlrun.common.schemas.BackgroundTaskState.succeeded
             ):
                 logger.info("Project deleted", project_name=name)
-            else:
-                logger.error("Failed deleting project", project_name=name)
+                return
+        elif response.status_code == http.HTTPStatus.NO_CONTENT:
+            logger.info("Project deleted", project_name=name)
+            return
+
+        logger.error("Failed deleting project", project_name=name)
 
     def store_project(
         self,

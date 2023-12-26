@@ -220,7 +220,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },

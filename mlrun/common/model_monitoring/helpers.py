@@ -122,5 +122,7 @@ def pad_features_hist(feature_stats: FeatureStats) -> None:
     Given a feature statistics dictionary, pad the histograms with edges bins
     inplace to cover input statistics from -inf to inf.
     """
+    hist_key = "hist"
     for feature in feature_stats.values():
-        pad_hist(Histogram(feature["hist"]))
+        if hist_key in feature:
+            pad_hist(Histogram(feature[hist_key]))

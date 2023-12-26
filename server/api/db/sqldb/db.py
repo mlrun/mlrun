@@ -4082,12 +4082,23 @@ class SQLDB(DBInterface):
         self._upsert(session, [background_task_record])
 
     def get_background_task(
-        self, session, name: str, project: str
+        self,
+        session,
+        name: str,
+        project: str,
+        background_task_exceeded_timeout_func,
     ) -> mlrun.common.schemas.BackgroundTask:
         background_task_record = self._get_background_task_record(
             session, name, project
         )
-        if self._is_background_task_timeout_exceeded(background_task_record):
+        if (
+            background_task_exceeded_timeout_func
+            and background_task_exceeded_timeout_func(
+                background_task_record.updated,
+                background_task_record.timeout,
+                background_task_record.state,
+            )
+        ):
             # lazy update of state, only if get background task was requested and the timeout for the update passed
             # and the task still in progress then we change to failed
             self.store_background_task(
@@ -4158,23 +4169,6 @@ class SQLDB(DBInterface):
                 f"Background task not found: name={name}, project={project}"
             )
         return background_task_record
-
-    @staticmethod
-    def _is_background_task_timeout_exceeded(background_task_record) -> bool:
-        # We don't verify if timeout_mode is enabled because if timeout is defined and
-        # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
-        # it signifies that the background task was initiated while timeout mode was enabled,
-        # and we intend to verify it as if timeout mode was enabled
-        timeout = background_task_record.timeout
-        if (
-            timeout
-            and background_task_record.state
-            not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-            and datetime.utcnow()
-            > timedelta(seconds=int(timeout)) + background_task_record.updated
-        ):
-            return True
-        return False
 
     # ---- Run Notifications ----
     def store_run_notifications(

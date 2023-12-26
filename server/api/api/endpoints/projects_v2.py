@@ -161,6 +161,7 @@ def _get_or_create_project_deletion_background_task(
             background_tasks,
             _delete_project,
             name=background_task_name,
+            timeout=mlrun.mlconf.background_tasks.default_timeouts.operations.delete_project,
             db_session=db_session,
             project_name=project_name,
             deletion_strategy=deletion_strategy,

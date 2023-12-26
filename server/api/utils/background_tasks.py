@@ -75,7 +75,7 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         project: str,
     ) -> mlrun.common.schemas.BackgroundTask:
         return server.api.utils.singletons.db.get_db().get_background_task(
-            db_session, name, project
+            db_session, name, project, background_task_exceeded_timeout
         )
 
     async def background_task_wrapper(
@@ -128,6 +128,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         background_tasks: fastapi.BackgroundTasks,
         function,
         name: str = None,
+        timeout: int = None,  # in seconds
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
@@ -136,6 +137,8 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         if name in self._internal_background_tasks:
             raise RuntimeError("Background task name already exists")
         background_task = self._generate_background_task(name)
+        if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
+            background_task.metadata.timeout = int(timeout)
         self._internal_background_tasks[name] = background_task
         background_tasks.add_task(
             self.background_task_wrapper,
@@ -157,6 +160,17 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         :return: returns the background task object and bool whether exists
         """
         if name in self._internal_background_tasks:
+            background_task = self._internal_background_tasks[name]
+            if background_task_exceeded_timeout(
+                background_task.metadata.created,
+                background_task.metadata.timeout,
+                background_task.status.state,
+            ):
+                self._update_background_task(
+                    name,
+                    mlrun.common.schemas.BackgroundTaskState.failed,
+                    error="Timeout exceeded",
+                )
             return self._internal_background_tasks[name]
         elif raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(f"Background task {name} not found")
@@ -234,3 +248,18 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         return mlrun.common.schemas.BackgroundTask(
             metadata=metadata, spec=spec, status=status
         )
+
+
+def background_task_exceeded_timeout(start_time, timeout, task_state) -> bool:
+    # We don't verify if timeout_mode is enabled because if timeout is defined and
+    # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
+    # it signifies that the background task was initiated while timeout mode was enabled,
+    # and we intend to verify it as if timeout mode was enabled
+    if (
+        timeout
+        and task_state not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
+        and datetime.datetime.utcnow()
+        > datetime.timedelta(seconds=int(timeout)) + start_time
+    ):
+        return True
+    return False

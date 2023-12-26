@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 import sys
 import typing
@@ -106,9 +105,20 @@ def _get_edges(hist: Histogram) -> BinEdges:
 
 
 def pad_hist(hist: Histogram) -> None:
-    """Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace"""
+    """
+    Add [-inf, x_0] and [x_n, inf] bins to the histogram inplace unless present
+    """
     counts = _get_counts(hist)
     edges = _get_edges(hist)
+
+    def is_padded() -> bool:
+        factor = 1000
+        minus_inf = -_MAX_FLOAT / factor
+        plus_inf = _MAX_FLOAT / factor
+        return edges[0] <= minus_inf and edges[-1] >= plus_inf
+
+    if is_padded():
+        return
 
     counts.insert(0, 0)
     edges.insert(0, -_MAX_FLOAT)

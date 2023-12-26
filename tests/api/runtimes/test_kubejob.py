@@ -1060,7 +1060,7 @@ def my_func(context):
         self.execute_function(runtime)
         run = get_db().list_runs(db, project=self.project)[0]
         expected_state_thresholds = patch_state_thresholds
-        expected_state_thresholds["running"] = override_state_thresholds["running"]
+        expected_state_thresholds["executing"] = override_state_thresholds["executing"]
         expected_state_thresholds[
             "pending_scheduled"
         ] = mlconf.function.spec.state_thresholds.default.pending_scheduled

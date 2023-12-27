@@ -99,7 +99,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
-        assert len(artifacts) == len(paths_dict) + 1
+        assert len(artifacts) == len(paths_dict) + 1  #  +1 becuase metadata artifact.
         for expected_name, expected_dbfs_path in paths_dict.items():
             db_key = f"databricks-test-main_{expected_name}"
             artifact = self.project.get_artifact(key=db_key)
@@ -129,7 +129,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    def assert_print_kwargs(self, print_kwargs_run):
+    def assert_print_kwargs(self, print_kwargs_run, databricks_run_name=None):
         assert print_kwargs_run.status.state == "completed"
         logs = self._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
@@ -145,7 +145,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         #  important metadata asserts:
         assert databricks_metadata.get("run_id")
         assert databricks_metadata.get("job_id")
-        assert databricks_metadata.get("run_name", None)
+        assert databricks_metadata.get("run_name").startswith(databricks_run_name)
         assert databricks_metadata.get("state").get("result_state") == "SUCCESS"
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
@@ -198,12 +198,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 )
                 assert run.status.state == "error"
         else:
+            run_name = f"mlrun_task_{uuid.uuid4()}"
+            params["task_parameters"]["databricks_run_name"] = run_name
             run = function.run(
                 handler="print_kwargs",
                 project=self.project_name,
                 params=params,
             )
-            self.assert_print_kwargs(print_kwargs_run=run)
+            self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
 
     def test_failure_in_databricks(self):
         code = """
@@ -242,15 +244,17 @@ def import_mlrun():
         )
 
         self._add_databricks_env(function=function)
-
+        test_params = default_test_params
+        run_name = f"mlrun_task_{uuid.uuid4()}"
+        test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
             handler="func",
             auto_build=True,
             project=self.project_name,
-            params=default_test_params,
+            params=test_params,
         )
         assert run.status.state == "completed"
-        self.assert_print_kwargs(print_kwargs_run=run)
+        self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
 
     @pytest.mark.parametrize(
         "handler, function_name",
@@ -275,14 +279,19 @@ def import_mlrun():
         function = function_ref.to_function()
 
         self._add_databricks_env(function=function)
+        test_params = default_test_params
+        run_name = f"mlrun_task_{uuid.uuid4()}"
+        test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
-            project=self.project_name, params=default_test_params, **function_kwargs
+            project=self.project_name, params=test_params, **function_kwargs
         )
-        self.assert_print_kwargs(print_kwargs_run=run)
+        self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
         self._run_db.del_artifacts(project=self.project_name)
         assert len(self.project.list_artifacts()) == 0
         second_run = function.run(runspec=run, project=self.project_name)
-        self.assert_print_kwargs(print_kwargs_run=second_run)
+        self.assert_print_kwargs(
+            print_kwargs_run=second_run, databricks_run_name=run_name
+        )
 
     def test_missing_code_run(self):
         function_ref = FunctionReference(

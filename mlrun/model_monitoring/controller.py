@@ -514,8 +514,9 @@ class MonitoringApplicationController:
                     logger.info(f"[DAVID] directories = {apps_parquet_directories}")
                     for directory in apps_parquet_directories:
                         if directory["mtime"] < time_to_keep:
+                            logger.info(f"[DAVID] directory name = {directory['name']}")
                             # Delete files
-                            fs.rm(path=directory["name"], recursive=True)
+                            fs.rm(path=directory["name"])
                             # Delete directory
                             fs.rmdir(path=directory["name"])
                 except FileNotFoundError:

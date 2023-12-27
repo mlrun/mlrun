@@ -145,7 +145,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 logger.info(f"Pod {resp.metadata.name} created")
                 return resp.metadata.name, resp.metadata.namespace
 
-    def delete_pod(self, name, namespace=None, grace_period_seconds=0):
+    def delete_pod(self, name, namespace=None, grace_period_seconds=None):
         try:
             api_response = self.v1api.delete_namespaced_pod(
                 name,
@@ -705,4 +705,5 @@ def kube_resource_spec_to_pod_spec(
         else None,
         tolerations=kube_resource_spec.tolerations,
         security_context=kube_resource_spec.security_context,
+        termination_grace_period_seconds=kube_resource_spec.termination_grace_period_seconds,
     )

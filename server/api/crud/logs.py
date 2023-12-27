@@ -68,9 +68,9 @@ class Logs(
         logger.debug("Deleting logs for project", project=project)
         await self._delete_logs(project)
 
-    async def delete_run_logs(self, project: str, uid: str):
-        logger.debug("Deleting logs for run", project=project, run_uid=uid)
-        await self._delete_logs(project, [uid])
+    async def delete_run_logs(self, project: str, run_uid: str):
+        logger.debug("Deleting logs for run", project=project, run_uid=run_uid)
+        await self._delete_logs(project, [run_uid])
 
     @staticmethod
     def delete_project_logs_legacy(
@@ -90,6 +90,20 @@ class Logs(
         logs_path = server.api.api.utils.log_path(project, run_uid)
         if logs_path.exists():
             shutil.rmtree(str(logs_path))
+
+    async def get_log_size(
+        self,
+        project: str,
+        run_uid: str,
+     ):
+        logger.debug("Getting log size for run", project=project, run_uid=run_uid)
+        log_collector_client = (
+            server.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        return await log_collector_client.get_log_size(
+            project=project,
+            run_uid=run_uid,
+        )
 
     async def get_logs(
         self,

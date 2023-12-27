@@ -197,6 +197,9 @@ def test_log(create_server):
     db.store_run({"metadata": {"name": "run-name"}, "asd": "asd"}, uid, prj)
     db.store_log(uid, prj, body)
 
+    log_size = db.get_log_size(uid, prj)
+    assert log_size == len(body), "bad log size"
+
     state, data = db.get_log(uid, prj)
     assert data == body, "bad log data"
 

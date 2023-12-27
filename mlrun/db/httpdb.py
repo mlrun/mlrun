@@ -520,6 +520,19 @@ class HTTPRunDB(RunDBInterface):
 
         return "unknown", resp.content
 
+    def get_log_size(self, uid, project=""):
+        """Retrieve log size in bytes.
+
+        :param uid: Run UID
+        :param project: Project name for which the log belongs
+        :returns: The log file size in bytes for the given run UID.
+        """
+        path = self._path_of("logs", project, uid)
+        path += "/size"
+        error = f"get log size {project}/{uid}"
+        resp = self.api_call("GET", path, error)
+        return resp.json()["size"]
+
     def watch_log(self, uid, project="", watch=True, offset=0):
         """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
         completes. This method will print out the logs and continue to periodically poll for, and print,

@@ -492,7 +492,7 @@ class HTTPRunDB(RunDBInterface):
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
-            from beginning of log
+            from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
         :returns: The following objects:
 
@@ -501,6 +501,8 @@ class HTTPRunDB(RunDBInterface):
             - content - The actual log content.
             * in case size = -1, return the state and the final offset
         """
+        if offset < 0:
+            raise MLRunInvalidArgumentError("Offset must be >= 0")
         if size is None:
             size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:

@@ -79,6 +79,10 @@ async def get_log(
         server.api.api.deps.get_db_session
     ),
 ):
+    if offset < 0:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Offset cannot be negative",
+        )
     await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.log,
         project,

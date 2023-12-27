@@ -235,13 +235,14 @@ class KubejobRuntime(KubeResource):
             # get the clone target dir in case it was enriched due to loading source
             self.spec.clone_target_dir = get_in(data, "data.spec.clone_target_dir")
             ready = data.get("ready", False)
+            target_image = (
+                data.get("data", {}).get("spec", {}).get("build", {}).get("image")
+            )
             if not ready:
-                logger.info(
-                    f"Started building image: {data.get('data', {}).get('spec', {}).get('build', {}).get('image')}"
-                )
+                logger.info(f"Started building image: {target_image}")
 
             if (
-                self.spec.image.endswith(":latest")
+                target_image.endswith(":latest")
                 and self.spec.image_pull_policy != "Always"
             ):
                 logger.warning(

@@ -24,6 +24,7 @@ import server.api.api.deps
 import server.api.crud
 import server.api.utils.auth.verifier
 import server.api.utils.clients.chief
+import server.api.utils.helpers
 from mlrun.utils import logger
 from server.api.utils.singletons.project_member import get_project_member
 
@@ -148,7 +149,7 @@ async def get_project(
         get_project_member().get_project, db_session, name, auth_info.session
     )
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_info.projects_role):
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
         await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
@@ -227,7 +228,7 @@ async def list_projects(
 ):
     allowed_project_names = None
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_info.projects_role):
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
         projects_output = await run_in_threadpool(
             get_project_member().list_projects,
             db_session,
@@ -281,7 +282,7 @@ async def list_project_summaries(
     )
     allowed_project_names = projects_output.projects
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_info.projects_role):
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
         allowed_project_names = await server.api.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
             auth_info,
@@ -313,7 +314,7 @@ async def get_project_summary(
         db_session, name, auth_info.session
     )
     # skip permission check if it's the leader
-    if not _is_request_from_leader(auth_info.projects_role):
+    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
         await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
@@ -407,11 +408,3 @@ async def load_project(
         load_only=True,
     )
     return {"data": run.to_dict()}
-
-
-def _is_request_from_leader(
-    projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole],
-) -> bool:
-    if projects_role and projects_role.value == mlrun.mlconf.httpdb.projects.leader:
-        return True
-    return False

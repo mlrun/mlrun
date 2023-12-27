@@ -111,13 +111,8 @@ def pad_hist(hist: Histogram) -> None:
     counts = _get_counts(hist)
     edges = _get_edges(hist)
 
-    def is_padded() -> bool:
-        factor = 1000
-        minus_inf = -_MAX_FLOAT / factor
-        plus_inf = _MAX_FLOAT / factor
-        return edges[0] <= minus_inf and edges[-1] >= plus_inf
-
-    if is_padded():
+    is_padded = edges[0] == -_MAX_FLOAT and edges[-1] == _MAX_FLOAT
+    if is_padded:
         return
 
     counts.insert(0, 0)

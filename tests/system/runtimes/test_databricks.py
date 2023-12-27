@@ -118,12 +118,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
             pd.testing.assert_frame_equal(expected_df, artifact_df)
 
-    def setup_method(self, method):
-        super().setup_method(method)
-        time.sleep(2)  # For project handling...
-        self._run_db.del_artifacts(project=self.project_name)
-        time.sleep(2)  # For deleting artifacts...
-
     def setup_class(self):
         super().setup_class()
         self.test_folder_name = "/databricks_system_test"
@@ -286,7 +280,6 @@ def import_mlrun():
         )
         self.assert_print_kwargs(print_kwargs_run=run)
         self._run_db.del_artifacts(project=self.project_name)
-        time.sleep(2)
         assert len(self.project.list_artifacts()) == 0
         second_run = function.run(runspec=run, project=self.project_name)
         self.assert_print_kwargs(print_kwargs_run=second_run)
@@ -316,8 +309,6 @@ def import_mlrun():
 
     def test_abort_task(self):
         #  clean up any active runs
-        if self.project.list_runs(state="running"):
-            self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
         sleep_code = """
 
 import time
@@ -410,13 +401,10 @@ def main():
             handler="main",
             project=self.project_name,
         )
-        time.sleep(2)
         self._check_artifacts(paths_dict=paths_dict)
         self._run_db.del_artifacts(project=self.project_name)
-        time.sleep(2)
         assert (
             len(self.project.list_artifacts()) == 0
         )  # Make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
-        time.sleep(4)
         self._check_artifacts(paths_dict=paths_dict)

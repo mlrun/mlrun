@@ -307,7 +307,6 @@ class MonitoringApplicationController:
         """
         Main method for run all the relevant monitoring application on each endpoint
         """
-        logger.info(f"[DAVID] start run")
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             application = mlrun.get_or_create_project(
@@ -361,7 +360,6 @@ class MonitoringApplicationController:
                 if res:
                     self.endpoints_exceptions[res[0]] = res[1]
 
-            logger.info(f"[DAVID] before delete parquet")
             self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod
@@ -490,33 +488,28 @@ class MonitoringApplicationController:
 
         :param endpoints: A list of dictionaries of model endpoints records.
         """
-        logger.info("[DAVID] In _delete_old_parquet")
-
         if self.parquet_directory.startswith("v3io:///"):
             target = mlrun.datastore.targets.BaseStoreTarget(
                 path=self.parquet_directory
             )
             store, _ = target._get_store_and_path()
+            # create fs with access to the user side (under projects)
             fs = store.get_filesystem(v3io_access_key=self.model_monitoring_access_key)
 
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = float(
-                (datetime.datetime.now() - datetime.timedelta(minutes=10)).strftime("%s")
+                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
             )
-
-            logger.info(f"[DAVID] time_to_keep = {time_to_keep}")
             for endpoint in endpoints:
                 try:
                     apps_parquet_directories = fs.listdir(
                         path=f"{self.parquet_directory}"
                         f"/key={endpoint[mm_constants.EventFieldType.UID]}"
                     )
-                    logger.info(f"[DAVID] directories = {apps_parquet_directories}")
                     for directory in apps_parquet_directories:
                         if directory["mtime"] < time_to_keep:
-                            logger.info(f"[DAVID] directory name = {directory['name']}")
                             # Delete files
-                            fs.rm(path=directory["name"])
+                            fs.rm(path=directory["name"], recursive=True)
                             # Delete directory
                             fs.rmdir(path=directory["name"])
                 except FileNotFoundError:

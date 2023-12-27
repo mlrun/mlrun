@@ -488,6 +488,8 @@ class MonitoringApplicationController:
 
         :param endpoints: A list of dictionaries of model endpoints records.
         """
+        logger.info("[DAVID] In _delete_old_parquet")
+
         if self.parquet_directory.startswith("v3io:///"):
             target = mlrun.datastore.targets.BaseStoreTarget(
                 path=self.parquet_directory
@@ -497,14 +499,17 @@ class MonitoringApplicationController:
 
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = float(
-                (datetime.datetime.now() - datetime.timedelta(days=days)).strftime("%s")
+                (datetime.datetime.now() - datetime.timedelta(minutes=10)).strftime("%s")
             )
+
+            logger.info(f"[DAVID] time_to_keep = {time_to_keep}")
             for endpoint in endpoints:
                 try:
                     apps_parquet_directories = fs.listdir(
                         path=f"{self.parquet_directory}"
                         f"/key={endpoint[mm_constants.EventFieldType.UID]}"
                     )
+                    logger.info(f"[DAVID] directories = {apps_parquet_directories}")
                     for directory in apps_parquet_directories:
                         if directory["mtime"] < time_to_keep:
                             # Delete files

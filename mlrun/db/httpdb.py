@@ -502,7 +502,7 @@ class HTTPRunDB(RunDBInterface):
             * in case size = -1, return the state and the final offset
         """
         if offset < 0:
-            raise MLRunInvalidArgumentError("Offset must be >= 0")
+            raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
             size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:

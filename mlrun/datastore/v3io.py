@@ -86,7 +86,9 @@ class V3ioStore(DataStore):
                 ) from exc
             return None
         if v3io_access_key:
-            self._filesystem = fsspec.filesystem("v3io", v3io_access_key=v3io_access_key, v3io_api=mlrun.mlconf.v3io_api)
+            self._filesystem = fsspec.filesystem(
+                "v3io", v3io_access_key=v3io_access_key, v3io_api=mlrun.mlconf.v3io_api
+            )
         else:
             self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem

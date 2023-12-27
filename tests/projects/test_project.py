@@ -17,7 +17,6 @@ import os.path
 import pathlib
 import re
 import shutil
-import subprocess
 import tempfile
 import unittest.mock
 import zipfile
@@ -1483,17 +1482,13 @@ def test_load_project_from_yaml_with_function(context):
 def test_project_create_remote():
     # test calling create_remote without git_init=True on project creation
 
-    # Set the current working directory to a temporary directory
-    temp_dir = tempfile.mkdtemp()
-    os.chdir(temp_dir)
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Set the current working directory to a temporary directory
+        os.chdir(tmp_dir)
 
-    # create a project
-    project_name = "project-name"
-    project = mlrun.get_or_create_project(project_name, context=temp_dir)
-
-    try:
-        # initialize git repo
-        subprocess.run(["git", "init"])
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
 
         project.create_remote(
             url="https://github.com/mlrun/some-git-repo.git",
@@ -1504,7 +1499,3 @@ def test_project_create_remote():
         assert project.spec.repo is not None
         assert project.spec.repo.active_branch.name == "master"
         assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
-
-    finally:
-        # cleanup
-        shutil.rmtree(temp_dir)

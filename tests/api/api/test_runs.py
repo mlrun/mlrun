@@ -824,6 +824,40 @@ def test_abort_run_background_task_not_found(db: Session, client: TestClient) ->
         assert run["status"]["abort_task_id"] == background_task_1.metadata.name
 
 
+def test_abort_aborted_run_failure(db: Session, client: TestClient) -> None:
+    project = "some-project"
+    run_in_progress = {
+        "metadata": {
+            "name": "run-name-1",
+            "labels": {"kind": mlrun.runtimes.RuntimeKinds.job},
+        },
+        "status": {"state": mlrun.runtimes.constants.RunStates.running},
+    }
+    run_in_progress_uid = "in-progress-uid"
+    server.api.crud.Runs().store_run(
+        db, run_in_progress, run_in_progress_uid, project=project
+    )
+
+    with unittest.mock.patch.object(
+        server.api.crud.RuntimeResources,
+        "delete_runtime_resources",
+        side_effect=Exception("some error"),
+    ):
+        response = client.post(
+            f"projects/{project}/runs/{run_in_progress_uid}/abort", json={}
+        )
+        assert response.status_code == HTTPStatus.ACCEPTED.value
+        background_task = mlrun.common.schemas.BackgroundTask(**response.json())
+        background_task = server.api.utils.background_tasks.ProjectBackgroundTasksHandler().get_background_task(
+            db, background_task.metadata.name, project
+        )
+        assert (
+            background_task.status.state
+            == mlrun.common.schemas.BackgroundTaskState.failed
+        )
+        assert background_task.status.error == "some error"
+
+
 def _store_run(db, uid, project="some-project"):
     run_with_nan_float = {
         "metadata": {"name": "run-name"},

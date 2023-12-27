@@ -1031,6 +1031,14 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state and not force:
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1238,7 +1246,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1275,7 +1283,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
@@ -1555,8 +1563,8 @@ class BaseRuntimeHandler(ABC):
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
-            if db_run_state == run_state:
-                return False, run_state, run
+            if not run_state or db_run_state == run_state:
+                return False, db_run_state, run
 
             if db_run_state == RunStates.aborting:
                 logger.debug(

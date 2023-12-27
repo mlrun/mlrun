@@ -234,8 +234,9 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             server.api.crud.RuntimeResources(),
             "delete_runtime_resources",
             side_effect=mlrun.errors.MLRunInternalServerError("BOOM"),
-        ):
+        ), pytest.raises(mlrun.errors.MLRunInternalServerError) as exc:
             server.api.crud.Runs().abort_run(db, project, run_uid, 0)
+        assert "BOOM" == str(exc.value)
 
         run = server.api.crud.Runs().get_run(db, run_uid, 0, project)
         assert run["status"]["state"] == mlrun.runtimes.constants.RunStates.error

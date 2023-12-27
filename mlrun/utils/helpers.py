@@ -1306,6 +1306,26 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
+
+
 def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
 

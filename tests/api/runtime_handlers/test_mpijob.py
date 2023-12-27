@@ -411,7 +411,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         # set big debouncing interval to avoid having to mock resources for all the runs on every monitor cycle
         mlrun.mlconf.monitoring.runs.missing_runtime_resources_debouncing_interval = (
             server.api.utils.helpers.time_string_to_seconds(
-                mlrun.mlconf.function.spec.state_thresholds.default.running
+                mlrun.mlconf.function.spec.state_thresholds.default.executing
             )
             * 2
         )
@@ -436,7 +436,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
                 datetime.now(timezone.utc)
                 - timedelta(
                     seconds=server.api.utils.helpers.time_string_to_seconds(
-                        mlrun.mlconf.function.spec.state_thresholds.default.running
+                        mlrun.mlconf.function.spec.state_thresholds.default.executing
                     )
                 ),
             ),
@@ -573,7 +573,7 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
 
         stale_run_updates = [run["run_updates"] for run in stale_runs]
         expected_run_updates = []
-        for state in ["image_pull_backoff", "running"]:
+        for state in ["image_pull_backoff", "executing"]:
             expected_run_updates.append(
                 {
                     "status.error": f"Run aborted due to exceeded state threshold: {state}",

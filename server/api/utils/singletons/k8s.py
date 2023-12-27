@@ -117,7 +117,6 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             try:
                 resp = self.v1api.create_namespaced_pod(pod.metadata.namespace, pod)
             except ApiException as exc:
-
                 if retry_count > max_retry:
                     logger.error(
                         "Failed to create pod after max retries",
@@ -201,7 +200,6 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 namespace=namespace,
             )
         except ApiException as exc:
-
             # ignore error if crd is already removed
             if exc.status != 404:
                 logger.error(
@@ -646,7 +644,6 @@ class BasePod:
         self.node_selector = node_selector
 
     def _get_spec(self, template=False):
-
         pod_obj = client.V1PodTemplate if template else client.V1Pod
 
         if self.env and isinstance(self.env, dict):

@@ -463,7 +463,7 @@ def _migrate_artifacts_table_v2(
     ).count()
 
     if total_artifacts_count == 0:
-        # no artifacts to migrate
+        logger.info("No v1 artifacts in the system, skipping migration")
         return
 
     logger.info(
@@ -577,21 +577,20 @@ def _migrate_artifacts_batch(
 
         # iteration - the artifact's iteration
         iteration = artifact_metadata.get("iter", None)
-        if iteration is not None:
-            new_artifact.iteration = int(iteration)
+        new_artifact.iteration = int(iteration) if iteration else 0
 
         # best iteration
         # if iteration == 0 it means it is from a single run since link artifacts were already
         # handled above - so we can set is as best iteration.
         # otherwise set to false, the best iteration artifact will be updated later
-        if iteration is not None and iteration == 0:
+        if new_artifact.iteration == 0:
             new_artifact.best_iteration = True
         else:
             new_artifact.best_iteration = False
 
         # uid - calculate as the hash of the artifact object
         uid = fill_artifact_object_hash(
-            artifact_dict, iteration, new_artifact.producer_id
+            artifact_dict, new_artifact.iteration, new_artifact.producer_id
         )
         new_artifact.uid = uid
 
@@ -719,7 +718,6 @@ def _mark_best_iteration_artifacts(
     for link_artifact in link_artifacts:
         link_artifact_dict = link_artifact.struct
         if is_legacy_artifact(link_artifact_dict):
-
             # convert the legacy artifact to the new format, so we can use the same logic
             link_artifact_dict = (
                 mlrun.artifacts.base.convert_legacy_artifact_to_new_format(

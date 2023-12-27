@@ -31,7 +31,6 @@ class TestV3ioDataStore(TestMLRunSystem):
         return True
 
     def test_v3io_large_object_upload(self):
-
         dir = tempfile.TemporaryDirectory()
         tempfile_1_path = os.path.join(dir.name, "tempfile_1")
         tempfile_2_path = os.path.join(dir.name, "tempfile_2")

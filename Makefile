@@ -598,10 +598,10 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		make html-docs
 
 .PHONY: fmt
-fmt: ## Format the code using black and Ruff
-	@echo "Running ruff check and black..."
-	python -m ruff check . --fix
-	python -m black .
+fmt: ## Format the code using Ruff
+	@echo "Running ruff checks and fixes..."
+	python -m ruff check --fix-only
+	python -m ruff format
 
 .PHONY: lint-imports
 lint-imports: ## Validates import dependencies
@@ -609,17 +609,13 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: ruff fmt-check lint-imports ## Run lint on the code
+lint: fmt-check lint-imports ## Run lint on the code
 
 .PHONY: fmt-check
-fmt-check: ## Format and check the code (using black)
-	@echo "Running black fmt check..."
-	python -m black --check --diff .
-
-.PHONY: ruff
-ruff: ## Run ruff linter
-	@echo "Running ruff check..."
-	python -m ruff check . --exit-non-zero-on-fix
+fmt-check: ## Check the code (using ruff)
+	@echo "Running ruff checks..."
+	python -m ruff check --exit-non-zero-on-fix
+	python -m ruff format --check
 
 .PHONY: lint-go
 lint-go:

@@ -313,7 +313,6 @@ def mlrun_op(
     code_env = None
     function_name = ""
     if function:
-
         if not func_url:
             if function.kind in ["", "local"]:
                 image = image or function.spec.image
@@ -492,7 +491,6 @@ def deploy_op(
     tag="",
     verbose=False,
 ):
-
     cmd = ["python", "-m", "mlrun", "deploy"]
     if source:
         cmd += ["-s", source]
@@ -855,7 +853,6 @@ def add_default_function_resources(
 def add_function_node_selection_attributes(
     function, container_op: dsl.ContainerOp
 ) -> dsl.ContainerOp:
-
     if not mlrun.runtimes.RuntimeKinds.is_local_runtime(function.kind):
         if getattr(function.spec, "node_selector"):
             container_op.node_selector = function.spec.node_selector

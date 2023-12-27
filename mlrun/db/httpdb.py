@@ -705,6 +705,11 @@ class HTTPRunDB(RunDBInterface):
         """
 
         project = project or config.default_project
+        if with_notifications:
+            logger.warning(
+                "Local run notifications are not persisted in the DB, therefore local runs will not be returned when "
+                "using the `with_notifications` flag."
+            )
 
         if (
             not name
@@ -795,7 +800,7 @@ class HTTPRunDB(RunDBInterface):
         """Store an artifact in the DB.
 
         :param key: Identifying key of the artifact.
-        :param artifact: The actual artifact to store.
+        :param artifact: The :py:class:`~mlrun.artifacts.Artifact` to store.
         :param uid: A unique ID for this specific version of the artifact
                     (deprecated, artifact uid is generated in the backend use `tree` instead)
         :param iter: The task iteration which generated this artifact. If ``iter`` is not ``None`` the iteration will

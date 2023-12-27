@@ -25,12 +25,12 @@ import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun.utils.singleton
-import server.api.utils.auth.providers.base
+import server.api.utils.auth.providers.base as auth
 from mlrun.utils import logger
 
 
 class Provider(
-    server.api.utils.auth.providers.base.Provider,
+    auth.Provider,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     def __init__(self) -> None:
@@ -69,7 +69,6 @@ class Provider(
         auth_info: mlrun.common.schemas.AuthInfo,
         raise_on_forbidden: bool = True,
     ) -> bool:
-
         # store is not really a verb in our OPA manifest, we map it to 2 query permissions requests (create & update)
         if action == mlrun.common.schemas.AuthorizationAction.store:
             results = await asyncio.gather(

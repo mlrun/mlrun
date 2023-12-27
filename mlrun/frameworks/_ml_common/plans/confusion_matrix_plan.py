@@ -78,7 +78,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         y_pred: MLTypes.DatasetType = None,
         model: MLTypes.ModelType = None,
         x: MLTypes.DatasetType = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Artifact]:
         """
         Produce the confusion matrix according to the ground truth (y) and predictions (y_pred) values. If predictions

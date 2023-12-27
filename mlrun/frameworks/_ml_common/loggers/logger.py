@@ -36,9 +36,7 @@ class Logger:
 
         # Set up the dynamic hyperparameters dictionary - a dictionary of all tracked hyperparameters by epochs:
         # [Hyperparameter: str] -> [Epoch: int] -> [value: Union[str, bool, float, int]]
-        self._dynamic_hyperparameters = (
-            {}
-        )  # type: Dict[str, List[MLTypes.TrackableType]]
+        self._dynamic_hyperparameters = {}  # type: Dict[str, List[MLTypes.TrackableType]]
 
         # Set up the iterations counter:
         self._iterations = 0

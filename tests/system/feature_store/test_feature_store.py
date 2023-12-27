@@ -777,6 +777,36 @@ class TestFeatureStore(TestMLRunSystem):
             "2020-12-01 17:24:15.906352"
         )
 
+    def test_ingest_large_parquet(self):
+        num_rows = 17000  # because max events default == 10000
+
+        # Generate random data
+        data = {
+            "Column1": range(0, num_rows),
+            "Column2": np.random.choice(["A", "B", "C"], size=num_rows),
+        }
+        path = f"{self.results_path / _generate_random_name()}.parquet"
+        # Create the DataFrame
+        df = pd.DataFrame(data)
+        targets = [
+            ParquetTarget(
+                name="my_target",
+                path=path,
+            )
+        ]
+
+        fset = fstore.FeatureSet(
+            name="gcs_system_test", entities=[fstore.Entity("Column1")]
+        )
+        fset.set_targets(with_defaults=False)
+        fstore.ingest(fset, df, targets=targets)
+        target_file_path = fset.get_target_path()
+        result = ParquetSource(path=target_file_path).to_dataframe()
+        result.reset_index(inplace=True, drop=False)
+        assert_frame_equal(
+            df.sort_index(axis=1), result.sort_index(axis=1), check_like=True
+        )
+
     def test_csv_time_columns(self):
         df = pd.DataFrame(
             {
@@ -4475,6 +4505,116 @@ class TestFeatureStore(TestMLRunSystem):
         offline_features_df = fstore.get_offline_features(feature_vector).to_dataframe()
         assert offline_features_df.equals(inspect_result)
         assert offline_features_df.equals(expected_result)
+
+    def test_merge_different_number_of_entities(self):
+        feature_set = fstore.FeatureSet(
+            "basic_party", entities=[fstore.Entity("party_id")], engine="storey"
+        )
+        data = {
+            "party_id": ["1", "2", "3"],
+            "party_establishment": ["1970", "1980", "1990"],
+        }
+        basic_party_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_party_df)
+
+        feature_set = fstore.FeatureSet(
+            "basic_account",
+            entities=[fstore.Entity("account_id"), fstore.Entity("party_id")],
+            engine="storey",
+        )
+
+        data = {
+            "party_id": ["1", "2", "3"],
+            "account_id": ["10", "20", "30"],
+            "account_state": ["a", "b", "c"],
+        }
+        basic_account_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_account_df)
+
+        feature_set = fstore.FeatureSet(
+            "basic_transaction", entities=[fstore.Entity("account_id")], engine="storey"
+        )
+        data = {
+            "account_id": ["10", "20", "30"],
+            "transaction_value": ["100", "200", "300"],
+        }
+        basic_transaction_df = pd.DataFrame(data)
+        fstore.ingest(feature_set, basic_transaction_df, overwrite=False)
+
+        features = ["basic_party.party_establishment", "basic_account.account_state"]
+        join_graph = fstore.JoinGraph(first_feature_set="basic_account").inner(
+            "basic_party"
+        )
+        vec = fstore.FeatureVector(
+            "vector_partyaccount", features, join_graph=join_graph
+        )
+        df = fstore.get_offline_features(vec).to_dataframe()
+        expected_party = pd.merge(
+            basic_account_df,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        )
+        assert_frame_equal(
+            expected_party.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+        ]
+        vector = fstore.FeatureVector("vector_acounttransaction", features)
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_transaction = pd.merge(
+            basic_account_df,
+            basic_transaction_df,
+            left_on=["account_id"],
+            right_on=["account_id"],
+        )
+        assert_frame_equal(
+            expected_transaction.drop(columns=["account_id", "party_id"]),
+            df,
+            check_dtype=False,
+        )
+
+        features = [
+            "basic_account.account_state",
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector("vector_all", features)
+        vector.save()
+        df = fstore.get_offline_features(vector).to_dataframe()
+        expected_all = pd.merge(
+            expected_transaction,
+            basic_party_df,
+            left_on=["party_id"],
+            right_on=["party_id"],
+        ).drop(columns=["account_id", "party_id"])
+        assert_frame_equal(expected_all, df, check_dtype=False)
+
+        # online test - disabled for now because bug in storey
+        with fstore.get_online_feature_service(
+            vector, entity_keys=["party_id", "account_id"]
+        ) as svc:
+            resp = svc.get({"party_id": "1", "account_id": "10"})
+            assert resp[0] == {
+                "transaction_value": "100",
+                "account_state": "a",
+                "party_establishment": "1970",
+            }
+
+        features = [
+            "basic_transaction.transaction_value",
+            "basic_party.party_establishment",
+        ]
+        vector = fstore.FeatureVector("vector_all_entity_df", features)
+        df = fstore.get_offline_features(
+            vector, entity_rows=basic_account_df
+        ).to_dataframe()
+        assert_frame_equal(expected_all, df, check_dtype=False)
 
 
 def verify_purge(fset, targets):

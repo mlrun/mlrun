@@ -949,7 +949,7 @@ class PyTorchMLRunInterface:
 
     @staticmethod
     def _tensor_to_cuda(
-        tensor: Union[Tensor, Dict, List, Tuple]
+        tensor: Union[Tensor, Dict, List, Tuple],
     ) -> Union[Tensor, Dict, List, Tuple]:
         """
         Send to given tensor to cuda if it is a tensor. If the given object is a dictionary, the dictionary values will

@@ -133,9 +133,7 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
         # [Statistic: str] -> [Weight: str] -> [epoch: int] -> [value: float]
         self._weights_statistics = {}  # type: Dict[str, Dict[str, List[float]]]
         for statistic_function in self._statistics_functions:
-            self._weights_statistics[
-                statistic_function.__name__
-            ] = {}  # type: Dict[str, List[float]]
+            self._weights_statistics[statistic_function.__name__] = {}  # type: Dict[str, List[float]]
 
     @property
     def weights(self) -> Dict[str, DLTypes.WeightType]:

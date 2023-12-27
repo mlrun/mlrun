@@ -24,7 +24,6 @@ def dev_requirements() -> typing.List[str]:
 
 
 def extra_requirements() -> typing.Dict[str, typing.List[str]]:
-
     # NOTE:
     #     - These are tested in `automation/package_test/test.py`. If you modify these, make sure to change the
     #       corresponding line there.

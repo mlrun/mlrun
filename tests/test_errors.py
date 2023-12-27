@@ -69,7 +69,6 @@ def test_error_circular_chain():
 
 
 def test_raise_for_aiohttp_client_response_status():
-
     # import locally to avoid confusion with mlrun requirements sorting
     from yarl import URL
 

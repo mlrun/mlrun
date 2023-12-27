@@ -1004,7 +1004,8 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
     @classmethod
     def _train(cls) -> None:
         cls.classif.fit(
-            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+            cls.x_train,
+            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
 
     def _get_monitoring_feature_set(self) -> mlrun.feature_store.FeatureSet:
@@ -1043,9 +1044,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystem):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(
-                name=f"{self.name_prefix}-context"
-            ),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
         )
@@ -1120,8 +1119,6 @@ class TestModelInferenceTSDBRecord(TestMLRunSystem):
             model_path=model_uri,
             trigger_monitoring_job=True,
             model_endpoint_name=f"{self.name_prefix}-test",
-            context=mlrun.get_or_create_ctx(
-                name=f"{self.name_prefix}-context"
-            ),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
         )
         self._test_v3io_tsdb_record()

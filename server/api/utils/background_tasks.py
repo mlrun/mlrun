@@ -39,10 +39,11 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         background_tasks: fastapi.BackgroundTasks,
         function,
         timeout: int = None,  # in seconds
+        name: str = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
-        name = str(uuid.uuid4())
+        name = name or str(uuid.uuid4())
         logger.debug(
             "Creating background task",
             name=name,

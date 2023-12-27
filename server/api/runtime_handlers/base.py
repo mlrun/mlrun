@@ -74,9 +74,7 @@ class BaseRuntimeHandler(ABC):
         mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
     ]:
         # We currently don't support listing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return {}
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector(project, object_id, label_selector)
@@ -123,9 +121,7 @@ class BaseRuntimeHandler(ABC):
         if grace_period is None:
             grace_period = config.runtime_resources_deletion_grace_period
         # We currently don't support removing runtime resources in non k8s env
-        if (
-            not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster()
-        ):
+        if not server.api.utils.singletons.k8s.get_k8s_helper().is_running_inside_kubernetes_cluster():
             return
         namespace = server.api.utils.singletons.k8s.get_k8s_helper().resolve_namespace()
         label_selector = self.resolve_label_selector("*", label_selector=label_selector)
@@ -540,9 +536,7 @@ class BaseRuntimeHandler(ABC):
                 # if found resource there is no need to continue
                 return
             last_update_str = run.get("status", {}).get("last_update")
-            debounce_period = (
-                config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
-            )
+            debounce_period = config.resolve_runs_monitoring_missing_runtime_resources_debouncing_interval()
             if last_update_str is None:
                 logger.info(
                     "Runs monitoring found run in non-terminal state without last update time set, "
@@ -1012,6 +1006,14 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state and not force:
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1219,7 +1221,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1256,7 +1258,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
@@ -1536,13 +1538,21 @@ class BaseRuntimeHandler(ABC):
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
+            if not run_state or db_run_state == run_state:
+                return False, db_run_state, run
 
-            if db_run_state == run_state:
+            if db_run_state == RunStates.aborting:
+                logger.debug(
+                    "Run is in aborting state. Not changing state",
+                    project=project,
+                    uid=uid,
+                    db_run_state=db_run_state,
+                    run_state=run_state,
+                )
                 return False, run_state, run
 
             # if the current run state is terminal and different from the desired - log
             if db_run_state in RunStates.terminal_states():
-
                 # This can happen when the SDK running in the user's Run updates the Run's state to terminal, but
                 # before it exits, when the runtime resource is still running, the API monitoring (here) is executed
                 if run_state not in RunStates.terminal_states():

@@ -26,6 +26,7 @@ from mlrun.common.model_monitoring.helpers import (
     FeatureStats,
     Histogram,
     pad_features_hist,
+    pad_hist,
 )
 from mlrun.common.schemas.model_monitoring.constants import EventFieldType
 from mlrun.db.nopdb import NopDB
@@ -54,6 +55,17 @@ def feature_stats() -> FeatureStats:
 
 
 @pytest.fixture
+def histogram() -> Histogram:
+    return Histogram([[0, 1], [1.1, 2.2, 3.3]])
+
+
+@pytest.fixture
+def padded_histogram(histogram: Histogram) -> Histogram:
+    pad_hist(histogram)
+    return histogram
+
+
+@pytest.fixture
 def orig_feature_stats_hist_data(feature_stats: FeatureStats) -> dict[str, _HistLen]:
     data: dict[str, _HistLen] = {}
     for feat_name, feat in feature_stats.items():
@@ -72,6 +84,21 @@ def _check_padded_hist_spec(hist: Histogram, orig_data: _HistLen) -> None:
     assert edges_len == orig_data.edges_len + 2
     assert counts[0] == counts[-1] == 0
     assert (-edges[0]) == edges[-1] == _MAX_FLOAT
+
+
+def test_pad_hist(histogram: Histogram) -> None:
+    orig_data = _HistLen(
+        counts_len=len(histogram[0]),
+        edges_len=len(histogram[1]),
+    )
+    pad_hist(histogram)
+    _check_padded_hist_spec(histogram, orig_data)
+
+
+def test_padded_hist_unchanged(padded_histogram: Histogram) -> None:
+    orig_hist = padded_histogram.copy()
+    pad_hist(padded_histogram)
+    assert padded_histogram == orig_hist, "A padded histogram should not be changed"
 
 
 def test_pad_features_hist(
@@ -110,7 +137,7 @@ class TestBatchInterval:
 
     @staticmethod
     def test_touching_intervals(
-        intervals: list[Tuple[datetime.datetime, datetime.datetime]]
+        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
     ) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):

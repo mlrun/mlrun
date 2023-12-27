@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -411,7 +411,6 @@ class Imputer(StepToDict, MLRunStep):
         return event
 
     def _do_spark(self, event):
-
         for feature in event.columns:
             val = self.mapping.get(feature, self.default_value)
             if val is not None:
@@ -451,7 +450,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         encoding = self.mapping.get(feature, [])
 
         if encoding:
-
             one_hot_encoding = {
                 f"{feature}_{OneHotEncoder._sanitized_category(category)}": 0
                 for category in encoding
@@ -476,7 +474,6 @@ class OneHotEncoder(StepToDict, MLRunStep):
         return encoded_values
 
     def _do_pandas(self, event):
-
         for key, values in self.mapping.items():
             event[key] = pd.Categorical(event[key], categories=list(values))
             encoded = pd.get_dummies(event[key], prefix=key, dtype=np.int64)
@@ -636,11 +633,11 @@ class SetEventMetadata(MapClass):
 
     def __init__(
         self,
-        id_path: str = None,
-        key_path: str = None,
-        random_id: bool = None,
+        id_path: Optional[str] = None,
+        key_path: Optional[str] = None,
+        random_id: Optional[bool] = None,
         **kwargs,
-    ):
+    ) -> None:
         """Set the event metadata (id, key) from the event body
 
         set the event metadata fields (id and key) from the event body data structure

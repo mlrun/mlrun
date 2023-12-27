@@ -409,7 +409,6 @@ def test_list_artifact_with_multiple_tags(db: Session, client: TestClient):
         API_ARTIFACTS_PATH.format(project=PROJECT),
         LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag="*"),
     ]:
-
         # list all artifacts
         resp = client.get(artifacts_path)
         assert resp.status_code == HTTPStatus.OK.value

@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![PyPI version fury.io](https://badge.fury.io/py/mlrun.svg)](https://pypi.python.org/pypi/mlrun/)
 [![Documentation](https://readthedocs.org/projects/mlrun/badge/?version=latest)](https://mlrun.readthedocs.io/en/latest/?badge=latest)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/w/mlrun/mlrun)
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/mlrun/mlrun?sort=semver)
 [![Join MLOps Live](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://mlopslive.slack.com)
@@ -37,7 +37,7 @@ See: **Docs:** [Projects and Automation](https://docs.mlrun.org/en/latest/projec
 
 ### Ingest and process data
 
-MLRun provides abstract interfaces to various offline and online [**data sources**](./store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
+MLRun provides abstract interfaces to various offline and online [**data sources**](https://docs.mlrun.org/en/latest/store/datastore.html), supports batch or realtime data processing at scale, data lineage and versioning, structured and unstructured data, and more. 
 In addition, the MLRun [**Feature Store**](https://docs.mlrun.org/en/latest/feature-store/feature-store.html) automates the collection, transformation, storage, catalog, serving, and monitoring of data features across the ML lifecycle and enables feature reuse and sharing. 
 
 See: **Docs:** [Ingest and process data](https://docs.mlrun.org/en/latest/data-prep/index.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/feature-store.html), [Data & Artifacts](https://docs.mlrun.org/en/latest/concepts/data.html); **Tutorials:** [Quick start](https://docs.mlrun.org/en/latest/tutorials/01-mlrun-basics.html), [Feature Store](https://docs.mlrun.org/en/latest/feature-store/basic-demo.html).

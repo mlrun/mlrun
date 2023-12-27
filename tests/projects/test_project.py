@@ -86,6 +86,20 @@ def test_sync_functions_with_names_different_than_default(rundb_mock):
     assert project.spec._function_definitions == project_function_definition
 
 
+def test_sync_functions_unavailable_file():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec._function_definitions["non-existing-function"] = {
+        "handler": "func",
+        "image": "mlrun/mlrun",
+        "kind": "job",
+        "name": "func",
+        "url": "func.py",
+    }
+    with pytest.raises(mlrun.errors.MLRunMissingDependencyError):
+        project.sync_functions()
+
+
 def test_export_project_dir_doesnt_exist():
     project_name = "project-name"
     project_file_path = (
@@ -324,7 +338,6 @@ def test_load_project(
     project = mlrun.load_project(context=context, url=url, clone=clone, save=False)
 
     for temp_file in temp_files:
-
         # verify that the context directory was cleaned if clone is True
         assert os.path.exists(os.path.join(context, temp_file)) is not clone
 

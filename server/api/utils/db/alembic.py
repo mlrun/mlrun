@@ -48,7 +48,6 @@ class AlembicUtil(object):
         return current_revision == self._initial_revision
 
     def _get_current_revision(self) -> typing.Optional[str]:
-
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
         catch_stdout_config.print_stdout = self._save_output
@@ -59,7 +58,6 @@ class AlembicUtil(object):
             return self._alembic_output.strip().replace(" (head)", "")
         except Exception as exc:
             if "Can't locate revision identified by" in exc.args[0]:
-
                 # DB has a revision that isn't known to us, extracting it from the exception.
                 return exc.args[0].split("'")[2]
 

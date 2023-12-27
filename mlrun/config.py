@@ -131,6 +131,9 @@ default_config = {
         # migration progress.
         "artifact_migration_batch_size": 200,
         "artifact_migration_state_file_path": "./db/_artifact_migration_state.json",
+        "datasets": {
+            "max_preview_columns": 100,
+        },
     },
     # FIXME: Adding these defaults here so we won't need to patch the "installing component" (provazio-controller) to
     #  configure this values on field systems, for newer system this will be configured correctly
@@ -189,6 +192,7 @@ default_config = {
                 "migrations": "3600",
                 "load_project": "60",
                 "run_abortion": "600",
+                "abort_grace_period": "10",
             },
             "runtimes": {"dask": "600"},
         },
@@ -216,7 +220,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },
@@ -456,7 +460,7 @@ default_config = {
     },
     "model_endpoint_monitoring": {
         "serving_stream_args": {"shard_count": 1, "retention_period_hours": 24},
-        "application_stream_args": {"shard_count": 3, "retention_period_hours": 24},
+        "application_stream_args": {"shard_count": 1, "retention_period_hours": 24},
         "drift_thresholds": {"default": {"possible_drift": 0.5, "drift_detected": 0.7}},
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
@@ -649,6 +653,7 @@ default_config = {
         # used for igz client when emitting events
         "access_key": "",
     },
+    "grafana_url": "",
 }
 
 _is_running_as_api = None
@@ -1141,7 +1146,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

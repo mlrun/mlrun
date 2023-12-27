@@ -94,7 +94,7 @@ def get_filestat(
     ),
     user: str = "",
 ):
-    return server.api.crud.Files().get_filestat(auth_info, path, schema, user)
+    return _get_filestat(schema, path, user, auth_info)
 
 
 @router.get("/projects/{project}/filestat")
@@ -119,12 +119,7 @@ async def get_filestat_with_project_secrets(
         secrets = await _verify_and_get_project_secrets(project, auth_info)
 
     return await run_in_threadpool(
-        server.api.crud.Files().get_filestat,
-        auth_info,
-        path,
-        schema,
-        user,
-        secrets,
+        _get_filestat, schema, path, user, auth_info, secrets=secrets
     )
 
 
@@ -174,6 +169,43 @@ def _get_files(
     return fastapi.Response(
         content=body, media_type=ctype, headers={"x-suggested-filename": filename}
     )
+
+
+def _get_filestat(
+    schema: str,
+    path: str,
+    user: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    secrets: dict = None,
+):
+    _, filename = path.split(path)
+
+    path = get_obj_path(schema, path, user=user)
+    if not path:
+        log_and_raise(
+            HTTPStatus.NOT_FOUND.value, path=path, err="illegal path prefix or schema"
+        )
+
+    logger.debug("Got get filestat request", path=path)
+
+    secrets = secrets or {}
+    secrets.update(get_secrets(auth_info))
+
+    stat = None
+    try:
+        stat = store_manager.object(url=path, secrets=secrets).stat()
+    except FileNotFoundError as exc:
+        log_and_raise(HTTPStatus.NOT_FOUND.value, path=path, err=err_to_str(exc))
+
+    ctype, _ = mimetypes.guess_type(path)
+    if not ctype:
+        ctype = "application/octet-stream"
+
+    return {
+        "size": stat.size,
+        "modified": stat.modified,
+        "mimetype": ctype,
+    }
 
 
 async def _verify_and_get_project_secrets(project, auth_info):

@@ -384,6 +384,10 @@ class Runs(
                 "status.state": mlrun.runtimes.constants.RunStates.error,
                 "status.error": f"Failed to abort run, error: {err}",
             }
+            server.api.utils.singletons.db.get_db().update_run(
+                db_session, run_updates, uid, project, iter
+            )
+            raise exc
 
         server.api.utils.singletons.db.get_db().update_run(
             db_session, run_updates, uid, project, iter

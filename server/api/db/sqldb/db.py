@@ -972,13 +972,16 @@ class SQLDB(DBInterface):
         )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
-        if not artifact_record.created:
-            created = artifact_dict["metadata"].pop("created", None)
-            artifact_record.created = (
-                datetime.strptime(created, "%Y-%m-%d %H:%M:%S.%f%z")
-                if created
-                else datetime.now(timezone.utc)
-            )
+        created = (
+            str(artifact_record.created)
+            if artifact_record.created
+            else artifact_dict["metadata"].pop("created", None)
+        )
+        # make sure we have a datetime object with timezone both in the artifact record and in the artifact dict
+        created_datetime = mlrun.utils.enrich_datetime_with_tz_info(
+            created
+        ) or datetime.now(timezone.utc)
+        artifact_record.created = created_datetime
 
         # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
         artifact_record.iteration = iter or 0
@@ -988,7 +991,7 @@ class SQLDB(DBInterface):
         artifact_record.uid = uid
 
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
-        artifact_dict["metadata"]["created"] = str(artifact_record.created)
+        artifact_dict["metadata"]["created"] = str(created_datetime)
         artifact_dict["kind"] = kind
 
         db_key = artifact_dict.get("spec", {}).get("db_key")

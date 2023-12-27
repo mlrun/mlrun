@@ -218,6 +218,17 @@ class KubejobRuntime(KubeResource):
 
         ready = False
         if self._is_remote_api():
+            if (
+                build.base_image.endswith(":latest")
+                and self.spec.image_pull_policy != "Always"
+            ):
+                logger.warning(
+                    "Target image tag is 'latest' but image_pull_policy is not 'Always', "
+                    "this may cause the function to use a stale image.",
+                    image=build.base_image,
+                    image_pull_policy=self.spec.image_pull_policy,
+                )
+
             db = self._get_db()
             data = db.remote_builder(
                 self,

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import copy
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -485,6 +486,60 @@ class TestSparkjobRuntimeHandler(TestRuntimeHandlerBase):
         assert stale_runs[0]["run_updates"] == {
             "status.error": f"Run aborted due to exceeded state threshold: {threshold_state}",
         }
+
+    @pytest.mark.parametrize(
+        "force",
+        (
+            True,
+            False,
+        ),
+    )
+    def test_delete_resources_stateless_crd(
+        self, db: Session, client: TestClient, force
+    ):
+        stateless_crd = copy.deepcopy(self.completed_crd_dict)
+        stateless_crd["status"]["applicationState"]["state"] = None
+        list_namespaced_crds_calls = [
+            [stateless_crd],
+        ]
+
+        list_namespaced_pods_calls = []
+        if force:
+            # additional time for wait for pods deletion
+            list_namespaced_crds_calls.append([self.completed_crd_dict])
+            list_namespaced_pods_calls = [
+                # for the get_logger_pods with proper selector
+                [self.driver_pod],
+                # additional time for wait for pods deletion - simulate pods gone
+                [],
+            ]
+            self._mock_list_namespaced_pods(list_namespaced_pods_calls)
+
+        self._mock_list_namespaced_crds(list_namespaced_crds_calls)
+        self._mock_list_namespaced_config_map([self.config_map])
+        self._mock_delete_namespaced_custom_objects()
+        self.runtime_handler.delete_resources(get_db(), db, force=force)
+
+        # deletion was skipped
+        self._assert_delete_namespaced_custom_objects(
+            self.runtime_handler,
+            [] if not force else [stateless_crd["metadata"]["name"]],
+            [] if not force else stateless_crd["metadata"]["namespace"],
+        )
+        self._assert_list_namespaced_crds_calls(
+            self.runtime_handler,
+            len(list_namespaced_crds_calls),
+        )
+
+        if force:
+            self._assert_list_namespaced_pods_calls(
+                self.runtime_handler,
+                len(list_namespaced_pods_calls),
+                self.pod_label_selector,
+            )
+        self._assert_run_reached_state(
+            db, self.project, self.run_uid, RunStates.created
+        )
 
     def _generate_get_logger_pods_label_selector(self, runtime_handler):
         logger_pods_label_selector = super()._generate_get_logger_pods_label_selector(

@@ -119,8 +119,9 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             pd.testing.assert_frame_equal(expected_df, artifact_df)
 
     def setup_method(self, method):
-        time.sleep(2)  # For project handling...
         super().setup_method(method)
+        time.sleep(2)  # For project handling...
+        self._run_db.del_artifacts(project=self.project_name)
 
     def setup_class(self):
         super().setup_class()
@@ -283,6 +284,9 @@ def import_mlrun():
             project=self.project_name, params=default_test_params, **function_kwargs
         )
         self.assert_print_kwargs(print_kwargs_run=run)
+        self._run_db.del_artifacts(project=self.project_name)
+        time.sleep(2)
+        assert len(self.project.list_artifacts()) == 0
         second_run = function.run(runspec=run, project=self.project_name)
         self.assert_print_kwargs(print_kwargs_run=second_run)
 
@@ -365,7 +369,6 @@ def handler(**kwargs):
         return dbfs_path
 
     def test_log_artifact(self):
-        self._run_db.del_artifacts(project=self.project_name)
         test_name = inspect.currentframe().f_code.co_name
         parquet_artifact_dbfs_path = self._upload_df(
             filename_extension="parquet", test_name=test_name

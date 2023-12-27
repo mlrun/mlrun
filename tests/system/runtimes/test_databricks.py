@@ -122,6 +122,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         super().setup_method(method)
         time.sleep(2)  # For project handling...
         self._run_db.del_artifacts(project=self.project_name)
+        time.sleep(2)  # For deleting artifacts...
 
     def setup_class(self):
         super().setup_class()

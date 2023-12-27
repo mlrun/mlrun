@@ -75,12 +75,9 @@ class SystemTestPreparer:
         mlrun_version: str = None,
         mlrun_commit: str = None,
         override_image_registry: str = None,
-        override_image_repo: str = None,
-        override_mlrun_images: str = None,
         data_cluster_ip: str = None,
         data_cluster_ssh_username: str = None,
         data_cluster_ssh_password: str = None,
-        app_cluster_ssh_password: str = None,
         github_access_token: str = None,
         provctl_download_url: str = None,
         provctl_download_s3_access_key: str = None,
@@ -92,7 +89,6 @@ class SystemTestPreparer:
         slack_webhook_url: str = None,
         mysql_user: str = None,
         mysql_password: str = None,
-        purge_db: bool = False,
         debug: bool = False,
         branch: str = None,
     ):
@@ -105,19 +101,15 @@ class SystemTestPreparer:
             if override_image_registry is not None
             else override_image_registry
         )
-        self._override_image_repo = override_image_repo
-        self._override_mlrun_images = override_mlrun_images
         self._data_cluster_ip = data_cluster_ip
         self._data_cluster_ssh_username = data_cluster_ssh_username
         self._data_cluster_ssh_password = data_cluster_ssh_password
-        self._app_cluster_ssh_password = app_cluster_ssh_password
         self._provctl_download_url = provctl_download_url
         self._provctl_download_s3_access_key = provctl_download_s3_access_key
         self._provctl_download_s3_key_id = provctl_download_s3_key_id
         self._iguazio_version = iguazio_version
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
-        self._purge_db = purge_db
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
 
         self._env_config = {
@@ -171,12 +163,6 @@ class SystemTestPreparer:
         self._download_provctl()
 
         self._override_mlrun_api_env()
-
-        # purge of the database needs to be executed before patching mlrun so that the mlrun migrations
-        # that run as part of the patch would succeed even if we move from a newer version to an older one
-        # e.g from development branch which is (1.4.0) and has a newer alembic revision than 1.3.x which is (1.3.1)
-        if self._purge_db:
-            self._purge_mlrun_db()
 
         self._patch_mlrun()
 
@@ -517,41 +503,6 @@ class SystemTestPreparer:
 
     def _patch_mlrun(self):
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        self._logger.log(
-            "debug", "Creating mlrun patch archive", mlrun_version=self._mlrun_version
-        )
-        mlrun_archive = f"./mlrun-{self._mlrun_version}.tar"
-
-        override_image_arg = ""
-        if self._override_mlrun_images:
-            override_image_arg = f"--override-images {self._override_mlrun_images}"
-
-        provctl_create_patch_log = f"/tmp/provctl-create-patch-{time_string}.log"
-        self._run_command(
-            str(self.Constants.provctl_path),
-            args=[
-                "--verbose",
-                f"--logger-file-path={provctl_create_patch_log}",
-                "create-patch",
-                "appservice",
-                override_image_arg,
-                "--gzip-flag=-1",
-                "-v",
-                f"--target-iguazio-version={str(self._iguazio_version)}",
-                "mlrun",
-                self._mlrun_version,
-                mlrun_archive,
-            ],
-            detach=True,
-        )
-        self._run_and_wait_until_successful(
-            command=f"grep 'Patch archive prepared' {provctl_create_patch_log}",
-            command_name="provctl create patch",
-            max_retries=25,
-            interval=60,
-        )
-        # print provctl create patch log
-        self._run_command(f"cat {provctl_create_patch_log}")
 
         self._logger.log(
             "info", "Patching MLRun version", mlrun_version=self._mlrun_version
@@ -562,22 +513,15 @@ class SystemTestPreparer:
             args=[
                 "--verbose",
                 f"--logger-file-path={provctl_patch_mlrun_log}",
-                "--app-cluster-password",
-                self._app_cluster_ssh_password,
-                "--data-cluster-password",
-                self._data_cluster_ssh_password,
                 "patch",
                 "appservice",
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
+                # purged db to allow downgrading between versions
+                "--purge-mlrun-db",
                 "mlrun",
-                mlrun_archive,
-                # enable audit events - will be ignored by provctl if mlrun version does not support it
-                # TODO: remove when setup is upgraded to iguazio version >= 3.5.4 since audit events
-                #  are enabled by default
-                "--feature-gates",
-                "mlrun.auditevents=enabled",
+                self._mlrun_version,
             ],
             detach=True,
         )
@@ -808,18 +752,6 @@ def main():
     help="Override default mlrun docker image registry.",
 )
 @click.option(
-    "--override-image-repo",
-    "-oirep",
-    default=None,
-    help="Override default mlrun docker image repository name.",
-)
-@click.option(
-    "--override-mlrun-images",
-    "-omi",
-    default=None,
-    help="Override default images (comma delimited list).",
-)
-@click.option(
     "--mlrun-commit",
     "-mc",
     default=None,
@@ -828,7 +760,6 @@ def main():
 @click.option("--data-cluster-ip", required=True)
 @click.option("--data-cluster-ssh-username", required=True)
 @click.option("--data-cluster-ssh-password", required=True)
-@click.option("--app-cluster-ssh-password", required=True)
 @click.option("--provctl-download-url", required=True)
 @click.option("--provctl-download-s3-access-key", required=True)
 @click.option("--provctl-download-s3-key-id", required=True)
@@ -837,7 +768,6 @@ def main():
 @click.option("--iguazio-version", default=None)
 @click.option("--mysql-user")
 @click.option("--mysql-password")
-@click.option("--purge-db", "-pdb", is_flag=True, help="Purge mlrun db")
 @click.option(
     "--debug",
     "-d",
@@ -848,12 +778,9 @@ def run(
     mlrun_version: str,
     mlrun_commit: str,
     override_image_registry: str,
-    override_image_repo: str,
-    override_mlrun_images: str,
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
-    app_cluster_ssh_password: str,
     provctl_download_url: str,
     provctl_download_s3_access_key: str,
     provctl_download_s3_key_id: str,
@@ -862,19 +789,15 @@ def run(
     iguazio_version: str,
     mysql_user: str,
     mysql_password: str,
-    purge_db: bool,
     debug: bool,
 ):
     system_test_preparer = SystemTestPreparer(
         mlrun_version=mlrun_version,
         mlrun_commit=mlrun_commit,
         override_image_registry=override_image_registry,
-        override_image_repo=override_image_repo,
-        override_mlrun_images=override_mlrun_images,
         data_cluster_ip=data_cluster_ip,
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
-        app_cluster_ssh_password=app_cluster_ssh_password,
         provctl_download_url=provctl_download_url,
         provctl_download_s3_access_key=provctl_download_s3_access_key,
         provctl_download_s3_key_id=provctl_download_s3_key_id,
@@ -883,7 +806,6 @@ def run(
         iguazio_version=iguazio_version,
         mysql_user=mysql_user,
         mysql_password=mysql_password,
-        purge_db=purge_db,
         debug=debug,
     )
     try:

@@ -307,6 +307,7 @@ class MonitoringApplicationController:
         """
         Main method for run all the relevant monitoring application on each endpoint
         """
+        logger.info(f"[DAVID] start run")
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
             application = mlrun.get_or_create_project(
@@ -360,6 +361,7 @@ class MonitoringApplicationController:
                 if res:
                     self.endpoints_exceptions[res[0]] = res[1]
 
+            logger.info(f"[DAVID] before delete parquet")
             self._delete_old_parquet(endpoints=endpoints)
 
     @classmethod

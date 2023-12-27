@@ -150,7 +150,9 @@ class LogCollectorClient(
 
         # check if this run has logs to collect
         try:
-            log_size = await self.get_log_size(run_uid, project, verbose, raise_on_error)
+            log_size = await self.get_log_size(
+                run_uid, project, verbose, raise_on_error
+            )
             if not log_size:
                 logger.debug(
                     "Run has no logs to collect",
@@ -233,7 +235,7 @@ class LogCollectorClient(
         if not response.success:
             if self._retryable_error(
                 response.errorMessage,
-                    LogCollectorErrorRegex.get_log_size_retryable_errors(),
+                LogCollectorErrorRegex.get_log_size_retryable_errors(),
             ):
                 if verbose:
                     logger.warning(

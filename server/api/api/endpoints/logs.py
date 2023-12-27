@@ -114,9 +114,7 @@ async def get_log_size(
         mlrun.common.schemas.AuthorizationAction.read,
         auth_info,
     )
-    log_file_size = await server.api.crud.Logs().get_log_size(
-        project, uid
-    )
+    log_file_size = await server.api.crud.Logs().get_log_size(project, uid)
     return {
         "size": log_file_size,
     }

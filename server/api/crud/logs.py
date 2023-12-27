@@ -95,7 +95,7 @@ class Logs(
         self,
         project: str,
         run_uid: str,
-     ):
+    ):
         logger.debug("Getting log size for run", project=project, run_uid=run_uid)
         log_collector_client = (
             server.api.utils.clients.log_collector.LogCollectorClient()

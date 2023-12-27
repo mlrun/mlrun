@@ -17,7 +17,6 @@ import glob
 import http
 import importlib.util as imputil
 import json
-import os
 import pathlib
 import shutil
 import tempfile
@@ -2293,8 +2292,7 @@ class MlrunProject(ModelObj):
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
-        if not self.spec.repo and not self.is_git_initialized():
-            raise ValueError("git repo is not valid/initialized")
+        self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2307,19 +2305,18 @@ class MlrunProject(ModelObj):
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
 
-    def is_git_initialized(self):
+    def _ensure_git_repo(self):
+        if self.spec.repo:
+            return
         context = self.context
-        git_dir_path = os.path.join(context, ".git")
+        git_dir_path = path.join(context, ".git")
 
-        if os.path.exists(git_dir_path) and os.path.isdir(git_dir_path):
-            try:
-                self.spec.repo = git.Repo(context)
-                return True
-            except git.InvalidGitRepositoryError:
-                logger.warning("Invalid Git repository")
-            except Exception as e:
-                logger.error(f"Error initializing Git repository: {e}")
-        return False
+        if not path.exists(git_dir_path):
+            logger.warning("Git repository not initialized. initializing now")
+            self.spec.repo = git.Repo.init(context)
+        else:
+            # git already initialized
+            self.spec.repo = git.Repo(context)
 
     def push(
         self,

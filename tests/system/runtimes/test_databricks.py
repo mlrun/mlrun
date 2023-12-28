@@ -130,13 +130,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    def assert_print_kwargs(self, print_kwargs_run, databricks_run_name=None):
+    def assert_print_kwargs(
+        self, print_kwargs_run, databricks_run_name=None, expected_artifacts=1
+    ):
         assert print_kwargs_run.status.state == "completed"
         logs = self._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
         artifacts = self.project.list_artifacts().to_objects()
-
-        assert len(artifacts) == 1
+        assert len(artifacts) == expected_artifacts
         key = f"{print_kwargs_run.metadata.name}_databricks_run_metadata"
         artifact = self.project.get_artifact(key=key, tree=print_kwargs_run.uid())
         databricks_metadata = json.loads(artifact.to_dataitem().get()).get(
@@ -286,11 +287,11 @@ def import_mlrun():
             project=self.project_name, params=test_params, **function_kwargs
         )
         self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
-        self._run_db.del_artifacts(project=self.project_name)
-        assert len(self.project.list_artifacts()) == 0
         second_run = function.run(runspec=run, project=self.project_name)
         self.assert_print_kwargs(
-            print_kwargs_run=second_run, databricks_run_name=run_name
+            print_kwargs_run=second_run,
+            databricks_run_name=run_name,
+            expected_artifacts=2,
         )
 
     def test_missing_code_run(self):

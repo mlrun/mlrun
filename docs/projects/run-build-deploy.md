@@ -108,13 +108,13 @@ def handler(context, param, model_names):
 func = mlrun.new_function("aaa", kind="job", image="mlrun/mlrun")
 func.save()
 ---
-task = new_task(name='nnfevieqef', handler=handler, artifact_path=artifact_path,project='xmhydasaoa', 
-   'param': 'UUpXrXDZZeouXOvoYzGHNYDuVYGCAysgHqLvyNQqWdcgdfbOEoTfpyExIiLepkCOsdsASCgeuyVDumrUbuTvmeGnertvXQmztVUA',
-   'model_names': [('ypgqpokldn', 'eucaeqkbkk.txt'), ('wkmtokxewd', 'myfqbnzvuw.txt'), ('sbemmscgju', 'qsufmcvrct.txt'), ('iyqfbwfqar', 'qjcnzuygcu.txt'), ('iwvhxfwzlv', 'zlgrpwixcf.txt')]
+task = new_task(name='mytask', handler=handler, artifact_path=artifact_path,project='project-name', 
    )
 run_object = mlrun.run_function("aaa", local=True, base_task=task)
 run_object.uid()
 ```
+
+See {py:meth}`mlrun.model.new_task` for a description of the `new_task` parameters.
 
 <a id="build"></a>
 ## build_function

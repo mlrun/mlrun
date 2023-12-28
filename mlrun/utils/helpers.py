@@ -720,14 +720,11 @@ def generate_artifact_uri(project, key, tag=None, iter=None, tree=None):
     return artifact_uri
 
 
-def extend_hub_uri_if_needed(
-    uri, db: "mlrun.db.base.RunDBInterface" = None
-) -> Tuple[str, bool]:
+def extend_hub_uri_if_needed(uri) -> Tuple[str, bool]:
     """
     Retrieve the full uri of the item's yaml in the hub.
 
     :param uri: structure: "hub://[<source>/]<item-name>[:<tag>]"
-    :param db: rundb instance
 
     :return: A tuple of:
                [0] = Extended URI of item
@@ -737,6 +734,7 @@ def extend_hub_uri_if_needed(
     if not is_hub_uri:
         return uri, is_hub_uri
 
+    db = mlrun.get_run_db()
     name = uri.removeprefix(hub_prefix)
     tag = "latest"
     source_name = ""

@@ -367,7 +367,7 @@ def import_function(url="", secrets=None, db="", project=None, new_name=None):
         if not runtime:
             raise KeyError(f"function {name}:{tag} not found in the DB")
     else:
-        url, is_hub_uri = extend_hub_uri_if_needed(url, db)
+        url, is_hub_uri = extend_hub_uri_if_needed(url)
         runtime = import_function_to_dict(url, secrets)
     function = new_function(runtime=runtime)
     project = project or mlrun.mlconf.default_project

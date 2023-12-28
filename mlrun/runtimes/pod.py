@@ -186,6 +186,9 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
+        # _dict_fields and doesn't have a setter.
+        self._termination_grace_period_seconds = None
         self.__fields_pending_discard = {}
 
     @property
@@ -256,6 +259,10 @@ class KubeResourceSpec(FunctionSpec):
         self._security_context = transform_attribute_to_k8s_class_instance(
             "security_context", security_context
         )
+
+    @property
+    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+        return self._termination_grace_period_seconds
 
     def to_dict(self, fields=None, exclude=None):
         exclude = exclude or []

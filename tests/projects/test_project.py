@@ -1484,6 +1484,7 @@ def test_project_create_remote():
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Set the current working directory to a temporary directory
+        original_working_dir = os.getcwd()
         os.chdir(tmp_dir)
 
         # create a project
@@ -1499,3 +1500,4 @@ def test_project_create_remote():
         assert project.spec.repo is not None
         assert project.spec.repo.active_branch.name == "master"
         assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+        os.chdir(original_working_dir)

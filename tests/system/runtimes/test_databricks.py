@@ -99,7 +99,7 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
-        #  +1 because of metadata artifact
+        # +1 because of metadata artifact
         assert len(artifacts) == len(paths_dict) + 1
         for expected_name, expected_dbfs_path in paths_dict.items():
             db_key = f"databricks-test-main_{expected_name}"

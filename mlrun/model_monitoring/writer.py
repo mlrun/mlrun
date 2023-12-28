@@ -158,41 +158,7 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_kv_schema(self, endpoint_id: str):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
-            {
-                "name": WriterEvent.START_INFER_TIME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.END_INFER_TIME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_NAME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_KIND,
-                "type": "int",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_VALUE,
-                "type": "double",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_STATUS,
-                "type": "int",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_EXTRA_DATA,
-                "type": "string",
-                "nullable": False,
-            },
+            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False}
         ]
         res = self._kv_client.create_schema(
             container=self._v3io_container,

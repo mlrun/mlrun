@@ -78,7 +78,7 @@ class Artifacts(
                     artifact["spec"]["size"] = file_stat["size"]
                 except Exception as err:
                     logger.debug(
-                        "Calculating artifact size failed",
+                        "Failed calculating artifact size",
                         path=path,
                         err=err_to_str(err),
                     )

@@ -143,7 +143,7 @@ class ModelMonitoringWriter(StepToDict):
         event = _AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
-        self._kv_client.put(
+        self._kv_client.update(
             container=self._v3io_container,
             table_path=endpoint_id,
             key=app_name,

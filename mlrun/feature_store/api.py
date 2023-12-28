@@ -1112,9 +1112,6 @@ def _ingest_with_spark(
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
             )
-            logger.info(
-                f"writing to target {target.name}, spark options {spark_options}"
-            )
 
             df_to_write = df
             df_to_write = target.prepare_spark_df(

@@ -902,7 +902,7 @@ class AutoMountType(str, Enum):
 
 class KubeResource(BaseRuntime):
     """
-    A parent class for runtimes which generate k8s resources when executing.
+    A parent class for runtimes that generate k8s resources when executing.
     """
 
     kind = "job"

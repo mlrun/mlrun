@@ -2972,7 +2972,7 @@ class HTTPRunDB(RunDBInterface):
         :param with_schedule:       If true, submit the model monitoring scheduled job as well.
 
 
-        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+        :returns: model monitoring batch job as a dictionary. You can easily convert the returned function into a
                  runtime object by calling ~mlrun.new_function.
         """
 
@@ -3003,7 +3003,7 @@ class HTTPRunDB(RunDBInterface):
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
                                          is running. By default, the base period is 5 minutes.
-        :returns: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
+        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
                   runtime object by calling ~mlrun.new_function.
         """
 

@@ -21,12 +21,10 @@ import pathlib
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 import typing
 import urllib.parse
 
-import boto3
 import click
 import paramiko
 import yaml
@@ -73,8 +71,9 @@ class SystemTestPreparer:
     def __init__(
         self,
         mlrun_version: str = None,
-        mlrun_commit: str = None,
         override_image_registry: str = None,
+        mlrun_commit: str = None,
+        mlrun_ui_version: str = None,
         data_cluster_ip: str = None,
         data_cluster_ssh_username: str = None,
         data_cluster_ssh_password: str = None,
@@ -82,7 +81,6 @@ class SystemTestPreparer:
         provctl_download_url: str = None,
         provctl_download_s3_access_key: str = None,
         provctl_download_s3_key_id: str = None,
-        mlrun_dbpath: str = None,
         username: str = None,
         access_key: str = None,
         iguazio_version: str = None,
@@ -96,6 +94,7 @@ class SystemTestPreparer:
         self._debug = debug
         self._mlrun_version = mlrun_version
         self._mlrun_commit = mlrun_commit
+        self._mlrun_ui_version = mlrun_ui_version
         self._override_image_registry = (
             override_image_registry.strip().strip("/") + "/"
             if override_image_registry is not None
@@ -113,7 +112,6 @@ class SystemTestPreparer:
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
 
         self._env_config = {
-            "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
@@ -389,6 +387,7 @@ class SystemTestPreparer:
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
+        mlrun_api_url = self._get_ingress_host("mlrun-api")
         spark_service_name = self._get_service_name("app=spark,component=spark-master")
         self._env_config["MLRUN_IGUAZIO_API_URL"] = f"https://{api_url_host}"
         self._env_config["V3IO_FRAMESD"] = f"https://{framesd_host}"
@@ -396,6 +395,7 @@ class SystemTestPreparer:
             "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
         ] = spark_service_name
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
+        self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 
     def _install_dev_utilities(self):
         list_uninstall = [
@@ -431,33 +431,27 @@ class SystemTestPreparer:
         else:
             object_name = parsed_url.path.lstrip("/")
             bucket_name = parsed_url.netloc.split(".")[0]
-        # download provctl from s3
-        with tempfile.NamedTemporaryFile() as local_provctl_path:
-            self._logger.log(
-                "debug",
-                "Downloading provctl",
-                bucket_name=bucket_name,
-                object_name=object_name,
-                local_path=local_provctl_path.name,
-            )
-            s3_client = boto3.client(
-                "s3",
-                aws_secret_access_key=self._provctl_download_s3_access_key,
-                aws_access_key_id=self._provctl_download_s3_key_id,
-            )
-            s3_client.download_file(bucket_name, object_name, local_provctl_path.name)
-            # upload provctl to data node
-            self._logger.log(
-                "debug",
-                "Uploading provctl to datanode",
-                remote_path=str(self.Constants.provctl_path),
-                local_path=local_provctl_path.name,
-            )
-            sftp_client = self._ssh_client.open_sftp()
-            sftp_client.put(local_provctl_path.name, str(self.Constants.provctl_path))
-            sftp_client.close()
+
         # make provctl executable
+        self._run_command(
+            "aws",
+            args=[
+                "s3",
+                "--profile",
+                "provazio-provctl",
+                "cp",
+                f"s3://{bucket_name}/{object_name}",
+                str(self.Constants.provctl_path),
+            ],
+        )
         self._run_command("chmod", args=["+x", str(self.Constants.provctl_path)])
+        # log provctl version
+        self._run_command(
+            str(self.Constants.provctl_path),
+            args=[
+                "version",
+            ],
+        )
 
     def _run_and_wait_until_successful(
         self,
@@ -480,6 +474,17 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception as exc:
+                if "No such file or directory" in str(exc):
+                    self._logger.log(
+                        "error",
+                        f"Command {command_name} fatally failed due to missing file or directory",
+                        exc=exc,
+                    )
+
+                    # make it bail now!
+                    retries = max_retries
+                    continue
+
                 self._logger.log(
                     "debug",
                     f"Command {command_name} didn't complete yet, trying again in {interval} seconds",
@@ -492,9 +497,9 @@ class SystemTestPreparer:
         if retries >= max_retries and not finished:
             self._logger.log(
                 "info",
-                f"Command {command_name} timeout passed and not finished, failing...",
+                f"Command {command_name} retries exhausted, failing...",
             )
-            raise RuntimeError("Command timeout passed and not finished")
+            raise RuntimeError(f"Command {command_name} exhausted retries")
         total_seconds_took = (datetime.datetime.now() - start_time).total_seconds()
         self._logger.log(
             "info",
@@ -505,7 +510,10 @@ class SystemTestPreparer:
         time_string = time.strftime("%Y%m%d-%H%M%S")
 
         self._logger.log(
-            "info", "Patching MLRun version", mlrun_version=self._mlrun_version
+            "info",
+            "Patching MLRun version",
+            mlrun_version=self._mlrun_version,
+            mlrun_ui_version=self._mlrun_ui_version,
         )
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
@@ -518,6 +526,8 @@ class SystemTestPreparer:
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
+                f"--override-mlrun-ui-version={self._mlrun_ui_version}",
+                f"--override-default-image-registry={self._override_image_registry.rstrip('/')}/mlrun",
                 # purged db to allow downgrading between versions
                 "--purge-mlrun-db",
                 "mlrun",
@@ -745,6 +755,7 @@ def main():
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
 @click.option("--mlrun-version")
+@click.option("--mlrun-ui-version")
 @click.option(
     "--override-image-registry",
     "-oireg",
@@ -776,8 +787,9 @@ def main():
 )
 def run(
     mlrun_version: str,
-    mlrun_commit: str,
+    mlrun_ui_version: str,
     override_image_registry: str,
+    mlrun_commit: str,
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
@@ -795,6 +807,7 @@ def run(
         mlrun_version=mlrun_version,
         mlrun_commit=mlrun_commit,
         override_image_registry=override_image_registry,
+        mlrun_ui_version=mlrun_ui_version,
         data_cluster_ip=data_cluster_ip,
         data_cluster_ssh_username=data_cluster_ssh_username,
         data_cluster_ssh_password=data_cluster_ssh_password,
@@ -816,7 +829,6 @@ def run(
 
 
 @main.command(context_settings=dict(ignore_unknown_options=True))
-@click.option("--mlrun-dbpath", help="The mlrun api address", required=True)
 @click.option("--data-cluster-ip")
 @click.option("--data-cluster-ssh-username")
 @click.option("--data-cluster-ssh-password")
@@ -844,7 +856,6 @@ def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
     data_cluster_ssh_password: str,
-    mlrun_dbpath: str,
     username: str,
     access_key: str,
     slack_webhook_url: str,
@@ -857,7 +868,6 @@ def env(
         data_cluster_ip=data_cluster_ip,
         data_cluster_ssh_password=data_cluster_ssh_password,
         data_cluster_ssh_username=data_cluster_ssh_username,
-        mlrun_dbpath=mlrun_dbpath,
         username=username,
         access_key=access_key,
         debug=debug,

@@ -292,12 +292,12 @@ ParquetTarget(path="ds://test_profile/aws_bucket/path/to/parquet.pq")
 
 `DatastoreProfileS3` init parameters:
 - `name` &mdash; Name of the profile
-- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`.
-- `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set.
-- `profile_name` &mdash; A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`.
-- `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`.
-- `access_key` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`.
-- `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`.
+- `endpoint_url` &mdash; A string representing the endpoint URL of the S3 service. It's typically required for non-AWS S3-compatible services. If not provided, the default is `None`. The equivalent to this parameter in environment authentication is env["S3_ENDPOINT_URL"].
+- `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set. The equivalent to this parameter in environment authentication is - `force_non_anonymous` &mdash; A string that determines whether to force non-anonymous access to the S3 bucket. The default value is `None`, meaning the behavior is not explicitly set. The equivalent to this parameter in environment authentication is env["S3_NON_ANONYMOUS"].
+- `profile_name` &mdash; A string representing the name of the profile. This might be used to refer to specific named configurations for connecting to S3. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_PROFILE"].
+- `assume_role_arn` &mdash; A string representing the Amazon Resource Name (ARN) of the role to assume when interacting with the S3 service. This can be useful for granting temporary permissions. By default, it is set to `None`. The equivalent to this parameter in environment authentication is 
+- `access_key` &mdash; A string representing the access key used for authentication to the S3 service. It's one of the credentials parts when you're not using anonymous access or IAM roles. For privacy reasons, it's tagged as a private attribute, and its default value is `None`. The equivalent to this parameter in environment authentication is env["MLRUN_AWS_ROLE_ARN"].
+- `secret_key` &mdash; A string representing the secret key, which pairs with the access key, used for authentication to the S3 service. It's the second part of the credentials when not using anonymous access or IAM roles. It's also tagged as private for privacy and security reasons. The default value is `None`. The equivalent to this parameter in environment authentication is env["AWS_SECRET_ACCESS_KEY"].
 
 
 

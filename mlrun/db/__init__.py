@@ -24,7 +24,7 @@ def get_or_set_dburl(default=""):
     return config.dbpath
 
 
-def get_run_db(url="", secrets=None, force_reconnect=False):
+def get_run_db(url="", secrets=None, force_reconnect=False) -> RunDBInterface:
     """Returns the runtime database"""
     # import here to avoid circular import
     import mlrun.db.factory

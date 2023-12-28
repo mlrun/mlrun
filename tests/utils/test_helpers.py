@@ -179,7 +179,7 @@ def test_extend_hub_uri(rundb_mock, case):
     hub_url = mlrun.mlconf.get_default_hub_source()
     input_uri = case["input_uri"]
     expected_output = case["expected_output"]
-    output, is_hub_url = extend_hub_uri_if_needed(input_uri)
+    output, is_hub_url = extend_hub_uri_if_needed(input_uri, rundb_mock)
     if is_hub_url:
         expected_output = hub_url + expected_output
     assert expected_output == output

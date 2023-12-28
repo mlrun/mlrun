@@ -342,6 +342,10 @@ func (s *Server) GetLogs(request *protologcollector.GetLogsRequest, responseStre
 		return nil
 	}
 
+	if request.Offset < 0 {
+		return errors.New("Offset cannot be negative")
+	}
+
 	// get log file path
 	filePath, err := s.getLogFilePath(ctx, request.RunUID, request.ProjectName)
 	if err != nil {

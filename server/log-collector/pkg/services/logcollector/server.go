@@ -449,7 +449,7 @@ func (s *Server) GetLogSize(ctx context.Context, request *protologcollector.GetL
 				"projectName", request.ProjectName)
 			return &protologcollector.GetLogSizeResponse{
 				Success: true,
-				LogSize: 0,
+				LogSize: -1,
 			}, nil
 		}
 

@@ -153,7 +153,7 @@ class LogCollectorClient(
             log_size = await self.get_log_size(
                 run_uid, project, verbose, raise_on_error
             )
-            if not log_size:
+            if log_size <= 0:
                 logger.debug(
                     "Run has no logs to collect",
                     run_uid=run_uid,

@@ -100,10 +100,16 @@ class Logs(
         log_collector_client = (
             server.api.utils.clients.log_collector.LogCollectorClient()
         )
-        return await log_collector_client.get_log_size(
+        log_file_size = await log_collector_client.get_log_size(
             project=project,
             run_uid=run_uid,
         )
+        if log_file_size < 0:
+            # If the log file size is negative, it means the log file doesn't exist
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{run_uid} not found",
+            )
+        return log_file_size
 
     async def get_logs(
         self,

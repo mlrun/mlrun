@@ -246,6 +246,7 @@ class KubejobRuntime(KubeResource):
                 and self.spec.image_pull_policy
                 and self.spec.image_pull_policy != "Always"
             ):
+                # When image pull policy is not set and image tag is latest, k8s defaults to Always - no need to warn
                 logger.warning(
                     "Target image tag is 'latest' but image_pull_policy is set and not 'Always', "
                     "this may cause the function to use a stale image",

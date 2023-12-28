@@ -604,7 +604,7 @@ func (suite *LogCollectorTestSuite) TestGetLogSize() {
 	getLogSizeResponse, err := suite.logCollectorServer.GetLogSize(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to get log size")
 	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")
-	suite.Require().Zero(getLogSizeResponse.LogSize, "Expected size to be zero")
+	suite.Require().Equal(int64(-1), getLogSizeResponse.LogSize, "Expected size to be negative")
 
 	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
@@ -614,7 +614,7 @@ func (suite *LogCollectorTestSuite) TestGetLogSize() {
 	err = common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
-	// check if run has logs
+	// get the log size
 	getLogSizeResponse, err = suite.logCollectorServer.GetLogSize(suite.ctx, request)
 	suite.Require().NoError(err, "Failed to get log size")
 	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")

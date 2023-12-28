@@ -243,10 +243,11 @@ class KubejobRuntime(KubeResource):
 
             if (
                 target_image.endswith(":latest")
+                and self.spec.image_pull_policy
                 and self.spec.image_pull_policy != "Always"
             ):
                 logger.warning(
-                    "Target image tag is 'latest' but image_pull_policy is not 'Always', "
+                    "Target image tag is 'latest' but image_pull_policy is set and not 'Always', "
                     "this may cause the function to use a stale image",
                     image=self.spec.image,
                     image_pull_policy=self.spec.image_pull_policy,

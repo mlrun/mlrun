@@ -210,7 +210,7 @@ def run_mlrun_databricks_job(
     run_output_dict = run_output.as_dict()
     run_output_dict.pop("logs", None)
     context.log_artifact(
-        f"databricks_run_metadata_{context.uid}",
+        f"databricks_run_metadata",
         body=json.dumps(run_output_dict),
         format="json",
     )

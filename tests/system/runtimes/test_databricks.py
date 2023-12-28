@@ -99,7 +99,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
-        assert len(artifacts) == len(paths_dict) + 1  #  +1 becuase metadata artifact.
+        #  +1 because of metadata artifact
+        assert len(artifacts) == len(paths_dict) + 1
         for expected_name, expected_dbfs_path in paths_dict.items():
             db_key = f"databricks-test-main_{expected_name}"
             artifact = self.project.get_artifact(key=db_key)
@@ -133,7 +134,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         assert print_kwargs_run.status.state == "completed"
         logs = self._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
-        #  Should be inside the metadata:
         artifacts = self.project.list_artifacts().to_objects()
 
         assert len(artifacts) == 1
@@ -244,7 +244,7 @@ def import_mlrun():
         )
 
         self._add_databricks_env(function=function)
-        test_params = default_test_params
+        test_params = copy.deepcopy(default_test_params)
         run_name = f"mlrun_task_{uuid.uuid4()}"
         test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
@@ -279,7 +279,7 @@ def import_mlrun():
         function = function_ref.to_function()
 
         self._add_databricks_env(function=function)
-        test_params = default_test_params
+        test_params = copy.deepcopy(default_test_params)
         run_name = f"mlrun_task_{uuid.uuid4()}"
         test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
@@ -317,7 +317,6 @@ def import_mlrun():
             )
 
     def test_abort_task(self):
-        #  clean up any active runs
         sleep_code = """
 
 import time

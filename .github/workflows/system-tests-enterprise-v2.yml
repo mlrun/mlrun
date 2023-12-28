@@ -263,15 +263,15 @@ jobs:
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
-          --save-to-path "${{ github.workspace }}/env.yml"
+          --save-to-path "$GITHUB_WORKSPACE/env.yml"
 
     - name: Encrypt file
       run: |
         gpg \
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
-          --output "${{ github.workspace }}/env.yml.gpg" \
-          --symmetric "${{ github.workspace }}/env.yml"
+          --output "$GITHUB_WORKSPACE/env.yml.gpg" \
+          --symmetric "$GITHUB_WORKSPACE/env.yml"
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
@@ -279,7 +279,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: env
-        path: "${{ github.workspace }}/env.yml.gpg"
+        path: "$GITHUB_WORKSPACE/env.yml.gpg"
         if-no-files-found: error
 
     outputs:
@@ -331,18 +331,18 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: env
-        path: "${{ github.workspace }}/tests/system"
+        path: "$GITHUB_WORKSPACE/tests/system"
 
     - name: Decrypt file
       run: |
         gpg \
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
-          --output "${{ github.workspace }}/tests/system/env.yml" \
-          --decrypt "${{ github.workspace }}/tests/system/env.yml.gpg"
+          --output "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          --decrypt "$GITHUB_WORKSPACE/tests/system/env.yml.gpg"
 
         # ensure file is created
-        test -f ${{ github.workspace }}/tests/system/env.yml
+        test -f $GITHUB_WORKSPACE/tests/system/env.yml
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 

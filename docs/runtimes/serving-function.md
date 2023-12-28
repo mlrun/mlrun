@@ -18,7 +18,7 @@ This example illustrates how to use Git with serving function:
 project = mlrun.get_or_create_project("serving-git", "./")
 project.set_source(source="git://github.com/myname/test-serving.git#main", pull_at_runtime=True)
 function = project.set_function(name="serving", kind="serving", with_repo=True, func="serving.py", image="mlrun/mlrun")
-function.add_model("serve", 'https://s3.wasabisys.com/iguazio/models/lightgbm/SampleModel.pkl',class_name="serving.SlotFillerServe")
+function.add_model("serve", <model_path> ,class_name="MyClass")
 project.deploy_function(function="serving")
 ```
 

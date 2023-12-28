@@ -137,8 +137,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
         artifacts = self.project.list_artifacts().to_objects()
 
         assert len(artifacts) == 1
-        key = f"{print_kwargs_run.metadata.name}_databricks_run_metadata_{print_kwargs_run.uid()}"
-        artifact = self.project.get_artifact(key=key)
+        key = f"{print_kwargs_run.metadata.name}_databricks_run_metadata"
+        artifact = self.project.get_artifact(key=key, tree=print_kwargs_run.uid())
         databricks_metadata = json.loads(artifact.to_dataitem().get()).get(
             "metadata", {}
         )

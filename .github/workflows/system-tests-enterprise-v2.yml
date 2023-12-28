@@ -266,12 +266,15 @@ jobs:
           --save-to-path "$GITHUB_WORKSPACE/env.yml"
 
     - name: Encrypt file
+      id: encrypt_file
       run: |
         gpg \
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
           --output "$GITHUB_WORKSPACE/env.yml.gpg" \
           --symmetric "$GITHUB_WORKSPACE/env.yml"
+        
+        echo "env_file_path=$(echo $GITHUB_WORKSPACE/env.yml.gpg)" >> $GITHUB_OUTPUT
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
@@ -279,7 +282,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: env
-        path: "$GITHUB_WORKSPACE/env.yml.gpg"
+        path: "${{ steps.encrypt_file.outputs.env_file_path }}"
         if-no-files-found: error
 
     outputs:
@@ -331,7 +334,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: env
-        path: "$GITHUB_WORKSPACE/tests/system"
+        path: /tmp
 
     - name: Decrypt file
       run: |
@@ -339,7 +342,7 @@ jobs:
           --batch \
           --passphrase "${{ env.GPG_PASSPHRASE }}" \
           --output "$GITHUB_WORKSPACE/tests/system/env.yml" \
-          --decrypt "$GITHUB_WORKSPACE/tests/system/env.yml.gpg"
+          --decrypt "/tmp/env.yml.gpg"
 
         # ensure file is created
         test -f $GITHUB_WORKSPACE/tests/system/env.yml

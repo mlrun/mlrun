@@ -193,6 +193,7 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },

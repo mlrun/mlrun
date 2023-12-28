@@ -157,11 +157,6 @@ class ModelMonitoringWriter(StepToDict):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
             {
-                "name": WriterEvent.APPLICATION_NAME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
                 "name": WriterEvent.START_INFER_TIME,
                 "type": "string",
                 "nullable": False,

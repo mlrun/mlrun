@@ -143,11 +143,13 @@ class ModelMonitoringWriter(StepToDict):
         event = _AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
+        metric_name = event.pop(WriterEvent.RESULT_NAME)
+        attributes = {metric_name: json.dumps(event)}
         self._kv_client.update(
             container=self._v3io_container,
             table_path=endpoint_id,
             key=app_name,
-            attributes=event,
+            attributes=attributes,
         )
         if endpoint_id not in self._kv_schemas:
             self._generate_kv_schema(endpoint_id)

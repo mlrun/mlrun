@@ -63,21 +63,21 @@ The hierarchy must be:
 ### Add a custom hub to the MLRun database
 When you add a hub, specify `order=-1` to add it to the top of the list. 
 The list order is relevant when [loading a function](#load-function-example-omit-in-toc):
-if you don't specify a source name, MLRun starts searching for the function with the last added hub.
-If you want to add a source but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
+if you don't specify a hub name, MLRun starts searching for the function with the last added hub.
+If you want to add a hub but not at the top of the list, view the current list using {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_hub_source`.
 The MLRun function hub is always the last in the list (and cannot be modified). 
 
 
-To add a source, run:
+To add a hub, run:
 ```python
 import mlrun.common.schemas
 
-# Add a private source to the top of the list
+# Add a private hub to the top of the list
 private_source = mlrun.common.schemas.IndexedHubSource(
     order=-1,
 	source=mlrun.common.schemas.HubSource(
 		metadata=mlrun.common.schemas.HubObjectMetadata(
-		name="private", description="a private source"
+		name="private", description="a private hub"
 		),
 		spec=mlrun.common.schemas.HubSourceSpec(
 		path="https://mlrun.github.io/marketplace", channel="development"
@@ -149,9 +149,9 @@ To load the same function from your private hub:
 project.set_function('hub://<hub-name>/describe', 'describe')
 ```
 ```{caution} 
-If you don't specify a source name at all, the algorithm searches for the function in all the hub sources, 
-giving preference to new hub sources. Therefore, if you 
-have multiple hub sources, it's recommended to explicitly mention the source name.
+If you don't specify a hub name at all, the algorithm searches for the function in all the hubs, 
+giving preference to newly defined hubs. Therefore, if you 
+have multiple hubs, best practice is to explicitly mention the hub name.
 ```
 
 After loading the function, create a function object named, for example, `my_describe`:

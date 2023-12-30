@@ -196,12 +196,8 @@ jobs:
         
         # Get the tested mlrun version
         echo "unstable_version_prefix=$( \
-          cd /tmp && \
-          git clone --single-branch --branch ${{ steps.current-branch.outputs.name }} https://github.com/mlrun/mlrun.git mlrun-upstream 2> /dev/null && \
-          cd mlrun-upstream && \
-          cat automation/version/unstable_version_prefix && \
-          cd .. && \
-          rm -rf mlrun-upstream)" >> $GITHUB_OUTPUT
+          curl https://raw.githubusercontent.com/mlrun/mlrun/${{ steps.current-branch.outputs.name }}/automation/version/unstable_version_prefix \
+        )" >> $GITHUB_OUTPUT
 
     - name: Set computed versions params
       id: computed_params

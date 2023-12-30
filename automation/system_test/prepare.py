@@ -485,7 +485,6 @@ class SystemTestPreparer:
         failed_ps_verification = False
         while not finished and retries < max_retries:
             try:
-
                 # do not raise if failed ps verification
                 # as we might fail it while program successfully finished
                 failed_ps_verification = exec_ps_verification()
@@ -561,7 +560,9 @@ class SystemTestPreparer:
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
-                f"--override-mlrun-ui-version={self._mlrun_ui_version}" if self._mlrun_ui_version else "",
+                f"--override-mlrun-ui-version={self._mlrun_ui_version}"
+                if self._mlrun_ui_version
+                else "",
                 f"--override-default-image-registry={self._override_image_registry.rstrip('/')}/mlrun",
                 # purged db to allow downgrading between versions
                 "--purge-mlrun-db",

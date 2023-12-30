@@ -17,14 +17,13 @@ name: System Tests Enterprise v2
 on:
   push:
     branches:
-      - '.+-system-tests-v2'
+      - '.+-system-tests'
 
-# TODO: uncomment
-#  schedule:
-#
-#    # * is a special character in YAML so you have to quote this string
-#    # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
-#    - cron: '0 */8 * * *'
+  schedule:
+
+    # * is a special character in YAML so you have to quote this string
+    # Run the system tests every 8 hours (cron hours should divide 24 equally, otherwise there will be an overlap at the end of the day)
+    - cron: '0 */8 * * *'
 
   workflow_dispatch:
     inputs:
@@ -44,8 +43,7 @@ on:
         description: 'Override the configured target system iguazio version (leave empty to resolve automatically)'
         required: false
 
-# TODO: uncomment
-#concurrency: one-at-a-time
+concurrency: one-at-a-time
 
 jobs:
   system-test-cleanup:
@@ -67,25 +65,25 @@ jobs:
       # deployment and the datanode docker-registry
       run: |
         sshpass \
-          -p "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           ssh \
           -o StrictHostKeyChecking=no \
           -o ServerAliveInterval=180 \
           -o ServerAliveCountMax=3 \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
           kubectl -n default-tenant rollout restart deployment docker-registry
 
         sshpass \
-          -p "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           automation/system_test/cleanup.py \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
 
         sshpass \
-          -p "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           automation/system_test/dev_utilities.py \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/dev_utilities.py
 
   prepare-system-tests-enterprise-ci:
     # When increasing the timeout make sure it's not larger than the schedule cron interval
@@ -109,10 +107,10 @@ jobs:
     - name: Copy state branch file from remote
       run: |
         sshpass \
-          -p "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt \
           system-tests-branches-list.txt
 
     - name: Resolve Branch To Run System Tests
@@ -158,10 +156,10 @@ jobs:
       run: |
         # Override the remote file with the new list of branches
         sshpass \
-          -p "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no system-tests-branches-list.txt \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
 
       # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
       # before merging the changes to upstream.
@@ -231,14 +229,14 @@ jobs:
       timeout-minutes: 50
       run: |
         python automation/system_test/prepare.py run \
-          --data-cluster-ip "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
-          --data-cluster-ssh-password "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           --provctl-download-url "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_PATH }}" \
           --provctl-download-s3-access-key "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_ACCESS_KEY }}" \
           --provctl-download-s3-key-id "${{ secrets.LATEST_SYSTEM_TEST_PROVCTL_DOWNLOAD_URL_S3_KEY_ID }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-          --access-key "${{ secrets.X_LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --iguazio-version "${{ steps.computed_params.outputs.iguazio_version }}" \
           --mysql-user "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_USER }}" \
           --mysql-password "${{ secrets.LATEST_SYSTEM_TEST_MYSQL_PASSWORD }}" \
@@ -251,11 +249,11 @@ jobs:
       timeout-minutes: 5
       run: |
         python automation/system_test/prepare.py env \
-          --data-cluster-ip "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
+          --data-cluster-ip "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}" \
           --data-cluster-ssh-username "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}" \
-          --data-cluster-ssh-password "${{ secrets.X_LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          --data-cluster-ssh-password "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           --username "${{ secrets.LATEST_SYSTEM_TEST_USERNAME }}" \
-          --access-key "${{ secrets.X_LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
+          --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
           --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \

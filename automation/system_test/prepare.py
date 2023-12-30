@@ -302,7 +302,7 @@ class SystemTestPreparer:
                 stdout += line
                 if not line:
                     break
-                self._logger.log("debug", " > ", line=line.strip())
+                print(line, end="")
         else:
             stdout = stdout_stream.read()
 

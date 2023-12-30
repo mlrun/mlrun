@@ -777,6 +777,8 @@ class SystemTestPreparer:
         self._logger.log("info", "Waiting for mlrun db to be ready")
         self._run_kubectl_command(
             args=[
+                "--namespace",
+                self.Constants.namespace,
                 "wait",
                 "--for=condition=ready",
                 "pod",

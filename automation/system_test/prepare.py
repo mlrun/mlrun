@@ -302,7 +302,7 @@ class SystemTestPreparer:
                 stdout += line
                 if not line:
                     break
-                print(line, end="")
+                self._logger.log("debug", " > ", line=line.strip())
         else:
             stdout = stdout_stream.read()
 
@@ -462,27 +462,33 @@ class SystemTestPreparer:
         suppress_error_strings: list = None,
         ps_verification: str = None,
     ):
+        def exec_ps_verification():
+            if ps_verification:
+                try:
+                    self._run_command(
+                        f"pgrep {ps_verification}",
+                        verbose=False,
+                        suppress_error_strings=suppress_error_strings,
+                    )
+                except Exception as exc:
+                    self._logger.log(
+                        "warning",
+                        f"Command {command_name} failed ps verification, process does not exist",
+                        exc=exc,
+                    )
+                    return True
+            return False
+
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
         failed_ps_verification = False
         while not finished and retries < max_retries:
             try:
-                if ps_verification:
-                    try:
-                        self._run_command(
-                            f"ps aux | grep {ps_verification}",
-                            verbose=False,
-                            suppress_error_strings=suppress_error_strings,
-                        )
-                    except Exception as exc:
-                        self._logger.log(
-                            "warning",
-                            f"Command {command_name} failed ps verification, process does not exist",
-                            exc=exc,
-                        )
-                        failed_ps_verification = True
-                        raise
+
+                # do not raise if failed ps verification
+                # as we might fail it while program successfully finished
+                failed_ps_verification = exec_ps_verification()
                 self._run_command(
                     command,
                     verbose=False,
@@ -537,9 +543,12 @@ class SystemTestPreparer:
             mlrun_version=self._mlrun_version,
             mlrun_ui_version=self._mlrun_ui_version,
         )
-        # ensure mlrun db is up before purging it
-        self._scale_deployments(["mlrun-db"], 1)
-        self._wait_for_mlrun_db()
+
+        # ensure mlrun api and db pods are up
+        # we need mlrun api up because mlrun db has affinity to mlrun api
+        # and mlrun db is needed for purging the db
+        self._scale_deployments(["mlrun-api-chief", "mlrun-db"], 1)
+        self._wait_for_mlrun_db(timeout_sec=60 * 5)
 
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
@@ -552,7 +561,7 @@ class SystemTestPreparer:
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
-                f"--override-mlrun-ui-version={self._mlrun_ui_version}",
+                f"--override-mlrun-ui-version={self._mlrun_ui_version}" if self._mlrun_ui_version else "",
                 f"--override-default-image-registry={self._override_image_registry.rstrip('/')}/mlrun",
                 # purged db to allow downgrading between versions
                 "--purge-mlrun-db",
@@ -750,7 +759,6 @@ class SystemTestPreparer:
         return json.loads(out or "{}")
 
     def _ensure_ssh_session_active(self):
-        self._logger.log("info", "Ensuring ssh session is active")
         try:
             self._ssh_client.exec_command("ls > /dev/null")
         except Exception as exc:
@@ -771,9 +779,8 @@ class SystemTestPreparer:
                 self._logger.log("info", "Reconnected to remote")
                 return
             raise
-        self._logger.log("info", "SSH session is active")
 
-    def _wait_for_mlrun_db(self):
+    def _wait_for_mlrun_db(self, timeout_sec: int = 300):
         self._logger.log("info", "Waiting for mlrun db to be ready")
         self._run_kubectl_command(
             args=[
@@ -781,6 +788,8 @@ class SystemTestPreparer:
                 self.Constants.namespace,
                 "wait",
                 "--for=condition=ready",
+                "--timeout",
+                f"{timeout_sec}s",
                 "pod",
                 "-l",
                 "app.kubernetes.io/component=db,app.kubernetes.io/instance=mlrun",

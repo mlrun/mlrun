@@ -460,12 +460,29 @@ class SystemTestPreparer:
         max_retries: int = 60,
         interval: int = 10,
         suppress_error_strings: list = None,
+        ps_verification: str = None,
     ):
         finished = False
         retries = 0
         start_time = datetime.datetime.now()
+        failed_ps_verification = False
         while not finished and retries < max_retries:
             try:
+                if ps_verification:
+                    try:
+                        self._run_command(
+                            f"ps aux | grep {ps_verification}",
+                            verbose=False,
+                            suppress_error_strings=suppress_error_strings,
+                        )
+                    except Exception as exc:
+                        self._logger.log(
+                            "warning",
+                            f"Command {command_name} failed ps verification, process does not exist",
+                            exc=exc,
+                        )
+                        failed_ps_verification = True
+                        raise
                 self._run_command(
                     command,
                     verbose=False,
@@ -474,6 +491,11 @@ class SystemTestPreparer:
                 finished = True
 
             except Exception as exc:
+                if ps_verification and failed_ps_verification:
+                    # make it bail now!
+                    retries = max_retries
+                    continue
+
                 if "No such file or directory" in str(exc):
                     self._logger.log(
                         "error",
@@ -515,6 +537,10 @@ class SystemTestPreparer:
             mlrun_version=self._mlrun_version,
             mlrun_ui_version=self._mlrun_ui_version,
         )
+        # ensure mlrun db is up before purging it
+        self._scale_deployments(["mlrun-db"], 1)
+        self._wait_for_mlrun_db()
+
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             str(self.Constants.provctl_path),
@@ -538,6 +564,8 @@ class SystemTestPreparer:
         self._run_and_wait_until_successful(
             command=f"grep 'Finished patching appservice' {provctl_patch_mlrun_log}",
             command_name="provctl patch mlrun",
+            # mind the space
+            ps_verification="provctl ",
             max_retries=25,
             interval=60,
         )
@@ -563,7 +591,7 @@ class SystemTestPreparer:
         Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
         """
         self._delete_mlrun_db()
-        self._scale_down_mlrun_deployments()
+        self._scale_deployments(["mlrun-api-chief", "mlrun-api-worker", "mlrun-db"], 0)
 
     def _delete_mlrun_db(self):
         self._logger.log("info", "Deleting mlrun db")
@@ -630,7 +658,7 @@ class SystemTestPreparer:
             return None
         return pod_name.strip()
 
-    def _scale_down_mlrun_deployments(self):
+    def _scale_deployments(self, deployment_names, replicas):
         # scaling down to avoid automatically deployments restarts and failures
         self._logger.log("info", "scaling down mlrun deployments")
         self._run_kubectl_command(
@@ -639,10 +667,8 @@ class SystemTestPreparer:
                 "deployment",
                 "-n",
                 self.Constants.namespace,
-                "mlrun-api-chief",
-                "mlrun-api-worker",
-                "mlrun-db",
-                "--replicas=0",
+                *deployment_names,
+                f"--replicas={replicas}",
             ]
         )
 
@@ -746,6 +772,18 @@ class SystemTestPreparer:
                 return
             raise
         self._logger.log("info", "SSH session is active")
+
+    def _wait_for_mlrun_db(self):
+        self._logger.log("info", "Waiting for mlrun db to be ready")
+        self._run_kubectl_command(
+            args=[
+                "wait",
+                "--for=condition=ready",
+                "pod",
+                "-l",
+                "app.kubernetes.io/component=db,app.kubernetes.io/instance=mlrun",
+            ]
+        )
 
 
 @click.group()

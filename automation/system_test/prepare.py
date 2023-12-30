@@ -543,12 +543,6 @@ class SystemTestPreparer:
             mlrun_ui_version=self._mlrun_ui_version,
         )
 
-        # ensure mlrun api and db pods are up
-        # we need mlrun api up because mlrun db has affinity to mlrun api
-        # and mlrun db is needed for purging the db
-        self._scale_deployments(["mlrun-api-chief", "mlrun-db"], 1)
-        self._wait_for_mlrun_db(timeout_sec=60 * 5)
-
         provctl_patch_mlrun_log = f"/tmp/provctl-patch-mlrun-{time_string}.log"
         self._run_command(
             str(self.Constants.provctl_path),
@@ -595,13 +589,6 @@ class SystemTestPreparer:
         self._logger.log(
             "info", "Resolved iguazio version", iguazio_version=self._iguazio_version
         )
-
-    def _purge_mlrun_db(self):
-        """
-        Purge mlrun db - exec into mlrun-db pod, delete the database and scale down mlrun pods
-        """
-        self._delete_mlrun_db()
-        self._scale_deployments(["mlrun-api-chief", "mlrun-api-worker", "mlrun-db"], 0)
 
     def _delete_mlrun_db(self):
         self._logger.log("info", "Deleting mlrun db")
@@ -667,20 +654,6 @@ class SystemTestPreparer:
         if b"No resources found" in stderr or not pod_name:
             return None
         return pod_name.strip()
-
-    def _scale_deployments(self, deployment_names, replicas):
-        # scaling down to avoid automatically deployments restarts and failures
-        self._logger.log("info", "scaling down mlrun deployments")
-        self._run_kubectl_command(
-            args=[
-                "scale",
-                "deployment",
-                "-n",
-                self.Constants.namespace,
-                *deployment_names,
-                f"--replicas={replicas}",
-            ]
-        )
 
     def _run_kubectl_command(self, args, verbose=True, suppress_error_strings=None):
         return self._run_command(
@@ -780,22 +753,6 @@ class SystemTestPreparer:
                 self._logger.log("info", "Reconnected to remote")
                 return
             raise
-
-    def _wait_for_mlrun_db(self, timeout_sec: int = 300):
-        self._logger.log("info", "Waiting for mlrun db to be ready")
-        self._run_kubectl_command(
-            args=[
-                "--namespace",
-                self.Constants.namespace,
-                "wait",
-                "--for=condition=ready",
-                "--timeout",
-                f"{timeout_sec}s",
-                "pod",
-                "-l",
-                "app.kubernetes.io/component=db,app.kubernetes.io/instance=mlrun",
-            ]
-        )
 
 
 @click.group()

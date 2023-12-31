@@ -351,12 +351,17 @@ jobs:
           --decrypt "/tmp/env.yml.gpg"
 
         # ensure file is created
-        test -f $GITHUB_WORKSPACE/tests/system/env.yml
+        test -f "$GITHUB_WORKSPACE/tests/system/env.yml"
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Pre Tests Requirements
       run: |
+        
+        # due to
+        # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
+        # ensure mlrun git is safe to use
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
           make install-requirements install-complete-requirements update-version-file
 

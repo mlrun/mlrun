@@ -204,7 +204,7 @@ class LogCollectorClient(
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 if try_count == config.log_collector.get_logs.max_retries:
-                    raise mlrun.errors.raise_for_status_code(
+                    raise mlrun.errors.err_for_status_code(
                         http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
                         mlrun.errors.err_to_str(exc),
                     )

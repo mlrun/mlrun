@@ -46,6 +46,23 @@ def get_k8s_helper(namespace=None, silent=True, log=False) -> "K8sHelper":
     return _k8s
 
 
+def raise_for_status_code(func):
+    """
+    A decorator for calls to k8s api when no error handling is needed.
+    Raises the matching mlrun exception to the status code.
+    """
+
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ApiException as exc:
+            raise mlrun.errors.err_for_status_code(
+                exc.status, message=mlrun.errors.err_to_str(exc)
+            ) from exc
+
+    return wrapper
+
+
 class SecretTypes:
     opaque = "Opaque"
     v3io_fuse = "v3io/fuse"
@@ -92,15 +109,11 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
     def is_running_inside_kubernetes_cluster(self):
         return self.running_inside_kubernetes_cluster
 
+    @raise_for_status_code
     def list_pods(self, namespace=None, selector="", states=None):
-        try:
-            resp = self.v1api.list_namespaced_pod(
-                self.resolve_namespace(namespace), label_selector=selector
-            )
-        except ApiException as exc:
-            logger.error(f"Failed to list pods: {mlrun.errors.err_to_str(exc)}")
-            raise exc
-
+        resp = self.v1api.list_namespaced_pod(
+            self.resolve_namespace(namespace), label_selector=selector
+        )
         items = []
         for i in resp.items:
             if not states or i.status.phase in states:
@@ -124,7 +137,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                         exc=mlrun.errors.err_to_str(exc),
                         pod=pod,
                     )
-                    raise exc
+                    raise mlrun.errors.err_for_status_code(
+                        exc.status, message=mlrun.errors.err_to_str(exc)
+                    ) from exc
 
                 logger.error(
                     "Failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod
@@ -133,16 +148,18 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 # known k8s issue, see https://github.com/kubernetes/kubernetes/issues/67761
                 if "gke-resource-quotas" in mlrun.errors.err_to_str(exc):
                     logger.warning(
-                        "Failed to create pod due to gke resource error, "
-                        f"sleeping {retry_interval} seconds and retrying"
+                        "Failed to create pod due to gke resource error, sleeping and retrying",
+                        retry_interval=retry_interval,
                     )
                     retry_count += 1
                     time.sleep(retry_interval)
                     continue
 
-                raise exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             else:
-                logger.info(f"Pod {resp.metadata.name} created")
+                logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
 
     def delete_pod(self, name, namespace=None, grace_period_seconds=None):
@@ -160,9 +177,11 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 logger.error(
                     "Failed to delete pod",
                     pod_name=name,
-                    error=mlrun.errors.err_to_str(exc),
+                    exc=mlrun.errors.err_to_str(exc),
                 )
-                raise exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
@@ -172,8 +191,12 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             return api_response
         except ApiException as exc:
             if exc.status != 404:
-                logger.error(f"failed to get pod: {mlrun.errors.err_to_str(exc)}")
-                raise exc
+                logger.error(
+                    "Failed to get pod", pod_name=name, exc=mlrun.errors.err_to_str(exc)
+                )
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             else:
                 if raise_on_not_found:
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
@@ -203,13 +226,16 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             # ignore error if crd is already removed
             if exc.status != 404:
                 logger.error(
-                    f"failed to delete crd: {mlrun.errors.err_to_str(exc)}",
+                    "Failed to delete crd object",
+                    exc=mlrun.errors.err_to_str(exc),
                     crd_name=name,
                     crd_group=crd_group,
                     crd_version=crd_version,
                     crd_plural=crd_plural,
                 )
-                raise exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
 
     def logs(self, name, namespace=None):
         try:
@@ -217,7 +243,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 name=name, namespace=self.resolve_namespace(namespace)
             )
         except ApiException as exc:
-            logger.error(f"failed to get pod logs: {mlrun.errors.err_to_str(exc)}")
+            logger.error("Failed to get pod logs", exc=mlrun.errors.err_to_str(exc))
             raise exc
 
         return resp
@@ -251,7 +277,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         selector = ",".join(selectors)
         pods = self.list_pods(namespace, selector=selector)
         if not pods:
-            logger.error("no pod matches that uid", uid=uid)
+            logger.error("No pod matches that uid", uid=uid)
             return
 
         return {p.metadata.name: p.status.phase for p in pods}
@@ -269,9 +295,13 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             # It's valid for the service account to not exist. Simply return None
             if exc.status != 404:
                 logger.error(
-                    f"failed to retrieve service accounts: {mlrun.errors.err_to_str(exc)}"
+                    "Failed to retrieve service accounts",
+                    service_account_name=service_account_name,
+                    exc=mlrun.errors.err_to_str(exc),
                 )
-                raise exc
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=mlrun.errors.err_to_str(exc)
+                ) from exc
             return None
 
         if len(service_account.secrets) > 1:
@@ -300,7 +330,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         self, project, secrets, namespace=""
     ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
         secret_name = self.get_project_secret_name(project)
-        action = self.store_secrets(secret_name, secrets, namespace)
+        action = self.store_secrets(
+            secret_name, secrets, namespace, retry_on_conflict=True
+        )
         return secret_name, action
 
     def read_auth_secret(self, secret_name, namespace="", raise_on_not_found=False):
@@ -361,9 +393,11 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             namespace,
             type_=SecretTypes.v3io_fuse,
             labels={"mlrun/username": username},
+            retry_on_conflict=True,
         )
         return secret_name, action
 
+    @raise_for_status_code
     def store_secrets(
         self,
         secret_name,
@@ -371,6 +405,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         namespace="",
         type_=SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
+        retry_on_conflict: bool = False,
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
         """
         Store secrets in a kubernetes secret object
@@ -379,6 +414,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         :param namespace:   k8s namespace
         :param type_:       k8s secret type
         :param labels:      k8s labels for the secret
+        :param retry_on_conflict:   if True, will retry to create the secret for race conditions
         :return: returns the action if the secret was created or updated, None if nothing changed
         """
         namespace = self.resolve_namespace(namespace)
@@ -388,7 +424,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             # If secret doesn't exist, we'll simply create it
             if exc.status != 404:
                 logger.error(
-                    f"failed to retrieve k8s secret: {mlrun.errors.err_to_str(exc)}"
+                    "Failed to retrieve k8s secret",
+                    secret_name=secret_name,
+                    exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
             k8s_secret = client.V1Secret(type=type_)
@@ -396,8 +434,25 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 name=secret_name, namespace=namespace, labels=labels
             )
             k8s_secret.string_data = secrets
-            self.v1api.create_namespaced_secret(namespace, k8s_secret)
-            return mlrun.common.schemas.SecretEventActions.created
+            try:
+                self.v1api.create_namespaced_secret(namespace, k8s_secret)
+                return mlrun.common.schemas.SecretEventActions.created
+            except ApiException as exc:
+                if exc.status == 409 and retry_on_conflict:
+                    logger.warning(
+                        "Secret was created while we tried to create it, retrying...",
+                        secret_name=secret_name,
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                    return self.store_secrets(
+                        secret_name,
+                        secrets,
+                        namespace,
+                        type_,
+                        labels,
+                        retry_on_conflict=False,
+                    )
+                raise exc
 
         secret_data = k8s_secret.data.copy()
         for key, value in secrets.items():
@@ -431,6 +486,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
     def delete_auth_secret(self, secret_ref: str, namespace=""):
         self.delete_secrets(secret_ref, {}, namespace)
 
+    @raise_for_status_code
     def delete_secrets(
         self, secret_name, secrets, namespace=""
     ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
@@ -454,7 +510,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 return None
             else:
                 logger.error(
-                    f"failed to retrieve k8s secret: {mlrun.errors.err_to_str(exc)}"
+                    "Failed to retrieve k8s secret",
+                    secret_name=secret_name,
+                    exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
 

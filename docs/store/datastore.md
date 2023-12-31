@@ -208,7 +208,7 @@ This key is sensitive information and is kept confidential.
 The equivalent to this parameter in environment authentication is "AZURE_STORAGE_CLIENT_SECRET".
 - `tenant_id` &mdash; This variable holds the Azure AD tenant ID, which uniquely identifies the organization or directory in Azure Active Directory.
 The equivalent to this parameter in environment authentication is "AZURE_STORAGE_TENANT_ID".
-credential authenrication:
+credential authentication:
 - `credential` &mdash; TokenCredential or SAS token. The credentials with which to authenticate.
 This variable is sensitive information and is kept confidential.
 
@@ -277,7 +277,7 @@ target = KafkaSource(path="ds://test_profile")
 
 ### Redis data store profile
 
-```
+```python
 profile = DatastoreProfileRedis(name="test_profile", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")
 RedisNoSqlTarget(path="ds://test_profile/a/b")
 ```

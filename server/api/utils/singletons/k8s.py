@@ -56,7 +56,9 @@ def raise_for_status_code(func):
         try:
             return func(*args, **kwargs)
         except ApiException as exc:
-            mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+            raise mlrun.errors.err_for_status_code(
+                exc.status, message=exc.reason
+            ) from exc
 
     return wrapper
 
@@ -135,7 +137,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                         exc=mlrun.errors.err_to_str(exc),
                         pod=pod,
                     )
-                    mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                    raise mlrun.errors.err_for_status_code(
+                        exc.status, message=exc.reason
+                    ) from exc
 
                 logger.error(
                     "Failed to create pod", exc=mlrun.errors.err_to_str(exc), pod=pod
@@ -151,7 +155,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     time.sleep(retry_interval)
                     continue
 
-                mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=exc.reason
+                ) from exc
             else:
                 logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
@@ -173,7 +179,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     pod_name=name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
-                mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=exc.reason
+                ) from exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
         try:
@@ -184,7 +192,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
         except ApiException as exc:
             if exc.status != 404:
                 logger.error("Failed to get pod", exc=mlrun.errors.err_to_str(exc))
-                mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=exc.reason
+                ) from exc
             else:
                 if raise_on_not_found:
                     raise mlrun.errors.MLRunNotFoundError(f"Pod not found: {name}")
@@ -221,7 +231,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     crd_version=crd_version,
                     crd_plural=crd_plural,
                 )
-                mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=exc.reason
+                ) from exc
 
     def logs(self, name, namespace=None):
         try:
@@ -284,7 +296,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     "Failed to retrieve service accounts",
                     exc=mlrun.errors.err_to_str(exc),
                 )
-                mlrun.errors.raise_for_status_code(exc.status, message=exc.reason)
+                raise mlrun.errors.err_for_status_code(
+                    exc.status, message=exc.reason
+                ) from exc
             return None
 
         if len(service_account.secrets) > 1:

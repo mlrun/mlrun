@@ -202,7 +202,9 @@ class Pipelines(
                     db_session, run, format_, api_run_detail.to_dict()
                 )
         except kfp_server_api.ApiException as exc:
-            mlrun.errors.raise_for_status_code(int(exc.status), err_to_str(exc))
+            raise mlrun.errors.err_for_status_code(
+                int(exc.status), err_to_str(exc)
+            ) from exc
         except mlrun.errors.MLRunHTTPStatusError:
             raise
         except Exception as exc:

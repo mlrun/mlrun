@@ -61,7 +61,7 @@ class ThresholdStates:
     # where it is scheduled, or initialization tasks specified in the pod's configuration are not yet completed.
     pending_scheduled = "pending_scheduled"
     pending_not_scheduled = "pending_not_scheduled"
-    running = "running"
+    executing = "executing"
     image_pull_backoff = "image_pull_backoff"
 
     @staticmethod
@@ -69,7 +69,7 @@ class ThresholdStates:
         return [
             ThresholdStates.pending_scheduled,
             ThresholdStates.pending_not_scheduled,
-            ThresholdStates.running,
+            ThresholdStates.executing,
             ThresholdStates.image_pull_backoff,
         ]
 
@@ -84,7 +84,7 @@ class ThresholdStates:
                 return ThresholdStates.pending_not_scheduled
 
         elif pod_phase == PodPhases.running:
-            return ThresholdStates.running
+            return ThresholdStates.executing
 
         return None
 

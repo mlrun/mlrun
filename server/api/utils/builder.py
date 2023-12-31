@@ -606,7 +606,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 def build_runtime(
     auth_info: mlrun.common.schemas.AuthInfo,
-    runtime,
+    runtime: mlrun.runtimes.BaseRuntime,
     with_mlrun=True,
     mlrun_version_specifier=None,
     skip_deployed=False,
@@ -622,7 +622,7 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed():
         mlrun.utils.logger.info(
             "Skipping build, runtime is already deployed",
-            runtime_uid=runtime.metadata.uid,
+            runtime_name=runtime.metadata.name,
             project=project,
         )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready

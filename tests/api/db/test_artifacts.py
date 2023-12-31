@@ -347,6 +347,7 @@ class TestArtifacts:
         )
         labels = {"label1": "value1"}
         artifact_1_body["metadata"]["labels"] = {"label1": "value1"}
+        artifact_1_body_copy = copy.deepcopy(artifact_1_body)
         db.store_artifact(
             db_session,
             artifact_1_key,
@@ -354,19 +355,26 @@ class TestArtifacts:
             project=project,
         )
 
+        artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
+        assert len(artifacts) == 1
+        assert mlrun.utils.has_timezone(artifacts[0]["metadata"]["updated"])
+        assert mlrun.utils.has_timezone(artifacts[0]["metadata"]["created"])
+
         # add a new label to the same artifact
         labels["label2"] = "value2"
-        artifact_1_body["metadata"]["labels"] = labels
+        artifact_1_body_copy["metadata"]["labels"] = labels
         db.store_artifact(
             db_session,
             artifact_1_key,
-            artifact_1_body,
+            artifact_1_body_copy,
             project=project,
         )
 
         # verify that the artifact has both labels and it didn't create a new artifact
         artifacts = db.list_artifacts(db_session, artifact_1_key, project=project)
         assert len(artifacts) == 1
+        assert mlrun.utils.has_timezone(artifacts[0]["metadata"]["updated"])
+        assert mlrun.utils.has_timezone(artifacts[0]["metadata"]["created"])
         assert (
             deepdiff.DeepDiff(
                 artifacts[0].get("metadata", {}).get("labels", {}),

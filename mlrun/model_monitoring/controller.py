@@ -25,6 +25,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
@@ -451,6 +452,10 @@ class MonitoringApplicationController:
                     feature_stats = json.loads(
                         endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                     )
+
+                    # Pad the original feature stats to accommodate current
+                    # data out of the original range (unless already padded)
+                    pad_features_hist(FeatureStats(feature_stats))
 
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(

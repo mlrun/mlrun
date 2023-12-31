@@ -193,6 +193,7 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
+                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -220,7 +221,7 @@ default_config = {
                     "pending_scheduled": "1h",
                     "pending_not_scheduled": "-1",  # infinite
                     "image_pull_backoff": "1h",
-                    "running": "24h",
+                    "executing": "24h",
                 }
             },
         },
@@ -1146,7 +1147,9 @@ class Config:
 
     def is_explicit_ack(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
-            not self.nuclio_version or self.nuclio_version >= "1.12.9"
+            not self.nuclio_version
+            or semver.VersionInfo.parse(self.nuclio_version)
+            >= semver.VersionInfo.parse("1.12.10")
         )
 
 

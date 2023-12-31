@@ -765,6 +765,11 @@ class BatchProcessor:
                     mlrun.common.schemas.model_monitoring.EventFieldType.FEATURE_STATS
                 ]
             )
+            # Pad the original feature stats to accommodate current data out
+            # of the original range (unless already padded)
+            mlrun.common.model_monitoring.helpers.pad_features_hist(
+                mlrun.common.model_monitoring.helpers.FeatureStats(feature_stats)
+            )
 
             # Get the current stats:
             current_stats = calculate_inputs_statistics(

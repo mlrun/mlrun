@@ -1942,18 +1942,19 @@ class MlrunProject(ModelObj):
         default_controller_image: str = "mlrun/mlrun",
         base_period: int = 10,
     ) -> dict:
-        """
+        r"""
         Submit model monitoring application controller job along with deploying the model monitoring writer function.
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
         databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              The time period in minutes in which the model monitoring controller job
                                          runs. By default, the base period is 10 minutes. The schedule for the job
-                                         will be the following cron expression: "*/{base_period} * * * *".
-        :return: model monitoring controller job as a dictionary.
+                                         will be the following cron expression: "\*/{base_period} \* \* \* \*".
+        :returns: model monitoring controller job as a dictionary.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.create_model_monitoring_controller(
@@ -3035,7 +3036,6 @@ class MlrunProject(ModelObj):
         overwrite_build_params: bool = False,
         requirements_file: str = None,
         extra_args: str = None,
-        force_build: bool = False,
     ) -> typing.Union[BuildStatus, kfp.dsl.ContainerOp]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -3045,7 +3045,8 @@ class MlrunProject(ModelObj):
         :param set_as_default: set `image` to be the project's default image (default False)
         :param with_mlrun:      add the current mlrun package to the container build
         :param skip_deployed:   *Deprecated* parameter is ignored
-        :param base_image:      base image name/path (commands and source code will be added to it)
+        :param base_image:      base image name/path (commands and source code will be added to it) defaults to
+                                mlrun.mlconf.default_base_image
         :param commands:        list of docker build (RUN) commands e.g. ['pip install pandas']
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements:    list of python packages, defaults to None
@@ -3059,8 +3060,13 @@ class MlrunProject(ModelObj):
             * True: The existing params are replaced by the new ones
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"r
-        :param force_build: set True for force building the image
         """
+        if not base_image:
+            base_image = mlrun.mlconf.default_base_image
+            logger.info(
+                "Base image not specified, using default base image",
+                base_image=base_image,
+            )
 
         if skip_deployed:
             warnings.warn(
@@ -3110,7 +3116,7 @@ class MlrunProject(ModelObj):
                 mlrun_version_specifier=mlrun_version_specifier,
                 builder_env=builder_env,
                 extra_args=extra_args,
-                force_build=force_build,
+                force_build=True,
             )
 
         try:

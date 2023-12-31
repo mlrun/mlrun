@@ -129,8 +129,8 @@ class SQLRunDB(RunDBInterface):
         with_notifications: bool = False,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Runs().list_runs,
-            db_session=self.session,
             name=name,
             uid=uid,
             project=project,
@@ -733,8 +733,8 @@ class SQLRunDB(RunDBInterface):
         version: Optional[str] = None,
     ):
         return self._transform_db_error(
+            server.api.db.session.run_function_with_new_db_session,
             server.api.crud.Hub().list_hub_sources,
-            self.session,
             item_name,
             tag,
             version,

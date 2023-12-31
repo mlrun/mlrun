@@ -495,7 +495,8 @@ class SQLDB(DBInterface):
         else:
             artifact_dict = artifact.to_dict()
 
-        if not artifact_dict.get("metadata", {}).get("key"):
+        metadata_key = artifact_dict.get("metadata", {}).get("key")
+        if not metadata_key or metadata_key != key:
             artifact_dict.setdefault("metadata", {})["key"] = key
         if not artifact_dict.get("metadata", {}).get("project"):
             artifact_dict.setdefault("metadata", {})["project"] = project

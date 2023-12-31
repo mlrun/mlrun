@@ -1339,7 +1339,7 @@ class BaseRuntimeHandler(ABC):
 
         # Threshold exceeded, add run to stale runs list
         logger.warning(
-            "Runtime resource exceeded state threshold. Run will be aborted.",
+            "Runtime resource exceeded state threshold. Run will be aborted",
             runtime_resource_name=pod["metadata"]["name"],
             run_state=run_state,
             pod_phase=pod_phase,

@@ -141,7 +141,7 @@ class AzureBlobStore(DataStore):
         res = {}
         st = self.get_storage_options()
         service = "blob"
-
+        primary_url = None
         if st.get("connection_string"):
             primary_url, _, parsed_credential = parse_connection_str(
                 st.get("connection_string"), credential=None, service=service
@@ -149,48 +149,56 @@ class AzureBlobStore(DataStore):
             for key in ["account_name", "account_key"]:
                 if parsed_credential.get(key):
                     if st[key] and st[key] != parsed_credential.get(key):
-                        raise mlrun.errors.MLRunInvalidArgumentError(
-                            f"'{key}' from the storage_options does not match corresponding connection string"
-                        )
+                        if key == "account_name":
+                            raise mlrun.errors.MLRunInvalidArgumentError(
+                                f"'{key}' from the storage_options does not match corresponding connection string - \
+                                    {st[key]} != {parsed_credential.get(key)}"
+                            )
+                        else:
+                            raise mlrun.errors.MLRunInvalidArgumentError(
+                                f"'{key}' from the storage_options does not match corresponding connection string"
+                            )
                     st[key] = parsed_credential.get(key)
 
-        if not st.get("account_name"):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "'account_name' is missing in the settings"
-            )
         account_name = st.get("account_name")
+        if not account_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "The 'account_name' is absent both in 'storage_settings' and 'connection_string'"
+            )
         if primary_url:
-            endpoint = primary_url.replace("http://", "").replace("https://", "")
+            if primary_url.startswith("http://"):
+                primary_url = primary_url[len("http://") :]
+            if primary_url.startswith("https://"):
+                primary_url = primary_url[len("https://") :]
+            host = primary_url
         else:
-            endpoint = f"{account_name}.{service}.core.windows.net"
-        if st.get("account_key"):
-            res[f"spark.hadoop.fs.azure.account.key.{endpoint}"] = st.get("account_key")
+            host = f"{account_name}.{service}.core.windows.net"
+        if "account_key" in st:
+            res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
 
-        if st.get("client_secret") or st.get("client_id") or st.get("tenant_id"):
-            res[f"spark.hadoop.fs.azure.account.auth.type.{endpoint}"] = "OAuth"
+        if "client_secret" in st or "client_id" in st or "tenant_id" in st:
+            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "OAuth"
             res[
-                f"spark.hadoop.fs.azure.account.oauth.provider.type.{endpoint}"
+                f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"
             ] = "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
-            if st.get("client_id"):
+            if "client_id" in st:
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
+                    "client_id"
+                ]
+            if "client_secret" in st:
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st[
+                    "client_secret"
+                ]
+            if "tenant_id" in st:
+                tenant_id = st["tenant_id"]
                 res[
-                    f"spark.hadoop.fs.azure.account.oauth2.client.id.{endpoint}"
-                ] = st.get("client_id")
-            if st.get("client_secret"):
-                res[
-                    f"spark.hadoop.fs.azure.account.oauth2.client.secret.{endpoint}"
-                ] = st.get("client_secret")
-            if st.get("tenant_id"):
-                tenant_id = st.get("tenant_id")
-                res[
-                    f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{endpoint}"
+                    f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"
                 ] = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
 
-        if st.get("sas_token"):
-            res[f"spark.hadoop.fs.azure.account.auth.type.{endpoint}"] = "SAS"
+        if "sas_token" in st:
+            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "SAS"
             res[
-                f"spark.hadoop.fs.azure.sas.token.provider.type.{endpoint}"
+                f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"
             ] = "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
-            res[f"spark.hadoop.fs.azure.sas.fixed.token.{endpoint}"] = st.get(
-                "sas_token"
-            )
+            res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
         return res

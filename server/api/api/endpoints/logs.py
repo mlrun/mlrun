@@ -101,3 +101,24 @@ async def get_log(
         media_type="text/plain",
         headers=headers,
     )
+
+
+@router.get("/projects/{project}/logs/{uid}/size")
+async def get_log_size(
+    project: str,
+    uid: str,
+    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
+        server.api.api.deps.authenticate_request
+    ),
+):
+    await server.api.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
+        mlrun.common.schemas.AuthorizationResourceTypes.log,
+        project,
+        uid,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+    log_file_size = await server.api.crud.Logs().get_log_size(project, uid)
+    return {
+        "size": log_file_size,
+    }

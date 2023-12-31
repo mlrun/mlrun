@@ -39,7 +39,8 @@ class ModelMonitoringApplicationResult:
     :param endpoint_id:           (str) ID of the monitored model endpoint.
     :param start_infer_time:      (pd.Timestamp) Start time of the monitoring schedule.
     :param end_infer_time:        (pd.Timestamp) End time of the monitoring schedule.
-    :param result_name:           (str) Name of the application result.
+    :param result_name:           (str) Name of the application result. This name must be
+                                        unique for each metric in a single application.
     :param result_value:          (float) Value of the application result.
     :param result_kind:           (ResultKindApp) Kind of application result.
     :param result_status:         (ResultStatusApp) Status of the application result.

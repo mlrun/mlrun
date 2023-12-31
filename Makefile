@@ -342,7 +342,7 @@ pull-log-collector:
 
 
 .PHONY: compile-schemas
-compile-schemas: ## Compile schemas
+compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else

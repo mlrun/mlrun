@@ -57,7 +57,7 @@ def raise_for_status_code(func):
             return func(*args, **kwargs)
         except ApiException as exc:
             raise mlrun.errors.err_for_status_code(
-                exc.status, message=exc.reason
+                exc.status, message=mlrun.errors.err_to_str(exc)
             ) from exc
 
     return wrapper
@@ -138,7 +138,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                         pod=pod,
                     )
                     raise mlrun.errors.err_for_status_code(
-                        exc.status, message=exc.reason
+                        exc.status, message=mlrun.errors.err_to_str(exc)
                     ) from exc
 
                 logger.error(
@@ -156,7 +156,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     continue
 
                 raise mlrun.errors.err_for_status_code(
-                    exc.status, message=exc.reason
+                    exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
             else:
                 logger.info("Pod created", pod_name=resp.metadata.name)
@@ -180,7 +180,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise mlrun.errors.err_for_status_code(
-                    exc.status, message=exc.reason
+                    exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
 
     def get_pod(self, name, namespace=None, raise_on_not_found=False):
@@ -193,7 +193,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             if exc.status != 404:
                 logger.error("Failed to get pod", exc=mlrun.errors.err_to_str(exc))
                 raise mlrun.errors.err_for_status_code(
-                    exc.status, message=exc.reason
+                    exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
             else:
                 if raise_on_not_found:
@@ -232,7 +232,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     crd_plural=crd_plural,
                 )
                 raise mlrun.errors.err_for_status_code(
-                    exc.status, message=exc.reason
+                    exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
 
     def logs(self, name, namespace=None):
@@ -297,7 +297,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise mlrun.errors.err_for_status_code(
-                    exc.status, message=exc.reason
+                    exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
             return None
 

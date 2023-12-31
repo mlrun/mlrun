@@ -117,7 +117,7 @@ def err_for_status_code(status_code: int, message: str = None):
     >>>     raise err_for_status_code(exc.status_code, exc.message) from exc
     """
     try:
-        return STATUS_ERRORS[status_code](message)
+        return STATUS_ERRORS[int(status_code)](message)
     except KeyError:
         return MLRunHTTPError(message)
 

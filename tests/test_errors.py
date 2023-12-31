@@ -111,6 +111,7 @@ class TestErrToStatusCode(Exception):
     "status_code, exc, message",
     [
         (404, mlrun.errors.MLRunNotFoundError, "message not found"),
+        ("404", mlrun.errors.MLRunNotFoundError, "message not found"),
         (500, mlrun.errors.MLRunInternalServerError, "message internal server error"),
         (0, mlrun.errors.MLRunHTTPError, "message http error"),
     ],
@@ -125,5 +126,5 @@ def test_err_to_status_code(status_code, exc, message):
             ) from test_exc
 
     if exc != mlrun.errors.MLRunHTTPError:
-        assert _exc.value.error_status_code == status_code
+        assert _exc.value.error_status_code == int(status_code)
     assert message in str(_exc.value)

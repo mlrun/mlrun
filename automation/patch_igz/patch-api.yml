@@ -1,0 +1,8 @@
+spec:
+  template:
+    spec:
+      containers:
+      - name: mlrun-api
+        imagePullPolicy: Always
+      - name: mlrun-log-collector
+        imagePullPolicy: Always

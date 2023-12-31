@@ -312,7 +312,19 @@ jobs:
     steps:
     - name: Install Dependencies
       run: |
-        apt-get update -qqy && apt-get install -y gnupg nodejs
+        # gnupg         for decrypting env.yml.gpg
+        # nodejs        for installing github action dependencies
+        # graphviz      for generating graphs (feature store tests)
+        # git-core      for cloning repos and etc, required by many suites
+        # gcc, make     for installing python packages
+        apt-get update -qqy && \
+          apt-get install -y \
+            gnupg \
+            nodejs \
+            graphviz \
+            git-core \
+            gcc \
+            make
 
     - uses: actions/setup-node@v4
       with:
@@ -343,10 +355,15 @@ jobs:
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
+    - name: Pre Tests Requirements
+      run: |
+        MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
+          make install-requirements install-complete-requirements update-version-file test-system
+
     - name: Run System Tests
       run: |
         MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunSystemTestsCleanResources }}" \
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
         MLRUN_SYSTEM_TESTS_COMPONENT="${{ matrix.test_component }}" \
         MLRUN_SYSTEM_TESTS_BRANCH="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-          make install-requirements install-complete-requirements update-version-file test-system
+          make test-system

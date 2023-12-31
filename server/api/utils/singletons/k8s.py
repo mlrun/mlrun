@@ -191,7 +191,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             return api_response
         except ApiException as exc:
             if exc.status != 404:
-                logger.error("Failed to get pod", exc=mlrun.errors.err_to_str(exc))
+                logger.error(
+                    "Failed to get pod", pod_name=name, exc=mlrun.errors.err_to_str(exc)
+                )
                 raise mlrun.errors.err_for_status_code(
                     exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
@@ -294,6 +296,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             if exc.status != 404:
                 logger.error(
                     "Failed to retrieve service accounts",
+                    service_account_name=service_account_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise mlrun.errors.err_for_status_code(
@@ -421,7 +424,9 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             # If secret doesn't exist, we'll simply create it
             if exc.status != 404:
                 logger.error(
-                    "Failed to retrieve k8s secret", exc=mlrun.errors.err_to_str(exc)
+                    "Failed to retrieve k8s secret",
+                    secret_name=secret_name,
+                    exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc
             k8s_secret = client.V1Secret(type=type_)
@@ -436,6 +441,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
                 if exc.status == 409 and retry_on_conflict:
                     logger.warning(
                         "Secret was created while we tried to create it, retrying...",
+                        secret_name=secret_name,
                         exc=mlrun.errors.err_to_str(exc),
                     )
                     return self.store_secrets(
@@ -505,6 +511,7 @@ class K8sHelper(mlrun.common.secrets.SecretProviderInterface):
             else:
                 logger.error(
                     "Failed to retrieve k8s secret",
+                    secret_name=secret_name,
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 raise exc

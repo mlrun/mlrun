@@ -564,7 +564,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
+    response = client.get(f"projects/{project_name}/artifacts", params={"tag": "*"})
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
@@ -1400,7 +1400,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
                 "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
-                f"artifact/{project_name}/{uid}/{key}", json=artifact
+                f"projects/{project_name}/artifacts/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 

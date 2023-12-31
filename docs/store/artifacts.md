@@ -3,7 +3,8 @@
 
 An artifact is any data that is produced and/or consumed by functions, jobs, or pipelines. 
 
-Each artifact has a kind that is assigned when the artifact is created, which are also 
+There are several types of Artifacts. The type of the Artifact is reflected in the 
+`kind` attribute of each Artifact. These types are also 
 used in the for grouping the [artifacts in the UI](#viewing-artifacts). 
 The main kinds of artifacts are:
 
@@ -12,7 +13,7 @@ The main kinds of artifacts are:
 - Models — All trained models
 - Feature Store Objects — Feature sets and feature vectors
 
-Artifacts metadata is stored in the project’s database. 
+Artifacts metadata is stored in the MLRun database. 
 
 
 **In this section**

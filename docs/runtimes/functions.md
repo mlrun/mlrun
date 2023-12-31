@@ -22,10 +22,8 @@ Function objects are all inclusive, containing the code and all the operational 
 database with a unique hash code, 
 and gets a new hash code upon changes.
 
-MLRun functionality such as logging results and artifacts can be added to existing code using the {py:func}`mlrun.handler` decorator, 
-enabled by default. 
-You can also use MLRun auto-logging to automatically and seamlessly track machine-learning processes while they execute, such as training a model, and 
-recording results and artifacts. See {ref}`decorators-and-auto-logging`. 
+You can use the MLRun auto-logging to log results and artifacts, and to automatically and seamlessly track machine-learning processes 
+while they execute, such as training a model. See {ref}`decorators-and-auto-logging`. 
 
 ## Functions and projects
 Function are members of an [**MLRun project**](../projects/project.html), a container for all your work on a particular ML application. 

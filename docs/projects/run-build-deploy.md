@@ -86,9 +86,9 @@ run2 = project.run_function("train", inputs={"dataset": run1.outputs["data"]})
 run2.artifact('confusion-matrix').show()
 ```
 
-Example of `new_function` with `new_task`:
+Example with `new_task`:
 
-```
+```python
 import mlrun
 mlrun.get_or_create_project('example-project')
 ---
@@ -102,11 +102,11 @@ def handler(context, param, model_names):
     for model_name, file_name in model_names:
         context.log_artifact(model_name, body=param.encode(), local_path=file_name)
 ----
-func = mlrun.new_function("my-func", kind="job", image="mlrun/mlrun")
+func = mlrun.set_function("my-func", kind="job", image="mlrun/mlrun")
 func.save()
 ---
 task = new_task(name='mytask', handler=handler, artifact_path=artifact_path, project='project-name')
-run_object = mlrun.run_function("my-func", local=True, base_task=task)
+run_object = project.run_function("my-func", local=True, base_task=task)
 run_object.uid()
 ```
 

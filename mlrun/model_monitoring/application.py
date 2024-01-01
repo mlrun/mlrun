@@ -267,28 +267,28 @@ class PushToMonitoringWriter(StepToDict):
         :param event: Monitoring result(s) to push and the original event from the controller.
         """
         self._lazy_init()
-        results, origin_event = event
+        application_results, application_event = event
         metadata = {
-            mm_constant.WriterEvent.APPLICATION_NAME: origin_event[
+            mm_constant.WriterEvent.APPLICATION_NAME: application_event[
                 mm_constant.ApplicationEvent.APPLICATION_NAME
             ],
-            mm_constant.WriterEvent.ENDPOINT_ID: origin_event[
+            mm_constant.WriterEvent.ENDPOINT_ID: application_event[
                 mm_constant.ApplicationEvent.ENDPOINT_ID
             ],
-            mm_constant.WriterEvent.START_INFER_TIME: origin_event[
+            mm_constant.WriterEvent.START_INFER_TIME: application_event[
                 mm_constant.ApplicationEvent.START_INFER_TIME
             ],
-            mm_constant.WriterEvent.END_INFER_TIME: origin_event[
+            mm_constant.WriterEvent.END_INFER_TIME: application_event[
                 mm_constant.ApplicationEvent.END_INFER_TIME
             ],
             mm_constant.WriterEvent.CURRENT_STATS: json.dumps(
-                origin_event[mm_constant.ApplicationEvent.CURRENT_STATS]
+                application_event[mm_constant.ApplicationEvent.CURRENT_STATS]
             ),
         }
-        for result in results:
-            data = result.to_dict().update(metadata)
-            logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
-            self.output_stream.push([data])
+        for result in application_results:
+            result.to_dict().update(metadata)
+            logger.info(f"Pushing data = {result} \n to stream = {self.stream_uri}")
+            self.output_stream.push([result])
 
     def _lazy_init(self):
         if self.output_stream is None:

@@ -686,7 +686,7 @@ def test_parse_store_uri(uri, expected_output):
         },
         {
             "artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
-            "expected_artifact_path": "v3io://path-with-unrealted-template/{{run.uid}}",
+            "expected_artifact_path": "v3io://path-with-unrealted-template/project",
         },
         {
             "artifact_path": "v3io://template-project-not-provided/{{project}}",
@@ -704,7 +704,7 @@ def test_parse_store_uri(uri, expected_output):
         },
     ],
 )
-def test_fill_project_path_template(case):
+def test_template_artifact_path(case):
     if case.get("raise"):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             template_artifact_path(case["artifact_path"], case.get("project"))

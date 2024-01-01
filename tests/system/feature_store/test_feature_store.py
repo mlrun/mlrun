@@ -4548,7 +4548,7 @@ class TestFeatureStore(TestMLRunSystem):
         vec = fstore.FeatureVector(
             "vector_partyaccount", features, join_graph=join_graph
         )
-        df = vec.get_offline_features().to_dataframe()
+        df = fstore.get_offline_features(vec).to_dataframe()
         expected_party = pd.merge(
             basic_account_df,
             basic_party_df,
@@ -4566,7 +4566,7 @@ class TestFeatureStore(TestMLRunSystem):
             "basic_transaction.transaction_value",
         ]
         vector = fstore.FeatureVector("vector_acounttransaction", features)
-        df = vector.get_offline_features().to_dataframe()
+        df = fstore.get_offline_features(vector).to_dataframe()
         expected_transaction = pd.merge(
             basic_account_df,
             basic_transaction_df,
@@ -4586,7 +4586,7 @@ class TestFeatureStore(TestMLRunSystem):
         ]
         vector = fstore.FeatureVector("vector_all", features)
         vector.save()
-        df = vector.get_offline_features().to_dataframe()
+        df = fstore.get_offline_features(vector).to_dataframe()
         expected_all = pd.merge(
             expected_transaction,
             basic_party_df,
@@ -4596,8 +4596,8 @@ class TestFeatureStore(TestMLRunSystem):
         assert_frame_equal(expected_all, df, check_dtype=False)
 
         # online test - disabled for now because bug in storey
-        with vector.get_online_feature_service(
-            entity_keys=["party_id", "account_id"]
+        with fstore.get_online_feature_service(
+            vector, entity_keys=["party_id", "account_id"]
         ) as svc:
             resp = svc.get({"party_id": "1", "account_id": "10"})
             assert resp[0] == {
@@ -4611,7 +4611,9 @@ class TestFeatureStore(TestMLRunSystem):
             "basic_party.party_establishment",
         ]
         vector = fstore.FeatureVector("vector_all_entity_df", features)
-        df = vector.get_offline_features(entity_rows=basic_account_df).to_dataframe()
+        df = fstore.get_offline_features(
+            vector, entity_rows=basic_account_df
+        ).to_dataframe()
         assert_frame_equal(expected_all, df, check_dtype=False)
 
 

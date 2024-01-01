@@ -498,13 +498,15 @@ class MonitoringApplicationController:
             # create fs with access to the user side (under projects)
             store, _ = mlrun.store_manager.get_or_create_store(
                 self.parquet_directory,
-                {"v3io_access_key": self.model_monitoring_access_key},
+                {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = float(
-                (datetime.datetime.now() - datetime.timedelta(minutes=10)).strftime("%s")
+                (datetime.datetime.now() - datetime.timedelta(minutes=10)).strftime(
+                    "%s"
+                )
             )
             for endpoint in endpoints:
                 try:

@@ -56,12 +56,14 @@ class MLRunPatcher(object):
             nodes = [nodes]
 
         image_tag = self._get_image_tag(vers)
-        built_api_image = self._make_mlrun("api", image_tag)
+        built_api_image = self._make_mlrun("api", image_tag, "mlrun-api")
 
         built_images = [built_api_image]
         built_log_collector_image = None
         if self._patch_log_collector:
-            built_log_collector_image = self._make_mlrun("log-collector", image_tag)
+            built_log_collector_image = self._make_mlrun(
+                "log-collector", image_tag, "log-collector"
+            )
             built_images.append(built_log_collector_image)
 
         self._docker_login_if_configured()
@@ -145,15 +147,13 @@ class MLRunPatcher(object):
             return "unstable"
         return self._tag
 
-    def _make_mlrun(self, target, image_tag) -> str:
+    def _make_mlrun(self, target, image_tag, image_name) -> str:
         logger.info(f"Building mlrun docker image: {target}:{image_tag}")
         os.environ["MLRUN_VERSION"] = image_tag
         os.environ["MLRUN_DOCKER_REPO"] = self._config["DOCKER_REGISTRY"]
         cmd = ["make", target]
-        output = self._exec_local(cmd, live=True)
-        last_line = output.splitlines()[-1]
-        tagged_image = last_line[last_line.find("Successfully tagged") + 20 :].strip()
-        return tagged_image
+        self._exec_local(cmd, live=True)
+        return f"{self._config['DOCKER_REGISTRY']}/{image_name}:{image_tag}"
 
     def _connect_to_node(self, node):
         logger.debug(f"Connecting to {node}")

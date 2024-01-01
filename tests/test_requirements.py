@@ -117,6 +117,7 @@ def test_requirement_specifiers_convention():
         "adlfs": {"==2023.9.0"},
         "s3fs": {"==2023.9.2"},
         "gcsfs": {"==2023.9.2"},
+        "databricks-sdk": {"~=0.13.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that

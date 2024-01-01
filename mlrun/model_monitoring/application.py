@@ -286,9 +286,10 @@ class PushToMonitoringWriter(StepToDict):
             ),
         }
         for result in application_results:
-            result.to_dict().update(metadata)
-            logger.info(f"Pushing data = {result} \n to stream = {self.stream_uri}")
-            self.output_stream.push([result])
+            data = result.to_dict()
+            data.update(metadata)
+            logger.info(f"Pushing data = {data} \n to stream = {self.stream_uri}")
+            self.output_stream.push([data])
 
     def _lazy_init(self):
         if self.output_stream is None:

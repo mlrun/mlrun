@@ -226,7 +226,7 @@ target = KafkaSource(path="ds://test_profile")
 See also:
 - {py:class}`~mlrun.projects.MlrunProject.list_datastore_profiles` 
 - {py:class}`~mlrun.projects.MlrunProject.get_datastore_profile`
-- {py:class}`~mlrun.projects.MlrunProject.register_temporary_client_datastore_profile`
+- {py:class}`~mlrun.datastore.datastore_profile.register_temporary_client_datastore_profile`
 - {py:class}`~mlrun.projects.MlrunProject.delete_datastore_profile`
 
 The methods `get_datastore_profile()` and `list_datastore_profiles()` only return public information about 

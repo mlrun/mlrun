@@ -284,9 +284,6 @@ class MonitoringApplicationController:
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
-        # If an error occurs, it will be raised using the following argument
-        self.endpoints_exceptions = {}
-
         # The batch window
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=context.parameters[
@@ -377,9 +374,7 @@ class MonitoringApplicationController:
                     futures.append(future)
 
             for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res:
-                    self.endpoints_exceptions[res[0]] = res[1]
+                future.result()
 
             self._delete_old_parquet(endpoints=endpoints)
 
@@ -393,7 +388,7 @@ class MonitoringApplicationController:
         parquet_directory: str,
         storage_options: dict,
         model_monitoring_access_key: str,
-    ) -> Optional[tuple[str, Exception]]:
+    ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process
         for each endpoint. In addition, this function will generate a parquet file that includes the relevant data
@@ -500,8 +495,8 @@ class MonitoringApplicationController:
             logger.error(
                 "Encountered an exception",
                 endpoint_id=endpoint[mm_constants.EventFieldType.UID],
+                exc=e,
             )
-            return endpoint_id, e
 
     def _delete_old_parquet(self, endpoints: list[dict[str, Any]], days: int = 1):
         """

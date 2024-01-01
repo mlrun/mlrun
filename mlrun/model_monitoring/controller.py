@@ -489,12 +489,18 @@ class MonitoringApplicationController:
         :param endpoints: A list of dictionaries of model endpoints records.
         """
         if self.parquet_directory.startswith("v3io:///"):
-            target = mlrun.datastore.targets.BaseStoreTarget(
-                path=self.parquet_directory
-            )
-            store, _ = target._get_store_and_path()
+            # target = mlrun.datastore.targets.BaseStoreTarget(
+            #     path=self.parquet_directory
+            # )
+            # store, _ = target._get_store_and_path()
+            # fs = store.get_filesystem(v3io_access_key=self.model_monitoring_access_key)
+
             # create fs with access to the user side (under projects)
-            fs = store.get_filesystem(v3io_access_key=self.model_monitoring_access_key)
+            store, _ = mlrun.store_manager.get_or_create_store(
+                self.parquet_directory,
+                {"v3io_access_key": self.model_monitoring_access_key},
+            )
+            fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
             time_to_keep = float(

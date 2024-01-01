@@ -73,7 +73,7 @@ class V3ioStore(DataStore):
         schema = "https" if self.secure else "http"
         return f"{schema}://{self.endpoint}"
 
-    def get_filesystem(self, silent=True, v3io_access_key=None):
+    def get_filesystem(self, silent=True):
         """return fsspec file system object, if supported"""
         if self._filesystem:
             return self._filesystem
@@ -85,12 +85,7 @@ class V3ioStore(DataStore):
                     "v3iofs or storey not installed, run pip install storey"
                 ) from exc
             return None
-        if v3io_access_key:
-            self._filesystem = fsspec.filesystem(
-                "v3io", v3io_access_key=v3io_access_key, v3io_api=mlrun.mlconf.v3io_api
-            )
-        else:
-            self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
+        self._filesystem = fsspec.filesystem("v3io", **self.get_storage_options())
         return self._filesystem
 
     def get_storage_options(self):

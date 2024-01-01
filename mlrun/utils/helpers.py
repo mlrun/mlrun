@@ -1117,7 +1117,7 @@ def retry_until_successful(
             f"Operation did not complete on time. last exception: {last_exception}"
         )
 
-    raise Exception(
+    raise mlrun.errors.MLRunRetryExhaustedError(
         f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"

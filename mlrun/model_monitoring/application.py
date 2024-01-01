@@ -35,7 +35,8 @@ class ModelMonitoringApplicationResult:
     """
     Class representing the result of a custom model monitoring application.
 
-    :param name:           (str) Name of the application result.
+    :param name:           (str) Name of the application result. This name must be
+                            unique for each metric in a single application.
     :param value:          (float) Value of the application result.
     :param kind:           (ResultKindApp) Kind of application result.
     :param status:         (ResultStatusApp) Status of the application result.

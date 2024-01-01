@@ -98,7 +98,7 @@ def test_requirement_specifiers_convention():
         # See comment near requirement for why we're limiting to patch changes only for all of these
         "kfp": {"~=1.8.0, <1.8.14"},
         "aiobotocore": {">=2.5.0,<2.8"},
-        "storey": {"~=1.6.12"},
+        "storey": {"~=1.6.14"},
         "nuclio-sdk": {">=0.3.0"},
         "bokeh": {"~=2.4, >=2.4.2"},
         # protobuf is limited just for docs
@@ -117,6 +117,7 @@ def test_requirement_specifiers_convention():
         "adlfs": {"==2023.9.0"},
         "s3fs": {"==2023.9.2"},
         "gcsfs": {"==2023.9.2"},
+        "databricks-sdk": {"~=0.13.0"},
         "distributed": {"~=2023.9.0"},
         "dask": {"~=2023.9.0"},
         # All of these are actually valid, they just don't use ~= so the test doesn't "understand" that

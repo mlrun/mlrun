@@ -1037,9 +1037,10 @@ class FeatureSet(ModelObj):
     ) -> list[str]:
         """
         Checks whether a feature set can be merged to the right of this feature set.
+
         :param other_feature_set:   The feature set to be merged to the right of this feature set.
         :param relations:           The relations that were defined on this feature set.
-        :return:                    If the two feature sets can be merged, a list of the left join keys is returned.
+        :returns:                   If the two feature sets can be merged, a list of the left join keys is returned.
                                     Otherwise, an empty list is returned.
                                     (The right join keys are always the entities of the other feature set)
         """

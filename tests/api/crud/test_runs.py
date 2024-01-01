@@ -173,7 +173,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
         ), unittest.mock.patch.object(
             server.api.runtime_handlers.BaseRuntimeHandler, "_ensure_run_logs_collected"
         ):
-            with pytest.raises(mlrun.errors.MLRunRuntimeError) as exc:
+            with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc:
                 await server.api.crud.Runs().delete_runs(
                     db, name=run_name, project=project
                 )
@@ -210,7 +210,7 @@ class TestRuns(tests.api.conftest.MockedK8sHelper):
             await server.api.crud.Runs().delete_run(db, "uid", 0, project)
 
         assert (
-            f"Can not delete run in {run_state} state, consider aborting the run first."
+            f"Can not delete run in {run_state} state, consider aborting the run first"
             in str(exc.value)
         )
 

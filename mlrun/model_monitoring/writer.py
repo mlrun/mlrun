@@ -143,11 +143,13 @@ class ModelMonitoringWriter(StepToDict):
         event = _AppResultEvent(event.copy())
         endpoint_id = event.pop(WriterEvent.ENDPOINT_ID)
         app_name = event.pop(WriterEvent.APPLICATION_NAME)
-        self._kv_client.put(
+        metric_name = event.pop(WriterEvent.RESULT_NAME)
+        attributes = {metric_name: json.dumps(event)}
+        self._kv_client.update(
             container=self._v3io_container,
             table_path=endpoint_id,
             key=app_name,
-            attributes=event,
+            attributes=attributes,
         )
         if endpoint_id not in self._kv_schemas:
             self._generate_kv_schema(endpoint_id)
@@ -156,46 +158,7 @@ class ModelMonitoringWriter(StepToDict):
     def _generate_kv_schema(self, endpoint_id: str):
         """Generate V3IO KV schema file which will be used by the model monitoring applications dashboard in Grafana."""
         fields = [
-            {
-                "name": WriterEvent.APPLICATION_NAME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.START_INFER_TIME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.END_INFER_TIME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_NAME,
-                "type": "string",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_KIND,
-                "type": "int",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_VALUE,
-                "type": "double",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_STATUS,
-                "type": "int",
-                "nullable": False,
-            },
-            {
-                "name": WriterEvent.RESULT_EXTRA_DATA,
-                "type": "string",
-                "nullable": False,
-            },
+            {"name": WriterEvent.RESULT_NAME, "type": "string", "nullable": False}
         ]
         res = self._kv_client.create_schema(
             container=self._v3io_container,

@@ -14,6 +14,7 @@
 #
 import copy
 import inspect
+import json
 import os
 import time
 import uuid
@@ -98,7 +99,8 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
     def _check_artifacts(self, paths_dict):
         artifacts = self.project.list_artifacts().to_objects()
-        assert len(artifacts) == len(paths_dict)
+        # +1 because of metadata artifact
+        assert len(artifacts) == len(paths_dict) + 1
         for expected_name, expected_dbfs_path in paths_dict.items():
             db_key = f"databricks-test-main_{expected_name}"
             artifact = self.project.get_artifact(key=db_key)
@@ -117,10 +119,6 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
 
             pd.testing.assert_frame_equal(expected_df, artifact_df)
 
-    def setup_method(self, method):
-        time.sleep(2)  # For project handling...
-        super().setup_method(method)
-
     def setup_class(self):
         super().setup_class()
         self.test_folder_name = "/databricks_system_test"
@@ -132,13 +130,24 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
             workspace=self.workspace, specific_test_class_dir=self.test_folder_name
         )
 
-    @classmethod
-    def assert_print_kwargs(cls, print_kwargs_run):
+    def assert_print_kwargs(
+        self, print_kwargs_run, databricks_run_name=None, expected_artifacts=1
+    ):
         assert print_kwargs_run.status.state == "completed"
-        logs = cls._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
+        logs = self._run_db.get_log(uid=print_kwargs_run.uid())[1].decode()
         assert "{'param1': 'value1', 'param2': 'value2'}\n" in logs
-        #  Should be inside the metadata:
-        assert "run_id" in logs
+        artifacts = self.project.list_artifacts().to_objects()
+        assert len(artifacts) == expected_artifacts
+        key = f"{print_kwargs_run.metadata.name}_databricks_run_metadata"
+        artifact = self.project.get_artifact(key=key, tree=print_kwargs_run.uid())
+        databricks_metadata = json.loads(artifact.to_dataitem().get()).get(
+            "metadata", {}
+        )
+        #  important metadata asserts:
+        assert databricks_metadata.get("run_id")
+        assert databricks_metadata.get("job_id")
+        assert databricks_metadata.get("run_name").startswith(databricks_run_name)
+        assert databricks_metadata.get("state").get("result_state") == "SUCCESS"
 
     def _add_databricks_env(self, function, is_cluster_id_required=True):
         cluster_id = os.environ.get("DATABRICKS_CLUSTER_ID", None)
@@ -190,12 +199,14 @@ class TestDatabricksRuntime(tests.system.base.TestMLRunSystem):
                 )
                 assert run.status.state == "error"
         else:
+            run_name = f"mlrun_task_{uuid.uuid4()}"
+            params["task_parameters"]["databricks_run_name"] = run_name
             run = function.run(
                 handler="print_kwargs",
                 project=self.project_name,
                 params=params,
             )
-            self.assert_print_kwargs(print_kwargs_run=run)
+            self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
 
     def test_failure_in_databricks(self):
         code = """
@@ -234,15 +245,17 @@ def import_mlrun():
         )
 
         self._add_databricks_env(function=function)
-
+        test_params = copy.deepcopy(default_test_params)
+        run_name = f"mlrun_task_{uuid.uuid4()}"
+        test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
             handler="func",
             auto_build=True,
             project=self.project_name,
-            params=default_test_params,
+            params=test_params,
         )
         assert run.status.state == "completed"
-        self.assert_print_kwargs(print_kwargs_run=run)
+        self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
 
     @pytest.mark.parametrize(
         "handler, function_name",
@@ -267,12 +280,19 @@ def import_mlrun():
         function = function_ref.to_function()
 
         self._add_databricks_env(function=function)
+        test_params = copy.deepcopy(default_test_params)
+        run_name = f"mlrun_task_{uuid.uuid4()}"
+        test_params["task_parameters"]["databricks_run_name"] = run_name
         run = function.run(
-            project=self.project_name, params=default_test_params, **function_kwargs
+            project=self.project_name, params=test_params, **function_kwargs
         )
-        self.assert_print_kwargs(print_kwargs_run=run)
+        self.assert_print_kwargs(print_kwargs_run=run, databricks_run_name=run_name)
         second_run = function.run(runspec=run, project=self.project_name)
-        self.assert_print_kwargs(print_kwargs_run=second_run)
+        self.assert_print_kwargs(
+            print_kwargs_run=second_run,
+            databricks_run_name=run_name,
+            expected_artifacts=2,
+        )
 
     def test_missing_code_run(self):
         function_ref = FunctionReference(
@@ -298,9 +318,6 @@ def import_mlrun():
             )
 
     def test_abort_task(self):
-        #  clean up any active runs
-        if self.project.list_runs(state="running"):
-            self.project = mlrun.projects.new_project(self.project_name, overwrite=True)
         sleep_code = """
 
 import time
@@ -353,7 +370,6 @@ def handler(**kwargs):
         return dbfs_path
 
     def test_log_artifact(self):
-        self._run_db.del_artifacts(project=self.project_name)
         test_name = inspect.currentframe().f_code.co_name
         parquet_artifact_dbfs_path = self._upload_df(
             filename_extension="parquet", test_name=test_name
@@ -394,13 +410,10 @@ def main():
             handler="main",
             project=self.project_name,
         )
-        time.sleep(2)
         self._check_artifacts(paths_dict=paths_dict)
         self._run_db.del_artifacts(project=self.project_name)
-        time.sleep(2)
         assert (
             len(self.project.list_artifacts()) == 0
         )  # Make sure all artifacts have been deleted.
         function.run(runspec=run, project=self.project_name)  # test rerun.
-        time.sleep(4)
         self._check_artifacts(paths_dict=paths_dict)

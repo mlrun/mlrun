@@ -512,7 +512,7 @@ class Client(
                 pass
             if not status_code:
                 raise mlrun.errors.MLRunRuntimeError(error_message)
-            raise mlrun.errors.raise_for_status_code(status_code, error_message)
+            raise mlrun.errors.err_for_status_code(status_code, error_message)
         self._logger.debug("Job completed successfully", job_id=job_id)
 
     def _send_request_to_api(

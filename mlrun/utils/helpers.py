@@ -1117,7 +1117,7 @@ def retry_until_successful(
             f"Operation did not complete on time. last exception: {last_exception}"
         )
 
-    raise Exception(
+    raise mlrun.errors.MLRunRetryExhaustedError(
         f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
@@ -1304,6 +1304,26 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     if not time_obj:
         return
     return time_obj.isoformat()
+
+
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
 
 
 def as_list(element: Any) -> List[Any]:

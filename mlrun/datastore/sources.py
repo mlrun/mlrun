@@ -837,7 +837,7 @@ class OnlineSource(BaseSourceDriver):
         )
         src_class = source_class(
             context=context,
-            key_field=self.key_field,
+            key_field=self.key_field or key_field,
             full_event=True,
             explicit_ack=explicit_ack,
             **source_args,

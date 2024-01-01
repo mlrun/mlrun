@@ -1091,7 +1091,9 @@ def _ingest_with_spark(
             df = run_spark_graph(df, featureset, namespace, spark)
 
         if isinstance(df, Response) and df.status_code != 0:
-            mlrun.errors.raise_for_status_code(df.status_code, df.body.split(": ")[1])
+            raise mlrun.errors.err_for_status_code(
+                df.status_code, df.body.split(": ")[1]
+            )
 
         df.persist()
 
@@ -1111,9 +1113,6 @@ def _ingest_with_spark(
                 continue
             spark_options = target.get_spark_options(
                 key_columns, timestamp_key, overwrite
-            )
-            logger.info(
-                f"writing to target {target.name}, spark options {spark_options}"
             )
 
             df_to_write = df

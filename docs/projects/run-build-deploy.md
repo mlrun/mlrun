@@ -20,14 +20,11 @@ When used inside a pipeline, each method is automatically mapped to the relevant
 * {py:meth}`~mlrun.projects.build_function` &mdash; deploy an ML function, build a container with its dependencies for use in runs
 * {py:meth}`~mlrun.projects.deploy_function` &mdash; deploy real-time/online (nuclio or serving based) functions
 
-You can use those methods as `project` methods, or as global (`mlrun.`) methods. For example:
+Use these methods as `project` methods. For example:
 
 ```python
 # run the "train" function in myproject
 run = myproject.run_function("train", inputs={"data": data_url})  
-
-# run the "train" function in the current/active project (or in a pipeline)
-run = mlrun.run_function("train", inputs={"data": data_url})
 ```
     
 The first parameter in all three methods is either the function name (in the project), or a function object, used if you want to 

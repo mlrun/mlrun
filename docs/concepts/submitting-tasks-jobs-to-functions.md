@@ -32,15 +32,13 @@ data movement, tracking, and security in an optimal way.  Read more about [data 
 
 When a type hint is available for an argument, MLRun automatically parses the DataItem to the hinted type (when the hinted type is supported).
 
-You can use `run_function` as a `project` methods, or as global (`mlrun.`) methods. For example:
+Use `run_function` as a `project` methods. For example:
 
     # run the "train" function in myproject
     run_results = myproject.run_function("train", inputs={"data": data_url})  
     
-    # run the "train" function in the current/active project (or in a pipeline)
-    run_results = mlrun.run_function("train", inputs={"data": data_url})  
-    
-The first parameter in `run_function` is the function name (in the project), or it can be a function object if you want to 
+   
+The first parameter in `run_function` is either the function name (in the project), or a function object if you want to 
 use functions that you imported/created ad hoc, or modify a function spec, for example:
 
     run_results = project.run_function(fn, params={"label_column": "label"}, inputs={'data': data_url})

@@ -442,22 +442,18 @@ class MonitoringApplicationController:
                         parquet_target_path = offline_response.vector.get_target_path()
 
                         if len(df) == 0:
-                            logger.warn(
-                                "Not enough model events since the beginning of the batch interval",
-                                featureset_name=m_fs.metadata.name,
+                            logger.info(
+                                "Empty window",
                                 endpoint=endpoint[mm_constants.EventFieldType.UID],
-                                min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                                 start_time=start_infer_time,
                                 end_time=end_infer_time,
                             )
                             continue
 
-                    # Continue if not enough events provided since the deployment of the model endpoint
                     except FileNotFoundError:
-                        logger.warn(
-                            "Parquet not found, probably due to not enough model events",
+                        logger.info(
+                            "No parquets yet",
                             endpoint=endpoint[mm_constants.EventFieldType.UID],
-                            min_required_events=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
                         )
                         continue
 

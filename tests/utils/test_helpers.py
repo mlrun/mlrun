@@ -29,12 +29,12 @@ from mlrun.utils.helpers import (
     StorePrefix,
     enrich_image_url,
     extend_hub_uri_if_needed,
-    fill_project_path_template,
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
     resolve_image_tag_suffix,
     str_to_timestamp,
+    template_artifact_path,
     update_in,
     validate_artifact_key_name,
     validate_tag_name,
@@ -707,9 +707,9 @@ def test_parse_store_uri(uri, expected_output):
 def test_fill_project_path_template(case):
     if case.get("raise"):
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-            fill_project_path_template(case["artifact_path"], case.get("project"))
+            template_artifact_path(case["artifact_path"], case.get("project"))
     else:
-        filled_artifact_path = fill_project_path_template(
+        filled_artifact_path = template_artifact_path(
             case["artifact_path"], case.get("project")
         )
         assert case["expected_artifact_path"] == filled_artifact_path

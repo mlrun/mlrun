@@ -43,7 +43,6 @@
 ### UI
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
-|ML-50|Add notification by email or slack, webhook upon jobs success or failure.                        |
 |ML-1855|New **Train Model** wizard. Tech Preview.                                                           |
 |ML-2336|You can now delete Jobs in the UI.                                                                 |
 |ML-4506|You can now delete artifacts , models, and datasets in the UI.                                        |
@@ -62,7 +61,7 @@
 | ID     |Description                                                                                         |
 |---------|-----------------------------------------------------------------------------------------------------|
 |NA|New: Building a docker image externally using a dockerfile and then using it. See [Building a docker image using a dockerfile and using it](../runtimes/images.html#building-a-docker-image-using-a-dockerfile-and-using-it).|
-
+|NA|New: {ref}`project-setup`
 
 ###  Closed issues
 | ID          |Description                                                               |

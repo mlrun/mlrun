@@ -574,7 +574,12 @@ class HTTPRunDB(RunDBInterface):
             else:
                 nil_resp += 1
 
-            if watch and state in ["pending", "running"]:
+            if watch and state in [
+                mlrun.runtimes.constants.RunStates.pending,
+                mlrun.runtimes.constants.RunStates.running,
+                mlrun.runtimes.constants.RunStates.created,
+                mlrun.runtimes.constants.RunStates.aborting,
+            ]:
                 continue
             else:
                 # the whole log was retrieved

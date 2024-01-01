@@ -263,7 +263,7 @@ class PushToMonitoringWriter(StepToDict):
         """
         Push application results to the monitoring writer stream.
 
-        :param event: Monitoring result(s) to push.
+        :param event: Monitoring result(s) to push and the original event from the controller.
         """
         self._lazy_init()
         results, origin_event = event

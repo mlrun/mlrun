@@ -140,10 +140,10 @@ jobs:
       with:
         version: "v3.9.1"
 
-    - uses: manusa/actions-setup-minikube@v2.7.2
+    - uses: manusa/actions-setup-minikube@v2.10.0
       with:
-        minikube version: "v1.28.0"
-        kubernetes version: "v1.23.9"
+        minikube version: "v1.32.0"
+        kubernetes version: "v1.28.5"
         driver: docker
         github token: ${{ github.token }}
         # I couldn't find a way to configure the IP (https://github.com/kubernetes/minikube/issues/951)

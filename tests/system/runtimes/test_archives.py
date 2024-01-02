@@ -224,12 +224,12 @@ class TestArchiveSources(tests.system.base.TestMLRunSystem):
         assert "tag=" in resp.decode()
 
     def test_job_project(self):
-        project = mlrun.new_project("git-proj-job1", user_project=True)
+        project = mlrun.new_project("git-proj-job1", user_project=True, overwrite=True)
 
         # using project.name because this is a user project meaning the project name get concatenated with the user name
         self.custom_project_names_to_delete.append(project.name)
         project.save()
-        project.set_source(f"{git_uri}#main", True)  # , workdir="gtst")
+        project.set_source(f"{git_uri}#main", True)
         project.set_function(
             name="myjob",
             handler="rootfn.job_handler",

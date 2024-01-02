@@ -87,8 +87,8 @@ class _BatchWindow:
                 application=self._application,
                 first_request=self._first_request,
                 last_update=self._stop,
-                error=err,
             )
+            logger.debug("Error while getting last analyzed time", err=err)
             if self._first_request and self._stop:
                 # TODO : Change the timedelta according to the policy.
                 first_period_in_seconds = max(

@@ -102,7 +102,7 @@ def handler(context, param, model_names):
     for model_name, file_name in model_names:
         context.log_artifact(model_name, body=param.encode(), local_path=file_name)
 ----
-func = mlrun.set_function("my-func", kind="job", image="mlrun/mlrun")
+func = project.set_function("my-func", kind="job", image="mlrun/mlrun")
 func.save()
 ---
 task = new_task(name='mytask', handler=handler, artifact_path=artifact_path, project='project-name')

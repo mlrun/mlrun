@@ -147,7 +147,7 @@ class _BatchWindow:
             if not entered:
                 logger.info(
                     "All the data is set, but no complete intervals were found. "
-                    "Wait for last_updated to be updated.",
+                    "Wait for last_updated to be updated",
                     endpoint=self._endpoint,
                     application=self._application,
                     start=self._start,
@@ -156,8 +156,8 @@ class _BatchWindow:
                 )
         else:
             logger.warn(
-                "The first request time is not not found for this endpoint. "
-                "No intervals will be generated.",
+                "The first request time is not found for this endpoint. "
+                "No intervals will be generated",
                 endpoint=self._endpoint,
                 application=self._application,
                 start=self._start,

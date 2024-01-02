@@ -15,8 +15,10 @@
 import concurrent.futures
 import datetime
 import json
+import logging
 import os
 import re
+from contextlib import contextmanager
 from typing import Any, Iterator, NamedTuple, Optional, Union, cast
 
 from v3io.dataplane.response import HttpResponseError
@@ -35,13 +37,23 @@ from mlrun.model_monitoring.helpers import (
     get_monitoring_parquet_path,
     get_stream_path,
 )
-from mlrun.utils import logger
+from mlrun.utils import Logger, logger
 from mlrun.utils.v3io_clients import get_v3io_client
 
 
 class _Interval(NamedTuple):
     start: datetime.datetime
     end: datetime.datetime
+
+@contextmanager
+def _adapt_logger_level(logger: Logger, level: int) -> Iterator[None]:
+    """Temporarily change the logger level"""
+    old_level = logger.level
+    logger.set_logger_level(level)
+    try:
+        yield
+    finally:
+        logger.set_logger_level(old_level)
 
 
 class _BatchWindow:
@@ -65,7 +77,9 @@ class _BatchWindow:
         self._endpoint = endpoint
         self._application = application
         self._first_request = first_request
-        self._kv_storage = get_v3io_client(endpoint=mlrun.mlconf.v3io_api).kv
+        self._kv_storage = get_v3io_client(
+            endpoint=mlrun.mlconf.v3io_api, logger=logger
+        ).kv
         self._v3io_container = self.V3IO_CONTAINER_FORMAT.format(project=project)
         self._stop = last_updated
         self._step = timedelta_seconds
@@ -73,11 +87,12 @@ class _BatchWindow:
 
     def _get_last_analyzed(self) -> Optional[int]:
         try:
-            data = self._kv_storage.get(
-                container=self._v3io_container,
-                table_path=self._endpoint,
-                key=self._application,
-            )
+            with _adapt_logger_level(logger=logger, level=logging.ERROR):
+                data = self._kv_storage.get(
+                    container=self._v3io_container,
+                    table_path=self._endpoint,
+                    key=self._application,
+                )
         except HttpResponseError as err:
             logger.info(
                 "Failed to get the last analyzed time for this endpoint and application, "

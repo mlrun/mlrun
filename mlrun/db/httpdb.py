@@ -3282,7 +3282,6 @@ class HTTPRunDB(RunDBInterface):
             or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
         :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
         :param name: api gateway name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
-        :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`: API Gateway entity.
         @return: True if the API Gateway was created successfully, False otherwise
         """
 

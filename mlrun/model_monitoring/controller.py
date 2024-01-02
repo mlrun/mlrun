@@ -317,21 +317,25 @@ class MonitoringApplicationController:
 
     def run(self):
         """
-        Main method for run all the relevant monitoring application on each endpoint
+        Main method for run all the relevant monitoring applications on each endpoint
         """
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
-            application = mlrun.get_or_create_project(
+            monitoring_functions = mlrun.get_or_create_project(
                 self.project
             ).list_model_monitoring_functions()
-            if application:
-                applications_names = list({app.metadata.name for app in application})
+            if monitoring_functions:
+                applications_names = list(
+                    {app.metadata.name for app in monitoring_functions}
+                )
             else:
-                logger.info("There are no monitoring application found in this project")
+                self.context.logger.info(
+                    "No monitoring functions found", project=self.project
+                )
                 applications_names = []
 
         except Exception as e:
-            logger.error("Failed to list endpoints", exc=e)
+            self.context.logger.error("Failed to list endpoints", exc=e)
             return
         if endpoints and applications_names:
             # Initialize a process pool that will be used to run each endpoint applications on a dedicated process

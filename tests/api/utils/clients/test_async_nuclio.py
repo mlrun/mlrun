@@ -107,7 +107,7 @@ async def test_nuclio_create_api_gateway(
     await nuclio_client.create_api_gateway(
         project_name="default",
         api_gateway_name="new-gw",
-        api_gateway=mlrun.common.schemas.APIGateway(function=["test-func"]),
+        api_gateway=mlrun.common.schemas.APIGateway(functions=["test-func"]),
     )
 
 
@@ -119,7 +119,7 @@ def test__generate_nuclio_api_gateway_body(
             project_name="default",
             api_gateway_name="gw",
             api_gateway=mlrun.common.schemas.APIGateway(
-                function=[], host=None, path="/"
+                functions=[], host=None, path="/"
             ),
         )
     with pytest.raises(ValueError):
@@ -127,7 +127,7 @@ def test__generate_nuclio_api_gateway_body(
             project_name="default",
             api_gateway_name="gw",
             api_gateway=mlrun.common.schemas.APIGateway(
-                function=[], host=None, path="/", canary=[50]
+                functions=[], host=None, path="/", canary=[50]
             ),
         )
     nuclio_client._nuclio_domain = "nuclio.domain.com"
@@ -135,7 +135,7 @@ def test__generate_nuclio_api_gateway_body(
         project_name="default",
         api_gateway_name="gw",
         api_gateway=mlrun.common.schemas.APIGateway(
-            function=["f1", "f2"],
+            functions=["f1", "f2"],
             path="/",
             canary=[50, 50],
         ),

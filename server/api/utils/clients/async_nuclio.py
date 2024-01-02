@@ -137,7 +137,7 @@ class Client:
         api_gateway_name: str,
         api_gateway: mlrun.common.schemas.APIGateway,
     ) -> dict:
-        if not api_gateway.function:
+        if not api_gateway.functions:
             raise ValueError("functions should contain at least one object")
 
         host = f"{api_gateway_name}-{project_name}.{self._nuclio_domain[self._nuclio_domain.find('.') + 1:]}"
@@ -157,7 +157,7 @@ class Client:
                     {
                         "kind": "nucliofunction",
                         "nucliofunction": {
-                            "name": api_gateway.function[0],
+                            "name": api_gateway.functions[0],
                         },
                         "percentage": 0,
                     }
@@ -191,7 +191,7 @@ class Client:
 
         # Handle canary function info
         if api_gateway.canary:
-            if len(api_gateway.canary) != len(api_gateway.function):
+            if len(api_gateway.canary) != len(api_gateway.functions):
                 raise ValueError(
                     "Functions list should be the same length as canary list"
                 )
@@ -202,7 +202,7 @@ class Client:
                     "percentage": percentage,
                 }
                 for function_name, percentage in zip(
-                    api_gateway.function, api_gateway.canary
+                    api_gateway.functions, api_gateway.canary
                 )
             ]
             body["spec"]["upstreams"] = upstream

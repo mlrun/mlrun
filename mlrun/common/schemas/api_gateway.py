@@ -18,7 +18,7 @@ import pydantic
 
 
 class APIGateway(pydantic.BaseModel):
-    function: typing.List[str]
+    functions: typing.List[str]
     path: typing.Optional[str] = "/"
     description: typing.Optional[str] = ""
     username: typing.Optional[str]

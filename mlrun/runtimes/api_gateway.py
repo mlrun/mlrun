@@ -19,6 +19,9 @@ import requests
 import mlrun
 import mlrun.common.schemas
 
+from .function import RemoteRuntime
+from .serving import ServingRuntime
+
 BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "basicAuth"
 NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE = "none"
 PROJECT_NAME_LABEL = "nuclio.io/project-name"
@@ -31,20 +34,46 @@ class APIGateway:
         name: str,
         path: str,
         description: str,
-        functions: list[str],
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ],
         authentication_mode: Optional[str] = NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE,
         host: Optional[str] = None,
         canary: Optional[list[int]] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
     ):
+        self.functions = self._validate_functions(functions=functions, project=project)
+        self._validate(
+            name=name,
+            canary=canary,
+            username=username,
+            password=password,
+        )
         self.project = project
         self.name = name
         self.host = host
-        self.functions = functions
+
         self.path = path
         self.description = description
-        self.authentication_mode = authentication_mode
+        self.authentication_mode = (
+            authentication_mode
+            if authentication_mode
+            else self._enrich_authentication_mode(username=username, password=password)
+        )
         self.canary = canary
         self._invoke_url = None
+        self.__username = username
+        self.__password = password
         if host:
             self._invoke_url = self.generate_invoke_url()
 
@@ -88,6 +117,16 @@ class APIGateway:
             canary=canary,
         )
 
+    def to_scheme(self) -> mlrun.common.schemas.APIGateway:
+        return mlrun.common.schemas.APIGateway(
+            functions=self.functions,
+            path=self.path,
+            description=self.description,
+            username=self.__username,
+            password=self.__password,
+            canary=self.canary,
+        )
+
     def generate_invoke_url(
         self,
     ):
@@ -95,6 +134,97 @@ class APIGateway:
 
     def set_invoke_url(self, invoke_url: str):
         self._invoke_url = invoke_url
+
+    def _validate(
+        self,
+        name: str,
+        canary: Optional[list[int]] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+    ):
+
+        if not name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "API Gateway name cannot be empty"
+            )
+
+        # validating canary
+        if canary:
+            if len(self.functions) != len(canary):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Function and canary lists lengths do not match"
+                )
+            for canary_percent in canary:
+                if canary_percent < 0 or canary_percent > 100:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "The percentage value must be in the range from 0 to 100"
+                    )
+            if sum(canary) != 100:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "The sum of canary function percents should be equal to 100"
+                )
+
+        # validating auth
+        if username and not password:
+            raise mlrun.errors.MLRunInvalidArgumentError("Password is not specified")
+
+        if password and not username:
+            raise mlrun.errors.MLRunInvalidArgumentError("Username is not specified")
+
+    @staticmethod
+    def _validate_functions(
+        project: str,
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ],
+    ):
+        if not isinstance(functions, list):
+            functions = [functions]
+
+        # validating functions
+        if not 1 <= len(functions) <= 2:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Gateway can be created from one or two functions, "
+                f"but the number of functions is passed {len(functions)}"
+            )
+
+        function_names = []
+        for func in functions:
+            if isinstance(func, str):
+                function_names.append(func)
+                continue
+
+            function_name = (
+                func.metadata.name if hasattr(func, "metadata") else func.name
+            )
+            if func.kind not in mlrun.runtimes.RuntimeKinds.nuclio_runtimes():
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Input function {function_name} is not a Nuclio function"
+                )
+            if func.metadata.project != project:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"input function {function_name} "
+                    f"does not belong to this project"
+                )
+            function_names.append(func.uri)
+        return function_names
+
+    @staticmethod
+    def _enrich_authentication_mode(username, password):
+        return (
+            NO_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+            if username is not None and password is not None
+            else BASIC_AUTH_NUCLIO_API_GATEWAY_AUTH_MODE
+        )
 
     @staticmethod
     def _generate_auth(username: str, password: str):

@@ -3270,17 +3270,25 @@ class HTTPRunDB(RunDBInterface):
 
     def create_api_gateway(
         self,
-        project: str,
-        name: str,
-        api_gateway: mlrun.common.schemas.APIGateway,
+        api_gateway: Union[
+            mlrun.common.schemas.APIGateway, mlrun.runtimes.api_gateway.APIGateway
+        ],
+        project: Optional[str] = None,
+        name: Optional[str] = None,
     ) -> bool:
         """
         Creates an API Gateway.
+        :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`
+            or :py:class:`~mlrun.common.schemas.APIGateway`: API Gateway entity.
+        :param project: project name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
+        :param name: api gateway name. Mandatory if api_gateway is mlrun.common.schemas.APIGateway.
         :param api_gateway :py:class:`~mlrun.runtimes.api_gateway.APIGateway`: API Gateway entity.
-        :param auth (Tuple[str, str]): Pair of (username, password) if authentication is required.
-
         @return: True if the API Gateway was created successfully, False otherwise
         """
+
+        if isinstance(api_gateway, mlrun.runtimes.api_gateway.APIGateway):
+            api_gateway = api_gateway.to_scheme()
+
         endpoint_path = f"projects/{project}/nuclio/api-gateways/{name}"
         error = "create api gateways"
         response = self.api_call("POST", endpoint_path, error, json=api_gateway.dict())

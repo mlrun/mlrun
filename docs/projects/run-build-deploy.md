@@ -90,7 +90,7 @@ Example with `new_task`:
 
 ```python
 import mlrun
-mlrun.get_or_create_project('example-project')
+project = mlrun.get_or_create_project('example-project')
 ---
 
 from mlrun import RunTemplate, new_task, mlconf

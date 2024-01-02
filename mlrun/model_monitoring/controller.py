@@ -219,7 +219,7 @@ class _BatchWindowGenerator:
         cls, first_request: Optional[str], endpoint: str
     ) -> Optional[int]:
         if not first_request:
-            logger.warn(
+            logger.debug(
                 "There is no first request time for this endpoint.",
                 endpoint=endpoint,
                 first_request=first_request,

@@ -107,7 +107,6 @@ func.save()
 ---
 task = new_task(name='mytask', handler=handler, artifact_path=artifact_path, project='project-name')
 run_object = project.run_function("my-func", local=True, base_task=task)
-run_object.uid()
 ```
 
 See {py:meth}`mlrun.model.new_task` for a description of the `new_task` parameters.

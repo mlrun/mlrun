@@ -89,6 +89,7 @@ class SystemTestPreparer:
         mysql_password: str = None,
         debug: bool = False,
         branch: str = None,
+        mlrun_dbpath: str = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -110,8 +111,10 @@ class SystemTestPreparer:
         self._mysql_user = mysql_user
         self._mysql_password = mysql_password
         self._ssh_client: typing.Optional[paramiko.SSHClient] = None
+        self._mlrun_dbpath = mlrun_dbpath
 
         self._env_config = {
+            "MLRUN_DBPATH": mlrun_dbpath,
             "V3IO_USERNAME": username,
             "V3IO_ACCESS_KEY": access_key,
             "MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL": slack_webhook_url,
@@ -859,6 +862,10 @@ def run(
     "--save-to-path",
     help="Path to save the compiled env file to",
 )
+@click.option(
+    "--mlrun-dbpath",
+    help="MLRun DB URL",
+)
 def env(
     data_cluster_ip: str,
     data_cluster_ssh_username: str,
@@ -870,6 +877,7 @@ def env(
     branch: str,
     github_access_token: str,
     save_to_path: str,
+    mlrun_dbpath: str,
 ):
     system_test_preparer = SystemTestPreparer(
         data_cluster_ip=data_cluster_ip,
@@ -881,6 +889,7 @@ def env(
         slack_webhook_url=slack_webhook_url,
         branch=branch,
         github_access_token=github_access_token,
+        mlrun_dbpath=mlrun_dbpath,
     )
     try:
         system_test_preparer.connect_to_remote()

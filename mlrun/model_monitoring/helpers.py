@@ -28,6 +28,7 @@ from mlrun.utils import logger
 
 if typing.TYPE_CHECKING:
     from mlrun.db.base import RunDBInterface
+    from mlrun.projects import MlrunProject
 
 
 class _BatchDict(typing.TypedDict):
@@ -63,24 +64,22 @@ def get_stream_path(project: str = None, application_name: str = None):
 
 
 def get_monitoring_parquet_path(
-    project: str,
+    project: "MlrunProject",
     kind: str = mlrun.common.schemas.model_monitoring.FileTargetKind.PARQUET,
 ) -> str:
     """Get model monitoring parquet target for the current project and kind. The parquet target path is based on the
     project artifact path. If project artifact path is not defined, the parquet target path will be based on MLRun
     artifact path.
 
-    :param project:     Project name.
+    :param project:     Project object.
     :param kind:        indicate the kind of the parquet path, can be either stream_parquet or stream_controller_parquet
 
     :return:           Monitoring parquet target path.
     """
-
-    project_obj = mlrun.get_or_create_project(name=project)
-    artifact_path = project_obj.spec.artifact_path
+    artifact_path = project.spec.artifact_path
     # Generate monitoring parquet path value
     parquet_path = mlrun.mlconf.get_model_monitoring_file_target_path(
-        project=project,
+        project=project.name,
         kind=kind,
         target="offline",
         artifact_path=artifact_path,

@@ -274,6 +274,7 @@ class MonitoringApplicationController:
         """
         self.context = context
         self.project = project
+        self.project_obj = mlrun.get_or_create_project(project)
 
         context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
 
@@ -291,7 +292,7 @@ class MonitoringApplicationController:
         )
         self.model_monitoring_access_key = self._get_model_monitoring_access_key()
         self.parquet_directory = get_monitoring_parquet_path(
-            project=project,
+            self.project_obj,
             kind=mm_constants.FileTargetKind.APPS_PARQUET,
         )
         self.storage_options = None
@@ -321,9 +322,7 @@ class MonitoringApplicationController:
         """
         try:
             endpoints = self.db.list_model_endpoints(uids=self.model_endpoints)
-            monitoring_functions = mlrun.get_or_create_project(
-                self.project
-            ).list_model_monitoring_functions()
+            monitoring_functions = self.project_obj.list_model_monitoring_functions()
             if monitoring_functions:
                 applications_names = list(
                     {app.metadata.name for app in monitoring_functions}

@@ -5,7 +5,7 @@ An artifact is any data that is produced and/or consumed by functions, jobs, or 
 
 There are several types of Artifacts. The type of the Artifact is reflected in the 
 `kind` attribute of each Artifact. These types are also 
-used in the for grouping the [artifacts in the UI](#viewing-artifacts). 
+used for grouping the [artifacts in the UI](#viewing-artifacts). 
 The main kinds of artifacts are:
 
 - Files — Files, directories, images, figures, and plotlines

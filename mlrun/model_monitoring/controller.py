@@ -275,16 +275,10 @@ class MonitoringApplicationController:
         self.context = context
         self.project = project
 
-        logger.info(
-            "Initializing MonitoringApplicationController",
-            project=project,
-        )
-
-        # Get a runtime database
+        context.logger.debug(f"Initializing {self.__class__.__name__}", project=project)
 
         self.db = mlrun.model_monitoring.get_model_endpoint_store(project=project)
 
-        # The batch window
         self._batch_window_generator = _BatchWindowGenerator(
             batch_dict=context.parameters[
                 mm_constants.EventFieldType.BATCH_INTERVALS_DICT

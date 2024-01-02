@@ -32,6 +32,7 @@ Introduction to MLRun - Use serverless functions to train and deploy models
 06-add-mlops-to-code
 07-batch-infer
 ../feature-store/basic-demo
+mlflow
 MLRun demos repository <https://github.com/mlrun/demos>
 /cheat-sheet
 ```

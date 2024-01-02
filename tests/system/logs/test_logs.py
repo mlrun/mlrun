@@ -64,4 +64,11 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
         # verify the logs are not empty
         assert logs, "Expected logs to be not empty"
 
+        # test log size
+        log_size = mlrun.get_run_db().get_log_size(
+            uid=run.metadata.uid,
+            project=proj.name,
+        )
+        assert log_size, "Expected log size to be not zero"
+
         self._logger.debug("Finished log collector test")

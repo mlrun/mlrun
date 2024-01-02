@@ -70,7 +70,7 @@ def extra_requirements() -> typing.Dict[str, typing.List[str]]:
         ],
         "redis": ["redis~=4.3"],
         "mlflow": ["mlflow~=2.8"],
-        "databricks-sdk": ["databricks-sdk~=0.15.0"],
+        "databricks-sdk": ["databricks-sdk~=0.13.0"],
         "sqlalchemy": ["sqlalchemy~=1.4"],
         "dask": [
             "dask~=2023.9.0",

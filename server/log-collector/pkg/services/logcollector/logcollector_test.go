@@ -593,18 +593,18 @@ func (suite *LogCollectorTestSuite) TestReadLogsFromFileWhileWriting() {
 	suite.Require().Equal(totalWritten, totalRead, "Expected total written to be equal to total read")
 }
 
-func (suite *LogCollectorTestSuite) TestHasLogs() {
+func (suite *LogCollectorTestSuite) TestGetLogSize() {
 	runUID := uuid.New().String()
-	request := &log_collector.HasLogsRequest{
+	request := &log_collector.GetLogSizeRequest{
 		RunUID:      runUID,
 		ProjectName: suite.projectName,
 	}
 
-	// call has logs with no logs
-	hasLogsResponse, err := suite.logCollectorServer.HasLogs(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to check if has logs")
-	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
-	suite.Require().False(hasLogsResponse.HasLogs, "Expected run to not have logs")
+	// call get log size with no logs
+	getLogSizeResponse, err := suite.logCollectorServer.GetLogSize(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to get log size")
+	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")
+	suite.Require().Equal(int64(-1), getLogSizeResponse.LogSize, "Expected size to be negative")
 
 	// create log file for runUID and pod
 	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(suite.projectName, runUID)
@@ -614,11 +614,11 @@ func (suite *LogCollectorTestSuite) TestHasLogs() {
 	err = common.WriteToFile(logFilePath, []byte(logText), false)
 	suite.Require().NoError(err, "Failed to write to file")
 
-	// check if run has logs
-	hasLogsResponse, err = suite.logCollectorServer.HasLogs(suite.ctx, request)
-	suite.Require().NoError(err, "Failed to check if has logs")
-	suite.Require().True(hasLogsResponse.Success, "Expected has logs request to succeed")
-	suite.Require().True(hasLogsResponse.HasLogs, "Expected run to have logs")
+	// get the log size
+	getLogSizeResponse, err = suite.logCollectorServer.GetLogSize(suite.ctx, request)
+	suite.Require().NoError(err, "Failed to get log size")
+	suite.Require().True(getLogSizeResponse.Success, "Expected get log size request to succeed")
+	suite.Require().Equal(int64(len(logText)), getLogSizeResponse.LogSize, "Expected size to be equal to log size")
 }
 
 func (suite *LogCollectorTestSuite) TestStopLog() {

@@ -142,7 +142,6 @@ class APIGateway:
         username: Optional[str] = None,
         password: Optional[str] = None,
     ):
-
         if not name:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway name cannot be empty"

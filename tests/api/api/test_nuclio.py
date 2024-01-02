@@ -99,7 +99,7 @@ def test_create_api_gateway(
             )
         )
     )
-    api_gateway = mlrun.common.schemas.APIGateway(function=["ff"])
+    api_gateway = mlrun.common.schemas.APIGateway(functions=["ff"])
     response = client.post(
         f"projects/{PROJECT}/nuclio/api-gateways/test-create-gw/",
         json=api_gateway.dict(),

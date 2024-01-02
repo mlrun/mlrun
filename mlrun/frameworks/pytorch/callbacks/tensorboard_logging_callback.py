@@ -364,9 +364,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         return self._logger.weight_statistics
 
     @staticmethod
-    def get_default_weight_statistics_list() -> List[
-        Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
-    ]:
+    def get_default_weight_statistics_list() -> (
+        List[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
+    ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
 

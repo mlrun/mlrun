@@ -92,7 +92,6 @@ class Logger(object):
     def set_handler(
         self, handler_name: str, file: IO[str], formatter: logging.Formatter
     ):
-
         # check if there's a handler by this name
         for handler in self._logger.handlers:
             if handler.name == handler_name:

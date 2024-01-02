@@ -285,7 +285,7 @@ class SQLDB(DBInterface):
             return runs
 
         # from each row we expect to get a tuple of (uid,) so we need to extract the uid from the tuple
-        return [uid for uid, in query.all()]
+        return [uid for (uid,) in query.all()]
 
     def update_runs_requested_logs(
         self, session, uids: List[str], requested_logs: bool = True
@@ -490,11 +490,6 @@ class SQLDB(DBInterface):
 
         original_uid = uid
 
-        # record with the given tag/uid
-        existing_artifact = self._get_existing_artifact(
-            session, project, key, uid, producer_id=producer_id, iteration=iter
-        )
-
         if isinstance(artifact, dict):
             artifact_dict = artifact
         else:
@@ -517,6 +512,11 @@ class SQLDB(DBInterface):
         # for easier querying, we mark artifacts without iteration as best iteration
         if not best_iteration and (iter is None or iter == 0):
             best_iteration = True
+
+        # try to get an existing artifact with the same calculated uid
+        existing_artifact = self._get_existing_artifact(
+            session, project, key, uid, producer_id=producer_id, iteration=iter
+        )
 
         # if the object is not new, we need to check if we need to update it or create a new one
         if existing_artifact:
@@ -951,6 +951,8 @@ class SQLDB(DBInterface):
 
         self._upsert(session, artifacts_to_commit)
 
+        return artifact_record.uid
+
     def _update_artifact_record_from_dict(
         self,
         artifact_record,
@@ -970,13 +972,16 @@ class SQLDB(DBInterface):
         )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
-        if not artifact_record.created:
-            created = artifact_dict["metadata"].pop("created", None)
-            artifact_record.created = (
-                datetime.strptime(created, "%Y-%m-%d %H:%M:%S.%f%z")
-                if created
-                else datetime.now(timezone.utc)
-            )
+        created = (
+            str(artifact_record.created)
+            if artifact_record.created
+            else artifact_dict["metadata"].pop("created", None)
+        )
+        # make sure we have a datetime object with timezone both in the artifact record and in the artifact dict
+        created_datetime = mlrun.utils.enrich_datetime_with_tz_info(
+            created
+        ) or datetime.now(timezone.utc)
+        artifact_record.created = created_datetime
 
         # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
         artifact_record.iteration = iter or 0
@@ -986,7 +991,7 @@ class SQLDB(DBInterface):
         artifact_record.uid = uid
 
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
-        artifact_dict["metadata"]["created"] = str(artifact_record.created)
+        artifact_dict["metadata"]["created"] = str(created_datetime)
         artifact_dict["kind"] = kind
 
         db_key = artifact_dict.get("spec", {}).get("db_key")
@@ -1481,7 +1486,6 @@ class SQLDB(DBInterface):
             if not tag:
                 function_tags = self._list_function_tags(session, project, function.id)
                 if len(function_tags) == 0:
-
                     # function status should be added only to tagged functions
                     function_dict["status"] = None
 
@@ -1587,7 +1591,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(Function.name), project=project
             ).all()
         ]
@@ -1883,7 +1887,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(FeatureVector.name), project=project
             ).all()
         ]
@@ -2399,7 +2403,11 @@ class SQLDB(DBInterface):
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
     ) -> str:
-        (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
+        (
+            uid,
+            tag,
+            feature_set_dict,
+        ) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 
@@ -3134,7 +3142,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(FeatureSet.name), project=project
             ).all()
         ]
@@ -3503,13 +3511,10 @@ class SQLDB(DBInterface):
         return query.one_or_none()
 
     def _get_run(self, session, uid, project, iteration):
-        try:
-            resp = self._query(
-                session, Run, uid=uid, project=project, iteration=iteration
-            ).one_or_none()
-            return resp
-        finally:
-            pass
+        resp = self._query(
+            session, Run, uid=uid, project=project, iteration=iteration
+        ).one_or_none()
+        return resp
 
     def _delete_empty_labels(self, session, cls):
         session.query(cls).filter(cls.parent == NULL).delete()
@@ -4080,12 +4085,23 @@ class SQLDB(DBInterface):
         self._upsert(session, [background_task_record])
 
     def get_background_task(
-        self, session, name: str, project: str
+        self,
+        session,
+        name: str,
+        project: str,
+        background_task_exceeded_timeout_func,
     ) -> mlrun.common.schemas.BackgroundTask:
         background_task_record = self._get_background_task_record(
             session, name, project
         )
-        if self._is_background_task_timeout_exceeded(background_task_record):
+        if (
+            background_task_exceeded_timeout_func
+            and background_task_exceeded_timeout_func(
+                background_task_record.updated,
+                background_task_record.timeout,
+                background_task_record.state,
+            )
+        ):
             # lazy update of state, only if get background task was requested and the timeout for the update passed
             # and the task still in progress then we change to failed
             self.store_background_task(
@@ -4124,7 +4140,7 @@ class SQLDB(DBInterface):
     ) -> typing.List[str]:
         return [
             name
-            for name, in self._query(
+            for (name,) in self._query(
                 session, distinct(BackgroundTask.name), project=project
             ).all()
         ]
@@ -4156,23 +4172,6 @@ class SQLDB(DBInterface):
                 f"Background task not found: name={name}, project={project}"
             )
         return background_task_record
-
-    @staticmethod
-    def _is_background_task_timeout_exceeded(background_task_record) -> bool:
-        # We don't verify if timeout_mode is enabled because if timeout is defined and
-        # mlrun.mlconf.background_tasks.timeout_mode == "disabled",
-        # it signifies that the background task was initiated while timeout mode was enabled,
-        # and we intend to verify it as if timeout mode was enabled
-        timeout = background_task_record.timeout
-        if (
-            timeout
-            and background_task_record.state
-            not in mlrun.common.schemas.BackgroundTaskState.terminal_states()
-            and datetime.utcnow()
-            > timedelta(seconds=int(timeout)) + background_task_record.updated
-        ):
-            return True
-        return False
 
     # ---- Run Notifications ----
     def store_run_notifications(

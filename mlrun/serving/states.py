@@ -469,7 +469,6 @@ class TaskStep(BaseStep):
             class_name = class_name.__name__
         elif not class_object:
             if class_name == "$remote":
-
                 from mlrun.serving.remote import RemoteStep
 
                 class_object = RemoteStep
@@ -1130,7 +1129,6 @@ class FlowStep(BaseStep):
         return event
 
     def run(self, event, *args, **kwargs):
-
         if self._controller:
             # async flow (using storey)
             event._awaitable_result = None

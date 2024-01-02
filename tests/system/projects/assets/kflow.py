@@ -24,7 +24,6 @@ default_pkg_class = "sklearn.linear_model.LogisticRegression"
 
 @dsl.pipeline(name="Demo training pipeline", description="Shows how to use mlrun.")
 def kfpipeline(model_class=default_pkg_class, build=0):
-
     # if build=True, build the function image before the run
     with dsl.Condition(build == 1) as build_cond:
         funcs["prep-data"].deploy_step()

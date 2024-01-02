@@ -177,7 +177,6 @@ class BaseLauncher(abc.ABC):
 
     def _validate_run_params(self, parameters: Dict[str, Any]):
         for param_name, param_value in parameters.items():
-
             if isinstance(param_value, dict):
                 # if the parameter is a dict, we might have some nested parameters,
                 # in this case we need to verify them as well recursively
@@ -331,9 +330,8 @@ class BaseLauncher(abc.ABC):
                 run.spec.output_path = mlrun.mlconf.artifact_path
 
         if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace("{{run.uid}}", meta.uid)
-            run.spec.output_path = mlrun.utils.helpers.fill_project_path_template(
-                run.spec.output_path, run.metadata.project
+            run.spec.output_path = mlrun.utils.helpers.template_artifact_path(
+                run.spec.output_path, run.metadata.project, meta.uid
             )
 
         notifications = notifications or run.spec.notifications or []

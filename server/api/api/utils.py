@@ -247,7 +247,6 @@ def _conceal_notification_params_with_secret(
         notification_object.secret_params
         and "secret" not in notification_object.secret_params
     ):
-
         # create secret key from a hash of the secret params. this will allow multiple notifications with the same
         # params to share the same secret (saving secret storage space).
         # TODO: add holders to the secret content, so we can monitor when all runs that use the secret are deleted.

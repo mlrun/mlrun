@@ -22,7 +22,7 @@ import mlrun.utils.singleton
 import server.api.api.utils
 from mlrun.config import config
 from mlrun.model import Credentials, RunMetadata, RunObject, RunSpec
-from mlrun.utils import fill_project_path_template
+from mlrun.utils import template_artifact_path
 
 
 class WorkflowRunners(
@@ -99,18 +99,19 @@ class WorkflowRunners(
         runner._store_function(
             runspec=run_spec, meta=run_spec.metadata, db=runner._get_db()
         )
-        workflow_spec = workflow_request.spec
-        schedule = workflow_spec.schedule
-        scheduled_object = {
-            "task": run_spec.to_dict(),
-            "schedule": schedule,
-        }
 
         if workflow_request.notifications:
             run_spec.spec.notifications = [
                 mlrun.model.Notification.from_dict(notification.dict())
                 for notification in workflow_request.notifications
             ]
+
+        workflow_spec = workflow_request.spec
+        schedule = workflow_spec.schedule
+        scheduled_object = {
+            "task": run_spec.to_dict(),
+            "schedule": schedule,
+        }
 
         server.api.api.utils.get_scheduler().store_schedule(
             db_session=db_session,
@@ -167,11 +168,10 @@ class WorkflowRunners(
                 ),
                 handler="mlrun.projects.load_and_run",
                 scrape_metrics=config.scrape_metrics,
-                output_path=fill_project_path_template(
-                    (workflow_request.artifact_path or config.artifact_path).replace(
-                        "{{run.uid}}", meta_uid
-                    ),
+                output_path=template_artifact_path(
+                    workflow_request.artifact_path or config.artifact_path,
                     project.metadata.name,
+                    meta_uid,
                 ),
             ),
             metadata=RunMetadata(

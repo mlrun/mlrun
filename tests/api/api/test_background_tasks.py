@@ -119,7 +119,6 @@ def test_redirection_from_worker_to_chief_trigger_migrations(
             "expected_body": {"detail": {"reason": "unexpected error"}},
         },
     ]:
-
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
         httpserver.expect_ordered_request(
@@ -147,7 +146,6 @@ def test_redirection_from_worker_to_chief_get_internal_background_tasks(
             "expected_body": {"detail": {"reason": "error_message"}},
         },
     ]:
-
         expected_status = test_case.get("expected_status")
         expected_response = test_case.get("expected_body")
         httpserver.expect_ordered_request(

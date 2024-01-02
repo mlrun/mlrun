@@ -16,11 +16,11 @@ import typing
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
-import server.api.utils.auth.providers.base
+import server.api.utils.auth.providers.base as auth
 
 
 class Provider(
-    server.api.utils.auth.providers.base.Provider,
+    auth.Provider,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
     async def query_permissions(

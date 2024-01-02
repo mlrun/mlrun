@@ -434,6 +434,8 @@ with ctx:
         self, crd_object: dict
     ) -> Tuple[bool, Optional[datetime], Optional[str]]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
+        if not state:
+            return False, None, None
         in_terminal_state = state in SparkApplicationStates.terminal_states()
         desired_run_state = SparkApplicationStates.spark_application_state_to_run_state(
             state

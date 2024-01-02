@@ -33,6 +33,7 @@ from typing import Any, List, Optional, Tuple
 
 import anyio
 import git
+import inflection
 import numpy as np
 import packaging.version
 import pandas
@@ -660,11 +661,24 @@ def dict_to_json(struct):
 
 
 def parse_artifact_uri(uri, default_project=""):
-    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<uid>.*))?$"
+    """
+    Parse artifact URI into project, key, tag, iter, tree
+    URI format: [<project>/]<key>[#<iter>][:<tag>][@<tree>]
+
+    :param uri:            uri to parse
+    :param default_project: default project name if not in URI
+    :returns: a tuple of:
+        [0] = project name
+        [1] = key
+        [2] = iteration
+        [3] = tag
+        [4] = tree
+    """
+    uri_pattern = r"^((?P<project>.*)/)?(?P<key>.*?)(\#(?P<iteration>.*?))?(:(?P<tag>.*?))?(@(?P<tree>.*))?$"
     match = re.match(uri_pattern, uri)
     if not match:
         raise ValueError(
-            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<uid>]"
+            "Uri not in supported format [<project>/]<key>[#<iteration>][:<tag>][@<tree>]"
         )
     group_dict = match.groupdict()
     iteration = group_dict["iteration"]
@@ -680,7 +694,7 @@ def parse_artifact_uri(uri, default_project=""):
         group_dict["key"],
         iteration,
         group_dict["tag"],
-        group_dict["uid"],
+        group_dict["tree"],
     )
 
 
@@ -952,7 +966,6 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
 
 
 def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
-
     # remove artifact related fields before calculating hash
     object_dict.setdefault("metadata", {})
     labels = object_dict["metadata"].pop("labels", None)
@@ -1104,7 +1117,7 @@ def retry_until_successful(
             f"Operation did not complete on time. last exception: {last_exception}"
         )
 
-    raise Exception(
+    raise mlrun.errors.MLRunRetryExhaustedError(
         f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
@@ -1177,7 +1190,9 @@ def get_caller_globals():
         # Otherwise, we keep going up the stack until we find it.
         for level in range(2, len(stack)):
             namespace = stack[level][0].f_globals
-            if not namespace["__name__"].startswith("mlrun."):
+            if (not namespace["__name__"].startswith("mlrun.")) and (
+                not namespace["__name__"].startswith("deprecated.")
+            ):
                 return namespace
     except Exception:
         return None
@@ -1291,6 +1306,26 @@ def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
     return time_obj.isoformat()
 
 
+def enrich_datetime_with_tz_info(timestamp_string):
+    if not timestamp_string:
+        return timestamp_string
+
+    if timestamp_string and not mlrun.utils.helpers.has_timezone(timestamp_string):
+        timestamp_string += datetime.now(timezone.utc).astimezone().strftime("%z")
+
+    return datetime.strptime(timestamp_string, "%Y-%m-%d %H:%M:%S.%f%z")
+
+
+def has_timezone(timestamp):
+    try:
+        dt = parser.parse(timestamp) if isinstance(timestamp, str) else timestamp
+
+        # Check if the parsed datetime object has timezone information
+        return dt.tzinfo is not None
+    except ValueError:
+        return False
+
+
 def as_list(element: Any) -> List[Any]:
     return element if isinstance(element, list) else [element]
 
@@ -1310,7 +1345,20 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_project_path_template(artifact_path, project):
+def template_artifact_path(artifact_path, project, run_uid="project"):
+    """
+    Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
+    If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
+    level artifact.
+    """
+    if not artifact_path:
+        return artifact_path
+    artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
+    artifact_path = _fill_project_path_template(artifact_path, project)
+    return artifact_path
+
+
+def _fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (
@@ -1413,6 +1461,12 @@ def format_run(run: dict, with_project=False) -> dict:
             and parser.parse(str(value)).year == 1970
         ):
             run[key] = None
+
+    # pipelines are yet to populate the status or workflow has failed
+    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # set to unknown to ensure a status is returned
+    if run["status"] is None:
+        run["status"] = inflection.titleize(mlrun.runtimes.constants.RunStates.unknown)
 
     return run
 

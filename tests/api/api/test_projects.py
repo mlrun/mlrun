@@ -65,9 +65,7 @@ def project_member_mode(request, db: Session) -> str:
     if request.param == "follower":
         mlrun.config.config.httpdb.projects.leader = "nop"
         server.api.utils.singletons.project_member.initialize_project_member()
-        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = (
-            db
-        )
+        server.api.utils.singletons.project_member.get_project_member()._leader_client.db_session = db
     elif request.param == "leader":
         mlrun.config.config.httpdb.projects.leader = "mlrun"
         server.api.utils.singletons.project_member.initialize_project_member()
@@ -552,7 +550,6 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     project_member_mode: str,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ) -> None:
-
     # need to set this to False, otherwise impl will try to delete k8s resources, and will need many more
     # mocks to overcome this.
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
@@ -567,7 +564,7 @@ def test_delete_project_not_deleting_versioned_objects_multiple_times(
     # ensure there are indeed several versions of the same function name
     assert len(distinct_function_names) < len(response.json()["funcs"])
 
-    response = client.get("artifacts", params={"project": project_name, "tag": "*"})
+    response = client.get(f"projects/{project_name}/artifacts", params={"tag": "*"})
     assert response.status_code == HTTPStatus.OK.value
     # ensure there are indeed several versions of the same artifact key
     distinct_artifact_keys = {
@@ -1403,7 +1400,7 @@ def _create_artifacts(client: TestClient, project_name, artifacts_count, kind):
                 "spec": {"src_path": "/some/local/path"},
             }
             response = client.post(
-                f"artifact/{project_name}/{uid}/{key}", json=artifact
+                f"projects/{project_name}/artifacts/{uid}/{key}", json=artifact
             )
             assert response.status_code == HTTPStatus.OK.value, response.json()
 

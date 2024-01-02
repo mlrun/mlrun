@@ -65,7 +65,7 @@ FRAMEWORKS_ALGORITHM_FUNCTIONALITIES = [
 
 
 def framework_algorithm_functionality_pair_ids(
-    framework_algorithm_functionality_pair: typing.Tuple[str, str]
+    framework_algorithm_functionality_pair: typing.Tuple[str, str],
 ) -> str:
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     return f"{framework}-{algorithm_functionality}"
@@ -79,9 +79,7 @@ def framework_algorithm_functionality_pair_ids(
 def test_training(framework_algorithm_functionality_pair: typing.Tuple[str, str]):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
-    (functions, artifacts_library, metrics_library) = FRAMEWORKS[
-        framework
-    ]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
+    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
 
     # Run training:
     train_run = mlrun.new_function().run(
@@ -120,9 +118,7 @@ def test_evaluation(
 ):
     framework, algorithm_functionality = framework_algorithm_functionality_pair
     # Unpack the framework classes:
-    (functions, artifacts_library, metrics_library) = FRAMEWORKS[
-        framework
-    ]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
+    (functions, artifacts_library, metrics_library) = FRAMEWORKS[framework]  # type: MLFunctions, ArtifactsLibrary, MetricsLibrary
 
     # Run training:
     train_run = mlrun.new_function().run(

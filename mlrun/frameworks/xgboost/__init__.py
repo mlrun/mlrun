@@ -55,7 +55,7 @@ def apply_mlrun(
     parameters: Dict[str, Union[str, int, float]] = None,
     extra_data: Dict[str, XGBoostTypes.ExtraDataType] = None,
     auto_log: bool = True,
-    **kwargs
+    **kwargs,
 ) -> XGBoostModelHandler:
     """
     Wrap the given model with MLRun's interface providing it with mlrun's additional features.

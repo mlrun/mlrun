@@ -70,7 +70,6 @@ def test_list_runs(rundb_mock, generate_artifact_hash_mode, expected_target_path
 #  artifacts in the `results` dir, it should generate its own stuff, skipping for now
 @pytest.mark.skip("FIX_ME")
 def test_list_artifacts():
-
     db = get_db()
     artifacts = db.list_artifacts()
     assert artifacts, "empty artifacts result"

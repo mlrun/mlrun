@@ -291,7 +291,6 @@ async def test_create_schedule_mlrun_function(
     scheduler: Scheduler,
     k8s_secrets_mock: tests.api.conftest.K8sSecretsMock,
 ):
-
     project_name = config.default_project
     create_project(db, project_name)
 
@@ -1293,6 +1292,10 @@ async def test_update_schedule_failure_not_found_in_scheduler(
 
 
 @pytest.mark.asyncio
+# Marking the test as flaky since it depends on the scheduler to run the job in the right time.
+# We were experiencing issues with concurrency_limit > 1 where some job might be unexpectedly skipped due to
+# milliseconds delay. This issue is rare and if it seems to be happening more frequently, it should be addressed.
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize(
     # The function waits 2 seconds and the schedule runs every second for 4 seconds. So:
     # For 1 concurrent job, the second and fourth jobs should be skipped resulting in 2 runs.

@@ -20,7 +20,6 @@ import tests.system.base
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestNotifications(tests.system.base.TestMLRunSystem):
-
     project_name = "notifications-test"
 
     def test_run_notifications(self):
@@ -83,7 +82,6 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         )
 
     def test_set_run_notifications(self):
-
         notification_name = "slack-should-succeed"
 
         def _assert_notification_was_sent():
@@ -128,7 +126,6 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         )
 
     def test_set_schedule_notifications(self):
-
         notification_name = "slack-notification"
         schedule_name = "test-sleep"
 
@@ -264,7 +261,6 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
         )
 
     def _create_sleep_func_in_project(self):
-
         code_path = str(self.assets_path / "sleep.py")
 
         sleep_func = mlrun.code_to_function(

@@ -69,7 +69,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
         state_thresholds: Optional[Dict[str, int]] = None,
     ) -> "mlrun.run.RunObject":
-
         # do not allow local function to be scheduled
         if self._is_run_local and schedule is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -133,7 +132,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         runtime: "mlrun.runtimes.BaseRuntime",
         run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
     ):
-
         if "V3IO_USERNAME" in os.environ and "v3io_user" not in run.metadata.labels:
             run.metadata.labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
 
@@ -209,7 +207,6 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         workdir: Optional[str] = "",
         handler: Optional[str] = None,
     ):
-
         project = project or runtime.metadata.project
         function_name = name or runtime.metadata.name
         command, args = self._resolve_local_code_path(local_code_path)

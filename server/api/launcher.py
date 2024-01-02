@@ -227,7 +227,6 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
     ):
-
         # If this was triggered by the UI, we will need to attempt auto-mount based on auto-mount
         # config and params passed in the auth_info.
         # If this was triggered by the SDK, then auto-mount was already attempted and will be skipped.

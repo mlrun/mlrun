@@ -32,10 +32,10 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
-    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
+    template_artifact_path,
 )
 
 # Changing {run_id} will break and will not be backward compatible.
@@ -920,14 +920,14 @@ class RunSpec(ModelObj):
     @state_thresholds.setter
     def state_thresholds(self, state_thresholds: Dict[str, str]):
         """
-        Set the dictionary of k8s states (pod phase) to thresholds time strings.
+        Set the dictionary of k8s resource states to thresholds time strings.
         The state will be matched against the pod's status. The threshold should be a time string that conforms
         to timelength python package standards and is at least 1 minute (-1 for infinite). If the phase is active
         for longer than the threshold, the run will be marked as aborted and the pod will be deleted.
         See mlconf.function.spec.state_thresholds for the state options and default values.
 
         example:
-            {"image_pull_backoff": "1h", "running": "1d 2 hours"}
+            {"image_pull_backoff": "1h", "executing": "1d 2 hours"}
 
         :param state_thresholds: The state-thresholds dictionary.
         """
@@ -1258,13 +1258,14 @@ class RunObject(RunTemplate):
     def error(self) -> str:
         """error string if failed"""
         if self.status:
-            if self.status.state != "error":
-                return f"Run state ({self.status.state}) is not in error state"
+            unknown_error = ""
+            if self.status.state in mlrun.runtimes.constants.RunStates.error_states():
+                unknown_error = "Unknown error"
             return (
                 self.status.error
                 or self.status.reason
                 or self.status.status_text
-                or "Unknown error"
+                or unknown_error
             )
         return ""
 
@@ -1636,7 +1637,7 @@ class TargetPathObject:
         return self.full_path_template
 
     def get_absolute_path(self, project_name=None):
-        path = fill_project_path_template(
+        path = template_artifact_path(
             artifact_path=self.full_path_template,
             project=project_name,
         )

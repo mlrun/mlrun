@@ -141,9 +141,9 @@ def chdir_to_test_location(request):
 def patch_file_forbidden(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise RuntimeError("Permission denied")
 
     mock_get = mock_failed_get_func(HTTPStatus.FORBIDDEN.value)
@@ -157,9 +157,9 @@ def patch_file_forbidden(monkeypatch):
 def patch_file_not_found(monkeypatch):
     class MockV3ioClient:
         def __init__(self, *args, **kwargs):
-            pass
+            self.container = self
 
-        def get_container_contents(self, *args, **kwargs):
+        def list(self, *args, **kwargs):
             raise FileNotFoundError
 
     mock_get = mock_failed_get_func(HTTPStatus.NOT_FOUND.value)

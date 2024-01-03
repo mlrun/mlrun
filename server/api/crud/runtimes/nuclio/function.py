@@ -90,7 +90,6 @@ def deploy_nuclio_function(
             )
 
             try:
-
                 # the error might not be jsonable, so we'll try to parse it
                 # and extract the error message
                 json_err = exc.err.response.json()

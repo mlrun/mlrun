@@ -49,7 +49,6 @@ need_private_git = pytest.mark.skipif(
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestArchiveSources(tests.system.base.TestMLRunSystem):
-
     project_name = "git-tests"
     custom_project_names_to_delete = []
 

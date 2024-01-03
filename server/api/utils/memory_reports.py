@@ -40,7 +40,6 @@ class MemoryUsageReport(metaclass=mlrun.utils.singleton.AbstractSingleton):
         create_graph: bool = False,
         max_depth: int = 3,
     ) -> typing.List[typing.Dict[str, typing.Any]]:
-
         gc.collect()
         report = []
         requested_objects = self._objgraph.by_type(object_type)

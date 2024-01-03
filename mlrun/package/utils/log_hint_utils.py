@@ -35,7 +35,7 @@ class LogHintUtils:
 
     @staticmethod
     def parse_log_hint(
-        log_hint: typing.Union[typing.Dict[str, str], str, None]
+        log_hint: typing.Union[typing.Dict[str, str], str, None],
     ) -> typing.Union[typing.Dict[str, str], None]:
         """
         Parse a given log hint from string to a logging configuration dictionary. The string will be read as the

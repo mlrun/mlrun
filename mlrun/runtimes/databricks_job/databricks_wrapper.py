@@ -97,7 +97,7 @@ def save_credentials(
 
 
 def run_mlrun_databricks_job(
-    context,
+    context: mlrun.MLClientCtx,
     task_parameters: dict,
     **kwargs,
 ):
@@ -204,5 +204,13 @@ def run_mlrun_databricks_job(
         workspace.dbfs.delete(script_path_on_dbfs)
         workspace.dbfs.delete(artifact_json_path)
 
+    #  This code will not run in the case of an exception, within the outer try-finally block:
     logger.info(f"job finished: {run.run_page_url}")
     logger.info(f"logs:\n{run_output.logs}")
+    run_output_dict = run_output.as_dict()
+    run_output_dict.pop("logs", None)
+    context.log_artifact(
+        "databricks_run_metadata",
+        body=json.dumps(run_output_dict),
+        format="json",
+    )

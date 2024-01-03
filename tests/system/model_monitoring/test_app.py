@@ -34,6 +34,7 @@ import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
 from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
 from tests.system.base import TestMLRunSystem
@@ -136,7 +137,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
-                requirements=["evidently==0.4.7"],
+                requirements=[f"evidently=={SUPPORTED_EVIDENTLY_VERSION}"],
                 kwargs={
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
@@ -291,7 +292,8 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     @classmethod
     def _train(cls) -> None:
         cls.classif.fit(
-            cls.x_train, cls.y_train  # pyright: ignore[reportGeneralTypeIssues]
+            cls.x_train,
+            cls.y_train,  # pyright: ignore[reportGeneralTypeIssues]
         )
 
     def _log_model(self) -> None:
@@ -324,9 +326,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             model_endpoint_name=f"{self.name_prefix}-test",
             function_name=self.function_name,
             endpoint_id=self.endpoint_id,
-            context=mlrun.get_or_create_ctx(
-                name=f"{self.name_prefix}-context"
-            ),  # pyright: ignore[reportGeneralTypeIssues]
+            context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
             trigger_monitoring_job=True,
             last_in_batch_set=True,
@@ -345,6 +345,6 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             executor.submit(self._deploy_monitoring_infra)
             executor.submit(self._record_results)
 
-        time.sleep(1.2 * self.app_interval_seconds)
+        time.sleep(1.4 * self.app_interval_seconds)
 
         self._test_v3io_records(self.endpoint_id)

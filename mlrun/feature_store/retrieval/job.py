@@ -79,7 +79,6 @@ def run_merge_job(
             )
         function.with_spark_service(spark_service=spark_service)
     elif run_config.kind == RuntimeKinds.spark:
-
         if mlconf.is_running_on_iguazio():
             function.with_igz_spark()
 

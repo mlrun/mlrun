@@ -98,7 +98,6 @@ class StepToDict:
 
 
 class RouterToDict(StepToDict):
-
     _STEP_KIND = "router"
 
     def to_dict(self, fields=None, exclude=None):

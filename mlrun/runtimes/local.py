@@ -489,7 +489,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
             context.set_state("completed", commit=False)
         except Exception as exc:
             err = err_to_str(exc)
-            logger.error(f"execution error, {traceback.format_exc()}")
+            logger.error(f"Execution error, {traceback.format_exc()}")
             context.set_state(error=err, commit=False)
             logger.set_logger_level(old_level)
 

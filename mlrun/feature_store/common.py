@@ -156,10 +156,11 @@ def verify_feature_set_exists(feature_set):
 
     try:
         fset = db.get_feature_set(feature_set.metadata.name, project, tag)
-        if not fset.spec.features:
-            raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} is empty")
     except mlrun.errors.MLRunNotFoundError:
         raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} does not exist")
+
+    if not fset.spec.features:
+        raise mlrun.errors.MLRunNotFoundError(f"feature set {uri} is empty")
 
 
 def verify_feature_vector_permissions(

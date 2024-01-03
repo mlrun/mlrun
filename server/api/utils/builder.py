@@ -161,7 +161,6 @@ def make_kaniko_pod(
 ):
     extra_runtime_spec = {}
     if not registry:
-
         # if registry was not given, infer it from the image destination
         registry = dest.partition("/")[0]
 
@@ -340,7 +339,6 @@ def configure_kaniko_ecr_init_container(
     kpod.env = kpod.env or []
 
     if assume_instance_role:
-
         # assume instance role has permissions to register and store a container image
         # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
         # we only need this in the kaniko container
@@ -608,7 +606,7 @@ def resolve_upgrade_pip_command(commands=None):
 
 def build_runtime(
     auth_info: mlrun.common.schemas.AuthInfo,
-    runtime,
+    runtime: mlrun.runtimes.BaseRuntime,
     with_mlrun=True,
     mlrun_version_specifier=None,
     skip_deployed=False,
@@ -624,7 +622,7 @@ def build_runtime(
     if skip_deployed and runtime.is_deployed():
         mlrun.utils.logger.info(
             "Skipping build, runtime is already deployed",
-            runtime_uid=runtime.metadata.uid,
+            runtime_name=runtime.metadata.name,
             project=project,
         )
         runtime.status.state = mlrun.common.schemas.FunctionState.ready
@@ -775,7 +773,6 @@ def resolve_image_target(image_target: str, registry: str = None) -> str:
     if image_target.startswith(
         mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX
     ):
-
         # remove prefix from image name
         image_target = image_target[
             len(mlrun.common.constants.IMAGE_NAME_ENRICH_REGISTRY_PREFIX) :
@@ -1035,9 +1032,7 @@ def _resolve_function_image_name(function, image: typing.Optional[str] = None) -
                 project, name
             )
         )
-        registries_to_enforce_prefix = (
-            mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
-        )
+        registries_to_enforce_prefix = mlrun.runtimes.utils.resolve_function_target_image_registries_to_enforce_prefix()
         for registry in registries_to_enforce_prefix:
             if image.startswith(registry):
                 prefix_with_registry = f"{registry}{image_name_prefix}"
@@ -1064,7 +1059,6 @@ def _generate_function_image_name(project: str, name: str, tag: str) -> str:
 def _resolve_function_image_secret(
     resolved_target_image: str, secret: typing.Optional[str] = None
 ) -> str:
-
     if not secret:
         parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()
 

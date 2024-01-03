@@ -21,7 +21,6 @@ import mlrun.errors
 
 
 class BaseGRPCClient(object):
-
     name = None
     stub_class = None
 

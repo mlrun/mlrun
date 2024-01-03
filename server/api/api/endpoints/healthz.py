@@ -27,7 +27,6 @@ router = APIRouter()
     status_code=http.HTTPStatus.OK.value,
 )
 def health():
-
     # offline is the initial state
     # waiting for chief is set for workers waiting for chief to be ready and then clusterize against it
     if mlconfig.httpdb.state in [
@@ -36,9 +35,4 @@ def health():
     ]:
         raise mlrun.errors.MLRunServiceUnavailableError()
 
-    return {
-        # for old `align_mlrun.sh` scripts expecting `version` in the response
-        # TODO: remove on mlrun >= 1.6.0
-        "version": mlconfig.version,
-        "status": "ok",
-    }
+    return {"status": "ok"}

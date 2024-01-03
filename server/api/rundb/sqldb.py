@@ -898,6 +898,9 @@ class SQLRunDB(RunDBInterface):
         # done from ingest()
         pass
 
+    def get_log_size(self, uid, project=""):
+        raise NotImplementedError("Getting log size is not supported on the server")
+
     def watch_log(self, uid, project="", watch=True, offset=0):
         raise NotImplementedError("Watching logs is not supported on the server")
 

@@ -460,8 +460,9 @@ def _generate_model_endpoint(
         ] = possible_drift_threshold
 
     model_endpoint.spec.monitoring_mode = monitoring_mode
-    model_endpoint.status.first_request = datetime.datetime.now()
-    model_endpoint.status.last_request = datetime.datetime.now()
+    model_endpoint.status.first_request = (
+        model_endpoint.status.last_request
+    ) = datetime.datetime.now()
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 

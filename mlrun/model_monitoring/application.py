@@ -73,7 +73,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
     example for very simple custom application::
         # mlrun: start-code
         class MyApp(ApplicationBase):
-            def run_application(
+            def do_tracking(
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
@@ -110,7 +110,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        results = self.run_application(*resolved_event)
+        results = self.do_tracking(*resolved_event)
         results = results if isinstance(results, list) else [results]
         return results, event
 
@@ -118,7 +118,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         self.context = self._create_context_for_logging(app_name=app_name)
 
     @abstractmethod
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,

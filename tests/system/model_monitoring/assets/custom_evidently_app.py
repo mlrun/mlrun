@@ -160,7 +160,7 @@ class CustomEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
                 self.evidently_workspace, self.evidently_project_id
             )
 
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,

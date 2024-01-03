@@ -38,7 +38,7 @@ class DemoMonitoringApp(ModelMonitoringApplicationBase):
         super().__init_subclass__()
         cls.check_num_events = check_num_events
 
-    def run_application(
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,

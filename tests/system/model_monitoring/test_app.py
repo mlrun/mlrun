@@ -271,6 +271,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     name_prefix = "infer-monitoring"
 
     # TODO - remove this when TSDB future time issue is resolved
+    # https://jira.iguazeng.com/browse/ML-5407
     tsdb_query_end = "now+3h"
 
     @classmethod

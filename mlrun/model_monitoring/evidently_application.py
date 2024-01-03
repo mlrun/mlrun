@@ -64,7 +64,7 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams
 
 
-class EvidentlyModelMonitoringApplication(ModelMonitoringApplicationBase):
+class EvidentlyModelMonitoringApplicationBase(ModelMonitoringApplicationBase):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
     ) -> None:

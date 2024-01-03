@@ -100,7 +100,7 @@ async def test_nuclio_create_api_gateway(
 ):
     request_url = f"{api_url}/api/api_gateways/"
 
-    mock_aioresponse.put(
+    mock_aioresponse.post(
         request_url,
         status=http.HTTPStatus.ACCEPTED,
     )

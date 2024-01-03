@@ -68,7 +68,7 @@ class Client:
         )
 
         return await self._send_request_to_api(
-            method="PUT",
+            method="POST",
             url=self._nuclio_dashboard_url,
             path=NUCLIO_API_GATEWAYS_ENDPOINT,
             headers=headers,

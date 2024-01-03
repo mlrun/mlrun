@@ -13,4 +13,5 @@
 # limitations under the License.
 #
 from .internal import InternalBackgroundTasksHandler
+from .kinds import BackgroundTaskKinds
 from .project import ProjectBackgroundTasksHandler

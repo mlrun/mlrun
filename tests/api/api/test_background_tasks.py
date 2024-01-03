@@ -372,11 +372,11 @@ async def test_internal_background_task_already_running(
         logger.info("Waiting for background task to finish")
         await asyncio.sleep(1)
 
-    result_3 = await async_client.post(
+    third_future = await async_client.post(
         f"/test/long-internal-background-tasks/{timeout}"
     )
-    response_3 = result_3.result()
-    assert response_3.status_code == http.HTTPStatus.OK.value
+    third_response = third_future.result()
+    assert third_response.status_code == http.HTTPStatus.OK.value
     while curr_call_counter == call_counter + 1:
         logger.info("Waiting for background task to finish")
         await asyncio.sleep(1)

@@ -52,8 +52,10 @@ class APIGateway:
         username: Optional[str] = None,
         password: Optional[str] = None,
     ):
-        self.functions = self._validate_functions(functions=functions, project=project)
+        self.functions = None
         self._validate(
+            project=project,
+            functions=functions,
             name=name,
             canary=canary,
             username=username,
@@ -138,6 +140,19 @@ class APIGateway:
     def _validate(
         self,
         name: str,
+        project: str,
+        functions: Union[
+            list[str],
+            Union[
+                list[
+                    Union[
+                        RemoteRuntime,
+                        ServingRuntime,
+                    ]
+                ],
+                Union[RemoteRuntime, ServingRuntime],
+            ],
+        ],
         canary: Optional[list[int]] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -146,6 +161,8 @@ class APIGateway:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "API Gateway name cannot be empty"
             )
+
+        self.functions = self._validate_functions(project=project, functions=functions)
 
         # validating canary
         if canary:
@@ -253,5 +270,5 @@ class APIGateway:
                 canary = [percentage_1, percentage_2]
             return functions, canary
         else:
-            # The upstream list length should be either 1 or 2; otherwise, we cannot parse the upstream value correctly
+            # Nuclio only supports 1 or 2 upstream functions
             return None, None

@@ -38,7 +38,6 @@ from server.api.api.endpoints import (
     operations,
     pipelines,
     projects,
-    projects_v2,
     runs,
     runtime_resources,
     schedules,
@@ -170,16 +169,7 @@ api_router.include_router(
 # v2 Router
 api_v2_router = APIRouter(dependencies=[Depends(deps.verify_api_state)])
 api_v2_router.include_router(
-    healthz.router,
-    tags=["healthz"],
-)
-api_v2_router.include_router(
     artifacts_v2.router,
     tags=["artifacts"],
-    dependencies=[Depends(deps.authenticate_request)],
-)
-api_v2_router.include_router(
-    projects_v2.router,
-    tags=["projects"],
     dependencies=[Depends(deps.authenticate_request)],
 )

@@ -193,7 +193,6 @@ default_config = {
                 "load_project": "60",
                 "run_abortion": "600",
                 "abort_grace_period": "10",
-                "delete_project": "900",
             },
             "runtimes": {"dask": "600"},
         },
@@ -1106,7 +1105,7 @@ class Config:
             if artifact_path[-1] != "/":
                 artifact_path += "/"
 
-            return mlrun.utils.helpers.fill_project_path_template(
+            return mlrun.utils.helpers.template_artifact_path(
                 artifact_path=artifact_path + file_path, project=project
             )
 

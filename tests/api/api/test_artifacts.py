@@ -434,61 +434,6 @@ def test_store_artifact_calculate_size(db: Session, client: TestClient):
     assert artifact["data"]["spec"]["size"] == file_length
 
 
-def test_list_specific_artifact(unprefixed_client: TestClient):
-    _create_project(unprefixed_client, prefix="v1")
-    db_key = "cancer"
-
-    # create artifact
-    artifact = {
-        "kind": "model",
-        "metadata": {
-            "key": KEY,
-            "project": PROJECT,
-            "iter": 0,
-            "tree": "739aebb4a2bc4d44800205e53e86036f",
-            "hash": "bf4eff3e47b472417903a486b27cef1ee1648a6e",
-            "labels": {"framework": "sklearn"},
-            "tag": "latest",
-        },
-        "spec": {
-            "target_path": f"v3io:///projects/{PROJECT}/artifacts/some-path/0/model/",
-            "db_key": db_key,
-        },
-        "status": {"state": "created"},
-        "project": "quick-tutorial-admin",
-    }
-
-    # store artifact
-    url = STORE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
-    resp = unprefixed_client.put(
-        url,
-        json=artifact,
-    )
-    assert resp.status_code == HTTPStatus.OK.value
-
-    # list all artifacts
-    url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT)
-    resp = unprefixed_client.get(url)
-    assert resp.status_code == HTTPStatus.OK.value
-
-    # verify only one artifact is returned
-    artifacts = resp.json()["artifacts"]
-    assert len(artifacts) == 1
-
-    # verify the artifact returned is the one we created
-    assert artifacts[0]["metadata"]["key"] == KEY
-    assert artifacts[0]["metadata"]["tree"] == artifact["metadata"]["tree"]
-
-    # list all artifacts with the db key
-    url = V2_PREFIX + API_ARTIFACTS_PATH.format(project=PROJECT) + f"?name={db_key}"
-    resp = unprefixed_client.get(url)
-    assert resp.status_code == HTTPStatus.OK.value
-
-    # verify only one artifact is returned
-    artifacts_specific = resp.json()["artifacts"]
-    assert len(artifacts_specific) == 1
-
-
 def test_legacy_get_artifact_with_tree_as_tag_fallback(
     db: Session, client: TestClient
 ) -> None:

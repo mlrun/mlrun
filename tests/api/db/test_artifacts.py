@@ -26,6 +26,7 @@ import mlrun.errors
 import mlrun.utils
 import server.api.db.sqldb.models
 import server.api.initial_data
+from mlrun.artifacts.base import LinkArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.model import ModelArtifact
 from mlrun.artifacts.plots import ChartArtifact, PlotArtifact
@@ -83,9 +84,9 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session)
         assert len(artifacts) == len(test_iters) * 2
 
-        # look for the artifact with the "latest" tag
+        # look for the artifact with the "latest" tag - should return all iterations
         artifacts = db.list_artifacts(db_session, name=artifact_name_1, tag="latest")
-        assert len(artifacts) == 1
+        assert len(artifacts) == len(test_iters)
 
         # Look for the various iteration numbers. Note that 0 is a special case due to the DB structure
         for iter in test_iters:
@@ -852,6 +853,61 @@ class TestArtifacts:
             db_session, artifact_key, project=project, tag=artifact_tag_2
         )
         assert len(artifacts) == 1
+
+    def test_iterations_with_latest_tag(self, db: DBInterface, db_session: Session):
+        project = "artifact_project"
+        artifact_key = "artifact_key"
+        artifact_tree = "artifact_tree"
+        artifact_body = self._generate_artifact(
+            artifact_key, tree=artifact_tree, project=project
+        )
+        iteration_number = 5
+
+        # create artifacts with the same key and different iterations
+        for iteration in range(1, iteration_number + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree,
+            )
+
+        # list artifact with "latest" tag - should return all artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == iteration_number
+
+        # create a link artifact to mark iteration 3 as the best iteration
+        best_iteration = 3
+        item = LinkArtifact(
+            artifact_key,
+            link_iteration=best_iteration,
+            link_key=artifact_key,
+            link_tree=artifact_tree,
+        )
+        item.tree = artifact_tree
+        item.iter = best_iteration
+        db.store_artifact(
+            db_session,
+            item.db_key,
+            item.to_dict(),
+            iter=0,
+            project=project,
+            producer_id=artifact_tree,
+        )
+
+        # list artifact with "latest" tag - should return all artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == iteration_number
+
+        # list artifact with "latest" tag and best_iteration=True - should return only the artifact with iteration 3
+        artifacts = db.list_artifacts(
+            db_session, project=project, tag="latest", best_iteration=True
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["iter"] == best_iteration
 
     @pytest.mark.asyncio
     async def test_project_file_counter(self, db: DBInterface, db_session: Session):

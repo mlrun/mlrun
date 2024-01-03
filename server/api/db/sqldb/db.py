@@ -538,13 +538,7 @@ class SQLDB(DBInterface):
                 )
                 self._upsert(session, [db_artifact])
                 if tag:
-                    self.tag_objects_v2(
-                        session,
-                        [db_artifact],
-                        project,
-                        tag,
-                        obj_name_attribute="key",
-                    )
+                    self.tag_artifacts(session, tag, [db_artifact], project)
                 return uid
             logger.debug(
                 "A similar artifact exists, but some values have changed - creating a new artifact",
@@ -556,9 +550,7 @@ class SQLDB(DBInterface):
 
         # Object with the given tag/uid doesn't exist
         # Check if this is a re-tag of existing object - search by the resolved uid only
-        if self._re_tag_existing_object(
-            session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
-        ):
+        if self._re_tag_existing_artifact(session, project, key, tag, uid):
             return uid
 
         return self.create_artifact(
@@ -614,15 +606,16 @@ class SQLDB(DBInterface):
         self._upsert(session, [db_artifact])
         if tag:
             validate_tag_name(tag, "artifact.metadata.tag")
-            self.tag_objects_v2(
-                session, [db_artifact], project, tag, obj_name_attribute="key"
+            self.tag_artifacts(
+                session,
+                tag,
+                [db_artifact],
+                project,
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
         if tag != "latest":
-            self.tag_objects_v2(
-                session, [db_artifact], project, "latest", obj_name_attribute="key"
-            )
+            self.tag_artifacts(session, "latest", [db_artifact], project)
 
         return uid
 
@@ -859,9 +852,7 @@ class SQLDB(DBInterface):
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
 
         # tag artifacts with tag
-        self.tag_objects_v2(
-            session, artifacts, project, name=tag, obj_name_attribute="key"
-        )
+        self.tag_artifacts(session, tag, artifacts, project)
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -879,7 +870,7 @@ class SQLDB(DBInterface):
                 project_name=project,
                 identifier=identifier,
             )
-        self.tag_objects_v2(session, artifacts, project, tag, obj_name_attribute="key")
+        self.tag_artifacts(session, tag, artifacts, project)
 
     def delete_tag_from_artifacts(
         self,
@@ -897,6 +888,74 @@ class SQLDB(DBInterface):
                 identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def tag_artifacts(
+        self,
+        session,
+        tag_name: str,
+        artifacts,
+        project: str,
+    ):
+        objects = []
+        for artifact in artifacts:
+            # remove the tags that point to artifacts with the same key
+            # and a different producer id
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.key == artifact.key,
+                    ArtifactV2.project == project,
+                    ArtifactV2.producer_id != artifact.producer_id,
+                )
+            )
+
+            # delete the tags
+            for old_tag in query.all():
+                objects.append(old_tag)
+                session.delete(old_tag)
+
+            # search for an existing tag with the same name, producer id, and iteration
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.key == artifact.key,
+                    ArtifactV2.project == project,
+                    ArtifactV2.producer_id == artifact.producer_id,
+                    ArtifactV2.iteration == artifact.iteration,
+                )
+            )
+
+            tag = query.one_or_none()
+            if not tag:
+                # create the new tag
+                tag = artifact.Tag(
+                    project=project,
+                    name=tag_name,
+                    obj_name=artifact.key,
+                )
+            tag.obj_id = artifact.id
+
+            objects.append(tag)
+            session.add(tag)
+
+        self._commit(session, objects)
 
     def _mark_best_iteration_artifact(
         self,
@@ -3097,6 +3156,29 @@ class SQLDB(DBInterface):
                 tag,
                 obj_name_attribute=obj_name_attribute,
             )
+            return existing_object
+
+        return None
+
+    def _re_tag_existing_artifact(
+        self,
+        session,
+        project,
+        name,
+        tag,
+        uid,
+    ):
+        _, _, existing_object = self._get_record_by_name_tag_and_uid(
+            session,
+            ArtifactV2,
+            project,
+            name,
+            None,
+            uid,
+            obj_name_attribute="key",
+        )
+        if existing_object:
+            self.tag_artifacts(session, tag, [existing_object], project=project)
             return existing_object
 
         return None

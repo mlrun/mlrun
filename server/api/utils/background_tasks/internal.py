@@ -56,7 +56,9 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             raise RuntimeError("Background task name already exists")
 
         if self._get_active_task_name_by_kind(kind):
-            raise mlrun.errors.MLRunConflictError(f"Background task of kind {kind} already running")
+            raise mlrun.errors.MLRunConflictError(
+                f"Background task of kind {kind} already running"
+            )
 
         background_task = self._generate_background_task(name, kind)
         self._internal_background_tasks[name] = background_task
@@ -119,7 +121,9 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 name, mlrun.common.schemas.BackgroundTaskState.succeeded
             )
         finally:
-            self._finish_active_task_by_kind(self._internal_background_tasks[name].metadata.kind)
+            self._finish_active_task_by_kind(
+                self._internal_background_tasks[name].metadata.kind
+            )
 
     def _update_background_task(
         self,
@@ -177,7 +181,10 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     def _set_active_task_name_by_kind(self, kind: str, name: str):
         self._background_tasks_kind_locks.setdefault(kind, (None, None))
-        self._background_tasks_kind_locks[kind] = (name, self._background_tasks_kind_locks[kind][1])
+        self._background_tasks_kind_locks[kind] = (
+            name,
+            self._background_tasks_kind_locks[kind][1],
+        )
 
     def _finish_active_task_by_kind(self, kind: str):
         self._background_tasks_kind_locks.setdefault(kind, (None, None))
@@ -186,6 +193,11 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         # this is done so not to have a memory leak of background tasks that are not needed anymore.
         # we'll keep history of 1 previous task per kind.
         if self._background_tasks_kind_locks[kind][1]:
-            del self._internal_background_tasks[self._background_tasks_kind_locks[kind][1]]
+            del self._internal_background_tasks[
+                self._background_tasks_kind_locks[kind][1]
+            ]
 
-        self._background_tasks_kind_locks[kind] = (None, self._background_tasks_kind_locks[kind][0])
+        self._background_tasks_kind_locks[kind] = (
+            None,
+            self._background_tasks_kind_locks[kind][0],
+        )

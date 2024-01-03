@@ -27,11 +27,11 @@ import requests
 import sqlalchemy.orm
 
 import mlrun.common.schemas
-from mlrun.utils import logger
 import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
+from mlrun.utils import logger
 from server.api import main
 
 test_router = fastapi.APIRouter()
@@ -75,6 +75,7 @@ def create_internal_background_task(
         "bump_counter",
         function,
     )
+
 
 @test_router.post(
     "/long-internal-background-tasks/{timeout}",
@@ -126,6 +127,7 @@ class ThreadedAsyncClient(httpx.AsyncClient):
         # release the current event loop to let the other thread kick in
         await asyncio.sleep(1)
         return future
+
 
 @pytest.fixture
 async def async_client() -> typing.Generator:
@@ -355,8 +357,12 @@ async def test_internal_background_task_already_running(
     # background task is finished because of how httpx.AsyncClient works. To avoid this, we send both requests and
     # await them together. This way, the second request will be sent before the first background task is finished and
     # will be rejected.
-    first_future = await async_client.post(f"/test/long-internal-background-tasks/{timeout}")
-    second_future = await async_client.post(f"/test/long-internal-background-tasks/{timeout}")
+    first_future = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
+    second_future = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
     first_response = first_future.result()
     second_response = second_future.result()
     assert first_response.status_code == http.HTTPStatus.OK.value
@@ -366,7 +372,9 @@ async def test_internal_background_task_already_running(
         logger.info("Waiting for background task to finish")
         await asyncio.sleep(1)
 
-    result_3 = await async_client.post(f"/test/long-internal-background-tasks/{timeout}")
+    result_3 = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
     response_3 = result_3.result()
     assert response_3.status_code == http.HTTPStatus.OK.value
     while curr_call_counter == call_counter + 1:

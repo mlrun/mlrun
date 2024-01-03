@@ -157,17 +157,15 @@ class Client(
             "POST", "build/function", request, json
         )
 
-    async def delete_project(
-        self, name, request: fastapi.Request, api_version=None
-    ) -> fastapi.Response:
+    async def delete_project(self, name, request: fastapi.Request) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
         that is why we re-route requests to chief
         """
         # timeout is greater than default as delete project can take a while because it deletes all the
-        # project resources (depends on the deletion strategy and api version)
+        # project resources (depends on the deletion strategy)
         return await self._proxy_request_to_chief(
-            "DELETE", f"projects/{name}", request, timeout=120, version=api_version
+            "DELETE", f"projects/{name}", request, timeout=120
         )
 
     async def get_clusterization_spec(
@@ -224,7 +222,6 @@ class Client(
         request: fastapi.Request = None,
         json: dict = None,
         raise_on_failure: bool = False,
-        version: str = None,
         **kwargs,
     ) -> fastapi.Response:
         request_kwargs = self._resolve_request_kwargs_from_request(
@@ -235,7 +232,6 @@ class Client(
             method=method,
             path=path,
             raise_on_failure=raise_on_failure,
-            version=version,
             **request_kwargs,
         ) as chief_response:
             return await self._convert_requests_response_to_fastapi_response(
@@ -302,11 +298,10 @@ class Client(
 
     @contextlib.asynccontextmanager
     async def _send_request_to_api(
-        self, method, path, raise_on_failure: bool = False, version=None, **kwargs
+        self, method, path, raise_on_failure: bool = False, **kwargs
     ) -> aiohttp.ClientResponse:
-        version = version or mlrun.mlconf.api_base_version
         await self._ensure_session()
-        url = f"{self._api_url}/api/{version}/{path}"
+        url = f"{self._api_url}/api/{mlrun.mlconf.api_base_version}/{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20

@@ -70,7 +70,8 @@ class EvidentlyModelMonitoringApplicationBase(ModelMonitoringApplicationBase):
     ) -> None:
         """
         A class for integrating Evidently for mlrun model monitoring within a monitoring application.
-        Note: evidently is not installed by default and must be installed separately.
+        Note: evidently is not installed by default in the mlrun/mlrun image.
+        It must be installed separately to use this class.
 
         :param evidently_workspace_path:    (str) The path to the Evidently workspace.
         :param evidently_project_id:        (str) The ID of the Evidently project.

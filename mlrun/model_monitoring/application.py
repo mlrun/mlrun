@@ -67,7 +67,8 @@ class ApplicationResult:
 
 class ModelMonitoringApplicationBase(StepToDict, ABC):
     """
-    A base class for a model monitoring application. Inherit from this to create custom monitoring logic.
+    A base class for a model monitoring application.
+    Inherit from this class to create a custom model monitoring application.
 
     example for very simple custom application::
         # mlrun: start-code
@@ -84,7 +85,7 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
                 output_stream_uri: str,
             ) -> ApplicationResult:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
-                return Result(
+                return ApplicationResult(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
@@ -101,7 +102,8 @@ class ModelMonitoringApplicationBase(StepToDict, ABC):
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ApplicationResult]) The application results.
+        :returns:       (list[ApplicationResult], dict) The application results
+                        and the original event for the application.
         """
         resolved_event = self._resolve_event(event)
         if not (

@@ -548,11 +548,6 @@ class SQLDB(DBInterface):
                 producer_id=producer_id,
             )
 
-        # Object with the given tag/uid doesn't exist
-        # Check if this is a re-tag of existing object - search by the resolved uid only
-        if self._re_tag_existing_artifact(session, project, key, tag, uid):
-            return uid
-
         return self.create_artifact(
             session,
             project,

@@ -879,23 +879,10 @@ class TestArtifacts:
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
         assert len(artifacts) == iteration_number
 
-        # create a link artifact to mark iteration 3 as the best iteration
+        # mark iteration 3 as the best iteration
         best_iteration = 3
-        item = LinkArtifact(
-            artifact_key,
-            link_iteration=best_iteration,
-            link_key=artifact_key,
-            link_tree=artifact_tree,
-        )
-        item.tree = artifact_tree
-        item.iter = best_iteration
-        db.store_artifact(
-            db_session,
-            item.db_key,
-            item.to_dict(),
-            iter=0,
-            project=project,
-            producer_id=artifact_tree,
+        self._mark_best_iteration_artifact(
+            db, db_session, project, artifact_key, artifact_tree, best_iteration
         )
 
         # list artifact with "latest" tag - should return all artifacts
@@ -908,6 +895,41 @@ class TestArtifacts:
         )
         assert len(artifacts) == 1
         assert artifacts[0]["metadata"]["iter"] == best_iteration
+
+        # run the same test with a different producer id
+        artifact_tree_2 = "artifact_tree_2"
+        for iteration in range(1, iteration_number + 1):
+            artifact_body["metadata"]["iter"] = iteration
+            artifact_body["metadata"]["tree"] = artifact_tree_2
+            db.store_artifact(
+                db_session,
+                artifact_key,
+                artifact_body,
+                project=project,
+                iter=iteration,
+                producer_id=artifact_tree_2,
+            )
+
+        # list artifact with "latest" tag - should return only the new artifacts
+        artifacts = db.list_artifacts(db_session, project=project, tag="latest")
+        assert len(artifacts) == iteration_number
+        producer_ids = set([artifact["metadata"]["tree"] for artifact in artifacts])
+        assert len(producer_ids) == 1
+        assert producer_ids.pop() == artifact_tree_2
+
+        # mark iteration 2 as the best iteration
+        best_iteration = 2
+        self._mark_best_iteration_artifact(
+            db, db_session, project, artifact_key, artifact_tree_2, best_iteration
+        )
+
+        # list artifact with "latest" tag and best iteration - should return only the new artifacts
+        artifacts = db.list_artifacts(
+            db_session, project=project, tag="latest", best_iteration=True
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["iter"] == best_iteration
+        assert artifacts[0]["metadata"]["tree"] == artifact_tree_2
 
     @pytest.mark.asyncio
     async def test_project_file_counter(self, db: DBInterface, db_session: Session):
@@ -1279,3 +1301,24 @@ class TestArtifacts:
             artifact["metadata"]["project"] = project
 
         return artifact
+
+    @staticmethod
+    def _mark_best_iteration_artifact(
+        db, db_session, project, artifact_key, artifact_tree, best_iteration
+    ):
+        item = LinkArtifact(
+            artifact_key,
+            link_iteration=best_iteration,
+            link_key=artifact_key,
+            link_tree=artifact_tree,
+        )
+        item.tree = artifact_tree
+        item.iter = best_iteration
+        db.store_artifact(
+            db_session,
+            item.db_key,
+            item.to_dict(),
+            iter=0,
+            project=project,
+            producer_id=artifact_tree,
+        )

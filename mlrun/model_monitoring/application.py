@@ -148,8 +148,9 @@ class ModelMonitoringApplication(StepToDict, ABC):
         """
         raise NotImplementedError
 
-    @staticmethod
+    @classmethod
     def _resolve_event(
+        cls,
         event: dict[str, Any],
     ) -> Tuple[
         str,
@@ -183,10 +184,10 @@ class ModelMonitoringApplication(StepToDict, ABC):
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
             ),
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
             ),
             ParquetTarget(

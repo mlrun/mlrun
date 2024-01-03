@@ -38,7 +38,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         # contains a lock for each background task kind, with the following format:
         # {kind: [active_name, previous_name]}
         self._background_tasks_kind_locks: typing.Dict[
-            str, typing.Tuple[typing.Optional[str]]
+            str, typing.Tuple[typing.Optional[str], typing.Optional[str]]
         ] = {}
 
     @server.api.utils.helpers.ensure_running_on_chief

@@ -631,6 +631,9 @@ class RunDBInterface(ABC):
     ):
         pass
 
+    def get_log_size(self, uid, project=""):
+        pass
+
     def watch_log(self, uid, project="", watch=True, offset=0):
         pass
 

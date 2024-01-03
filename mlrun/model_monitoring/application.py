@@ -31,7 +31,7 @@ from mlrun.utils import logger
 
 
 @dataclasses.dataclass
-class ModelMonitoringApplicationResult:
+class ApplicationResult:
     """
     Class representing the result of a custom model monitoring application.
 
@@ -97,14 +97,12 @@ class ModelMonitoringApplication(StepToDict):
 
     kind = "monitoring_application"
 
-    def do(
-        self, event: dict[str, Any]
-    ) -> Tuple[list[ModelMonitoringApplicationResult], dict]:
+    def do(self, event: dict[str, Any]) -> Tuple[list[ApplicationResult], dict]:
         """
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ModelMonitoringApplicationResult]) The application results.
+        :returns:       (list[ApplicationResult]) The application results.
         """
         resolved_event = self._resolve_event(event)
         if not (
@@ -129,9 +127,7 @@ class ModelMonitoringApplication(StepToDict):
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
-    ) -> Union[
-        ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-    ]:
+    ) -> Union[ApplicationResult, list[ApplicationResult]]:
         """
         Implement this method with your custom monitoring logic.
 
@@ -145,8 +141,8 @@ class ModelMonitoringApplication(StepToDict):
         :param endpoint_id:             (str) ID of the monitored model endpoint
         :param output_stream_uri:       (str) URI of the output stream for results
 
-        :returns:                       (ModelMonitoringApplicationResult) or
-                                        (list[ModelMonitoringApplicationResult]) of the application results.
+        :returns:                       (ApplicationResult) or
+                                        (list[ApplicationResult]) of the application results.
         """
         raise NotImplementedError
 
@@ -260,7 +256,7 @@ class PushToMonitoringWriter(StepToDict):
         self.output_stream = None
         self.name = name or "PushToMonitoringWriter"
 
-    def do(self, event: Tuple[list[ModelMonitoringApplicationResult], dict]) -> None:
+    def do(self, event: Tuple[list[ApplicationResult], dict]) -> None:
         """
         Push application results to the monitoring writer stream.
 

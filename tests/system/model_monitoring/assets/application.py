@@ -21,7 +21,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
 )
 from mlrun.model_monitoring.application import (
     ModelMonitoringApplication,
-    ModelMonitoringApplicationResult,
+    ApplicationResult,
 )
 
 EXPECTED_EVENTS_COUNT = (
@@ -49,13 +49,13 @@ class DemoMonitoringApp(ModelMonitoringApplication):
         latest_request: pd.Timestamp,
         endpoint_id: str,
         output_stream_uri: str,
-    ) -> list[ModelMonitoringApplicationResult]:
+    ) -> list[ApplicationResult]:
         self.context.logger.info("Running demo app")
         if self.check_num_events:
             assert len(sample_df) == EXPECTED_EVENTS_COUNT
         self.context.logger.info("Asserted sample_df length")
         return [
-            ModelMonitoringApplicationResult(
+            ApplicationResult(
                 name="data_drift_test",
                 value=2.15,
                 kind=ResultKindApp.data_drift,

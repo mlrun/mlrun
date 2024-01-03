@@ -14,6 +14,7 @@
 
 import dataclasses
 import json
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Tuple, Union
 
 import numpy as np
@@ -64,7 +65,7 @@ class ApplicationResult:
         }
 
 
-class ModelMonitoringApplication(StepToDict):
+class ModelMonitoringApplication(StepToDict, ABC):
     """
     Class representing a model monitoring application. Subclass this to create custom monitoring logic.
 
@@ -116,6 +117,7 @@ class ModelMonitoringApplication(StepToDict):
     def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
 
+    @abstractmethod
     def run_application(
         self,
         application_name: str,

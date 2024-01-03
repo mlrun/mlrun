@@ -20,7 +20,7 @@ import pandas as pd
 import semver
 
 from mlrun.errors import MLRunIncompatibleVersionError
-from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 
 SUPPORTED_EVIDENTLY_VERSION = semver.Version.parse("0.4.11")
 
@@ -64,7 +64,7 @@ if _HAS_EVIDENTLY:
     from evidently.utils.dashboard import TemplateParams
 
 
-class EvidentlyModelMonitoringApplication(ModelMonitoringApplication):
+class EvidentlyModelMonitoringApplication(ModelMonitoringApplicationBase):
     def __init__(
         self, evidently_workspace_path: str, evidently_project_id: "STR_UUID"
     ) -> None:

@@ -20,7 +20,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultStatusApp,
 )
 from mlrun.model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     ApplicationResult,
 )
 
@@ -29,7 +29,7 @@ EXPECTED_EVENTS_COUNT = (
 )
 
 
-class DemoMonitoringApp(ModelMonitoringApplication):
+class DemoMonitoringApp(ModelMonitoringApplicationBase):
     name = "monitoring-test"
     check_num_events = True
 

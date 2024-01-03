@@ -65,14 +65,13 @@ class ApplicationResult:
         }
 
 
-class ModelMonitoringApplication(StepToDict, ABC):
+class ModelMonitoringApplicationBase(StepToDict, ABC):
     """
     A base class for a model monitoring application. Inherit from this to create custom monitoring logic.
 
     example for very simple custom application::
         # mlrun: start-code
-        class MyApp(ModelMonitoringApplication):
-
+        class MyApp(ApplicationBase):
             def run_application(
                 self,
                 sample_df_stats: pd.DataFrame,
@@ -83,15 +82,14 @@ class ModelMonitoringApplication(StepToDict, ABC):
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
                 output_stream_uri: str,
-            ) -> Union[ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-            ]:
+            ) -> ApplicationResult:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
-                return ModelMonitoringApplicationResult(
+                return Result(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
-                    status = mm_constant.ResultStatusApp.detected,
-                    extra_data={})
+                    status=mm_constant.ResultStatusApp.detected,
+                )
 
         # mlrun: end-code
     """

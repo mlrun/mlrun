@@ -67,9 +67,9 @@ class ApplicationResult:
 
 class ModelMonitoringApplication(StepToDict, ABC):
     """
-    Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+    A base class for a model monitoring application. Inherit from this to create custom monitoring logic.
 
-    example for very simple costume application::
+    example for very simple custom application::
         # mlrun: start-code
         class MyApp(ModelMonitoringApplication):
 

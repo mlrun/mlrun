@@ -134,7 +134,7 @@ def bump_model_endpoint_last_request(
         + datetime.timedelta(
             seconds=mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
         )
-    ).strftime(EventFieldType.TIME_FORMAT)
+    ).isoformat()
     logger.info(
         "Bumping model endpoint last request time",
         project=project,

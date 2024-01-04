@@ -57,6 +57,14 @@ class Client(
             "GET", f"background-tasks/{name}", request
         )
 
+    async def get_internal_background_tasks(
+        self, request: fastapi.Request = None
+    ) -> fastapi.Response:
+        """
+        internal background tasks are managed by the chief only
+        """
+        return await self._proxy_request_to_chief("GET", "background-tasks", request)
+
     async def trigger_migrations(
         self, request: fastapi.Request = None
     ) -> fastapi.Response:

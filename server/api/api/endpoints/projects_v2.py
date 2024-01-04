@@ -100,67 +100,6 @@ async def delete_project(
     return background_task
 
 
-@router.get(
-    "/projects/{name}/deletion-background-task",
-    responses={
-        http.HTTPStatus.NO_CONTENT.value: {},
-        http.HTTPStatus.ACCEPTED.value: {"model": mlrun.common.schemas.BackgroundTask},
-    },
-)
-async def get_delete_project_task(
-    name: str,
-    request: fastapi.Request,
-    auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
-        server.api.api.deps.authenticate_request
-    ),
-    db_session: sqlalchemy.orm.Session = fastapi.Depends(
-        server.api.api.deps.get_db_session
-    ),
-):
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info(
-            "Requesting get delete project background task, re-routing to chief",
-            project=name,
-        )
-        chief_client = server.api.utils.clients.chief.Client()
-        return await chief_client.delete_project(
-            name=name, request=request, api_version="v2"
-        )
-
-    # skip permission check if it's the leader
-    if not server.api.utils.helpers.is_request_from_leader(auth_info.projects_role):
-        await server.api.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
-
-    background_task_kind = (
-        server.api.utils.background_tasks.BackgroundTaskKinds.project_deletion.format(
-            name
-        )
-    )
-
-    background_task = (
-        server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_active_background_task_by_kind(
-            background_task_kind,
-        )
-        or server.api.utils.background_tasks.InternalBackgroundTasksHandler().get_previous_background_task_by_kind(
-            background_task_kind,
-        )
-    )
-
-    if not background_task:
-        raise mlrun.errors.MLRunNotFoundError(
-            f"Deletion background task for project {name} not found"
-        )
-
-    return background_task
-
-
 def _get_or_create_project_deletion_background_task(
     project_name: str, deletion_strategy: str, background_tasks, db_session, auth_info
 ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:

@@ -75,6 +75,39 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         return self.get_background_task(name)
 
     @server.api.utils.helpers.ensure_running_on_chief
+    def get_background_tasks(
+        self,
+        name: typing.Optional[str] = None,
+        kind: typing.Optional[str] = None,
+    ) -> list[mlrun.common.schemas.BackgroundTask]:
+        if name:
+            background_task = self.get_background_task(name)
+            return (
+                [background_task]
+                if background_task
+                # filter out kind if specified
+                and (not kind or background_task.metadata.kind == kind)
+                else []
+            )
+
+        if kind:
+            tasks = []
+            if kind in self._background_tasks_kind_locks:
+                tasks.extend(
+                    # don't add None values from active and previous tasks
+                    filter(
+                        None,
+                        [
+                            self.get_active_background_task_by_kind(kind),
+                            self.get_previous_background_task_by_kind(kind),
+                        ],
+                    )
+                )
+            return tasks
+
+        return list(self._internal_background_tasks.values())
+
+    @server.api.utils.helpers.ensure_running_on_chief
     def get_background_task(
         self,
         name: str,

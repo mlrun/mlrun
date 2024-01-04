@@ -101,9 +101,7 @@ class Logs(
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
-            raise mlrun.errors.MLRunPreconditionFailedError(
-                "Cannot get log size in legacy log collector mode",
-            )
+            return self._get_log_size_legacy(project, run_uid)
 
         log_collector_client = (
             server.api.utils.clients.log_collector.LogCollectorClient()
@@ -300,11 +298,14 @@ class Logs(
             )
         return run
 
-    def get_log_mtime(self, project: str, uid: str) -> int:
+    @staticmethod
+    def _get_log_size_legacy(project: str, uid: str) -> int:
         log_file = server.api.api.utils.log_path(project, uid)
         if not log_file.exists():
-            raise FileNotFoundError(f"Log file does not exist: {log_file}")
-        return log_file.stat().st_mtime
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{uid} not found",
+            )
+        return log_file.stat().st_size
 
     @staticmethod
     def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):

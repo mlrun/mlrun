@@ -99,23 +99,34 @@ class Logs(
         logger.debug("Getting log size for run", project=project, run_uid=run_uid)
         if (
             mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
+        ):
+            try:
+                return await self._get_log_size_from_log_collector(project, run_uid)
+            except Exception as exc:
+                if mlrun.mlconf.log_collector.verbose:
+                    logger.warning(
+                        "Failed to get logs from logs collector, falling back to legacy method",
+                        exc=exc,
+                    )
+                return self._get_log_size_legacy(project, run_uid)
+
+        elif (
+            mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             return self._get_log_size_legacy(project, run_uid)
 
-        log_collector_client = (
-            server.api.utils.clients.log_collector.LogCollectorClient()
-        )
-        log_file_size = await log_collector_client.get_log_size(
-            project=project,
-            run_uid=run_uid,
-        )
-        if log_file_size < 0:
-            # If the log file size is negative, it means the log file doesn't exist
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Log file for {project}/{run_uid} not found",
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
+        ):
+            return await self._get_log_size_from_log_collector(project, run_uid)
+
+        else:
+            raise ValueError(
+                f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}"
             )
-        return log_file_size
 
     async def get_logs(
         self,
@@ -297,6 +308,22 @@ class Logs(
                 HTTPStatus.NOT_FOUND.value, project=project, uid=uid
             )
         return run
+
+    @staticmethod
+    async def _get_log_size_from_log_collector(project: str, run_uid: str) -> int:
+        log_collector_client = (
+            server.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        log_file_size = await log_collector_client.get_log_size(
+            project=project,
+            run_uid=run_uid,
+        )
+        if log_file_size < 0:
+            # If the log file size is negative, it means the log file doesn't exist
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{run_uid} not found",
+            )
+        return log_file_size
 
     @staticmethod
     def _get_log_size_legacy(project: str, uid: str) -> int:

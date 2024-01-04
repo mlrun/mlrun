@@ -90,6 +90,17 @@ source = CSVSource("mycsv", path="stocks.csv")
 targets = [CSVTarget("mycsv", path="./new_stocks.csv")]
 ingest(measurements, source, targets)
 ```
+You can **update a feature set** either by overwriting its data (`overwrite=true`), or by appending data (`overwrite=false`). 
+To append data you need to reuse the feature set that was used in previous ingestions 
+that was saved in the DB (and not create a new feature set on every ingest).<br>
+For example:
+```python
+    my_fset = fstore.get_feature_set("my_fset")
+except mlrun.errors.MLRunNotFoundError:
+    my_fset = FeatureSet("my_fset", entities=[Entity("key")])
+
+my_fset.ingest(overwrite=false)
+```
 
 To learn more about ingest, go to {py:class}`~mlrun.feature_store.ingest`.
 

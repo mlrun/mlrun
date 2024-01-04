@@ -901,13 +901,12 @@ class SQLDB(DBInterface):
                     artifact.Tag,
                     name=tag_name,
                     project=project,
+                    obj_name=artifact.key,
                 )
                 .join(
                     ArtifactV2,
                 )
                 .filter(
-                    ArtifactV2.key == artifact.key,
-                    ArtifactV2.project == project,
                     ArtifactV2.producer_id != artifact.producer_id,
                 )
             )
@@ -930,8 +929,6 @@ class SQLDB(DBInterface):
                     ArtifactV2,
                 )
                 .filter(
-                    ArtifactV2.key == artifact.key,
-                    ArtifactV2.project == project,
                     ArtifactV2.producer_id == artifact.producer_id,
                     ArtifactV2.iteration == artifact.iteration,
                 )
@@ -3151,29 +3148,6 @@ class SQLDB(DBInterface):
                 tag,
                 obj_name_attribute=obj_name_attribute,
             )
-            return existing_object
-
-        return None
-
-    def _re_tag_existing_artifact(
-        self,
-        session,
-        project,
-        name,
-        tag,
-        uid,
-    ):
-        _, _, existing_object = self._get_record_by_name_tag_and_uid(
-            session,
-            ArtifactV2,
-            project,
-            name,
-            None,
-            uid,
-            obj_name_attribute="key",
-        )
-        if existing_object:
-            self.tag_artifacts(session, tag, [existing_object], project=project)
             return existing_object
 
         return None

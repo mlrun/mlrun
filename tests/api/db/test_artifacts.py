@@ -861,10 +861,10 @@ class TestArtifacts:
         artifact_body = self._generate_artifact(
             artifact_key, tree=artifact_tree, project=project
         )
-        iteration_number = 5
+        num_of_iterations = 5
 
         # create artifacts with the same key and different iterations
-        for iteration in range(1, iteration_number + 1):
+        for iteration in range(1, num_of_iterations + 1):
             artifact_body["metadata"]["iter"] = iteration
             db.store_artifact(
                 db_session,
@@ -877,7 +877,7 @@ class TestArtifacts:
 
         # list artifact with "latest" tag - should return all artifacts
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
-        assert len(artifacts) == iteration_number
+        assert len(artifacts) == num_of_iterations
 
         # mark iteration 3 as the best iteration
         best_iteration = 3
@@ -887,7 +887,7 @@ class TestArtifacts:
 
         # list artifact with "latest" tag - should return all artifacts
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
-        assert len(artifacts) == iteration_number
+        assert len(artifacts) == num_of_iterations
 
         # list artifact with "latest" tag and best_iteration=True - should return only the artifact with iteration 3
         artifacts = db.list_artifacts(
@@ -898,7 +898,7 @@ class TestArtifacts:
 
         # run the same test with a different producer id
         artifact_tree_2 = "artifact_tree_2"
-        for iteration in range(1, iteration_number + 1):
+        for iteration in range(1, num_of_iterations + 1):
             artifact_body["metadata"]["iter"] = iteration
             artifact_body["metadata"]["tree"] = artifact_tree_2
             db.store_artifact(
@@ -912,7 +912,7 @@ class TestArtifacts:
 
         # list artifact with "latest" tag - should return only the new artifacts
         artifacts = db.list_artifacts(db_session, project=project, tag="latest")
-        assert len(artifacts) == iteration_number
+        assert len(artifacts) == num_of_iterations
         producer_ids = set([artifact["metadata"]["tree"] for artifact in artifacts])
         assert len(producer_ids) == 1
         assert producer_ids.pop() == artifact_tree_2

@@ -18,7 +18,6 @@ import json
 import os
 import typing
 
-import pandas as pd
 import storey
 
 import mlrun

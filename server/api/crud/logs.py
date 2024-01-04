@@ -113,7 +113,7 @@ class Logs(
                 if mlrun.mlconf.log_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
-                        exc=exc,
+                        exc=mlrun.errors.err_to_str(exc),
                     )
                 return self._get_log_size_legacy(project, run_uid)
 
@@ -169,7 +169,7 @@ class Logs(
                 if mlrun.mlconf.log_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
-                        exc=exc,
+                        exc=mlrun.errors.err_to_str(exc),
                     )
                 log_stream = self._get_logs_legacy_method_generator_wrapper(
                     db_session,

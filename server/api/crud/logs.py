@@ -102,7 +102,7 @@ class Logs(
             == mlrun.common.schemas.LogsCollectorMode.legacy
         ):
             raise mlrun.errors.MLRunPreconditionFailedError(
-                "Cannot get log size in legacy mode",
+                "Cannot get log size in legacy log collector mode",
             )
 
         log_collector_client = (

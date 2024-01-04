@@ -17,3 +17,4 @@
 class BackgroundTaskKinds:
     db_migrations = "db.migrations"
     project_deletion = "project.deletion.{0}"
+    project_deletion_wrapper = "project.deletion.wrapper.{0}"

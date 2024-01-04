@@ -24,8 +24,8 @@ import fastapi.concurrency
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import server.api.utils.background_tasks.common
 import server.api.utils.helpers
-import server.api.utils.singletons.project_member
 from mlrun.utils import logger
 
 
@@ -46,6 +46,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         background_tasks: fastapi.BackgroundTasks,
         kind: str,
+        timeout: typing.Optional[int],  # in seconds
         function,
         *args,
         **kwargs,
@@ -60,7 +61,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 f"Background task of kind '{kind}' already running"
             )
 
-        background_task = self._generate_background_task(name, kind)
+        background_task = self._generate_background_task(name, kind, timeout)
         self._internal_background_tasks[name] = background_task
         self._set_active_task_name_by_kind(kind, name)
         background_tasks.add_task(
@@ -77,23 +78,59 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def get_background_task(
         self,
         name: str,
+        raise_on_not_found: bool = False,
     ) -> mlrun.common.schemas.BackgroundTask:
         """
         :return: returns the background task object and bool whether exists
         """
         if name in self._internal_background_tasks:
+            background_task = self._internal_background_tasks[name]
+            if server.api.utils.background_tasks.common.background_task_exceeded_timeout(
+                background_task.metadata.created,
+                background_task.metadata.timeout,
+                background_task.status.state,
+            ):
+                self._update_background_task(
+                    name,
+                    mlrun.common.schemas.BackgroundTaskState.failed,
+                    error="Timeout exceeded",
+                )
+                self._finish_active_task(name)
             return self._internal_background_tasks[name]
+        elif raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(f"Background task {name} not found")
         else:
             return self._generate_background_task_not_found_response(name)
 
     @server.api.utils.helpers.ensure_running_on_chief
-    def get_background_task_by_kind(
+    def get_active_background_task_by_kind(
         self,
         kind: str,
+        raise_on_not_found: bool = False,
     ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
         name = self._get_active_task_name_by_kind(kind)
         if name:
-            return self.get_background_task(name)
+            return self.get_background_task(name, raise_on_not_found=raise_on_not_found)
+        elif raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Active background task of kind '{kind}' not found"
+            )
+        else:
+            return None
+
+    @server.api.utils.helpers.ensure_running_on_chief
+    def get_previous_background_task_by_kind(
+        self,
+        kind: str,
+        raise_on_not_found: bool = False,
+    ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+        name = self._get_previous_task_name_by_kind(kind)
+        if name:
+            return self.get_background_task(name, raise_on_not_found=raise_on_not_found)
+        elif raise_on_not_found:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Previous background task of kind '{kind}' not found"
+            )
         else:
             return None
 
@@ -121,9 +158,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 name, mlrun.common.schemas.BackgroundTaskState.succeeded
             )
         finally:
-            self._finish_active_task_by_kind(
-                self._internal_background_tasks[name].metadata.kind
-            )
+            self._finish_active_task(name)
 
     def _update_background_task(
         self,
@@ -156,7 +191,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _generate_background_task(
-        name: str, kind: str
+        name: str, kind: str, timeout: typing.Optional[int] = None
     ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
         metadata = mlrun.common.schemas.BackgroundTaskMetadata(
@@ -165,6 +200,9 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             created=now,
             updated=now,
         )
+        if timeout and mlrun.mlconf.background_tasks.timeout_mode == "enabled":
+            metadata.timeout = int(timeout)
+
         spec = mlrun.common.schemas.BackgroundTaskSpec()
         status = mlrun.common.schemas.BackgroundTaskStatus(
             state=mlrun.common.schemas.BackgroundTaskState.running
@@ -186,8 +224,13 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             self._background_tasks_kind_locks[kind][1],
         )
 
-    def _finish_active_task_by_kind(self, kind: str):
+    def _finish_active_task(self, name: str):
+        kind = self._internal_background_tasks[name].metadata.kind
         self._background_tasks_kind_locks.setdefault(kind, (None, None))
+
+        if self._background_tasks_kind_locks[kind][0] != name:
+            logger.debug("Background task already marked as finished, skipping...")
+            return
 
         # if we have a previous task, delete it from the internal background tasks.
         # this is done so not to have a memory leak of background tasks that are not needed anymore.

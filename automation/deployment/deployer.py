@@ -507,7 +507,7 @@ class CommunityEditionDeployer:
             if overriden_image:
                 self._override_image_in_helm_values(helm_values, value, overriden_image)
 
-        for deployment, disabled in zip(
+        for component, disabled in zip(
             Constants.disableable_components,
             [
                 disable_pipelines,
@@ -516,7 +516,7 @@ class CommunityEditionDeployer:
                 disable_log_collector,
             ],
         ):
-            self._toggle_component_in_helm_values(helm_values, deployment, disabled)
+            self._toggle_component_in_helm_values(helm_values, component, disabled)
 
         if sqlite:
             dir_path = os.path.dirname(sqlite)
@@ -696,19 +696,17 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
     def _toggle_component_in_helm_values(
-        self, helm_values: typing.Dict[str, str], deployment: str, disable: bool
+        self, helm_values: typing.Dict[str, str], component: str, disable: bool
     ) -> None:
         """
         Disable a deployment in the helm values.
         :param helm_values: Helm values to update
-        :param deployment: Deployment to toggle
+        :param component: Component to toggle
         :param disable: Whether to disable the deployment
         """
-        self._log(
-            "warning", "Toggling deployment", deployment=deployment, disable=disable
-        )
+        self._log("debug", "Toggling component", component=component, disable=disable)
         value = "false" if disable else "true"
-        helm_values[f"{deployment}.enabled"] = value
+        helm_values[f"{component}.enabled"] = value
 
     def _run_command(
         self,

@@ -35,6 +35,10 @@ GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 LIST_API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
 DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 
+# V2 endpoints
+V2_PREFIX = "v2/"
+STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
+
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     resp = client.get(f"projects/{PROJECT}/artifact-tags")

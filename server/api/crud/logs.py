@@ -96,6 +96,7 @@ class Logs(
         project: str,
         run_uid: str,
     ):
+        logger.debug("Getting log size for run", project=project, run_uid=run_uid)
         if (
             mlrun.mlconf.log_collector.mode
             == mlrun.common.schemas.LogsCollectorMode.sidecar
@@ -126,7 +127,6 @@ class Logs(
             raise ValueError(
                 f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}"
             )
-        logger.debug("Getting log size for run", project=project, run_uid=run_uid)
 
     async def get_logs(
         self,

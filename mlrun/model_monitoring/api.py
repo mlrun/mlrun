@@ -540,7 +540,9 @@ def _generate_job_params(
 
 
 def get_sample_set_statistics(
-    sample_set: DatasetType = None, model_artifact_feature_stats: dict = None
+    sample_set: DatasetType = None,
+    model_artifact_feature_stats: dict = None,
+    sample_set_columns: typing.Union[typing.List, None] = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while
@@ -549,6 +551,7 @@ def get_sample_set_statistics(
     :param sample_set:                   A sample dataset to give to compare the inputs in the drift analysis.
     :param model_artifact_feature_stats: The `feature_stats` attribute in the spec of the model artifact, where the
                                          original sample set statistics of the model was used.
+    :param sample_set_columns: The column names of sample_set.
 
     :returns: The sample set statistics.
 
@@ -565,9 +568,11 @@ def get_sample_set_statistics(
         # Return the statistics logged with the model:
         return model_artifact_feature_stats
 
-    # Turn the DataItem to DataFrame:
-    if isinstance(sample_set, mlrun.DataItem):
-        sample_set, _ = read_dataset_as_dataframe(dataset=sample_set)
+    # Turn other object types to DataFrame:
+    if isinstance(sample_set, (mlrun.DataItem, list, tuple, dict, np.ndarray)):
+        sample_set, _ = read_dataset_as_dataframe(
+            dataset=sample_set, feature_columns=sample_set_columns
+        )
 
     # Return the sample set statistics:
     return get_df_stats(df=sample_set, options=InferOptions.Histogram)

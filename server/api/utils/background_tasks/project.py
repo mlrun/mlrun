@@ -85,6 +85,8 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         *args,
         **kwargs,
     ):
+        error = None
+        state = mlrun.common.schemas.BackgroundTaskState.succeeded
         try:
             if asyncio.iscoroutinefunction(function):
                 await function(*args, **kwargs)
@@ -98,17 +100,13 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
                 exc=err_str,
                 tb=traceback.format_exc(),
             )
+            state = mlrun.common.schemas.BackgroundTaskState.failed
+            error = err_str
+        finally:
             server.api.utils.singletons.db.get_db().store_background_task(
                 db_session,
                 name,
                 project=project,
-                state=mlrun.common.schemas.BackgroundTaskState.failed,
-                error=err_str,
-            )
-        else:
-            server.api.utils.singletons.db.get_db().store_background_task(
-                db_session,
-                name,
-                project=project,
-                state=mlrun.common.schemas.BackgroundTaskState.succeeded,
+                state=state,
+                error=error,
             )

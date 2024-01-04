@@ -57,7 +57,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
         if self._get_active_task_name_by_kind(kind):
             raise mlrun.errors.MLRunConflictError(
-                f"Background task of kind {kind} already running"
+                f"Background task of kind '{kind}' already running"
             )
 
         background_task = self._generate_background_task(name, kind)

@@ -97,6 +97,14 @@ class Logs(
         run_uid: str,
     ):
         logger.debug("Getting log size for run", project=project, run_uid=run_uid)
+        if (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                "Cannot get log size in legacy mode",
+            )
+
         log_collector_client = (
             server.api.utils.clients.log_collector.LogCollectorClient()
         )

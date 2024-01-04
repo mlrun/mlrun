@@ -20,100 +20,13 @@ import uuid
 
 import fastapi
 import fastapi.concurrency
-import sqlalchemy.orm
 
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.helpers
-import server.api.utils.singletons.db
 import server.api.utils.singletons.project_member
 from mlrun.utils import logger
-
-
-class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
-    def create_background_task(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        background_tasks: fastapi.BackgroundTasks,
-        function,
-        timeout: int = None,  # in seconds
-        name: str = None,
-        *args,
-        **kwargs,
-    ) -> mlrun.common.schemas.BackgroundTask:
-        name = name or str(uuid.uuid4())
-        logger.debug(
-            "Creating background task",
-            name=name,
-            project=project,
-            function=function.__name__,
-        )
-        server.api.utils.singletons.db.get_db().store_background_task(
-            db_session,
-            name,
-            project,
-            mlrun.common.schemas.BackgroundTaskState.running,
-            timeout,
-        )
-        background_tasks.add_task(
-            self.background_task_wrapper,
-            db_session,
-            project,
-            name,
-            function,
-            *args,
-            **kwargs,
-        )
-        return self.get_background_task(db_session, name, project)
-
-    def get_background_task(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        name: str,
-        project: str,
-    ) -> mlrun.common.schemas.BackgroundTask:
-        return server.api.utils.singletons.db.get_db().get_background_task(
-            db_session, name, project
-        )
-
-    async def background_task_wrapper(
-        self,
-        db_session: sqlalchemy.orm.Session,
-        project: str,
-        name: str,
-        function,
-        *args,
-        **kwargs,
-    ):
-        try:
-            if asyncio.iscoroutinefunction(function):
-                await function(*args, **kwargs)
-            else:
-                await fastapi.concurrency.run_in_threadpool(function, *args, **kwargs)
-        except Exception as exc:
-            err_str = mlrun.errors.err_to_str(exc)
-            logger.warning(
-                "Background task execution failed",
-                function_name=function.__name__,
-                exc=err_str,
-                tb=traceback.format_exc(),
-            )
-            server.api.utils.singletons.db.get_db().store_background_task(
-                db_session,
-                name,
-                project=project,
-                state=mlrun.common.schemas.BackgroundTaskState.failed,
-                error=err_str,
-            )
-        else:
-            server.api.utils.singletons.db.get_db().store_background_task(
-                db_session,
-                name,
-                project=project,
-                state=mlrun.common.schemas.BackgroundTaskState.succeeded,
-            )
 
 
 class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
@@ -122,10 +35,17 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             str, mlrun.common.schemas.BackgroundTask
         ] = {}
 
+        # contains a lock for each background task kind, with the following format:
+        # {kind: [active_name, previous_name]}
+        self._background_tasks_kind_locks: typing.Dict[
+            str, typing.Tuple[typing.Optional[str], typing.Optional[str]]
+        ] = {}
+
     @server.api.utils.helpers.ensure_running_on_chief
     def create_background_task(
         self,
         background_tasks: fastapi.BackgroundTasks,
+        kind: str,
         function,
         *args,
         **kwargs,
@@ -134,8 +54,15 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         # sanity
         if name in self._internal_background_tasks:
             raise RuntimeError("Background task name already exists")
-        background_task = self._generate_background_task(name)
+
+        if self._get_active_task_name_by_kind(kind):
+            raise mlrun.errors.MLRunConflictError(
+                f"Background task of kind '{kind}' already running"
+            )
+
+        background_task = self._generate_background_task(name, kind)
         self._internal_background_tasks[name] = background_task
+        self._set_active_task_name_by_kind(kind, name)
         background_tasks.add_task(
             self.background_task_wrapper,
             name=name,
@@ -160,6 +87,17 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
             return self._generate_background_task_not_found_response(name)
 
     @server.api.utils.helpers.ensure_running_on_chief
+    def get_background_task_by_kind(
+        self,
+        kind: str,
+    ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+        name = self._get_active_task_name_by_kind(kind)
+        if name:
+            return self.get_background_task(name)
+        else:
+            return None
+
+    @server.api.utils.helpers.ensure_running_on_chief
     async def background_task_wrapper(self, name: str, function, *args, **kwargs):
         try:
             if asyncio.iscoroutinefunction(function):
@@ -181,6 +119,10 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         else:
             self._update_background_task(
                 name, mlrun.common.schemas.BackgroundTaskState.succeeded
+            )
+        finally:
+            self._finish_active_task_by_kind(
+                self._internal_background_tasks[name].metadata.kind
             )
 
     def _update_background_task(
@@ -214,12 +156,12 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _generate_background_task(
-        name: str, project: typing.Optional[str] = None
+        name: str, kind: str
     ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
         metadata = mlrun.common.schemas.BackgroundTaskMetadata(
             name=name,
-            project=project,
+            kind=kind,
             created=now,
             updated=now,
         )
@@ -229,4 +171,33 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         )
         return mlrun.common.schemas.BackgroundTask(
             metadata=metadata, spec=spec, status=status
+        )
+
+    def _get_active_task_name_by_kind(self, kind: str):
+        return self._background_tasks_kind_locks.get(kind, (None, None))[0]
+
+    def _get_previous_task_name_by_kind(self, kind: str):
+        return self._background_tasks_kind_locks.get(kind, (None, None))[1]
+
+    def _set_active_task_name_by_kind(self, kind: str, name: str):
+        self._background_tasks_kind_locks.setdefault(kind, (None, None))
+        self._background_tasks_kind_locks[kind] = (
+            name,
+            self._background_tasks_kind_locks[kind][1],
+        )
+
+    def _finish_active_task_by_kind(self, kind: str):
+        self._background_tasks_kind_locks.setdefault(kind, (None, None))
+
+        # if we have a previous task, delete it from the internal background tasks.
+        # this is done so not to have a memory leak of background tasks that are not needed anymore.
+        # we'll keep history of 1 previous task per kind.
+        if self._background_tasks_kind_locks[kind][1]:
+            del self._internal_background_tasks[
+                self._background_tasks_kind_locks[kind][1]
+            ]
+
+        self._background_tasks_kind_locks[kind] = (
+            None,
+            self._background_tasks_kind_locks[kind][0],
         )

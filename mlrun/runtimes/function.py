@@ -335,7 +335,7 @@ class RemoteRuntime(KubeResource):
         :param source: a full path to the nuclio function source (code entry) to load the function from
         :param handler: a path to the function's handler, including path inside archive/git repo
         :param workdir: working dir  relative to the archive root (e.g. 'subdir')
-        :param runtime: (optional) the runtime of the function (defaults to python:3.7)
+        :param runtime: (optional) the runtime of the function (defaults to mlrun.mlconf.default_nuclio_runtime)
 
         :Examples:
 

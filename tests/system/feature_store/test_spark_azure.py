@@ -18,7 +18,7 @@ import os
 import pytest
 
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileS3,
+    DatastoreProfileAzureBlob,
     register_temporary_client_datastore_profile,
 )
 from tests.system.feature_store.spark_hadoop_test_base import (
@@ -28,28 +28,37 @@ from tests.system.feature_store.spark_hadoop_test_base import (
 
 
 @pytest.mark.skipif(
-    not SparkHadoopTestBase._get_env_from_file().get("AWS_BUCKET_NAME"),
-    reason="AWS_BUCKET_NAME is not set",
+    not SparkHadoopTestBase._get_env_from_file().get("AZURE_CONTAINER"),
+    reason="AZURE_CONTAINER is not set",
 )
 # Marked as enterprise because of v3io mount and remote spark
 @pytest.mark.enterprise
-class TestFeatureStoreS3SparkEngine(SparkHadoopTestBase):
+class TestFeatureStoreAzureSparkEngine(SparkHadoopTestBase):
     @classmethod
     def custom_setup_class(cls):
-        cls.configure_namespace("s3")
+        cls.configure_namespace("azure")
         cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Remote)
-
-    def test_basic_remote_spark_ingest_ds_s3(self):
-        ds_profile = DatastoreProfileS3(
-            name=self.ds_profile_name,
-            access_key=self.env["AWS_ACCESS_KEY_ID"],
-            secret_key=self.env["AWS_SECRET_ACCESS_KEY"],
+        cls.configure_image_deployment(
+            Deployment.Remote,
+            "azure-storage-blob",
         )
+
+    def test_basic_remote_spark_ingest_ds_azure(self):
+        ds_profile = DatastoreProfileAzureBlob(
+            name=self.ds_profile_name,
+            connection_string=self.env.get("AZURE_STORAGE_CONNECTION_STRING"),
+            account_name=self.env.get("AZURE_STORAGE_ACCOUNT_NAME"),
+            account_key=self.env.get("AZURE_STORAGE_ACCOUNT_KEY"),
+            tenant_id=self.env.get("AZURE_STORAGE_TENANT_ID"),
+            client_id=self.env.get("AZURE_STORAGE_CLIENT_ID"),
+            client_secret=self.env.get("AZURE_STORAGE_CLIENT_SECRET"),
+            sas_token=self.env.get("AZURE_STORAGE_SAS_TOKEN"),
+        )
+
         register_temporary_client_datastore_profile(ds_profile)
         self.project.register_datastore_profile(ds_profile)
 
-        bucket = self.env["AWS_BUCKET_NAME"]
+        bucket = self.env["AZURE_CONTAINER"]
         self.ds_upload_src(ds_profile, bucket)
 
         self.do_test(

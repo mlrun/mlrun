@@ -955,12 +955,12 @@ class ParquetTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "parquet",
             }
-            storage_spark_options = store.get_spark_options()
             result = {**result, **storage_spark_options}
         else:
             result = {
@@ -1097,13 +1097,13 @@ class CSVTarget(BaseStoreTarget):
             store, path = mlrun.store_manager.get_or_create_store(
                 self.get_target_path()
             )
+            storage_spark_options = store.get_spark_options()
             path = store.url + path
             result = {
-                "path": store_path_to_spark(path),
+                "path": store_path_to_spark(path, storage_spark_options),
                 "format": "csv",
                 "header": "true",
             }
-            storage_spark_options = store.get_spark_options()
             return {**result, **storage_spark_options}
         else:
             return {

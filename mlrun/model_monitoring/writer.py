@@ -192,6 +192,7 @@ class ModelMonitoringWriter(StepToDict):
                     WriterEvent.END_INFER_TIME,
                     WriterEvent.ENDPOINT_ID,
                     WriterEvent.APPLICATION_NAME,
+                    WriterEvent.RESULT_NAME,
                 ],
             )
             logger.info("Updated V3IO TSDB successfully", table=_TSDB_TABLE)

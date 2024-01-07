@@ -22,10 +22,16 @@ import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
-from databricks.sdk.service.jobs import Run, RunTask, SparkPythonTask, SubmitTask
+from databricks.sdk.service.jobs import (
+    Run,
+    RunLifeCycleState,
+    RunTask,
+    SparkPythonTask,
+    SubmitTask,
+)
 
 import mlrun
-from mlrun.errors import MLRunRuntimeError
+from mlrun.errors import MLRunRuntimeError, MLRunTaskCancelledError
 
 credentials_path = "/mlrun/databricks_credentials.yaml"
 
@@ -185,9 +191,9 @@ def run_mlrun_databricks_job(
             task_run_id = get_task(databricks_run=databricks_run).run_id
             error_dict = workspace.jobs.get_run_output(task_run_id).as_dict()
             error_trace = error_dict.pop("error_trace", "")
-            custom_error = "error information and metadata:\n"
+            custom_error = "Error information and metadata:\n"
             custom_error += json.dumps(error_dict, indent=1)
-            custom_error += "\nerror trace from databricks:\n" if error_trace else ""
+            custom_error += "\nError trace from databricks:\n" if error_trace else ""
             custom_error += error_trace
             raise MLRunRuntimeError(custom_error)
         finally:
@@ -199,10 +205,16 @@ def run_mlrun_databricks_job(
                 cluster_id=cluster_id,
                 is_finished=True,
             )
-        run_output = workspace.jobs.get_run_output(get_task(run).run_id)
+
+        task_run_id = get_task(run).run_id
+        run_output = workspace.jobs.get_run_output(task_run_id)
     finally:
         workspace.dbfs.delete(script_path_on_dbfs)
         workspace.dbfs.delete(artifact_json_path)
+
+    life_cycle_state = run_output.metadata.state.life_cycle_state
+    if life_cycle_state == RunLifeCycleState.TERMINATED:
+        raise MLRunTaskCancelledError(f"Task {task_run_id} has been cancelled")
 
     #  This code will not run in the case of an exception, within the outer try-finally block:
     logger.info(f"Job finished: {run.run_page_url}")

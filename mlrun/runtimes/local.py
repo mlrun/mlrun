@@ -307,7 +307,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
 
             # if RunError was raised it means that the error was raised as part of running the function
             # ( meaning the state was already updated to error ) therefore we just re-raise the error
-            except RunError as err:
+            except (RunError, mlrun.errors.MLRunTaskCancelledError) as err:
                 raise err
             # this exception handling is for the case where we fail on pre-loading or post-running the function
             # and the state was not updated to error yet, therefore we update the state to error and raise as RunError

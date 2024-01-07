@@ -44,5 +44,5 @@ def handler():
         time.sleep(1)
 
     # Return the accumulated value and a per rank value. Notice: only values returned from root rank (#0) should be
-    # logged (see `mlrun.package.context_handler.ContextHandler._is_logging_worker`):
+    # logged (see `mlrun.execution.MLClientCtx.is_logging_worker`):
     return result, 1000 * (rank + 1)

@@ -119,6 +119,95 @@ class MLClientCtx(object):
             self.set_state(error=exc_value, commit=False)
         self.commit(completed=True)
 
+    @property
+    def uid(self):
+        """Unique run id"""
+        if self._iteration:
+            return f"{self._uid}-{self._iteration}"
+        return self._uid
+
+    @property
+    def tag(self):
+        """run tag (uid or workflow id if exists)"""
+        return self._labels.get("workflow") or self._uid
+
+    @property
+    def state(self):
+        """execution state"""
+        return self._state
+
+    @property
+    def iteration(self):
+        """child iteration index, for hyperparameters"""
+        return self._iteration
+
+    @property
+    def project(self):
+        """project name, runs can be categorized by projects"""
+        return self._project
+
+    @property
+    def logger(self):
+        """built-in logger interface
+
+        example::
+
+            context.logger.info("Started experiment..", param=5)
+
+        """
+        return self._logger
+
+    @property
+    def log_level(self):
+        """get the logging level, e.g. 'debug', 'info', 'error'"""
+        return self._log_level
+
+    @log_level.setter
+    def log_level(self, value: str):
+        """set the logging level, e.g. 'debug', 'info', 'error'"""
+        self._log_level = value
+
+    @property
+    def parameters(self):
+        """dictionary of run parameters (read-only)"""
+        return deepcopy(self._parameters)
+
+    @property
+    def inputs(self):
+        """dictionary of input data item urls (read-only)"""
+        return self._inputs
+
+    @property
+    def results(self):
+        """dictionary of results (read-only)"""
+        return deepcopy(self._results)
+
+    @property
+    def artifacts(self):
+        """dictionary of artifacts (read-only)"""
+        return deepcopy(self._artifacts_manager.artifact_list())
+
+    @property
+    def in_path(self):
+        """default input path for data objects"""
+        return self._in_path
+
+    @property
+    def out_path(self):
+        """default output path for artifacts"""
+        logger.warning("out_path will soon be deprecated, use artifact_path")
+        return self.artifact_path
+
+    @property
+    def labels(self):
+        """dictionary with labels (read-only)"""
+        return deepcopy(self._labels)
+
+    @property
+    def annotations(self):
+        """dictionary with annotations (read-only)"""
+        return deepcopy(self._annotations)
+
     def get_child_context(self, with_parent_params=False, **params):
         """get child context (iteration)
 
@@ -229,17 +318,6 @@ class MLClientCtx(object):
     def set_logger_stream(self, stream):
         self._logger.replace_handler_stream("default", stream)
 
-    def _init_dbs(self, rundb):
-        if rundb:
-            if isinstance(rundb, str):
-                self._rundb = mlrun.db.get_run_db(rundb, secrets=self._secrets_manager)
-            else:
-                self._rundb = rundb
-        else:
-            self._rundb = mlrun.get_run_db()
-        self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
-        self._artifacts_manager = ArtifactManager(db=self._rundb)
-
     def get_meta(self) -> dict:
         """Reserved for internal use"""
         uri = f"{self._project}/{self.uid}" if self._project else self.uid
@@ -334,89 +412,10 @@ class MLClientCtx(object):
                 self._artifacts_manager.artifacts[key] = artifact_obj
             self._state = status.get("state", self._state)
 
-        if store_run:
+        # Do not store run if not logging worker to avoid conflicts like host label
+        if store_run and self.is_logging_worker():
             self.store_run()
         return self
-
-    @property
-    def uid(self):
-        """Unique run id"""
-        if self._iteration:
-            return f"{self._uid}-{self._iteration}"
-        return self._uid
-
-    @property
-    def tag(self):
-        """run tag (uid or workflow id if exists)"""
-        return self._labels.get("workflow") or self._uid
-
-    @property
-    def state(self):
-        """execution state"""
-        return self._state
-
-    @property
-    def iteration(self):
-        """child iteration index, for hyper parameters"""
-        return self._iteration
-
-    @property
-    def project(self):
-        """project name, runs can be categorized by projects"""
-        return self._project
-
-    @property
-    def logger(self):
-        """built-in logger interface
-
-        example::
-
-            context.logger.info("started experiment..", param=5)
-
-        """
-        return self._logger
-
-    @property
-    def log_level(self):
-        """get the logging level, e.g. 'debug', 'info', 'error'"""
-        return self._log_level
-
-    @log_level.setter
-    def log_level(self, value: str):
-        """set the logging level, e.g. 'debug', 'info', 'error'"""
-        self._log_level = value
-        print(f"changed log level to: {value}")
-
-    @property
-    def parameters(self):
-        """dictionary of run parameters (read-only)"""
-        return deepcopy(self._parameters)
-
-    @property
-    def inputs(self):
-        """dictionary of input data item urls (read-only)"""
-        return self._inputs
-
-    @property
-    def results(self):
-        """dictionary of results (read-only)"""
-        return deepcopy(self._results)
-
-    @property
-    def artifacts(self):
-        """dictionary of artifacts (read-only)"""
-        return deepcopy(self._artifacts_manager.artifact_list())
-
-    @property
-    def in_path(self):
-        """default input path for data objects"""
-        return self._in_path
-
-    @property
-    def out_path(self):
-        """default output path for artifacts"""
-        logger.info(".out_path will soon be deprecated, use .artifact_path")
-        return self.artifact_path
 
     def artifact_subpath(self, *subpaths):
         """subpaths under output path artifacts path
@@ -428,11 +427,6 @@ class MLClientCtx(object):
         """
         return os.path.join(self.artifact_path, *subpaths)
 
-    @property
-    def labels(self):
-        """dictionary with labels (read-only)"""
-        return deepcopy(self._labels)
-
     def set_label(self, key: str, value, replace: bool = True):
         """set/record a specific label
 
@@ -443,11 +437,6 @@ class MLClientCtx(object):
         """
         if replace or not self._labels.get(key):
             self._labels[key] = str(value)
-
-    @property
-    def annotations(self):
-        """dictionary with annotations (read-only)"""
-        return deepcopy(self._annotations)
 
     def set_annotation(self, key: str, value, replace: bool = True):
         """set/record a specific annotation
@@ -474,21 +463,6 @@ class MLClientCtx(object):
             return default
         return self._parameters[key]
 
-    def _load_project_object(self):
-        if not self._project_object:
-            if not self._project:
-                self.logger.warning(
-                    "Project cannot be loaded without a project name set in the context"
-                )
-                return None
-            if not self._rundb:
-                self.logger.warning(
-                    "Cannot retrieve project data - MLRun DB is not accessible"
-                )
-                return None
-            self._project_object = self._rundb.get_project(self._project)
-        return self._project_object
-
     def get_project_object(self):
         """
         Get the MLRun project object by the project name set in the context.
@@ -513,15 +487,6 @@ class MLClientCtx(object):
             access_key = context.get_secret("ACCESS_KEY")
         """
         return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
-
-    def _set_input(self, key, url=""):
-        if url is None:
-            return
-        if not url:
-            url = key
-        if self.in_path and is_relative_path(url):
-            url = os.path.join(self._in_path, url)
-        self._inputs[key] = url
 
     def get_input(self, key: str, url: str = ""):
         """
@@ -988,6 +953,57 @@ class MLClientCtx(object):
         self._data_stores.to_dict(struct["spec"])
         return struct
 
+    def to_yaml(self):
+        """convert the run context to a yaml buffer"""
+        return dict_to_yaml(self.to_dict())
+
+    def to_json(self):
+        """convert the run context to a json buffer"""
+        return dict_to_json(self.to_dict())
+
+    def store_run(self):
+        """
+        store the run object in the DB - removes missing fields
+        use _update_run for coherent updates
+        """
+        self._write_tmpfile()
+        if self._rundb:
+            self._rundb.store_run(
+                self.to_dict(), self._uid, self.project, iter=self._iteration
+            )
+
+    def is_logging_worker(self):
+        """
+        Check if the current worker is the logging worker.
+
+        :return: True if the context belongs to the logging worker and False otherwise.
+        """
+        # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
+        # configuration:
+        if self.labels.get("kind", "job") == "mpijob":
+            # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
+            # the following template: ...-worker-<rank>
+            rank = int(self.labels["host"].rsplit("-", 1)[1])
+            return rank == mlrun.mlconf.packagers.logging_worker
+
+        # Single worker is always the logging worker:
+        return True
+
+    def _update_run(self, commit=False, message=""):
+        """
+        update the required fields in the run object instead of overwriting existing values with empty ones
+
+        :param commit:  commit the changes to the DB if autocommit is not set or update the tmpfile alone
+        :param message: commit message
+        """
+        self._merge_tmpfile()
+        if commit or self._autocommit:
+            self._commit = message
+            if self._rundb:
+                self._rundb.update_run(
+                    self._get_updates(), self._uid, self.project, iter=self._iteration
+                )
+
     def _get_updates(self):
         def set_if_not_none(_struct, key, val):
             if val:
@@ -1016,39 +1032,40 @@ class MLClientCtx(object):
         struct[f"status.{run_keys.artifacts}"] = self._artifacts_manager.artifact_list()
         return struct
 
-    def to_yaml(self):
-        """convert the run context to a yaml buffer"""
-        return dict_to_yaml(self.to_dict())
+    def _init_dbs(self, rundb):
+        if rundb:
+            if isinstance(rundb, str):
+                self._rundb = mlrun.db.get_run_db(rundb, secrets=self._secrets_manager)
+            else:
+                self._rundb = rundb
+        else:
+            self._rundb = mlrun.get_run_db()
+        self._data_stores = store_manager.set(self._secrets_manager, db=self._rundb)
+        self._artifacts_manager = ArtifactManager(db=self._rundb)
 
-    def to_json(self):
-        """convert the run context to a json buffer"""
-        return dict_to_json(self.to_dict())
-
-    def store_run(self):
-        """
-        store the run object in the DB - removes missing fields
-        use _update_run for coherent updates
-        """
-        self._write_tmpfile()
-        if self._rundb:
-            self._rundb.store_run(
-                self.to_dict(), self._uid, self.project, iter=self._iteration
-            )
-
-    def _update_run(self, commit=False, message=""):
-        """
-        update the required fields in the run object instead of overwriting existing values with empty ones
-
-        :param commit:  commit the changes to the DB if autocommit is not set or update the tmpfile alone
-        :param message: commit message
-        """
-        self._merge_tmpfile()
-        if commit or self._autocommit:
-            self._commit = message
-            if self._rundb:
-                self._rundb.update_run(
-                    self._get_updates(), self._uid, self.project, iter=self._iteration
+    def _load_project_object(self):
+        if not self._project_object:
+            if not self._project:
+                self.logger.warning(
+                    "Project cannot be loaded without a project name set in the context"
                 )
+                return None
+            if not self._rundb:
+                self.logger.warning(
+                    "Cannot retrieve project data - MLRun DB is not accessible"
+                )
+                return None
+            self._project_object = self._rundb.get_project(self._project)
+        return self._project_object
+
+    def _set_input(self, key, url=""):
+        if url is None:
+            return
+        if not url:
+            url = key
+        if self.in_path and is_relative_path(url):
+            url = os.path.join(self._in_path, url)
+        self._inputs[key] = url
 
     def _merge_tmpfile(self):
         if not self._tmpfile:

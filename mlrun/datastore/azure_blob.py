@@ -150,9 +150,10 @@ class AzureBlobStore(DataStore):
                 if parsed_credential.get(key):
                     if st[key] and st[key] != parsed_credential.get(key):
                         if key == "account_name":
+                            account_name = parsed_credential.get(key)
                             raise mlrun.errors.MLRunInvalidArgumentError(
-                                f"Storage option for '{key}' is '{st[key]}',"
-                                "which does not match corresponding connection string '{parsed_credential.get(key)}'"
+                                f"Storage option for '{key}' is '{st[key]}',\
+                                    which does not match corresponding connection string '{account_name}'"
                             )
                         else:
                             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -163,7 +164,7 @@ class AzureBlobStore(DataStore):
         account_name = st.get("account_name")
         if not account_name:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "The 'account_name' is absent both in storage settings and connection string"
+                "Property 'account_name' is absent both in storage settings and connection string"
             )
         if primary_url:
             if primary_url.startswith("http://"):

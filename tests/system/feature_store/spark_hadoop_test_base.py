@@ -74,7 +74,9 @@ class SparkHadoopTestBase(TestMLRunSystem):
         cls.remote_function_name = (
             "remote-spark-default-image-deploy-temp-" + test_suite_name
         )
-        cls.spark_service_name = "dummy-spark-" + test_suite_name
+        cls.spark_service_name = cls._get_env_from_file().get(
+            "MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"
+        )
         cls.pq_source = "testdata.parquet"
         cls.pq_target = "testdata_target"
 
@@ -82,7 +84,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
     def configure_image_deployment(
         cls,
         deployment_type=Deployment.Remote,
-        additional_pip_pacakges=None,
+        additional_pip_packages=None,
         spark_image_deployed=False,
     ):
         cls.deployment_type = deployment_type
@@ -96,8 +98,8 @@ class SparkHadoopTestBase(TestMLRunSystem):
             from mlrun.run import new_function
 
             sj = new_function(kind="remote-spark", name=cls.remote_function_name)
-            if additional_pip_pacakges:
-                sj.spec.build.commands = [f"pip install {additional_pip_pacakges}"]
+            if additional_pip_packages:
+                sj.spec.build.commands = [f"pip install {additional_pip_packages}"]
             sj.spec.build.image = "." + cls.remote_function_name
             sj.with_spark_service(spark_service=cls.spark_service_name)
             sj.spec.image_pull_policy = "Always"
@@ -123,7 +125,7 @@ class SparkHadoopTestBase(TestMLRunSystem):
 
     def do_test(self, src_path, target_path):
         if self.deployment_type == Deployment.Remote:
-            spark_service = os.environ["MLRUN_SYSTEM_TESTS_DEFAULT_SPARK_SERVICE"]
+            spark_service = self.spark_service_name
         else:
             spark_service = None
 

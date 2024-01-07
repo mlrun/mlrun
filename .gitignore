@@ -46,3 +46,6 @@ hack/*.env
 
 # files generated for openapi spec checks
 mlrun_bc_*.json
+
+# used for local development.
+playground

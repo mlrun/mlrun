@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import enum
-import getpass
 import http
 import re
 import typing
@@ -441,8 +440,7 @@ class BaseRuntime(ModelObj):
 
     def _store_function(self, runspec, meta, db):
         meta.labels["kind"] = self.kind
-        if "owner" not in meta.labels:
-            meta.labels["owner"] = environ.get("V3IO_USERNAME") or getpass.getuser()
+        mlrun.utils.enrich_owner_label(meta.labels)
         if runspec.spec.output_path:
             runspec.spec.output_path = runspec.spec.output_path.replace(
                 "{{run.user}}", meta.labels["owner"]

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import getpass
 import json
 import os
 import os.path
@@ -381,8 +380,7 @@ def mlrun_op(
 
     if "V3IO_USERNAME" in os.environ and "v3io_user" not in labels:
         labels["v3io_user"] = os.environ.get("V3IO_USERNAME")
-    if "owner" not in labels:
-        labels["owner"] = os.environ.get("V3IO_USERNAME") or getpass.getuser()
+    mlrun.utils.enrich_owner_label(labels)
 
     if name:
         cmd += ["--name", name]

@@ -200,7 +200,7 @@ class ArtifactManager:
                 # and receive back all the runs that are associated with his search result.
                 db_key = producer.name + "_" + key
             else:
-                db_key = key
+                db_key = item.db_key or key
         item.db_key = db_key if db_key else ""
         item.viewer = viewer or item.viewer
         item.tree = producer.tag

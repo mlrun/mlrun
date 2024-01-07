@@ -38,6 +38,7 @@ def store_path_to_spark(path, spark_options=None):
             for key in spark_options:
                 if key.startswith(prefix):
                     account_key = key[len(prefix) :]
+                    break
         if account_key:
             # transfer "wasb://basket/some/path" to wasb://basket@account_key.blob.core.windows.net/some/path
             parsed_url = urlparse(path)

@@ -147,19 +147,19 @@ class AzureBlobStore(DataStore):
                 st.get("connection_string"), credential=None, service=service
             )
             for key in ["account_name", "account_key"]:
-                if parsed_credential.get(key):
-                    if st[key] and st[key] != parsed_credential.get(key):
+                parsed_value = parsed_credential.get(key)
+                if parsed_value:
+                    if st[key] and st[key] != parsed_value:
                         if key == "account_name":
-                            account_name = parsed_credential.get(key)
                             raise mlrun.errors.MLRunInvalidArgumentError(
                                 f"Storage option for '{key}' is '{st[key]}',\
-                                    which does not match corresponding connection string '{account_name}'"
+                                    which does not match corresponding connection string '{parsed_value}'"
                             )
                         else:
                             raise mlrun.errors.MLRunInvalidArgumentError(
                                 f"'{key}' from storage options does not match corresponding connection string"
                             )
-                    st[key] = parsed_credential.get(key)
+                    st[key] = parsed_value
 
         account_name = st.get("account_name")
         if not account_name:

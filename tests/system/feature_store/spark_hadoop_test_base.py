@@ -102,7 +102,6 @@ class SparkHadoopTestBase(TestMLRunSystem):
                 sj.spec.build.commands = [f"pip install {additional_pip_packages}"]
             sj.spec.build.image = "." + cls.remote_function_name
             sj.with_spark_service(spark_service=cls.spark_service_name)
-            sj.spec.image_pull_policy = "Always"
             sj.deploy(with_mlrun=False)
             get_run_db().delete_function(name=sj.metadata.name)
             cls.spark_image_deployed = True

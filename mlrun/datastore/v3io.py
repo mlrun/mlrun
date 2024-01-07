@@ -105,9 +105,9 @@ class V3ioStore(DataStore):
 
         # chunk must be a multiple of the ALLOCATIONGRANULARITY
         # https://docs.python.org/3/library/mmap.html
-        if max_chunk_size % mmap.ALLOCATIONGRANULARITY != 0:
+        if residue := max_chunk_size % mmap.ALLOCATIONGRANULARITY:
             # round down to the nearest multiple of ALLOCATIONGRANULARITY
-            max_chunk_size -= max_chunk_size % mmap.ALLOCATIONGRANULARITY
+            max_chunk_size -= residue
 
         with open(src_path, "rb") as file_obj:
             file_offset = 0

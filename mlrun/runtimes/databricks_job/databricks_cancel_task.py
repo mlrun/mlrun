@@ -21,7 +21,7 @@ from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.jobs import RunLifeCycleState
 from databricks_wrapper import credentials_path
 
-from mlrun.errors import MLRunRuntimeError, MLRunTaskCancelledError
+from mlrun.errors import MLRunRuntimeError
 
 
 def main():
@@ -53,8 +53,6 @@ def main():
                 f"Please check the status of this task in the Databricks environment."
             )
         print(f"Cancelling task {task_id} has succeeded.")
-
-    raise MLRunTaskCancelledError(f"Task {task_id} has been cancelled")
 
 
 main()

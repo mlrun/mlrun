@@ -24,7 +24,7 @@ from databricks.sdk.errors import OperationFailed
 from databricks.sdk.service.compute import ClusterSpec
 from databricks.sdk.service.jobs import (
     Run,
-    RunLifeCycleState,
+    RunResultState,
     RunTask,
     SparkPythonTask,
     SubmitTask,
@@ -212,8 +212,8 @@ def run_mlrun_databricks_job(
         workspace.dbfs.delete(script_path_on_dbfs)
         workspace.dbfs.delete(artifact_json_path)
 
-    life_cycle_state = run_output.metadata.state.life_cycle_state
-    if life_cycle_state == RunLifeCycleState.TERMINATED:
+    run_result_state = run_output.metadata.state.result_state
+    if run_result_state == RunResultState.CANCELED:
         raise MLRunTaskCancelledError(f"Task {task_run_id} has been cancelled")
 
     #  This code will not run in the case of an exception, within the outer try-finally block:

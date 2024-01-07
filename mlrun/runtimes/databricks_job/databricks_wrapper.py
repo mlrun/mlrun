@@ -212,10 +212,6 @@ def run_mlrun_databricks_job(
         workspace.dbfs.delete(script_path_on_dbfs)
         workspace.dbfs.delete(artifact_json_path)
 
-    run_result_state = run_output.metadata.state.result_state
-    if run_result_state == RunResultState.CANCELED:
-        raise MLRunTaskCancelledError(f"Task {task_run_id} has been cancelled")
-
     #  This code will not run in the case of an exception, within the outer try-finally block:
     logger.info(f"Job finished: {run.run_page_url}")
     logger.info(f"Logs:\n{run_output.logs}")
@@ -226,3 +222,7 @@ def run_mlrun_databricks_job(
         body=json.dumps(run_output_dict),
         format="json",
     )
+
+    run_result_state = run_output.metadata.state.result_state
+    if run_result_state == RunResultState.CANCELED:
+        raise MLRunTaskCancelledError(f"Task {task_run_id} has been cancelled")

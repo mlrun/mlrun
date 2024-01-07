@@ -48,18 +48,18 @@ from .utils import (
 class MLClientCtx(object):
     """ML Execution Client Context
 
-    the context is generated and injected to the function using the ``function.run()``
+    The context is generated and injected to the function using the ``function.run()``
     or manually using the :py:func:`~mlrun.run.get_or_create_ctx` call
-    and provides an interface to use run params, metadata, inputs, and outputs
+    and provides an interface to use run params, metadata, inputs, and outputs.
 
-    base metadata include: uid, name, project, and iteration (for hyper params)
-    users can set labels and annotations using :py:func:`~set_label`, :py:func:`~set_annotation`
-    access parameters and secrets using :py:func:`~get_param`, :py:func:`~get_secret`
-    access input data objects using :py:func:`~get_input`
-    store results, artifacts, and real-time metrics using the :py:func:`~log_result`,
-    :py:func:`~log_artifact`, :py:func:`~log_dataset` and :py:func:`~log_model` methods
+    Base metadata include: uid, name, project, and iteration (for hyper params).
+    Users can set labels and annotations using :py:func:`~set_label`, :py:func:`~set_annotation`.
+    Access parameters and secrets using :py:func:`~get_param`, :py:func:`~get_secret`.
+    Access input data objects using :py:func:`~get_input`.
+    Store results, artifacts, and real-time metrics using the :py:func:`~log_result`,
+    :py:func:`~log_artifact`, :py:func:`~log_dataset` and :py:func:`~log_model` methods.
 
-    see doc for the individual params and methods
+    See doc for the individual params and methods
     """
 
     kind = "run"
@@ -72,7 +72,7 @@ class MLClientCtx(object):
         self._tag = ""
         self._secrets_manager = SecretsStore()
 
-        # runtime db service interfaces
+        # Runtime db service interfaces
         self._rundb = None
         self._tmpfile = tmp
         self._logger = log_stream or logger
@@ -95,7 +95,7 @@ class MLClientCtx(object):
         self._outputs = []
 
         self._results = {}
-        # tracks the execution state, completion of runs is not decided by the execution
+        # Tracks the execution state, completion of runs is not decided by the execution
         # as there may be multiple executions for a single run (e.g mpi)
         self._state = "created"
         self._error = None
@@ -128,29 +128,29 @@ class MLClientCtx(object):
 
     @property
     def tag(self):
-        """run tag (uid or workflow id if exists)"""
+        """Run tag (uid or workflow id if exists)"""
         return self._labels.get("workflow") or self._uid
 
     @property
     def state(self):
-        """execution state"""
+        """Execution state"""
         return self._state
 
     @property
     def iteration(self):
-        """child iteration index, for hyperparameters"""
+        """Child iteration index, for hyperparameters"""
         return self._iteration
 
     @property
     def project(self):
-        """project name, runs can be categorized by projects"""
+        """Project name, runs can be categorized by projects"""
         return self._project
 
     @property
     def logger(self):
-        """built-in logger interface
+        """Built-in logger interface
 
-        example::
+        Example::
 
             context.logger.info("Started experiment..", param=5)
 
@@ -159,63 +159,63 @@ class MLClientCtx(object):
 
     @property
     def log_level(self):
-        """get the logging level, e.g. 'debug', 'info', 'error'"""
+        """Get the logging level, e.g. 'debug', 'info', 'error'"""
         return self._log_level
 
     @log_level.setter
     def log_level(self, value: str):
-        """set the logging level, e.g. 'debug', 'info', 'error'"""
+        """Set the logging level, e.g. 'debug', 'info', 'error'"""
         self._log_level = value
 
     @property
     def parameters(self):
-        """dictionary of run parameters (read-only)"""
+        """Dictionary of run parameters (read-only)"""
         return deepcopy(self._parameters)
 
     @property
     def inputs(self):
-        """dictionary of input data item urls (read-only)"""
+        """Dictionary of input data item urls (read-only)"""
         return self._inputs
 
     @property
     def results(self):
-        """dictionary of results (read-only)"""
+        """Dictionary of results (read-only)"""
         return deepcopy(self._results)
 
     @property
     def artifacts(self):
-        """dictionary of artifacts (read-only)"""
+        """Dictionary of artifacts (read-only)"""
         return deepcopy(self._artifacts_manager.artifact_list())
 
     @property
     def in_path(self):
-        """default input path for data objects"""
+        """Default input path for data objects"""
         return self._in_path
 
     @property
     def out_path(self):
-        """default output path for artifacts"""
+        """Default output path for artifacts"""
         logger.warning("out_path will soon be deprecated, use artifact_path")
         return self.artifact_path
 
     @property
     def labels(self):
-        """dictionary with labels (read-only)"""
+        """Dictionary with labels (read-only)"""
         return deepcopy(self._labels)
 
     @property
     def annotations(self):
-        """dictionary with annotations (read-only)"""
+        """Dictionary with annotations (read-only)"""
         return deepcopy(self._annotations)
 
     def get_child_context(self, with_parent_params=False, **params):
-        """get child context (iteration)
+        """Get child context (iteration)
 
-        allow sub experiments (epochs, hyper-param, ..) under a parent
+        Allow sub experiments (epochs, hyper-param, ..) under a parent
         will create a new iteration, log_xx will update the child only
-        use commit_children() to save all the children and specify the best run
+        use commit_children() to save all the children and specify the best run.
 
-        example::
+        Example::
 
             def handler(context: mlrun.MLClientCtx, data: mlrun.DataItem):
                 df = data.as_df()
@@ -231,10 +231,10 @@ class MLClientCtx(object):
 
                 context.log_result('avg_accuracy', accuracy_sum / len(param_list))
 
-        :param params:  extra (or override) params to parent context
-        :param with_parent_params:  child will copy the parent parameters and add to them
+        :param params:  Extra (or override) params to parent context
+        :param with_parent_params:  Child will copy the parent parameters and add to them
 
-        :return: child context
+        :return: Child context
         """
         if self.iteration != 0:
             raise MLRunInvalidArgumentError(
@@ -259,11 +259,11 @@ class MLClientCtx(object):
     def update_child_iterations(
         self, best_run=0, commit_children=False, completed=True
     ):
-        """update children results in the parent, and optionally mark the best
+        """Update children results in the parent, and optionally mark the best.
 
-        :param best_run:  marks the child iteration number (starts from 1)
-        :param commit_children:  commit all child runs to the db
-        :param completed:  mark children as completed
+        :param best_run:  Marks the child iteration number (starts from 1)
+        :param commit_children:  Commit all child runs to the db
+        :param completed:  Mark children as completed
         """
         if not self._children:
             return
@@ -285,16 +285,16 @@ class MLClientCtx(object):
         self._parent.log_iteration_results(self._iteration, None, self.to_dict())
 
     def get_store_resource(self, url, secrets: dict = None):
-        """get mlrun data resource (feature set/vector, artifact, item) from url
+        """Get mlrun data resource (feature set/vector, artifact, item) from url.
 
-        example::
+        Example::
 
             feature_vector = context.get_store_resource("store://feature-vectors/default/myvec")
             dataset = context.get_store_resource("store://artifacts/default/mydata")
 
-        :param url:    store resource uri/path, store://<type>/<project>/<name>:<version>
-                       types: artifacts | feature-sets | feature-vectors
-        :param secrets: additional secrets to use when accessing the store resource
+        :param url:    Store resource uri/path, store://<type>/<project>/<name>:<version>
+                       Types: artifacts | feature-sets | feature-vectors
+        :param secrets: Additional secrets to use when accessing the store resource
         """
         return get_store_resource(
             url,
@@ -304,14 +304,14 @@ class MLClientCtx(object):
         )
 
     def get_dataitem(self, url, secrets: dict = None):
-        """get mlrun dataitem from url
+        """Get mlrun dataitem from url
 
-        example::
+        Example::
 
             data = context.get_dataitem("s3://my-bucket/file.csv").as_df()
 
-        :param url:    data-item uri/path
-        :param secrets: additional secrets to use when accessing the data-item
+        :param url:    Data-item uri/path
+        :param secrets: Additional secrets to use when accessing the data-item
         """
         return self._data_stores.object(url=url, secrets=secrets)
 
@@ -344,8 +344,7 @@ class MLClientCtx(object):
         store_run=True,
         include_status=False,
     ):
-        """create execution context from dict"""
-
+        """Create execution context from dict"""
         self = cls(autocommit=autocommit, tmp=tmp, log_stream=log_stream)
 
         meta = attrs.get("metadata")
@@ -418,9 +417,9 @@ class MLClientCtx(object):
         return self
 
     def artifact_subpath(self, *subpaths):
-        """subpaths under output path artifacts path
+        """Subpaths under output path artifacts path
 
-        example::
+        Example::
 
             data_path=context.artifact_subpath('data')
 
@@ -428,9 +427,9 @@ class MLClientCtx(object):
         return os.path.join(self.artifact_path, *subpaths)
 
     def set_label(self, key: str, value, replace: bool = True):
-        """set/record a specific label
+        """Set/record a specific label
 
-        example::
+        Example::
 
             context.set_label("framework", "sklearn")
 
@@ -439,9 +438,9 @@ class MLClientCtx(object):
             self._labels[key] = str(value)
 
     def set_annotation(self, key: str, value, replace: bool = True):
-        """set/record a specific annotation
+        """Set/record a specific annotation
 
-        example::
+        Example::
 
             context.set_annotation("comment", "some text")
 
@@ -450,9 +449,9 @@ class MLClientCtx(object):
             self._annotations[key] = str(value)
 
     def get_param(self, key: str, default=None):
-        """get a run parameter, or use the provided default if not set
+        """Get a run parameter, or use the provided default if not set
 
-        example::
+        Example::
 
             p1 = context.get_param("p1", 0)
         """
@@ -472,17 +471,17 @@ class MLClientCtx(object):
         return self._load_project_object()
 
     def get_project_param(self, key: str, default=None):
-        """get a parameter from the run's project's parameters"""
+        """Get a parameter from the run's project's parameters"""
         if not self._load_project_object():
             return default
 
         return self._project_object.get_param(key, default)
 
     def get_secret(self, key: str):
-        """get a key based secret e.g. DB password from the context
-        secrets can be specified when invoking a run through vault, files, env, ..
+        """Get a key based secret e.g. DB password from the context.
+        Secrets can be specified when invoking a run through vault, files, env, ..
 
-        example::
+        Example::
 
             access_key = context.get_secret("ACCESS_KEY")
         """
@@ -516,33 +515,31 @@ class MLClientCtx(object):
         )
 
     def log_result(self, key: str, value, commit=False):
-        """log a scalar result value
+        """Log a scalar result value
 
-        example::
+        Example::
 
             context.log_result('accuracy', 0.85)
 
-        :param key:    result key
-        :param value:  result value
-        :param commit: commit (write to DB now vs wait for the end of the run)
+        :param key:    Result key
+        :param value:  Result value
+        :param commit: Commit (write to DB now vs wait for the end of the run)
         """
         self._results[str(key)] = _cast_result(value)
         self._update_run(commit=commit)
 
     def log_results(self, results: dict, commit=False):
-        """log a set of scalar result values
+        """Log a set of scalar result values
 
-        example::
+        Example::
 
             context.log_results({'accuracy': 0.85, 'loss': 0.2})
 
-        :param results:  key/value dict or results
-        :param commit:   commit (write to DB now vs wait for the end of the run)
+        :param results:  Key/value dict or results
+        :param commit:   Commit (write to DB now vs wait for the end of the run)
         """
         if not isinstance(results, dict):
-            raise MLRunInvalidArgumentError(
-                "(multiple) results must be in the form of dict"
-            )
+            raise MLRunInvalidArgumentError("Results must be in the form of dict")
 
         for p in results.keys():
             self._results[str(p)] = _cast_result(results[p])
@@ -591,9 +588,9 @@ class MLClientCtx(object):
         db_key=None,
         **kwargs,
     ):
-        """log an output artifact and optionally upload it to datastore
+        """Log an output artifact and optionally upload it to datastore
 
-        example::
+        Example::
 
             context.log_artifact(
                 "some-data",
@@ -603,25 +600,24 @@ class MLClientCtx(object):
             )
 
 
-        :param item:          artifact key or artifact object (can be any type, such as dataset, model, feature store)
-        :param body:          will use the body as the artifact content
-        :param local_path:    path to the local file we upload, will also be use
+        :param item:          Artifact key or artifact object (can be any type, such as dataset, model, feature store)
+        :param body:          Will use the body as the artifact content
+        :param local_path:    Path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")
-        :param artifact_path: target artifact path (when not using the default)
-                              to define a subpath under the default location use:
+        :param artifact_path: Target artifact path (when not using the default)
+                              To define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
-        :param tag:           version tag
-        :param viewer:        kubeflow viewer type
-        :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param src_path:      deprecated, use local_path
-        :param upload:        upload to datastore (default is True)
-        :param labels:        a set of key/value labels to tag the artifact with
-        :param format:        optional, format to use (e.g. csv, parquet, ..)
-        :param db_key:        the key to use in the artifact DB table, by default
-                              its run name + '_' + key
+        :param tag:           Version tag
+        :param viewer:        Kubeflow viewer type
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param src_path:      Deprecated, use local_path
+        :param upload:        Upload to datastore (default is True)
+        :param labels:        A set of key/value labels to tag the artifact with
+        :param format:        Optional, format to use (e.g. csv, parquet, ..)
+        :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :returns: artifact object
+        :returns: Artifact object
         """
         local_path = src_path or local_path
         item = self._artifacts_manager.log_artifact(
@@ -660,9 +656,9 @@ class MLClientCtx(object):
         label_column: str = None,
         **kwargs,
     ):
-        """log a dataset artifact and optionally upload it to datastore
+        """Log a dataset artifact and optionally upload it to datastore
 
-        example::
+        Example::
 
             raw_data = {
                 "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
@@ -673,28 +669,27 @@ class MLClientCtx(object):
             df = pd.DataFrame(raw_data, columns=["first_name", "last_name", "age", "testScore"])
             context.log_dataset("mydf", df=df, stats=True)
 
-        :param key:           artifact key
-        :param df:            dataframe object
-        :param label_column:  name of the label column (the one holding the target (y) values)
-        :param local_path:    path to the local dataframe file that exists locally.
+        :param key:           Artifact key
+        :param df:            Dataframe object
+        :param label_column:  Name of the label column (the one holding the target (y) values)
+        :param local_path:    Path to the local dataframe file that exists locally.
                               The given file extension will be used to save the dataframe to a file
                               If the file exists, it will be uploaded to the datastore instead of the given df.
-        :param artifact_path: target artifact path (when not using the default)
+        :param artifact_path: Target artifact path (when not using the default)
                               to define a subpath under the default location use:
                               `artifact_path=context.artifact_subpath('data')`
-        :param tag:           version tag
-        :param format:        optional, format to use (e.g. csv, parquet, ..)
-        :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param preview:       number of lines to store as preview in the artifact metadata
-        :param stats:         calculate and store dataset stats in the artifact metadata
-        :param extra_data:    key/value list of extra files/charts to link with this dataset
-        :param upload:        upload to datastore (default is True)
-        :param labels:        a set of key/value labels to tag the artifact with
-        :param db_key:        the key to use in the artifact DB table, by default
-                              its run name + '_' + key
+        :param tag:           Version tag
+        :param format:        Optional, format to use (e.g. csv, parquet, ..)
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param preview:       Number of lines to store as preview in the artifact metadata
+        :param stats:         Calculate and store dataset stats in the artifact metadata
+        :param extra_data:    Key/value list of extra files/charts to link with this dataset
+        :param upload:        Upload to datastore (default is True)
+        :param labels:        A set of key/value labels to tag the artifact with
+        :param db_key:        The key to use in the artifact DB table, by default its run name + '_' + key
                               db_key=False will not register it in the artifacts table
 
-        :returns: artifact object
+        :returns: Artifact object
         """
         ds = DatasetArtifact(
             key,
@@ -745,9 +740,9 @@ class MLClientCtx(object):
         db_key=None,
         **kwargs,
     ):
-        """log a model artifact and optionally upload it to datastore
+        """Log a model artifact and optionally upload it to datastore
 
-        example::
+        Example::
 
             context.log_model("model", body=dumps(model),
                               model_file="model.pkl",
@@ -757,39 +752,38 @@ class MLClientCtx(object):
                               feature_vector=feature_vector_uri,
                               labels={"app": "fraud"})
 
-        :param key:             artifact key or artifact class ()
-        :param body:            will use the body as the artifact content
-        :param model_file:      path to the local model file we upload (see also model_dir)
+        :param key:             Artifact key or artifact class ()
+        :param body:            Will use the body as the artifact content
+        :param model_file:      Path to the local model file we upload (see also model_dir)
                                 or to a model file data url (e.g. http://host/path/model.pkl)
-        :param model_dir:       path to the local dir holding the model file and extra files
-        :param artifact_path:   target artifact path (when not using the default)
+        :param model_dir:       Path to the local dir holding the model file and extra files
+        :param artifact_path:   Target artifact path (when not using the default)
                                 to define a subpath under the default location use:
                                 `artifact_path=context.artifact_subpath('data')`
-        :param framework:       name of the ML framework
-        :param algorithm:       training algorithm name
-        :param tag:             version tag
-        :param metrics:         key/value dict of model metrics
-        :param parameters:      key/value dict of model parameters
-        :param inputs:          ordered list of model input features (name, type, ..)
-        :param outputs:         ordered list of model output/result elements (name, type, ..)
-        :param upload:          upload to datastore (default is True)
-        :param labels:          a set of key/value labels to tag the artifact with
-        :param feature_vector:  feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
-        :param feature_weights: list of feature weights, one per input column
-        :param training_set:    training set dataframe, used to infer inputs & outputs
-        :param label_column:    which columns in the training set are the label (target) columns
-        :param extra_data:      key/value list of extra files/charts to link with this dataset
+        :param framework:       Name of the ML framework
+        :param algorithm:       Training algorithm name
+        :param tag:             Version tag
+        :param metrics:         Key/value dict of model metrics
+        :param parameters:      Key/value dict of model parameters
+        :param inputs:          Ordered list of model input features (name, type, ..)
+        :param outputs:         Ordered list of model output/result elements (name, type, ..)
+        :param upload:          Upload to datastore (default is True)
+        :param labels:          A set of key/value labels to tag the artifact with
+        :param feature_vector:  Feature store feature vector uri (store://feature-vectors/<project>/<name>[:tag])
+        :param feature_weights: List of feature weights, one per input column
+        :param training_set:    Training set dataframe, used to infer inputs & outputs
+        :param label_column:    Which columns in the training set are the label (target) columns
+        :param extra_data:      Key/value list of extra files/charts to link with this dataset
                                 value can be absolute path | relative path (to model dir) | bytes | artifact object
-        :param db_key:          the key to use in the artifact DB table, by default
-                                its run name + '_' + key
+        :param db_key:          The key to use in the artifact DB table, by default its run name + '_' + key
                                 db_key=False will not register it in the artifacts table
 
-        :returns: artifact object
+        :returns: Artifact object
         """
 
         if training_set is not None and inputs:
             raise MLRunInvalidArgumentError(
-                "cannot specify inputs and training set together"
+                "Cannot specify inputs and training set together"
             )
 
         model = ModelArtifact(
@@ -824,20 +818,20 @@ class MLClientCtx(object):
         return item
 
     def get_cached_artifact(self, key):
-        """return an logged artifact from cache (for potential updates)"""
+        """Return a logged artifact from cache (for potential updates)"""
         return self._artifacts_manager.artifacts[key]
 
     def update_artifact(self, artifact_object):
-        """update an artifact object in the cache and the DB"""
+        """Update an artifact object in the cache and the DB"""
         self._artifacts_manager.update_artifact(self, artifact_object)
 
     def commit(self, message: str = "", completed=False):
-        """save run state and optionally add a commit message
+        """Save run state and optionally add a commit message
 
-        :param message:   commit message to save in the run
-        :param completed: mark run as completed
+        :param message:   Commit message to save in the run
+        :param completed: Mark run as completed
         """
-        # changing state to completed is allowed only when the execution is in running state
+        # Changing state to completed is allowed only when the execution is in running state
         if self._state != "running":
             completed = False
 
@@ -870,7 +864,6 @@ class MLClientCtx(object):
         """
         # TODO: The execution context should not set the run state to completed.
         #  Create a separate state for the execution in the run object.
-
         updates = {"status.last_update": now_date().isoformat()}
 
         if error is not None:
@@ -893,7 +886,7 @@ class MLClientCtx(object):
             )
 
     def set_hostname(self, host: str):
-        """update the hostname, for internal use"""
+        """Update the hostname, for internal use"""
         self._host = host
         if self._rundb:
             updates = {"status.host": host}
@@ -902,7 +895,7 @@ class MLClientCtx(object):
             )
 
     def to_dict(self):
-        """convert the run context to a dictionary"""
+        """Convert the run context to a dictionary"""
 
         def set_if_not_none(_struct, key, val):
             if val:
@@ -936,7 +929,7 @@ class MLClientCtx(object):
             },
         }
 
-        # completion of runs is not decided by the execution as there may be
+        # Completion of runs is not decided by the execution as there may be
         # multiple executions for a single run (e.g. mpi)
         if self._state != "completed":
             struct["status"]["state"] = self._state
@@ -954,17 +947,18 @@ class MLClientCtx(object):
         return struct
 
     def to_yaml(self):
-        """convert the run context to a yaml buffer"""
+        """Convert the run context to a yaml buffer"""
         return dict_to_yaml(self.to_dict())
 
     def to_json(self):
-        """convert the run context to a json buffer"""
+        """Convert the run context to a json buffer"""
         return dict_to_json(self.to_dict())
 
     def store_run(self):
         """
-        store the run object in the DB - removes missing fields
-        use _update_run for coherent updates
+        Store the run object in the DB - removes missing fields.
+        Use _update_run for coherent updates.
+        Should be called by the logging worker only (see is_logging_worker()).
         """
         self._write_tmpfile()
         if self._rundb:
@@ -991,10 +985,10 @@ class MLClientCtx(object):
 
     def _update_run(self, commit=False, message=""):
         """
-        update the required fields in the run object instead of overwriting existing values with empty ones
+        Update the required fields in the run object instead of overwriting existing values with empty ones
 
-        :param commit:  commit the changes to the DB if autocommit is not set or update the tmpfile alone
-        :param message: commit message
+        :param commit:  Commit the changes to the DB if autocommit is not set or update the tmpfile alone
+        :param message: Commit message
         """
         self._merge_tmpfile()
         if commit or self._autocommit:

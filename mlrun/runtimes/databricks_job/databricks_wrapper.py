@@ -65,7 +65,7 @@ def log_artifacts_by_dbfs_json(
             fixed_artifact_path = artifact_path.replace("dbfs:/", "dbfs:///", 1)
         elif not artifact_path.startswith("dbfs:///"):
             context.logger.error(
-                f"can not log artifact: {artifact_name}: {artifact_path}"
+                f"Can not log artifact: {artifact_name}: {artifact_path}"
             )
             continue
         context.log_artifact(
@@ -127,16 +127,16 @@ def run_mlrun_databricks_job(
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]
-        logger.info(f'workflow intermediate status: {", ".join(statuses)}')
+        logger.info(f'Workflow intermediate status: {", ".join(statuses)}')
 
     try:
         cluster_id = mlrun.get_secret_or_env("DATABRICKS_CLUSTER_ID")
         submit_task_kwargs = {}
         if cluster_id:
-            logger.info(f"run with exists cluster_id: {cluster_id}")
+            logger.info("Running with an existing cluster", cluster_id=cluster_id)
             submit_task_kwargs["existing_cluster_id"] = cluster_id
         else:
-            logger.info("run with new cluster_id")
+            logger.info("Running with a new cluster")
             cluster_spec_kwargs = {
                 "spark_version": workspace.clusters.select_spark_version(
                     long_term_support=True
@@ -160,7 +160,7 @@ def run_mlrun_databricks_job(
                 )
             ],
         )
-        logger.info(f"starting to poll: {waiter.run_id}")
+        logger.info(f"Starting to poll: {waiter.run_id}")
         save_credentials(
             workspace=workspace,
             waiter=waiter,
@@ -205,8 +205,8 @@ def run_mlrun_databricks_job(
         workspace.dbfs.delete(artifact_json_path)
 
     #  This code will not run in the case of an exception, within the outer try-finally block:
-    logger.info(f"job finished: {run.run_page_url}")
-    logger.info(f"logs:\n{run_output.logs}")
+    logger.info(f"Job finished: {run.run_page_url}")
+    logger.info(f"Logs:\n{run_output.logs}")
     run_output_dict = run_output.as_dict()
     run_output_dict.pop("logs", None)
     context.log_artifact(

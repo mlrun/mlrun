@@ -274,6 +274,9 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     # https://jira.iguazeng.com/browse/ML-5407
     tsdb_query_end = "now+3h"
 
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
+
     @classmethod
     def custom_setup_class(cls) -> None:
         # model
@@ -336,6 +339,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             application_class=self.app_data.class_.__name__,
             name=self.app_data.class_.name,
             requirements=self.app_data.requirements,
+            image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
@@ -356,6 +360,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
+            **({} if self.image is None else {"default_controller_image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:

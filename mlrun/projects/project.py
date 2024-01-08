@@ -2292,8 +2292,7 @@ class MlrunProject(ModelObj):
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
-        if not self.spec.repo:
-            raise ValueError("git repo is not set/defined")
+        self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2305,6 +2304,19 @@ class MlrunProject(ModelObj):
             url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
+
+    def _ensure_git_repo(self):
+        if self.spec.repo:
+            return
+        context = self.context
+        git_dir_path = path.join(context, ".git")
+
+        if not path.exists(git_dir_path):
+            logger.warning("Git repository not initialized. initializing now")
+            self.spec.repo = git.Repo.init(context)
+        else:
+            # git already initialized
+            self.spec.repo = git.Repo(context)
 
     def push(
         self,

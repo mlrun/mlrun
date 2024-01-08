@@ -1436,7 +1436,7 @@ class MlrunProject(ModelObj):
             )
 
 
-        :param item:          artifact key or artifact class ()
+        :param item:          artifact key or artifact object (can be any type, such as dataset, model, feature store)
         :param body:          will use the body as the artifact content
         :param local_path:    path to the local file we upload, will also be use
                               as the destination subpath (under "artifact_path")

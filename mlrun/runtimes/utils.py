@@ -95,7 +95,7 @@ def log_std(db, runobj, out, err="", skip=False, show=True, silent=False):
             project = runobj.metadata.project or ""
             db.store_log(uid, project, out.encode(), append=True)
     if err:
-        logger.error(f"exec error - {err_to_str(err)}")
+        logger.error(f"Exec error - {err_to_str(err)}")
         print(err, file=stderr)
         if not silent:
             raise RunError(err)

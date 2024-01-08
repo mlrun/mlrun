@@ -60,7 +60,13 @@ class DemoMonitoringApp(ModelMonitoringApplication):
                 value=2.15,
                 kind=ResultKindApp.data_drift,
                 status=ResultStatusApp.detected,
-            )
+            ),
+            ModelMonitoringApplicationResult(
+                name="model_perf",
+                value=80,
+                kind=ResultKindApp.model_performance,
+                status=ResultStatusApp.no_detection,
+            ),
         ]
 
 

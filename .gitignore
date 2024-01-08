@@ -36,7 +36,6 @@ tests/system/env.yml
 docs/contributing.md
 server/api/proto/*pb2*.py
 automation/patch_igz/patch_env.yml
-mlrun/api/
 kubeconfig
 
 # used for local development.
@@ -46,3 +45,6 @@ hack/*.env
 
 # files generated for openapi spec checks
 mlrun_bc_*.json
+
+# used for local development.
+playground

@@ -97,19 +97,36 @@ class Logs(
         run_uid: str,
     ):
         logger.debug("Getting log size for run", project=project, run_uid=run_uid)
-        log_collector_client = (
-            server.api.utils.clients.log_collector.LogCollectorClient()
-        )
-        log_file_size = await log_collector_client.get_log_size(
-            project=project,
-            run_uid=run_uid,
-        )
-        if log_file_size < 0:
-            # If the log file size is negative, it means the log file doesn't exist
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Log file for {project}/{run_uid} not found",
+        if (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.sidecar
+        ):
+            return await self._get_log_size_from_log_collector(project, run_uid)
+
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.best_effort
+        ):
+            try:
+                return await self._get_log_size_from_log_collector(project, run_uid)
+            except Exception as exc:
+                if mlrun.mlconf.log_collector.verbose:
+                    logger.warning(
+                        "Failed to get logs from logs collector, falling back to legacy method",
+                        exc=mlrun.errors.err_to_str(exc),
+                    )
+                return self._get_log_size_legacy(project, run_uid)
+
+        elif (
+            mlrun.mlconf.log_collector.mode
+            == mlrun.common.schemas.LogsCollectorMode.legacy
+        ):
+            return self._get_log_size_legacy(project, run_uid)
+
+        else:
+            raise ValueError(
+                f"Invalid log collector mode {mlrun.mlconf.log_collector.mode}"
             )
-        return log_file_size
 
     async def get_logs(
         self,
@@ -152,7 +169,7 @@ class Logs(
                 if mlrun.mlconf.log_collector.verbose:
                     logger.warning(
                         "Failed to get logs from logs collector, falling back to legacy method",
-                        exc=exc,
+                        exc=mlrun.errors.err_to_str(exc),
                     )
                 log_stream = self._get_logs_legacy_method_generator_wrapper(
                     db_session,
@@ -292,11 +309,30 @@ class Logs(
             )
         return run
 
-    def get_log_mtime(self, project: str, uid: str) -> int:
+    @staticmethod
+    async def _get_log_size_from_log_collector(project: str, run_uid: str) -> int:
+        log_collector_client = (
+            server.api.utils.clients.log_collector.LogCollectorClient()
+        )
+        log_file_size = await log_collector_client.get_log_size(
+            project=project,
+            run_uid=run_uid,
+        )
+        if log_file_size < 0:
+            # If the log file size is negative, it means the log file doesn't exist
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{run_uid} not found",
+            )
+        return log_file_size
+
+    @staticmethod
+    def _get_log_size_legacy(project: str, uid: str) -> int:
         log_file = server.api.api.utils.log_path(project, uid)
         if not log_file.exists():
-            raise FileNotFoundError(f"Log file does not exist: {log_file}")
-        return log_file.stat().st_mtime
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Log file for {project}/{uid} not found",
+            )
+        return log_file.stat().st_size
 
     @staticmethod
     def log_file_exists_for_run_uid(project: str, uid: str) -> (bool, pathlib.Path):

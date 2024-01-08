@@ -1,6 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Deploy CE" type="PythonConfigurationType" factoryName="Python">
     <module name="mlrun" />
+    <option name="ENV_FILES" value="" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
@@ -23,7 +24,7 @@
       </ENTRIES>
     </EXTENSION>
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/automation/deployment/ce.py" />
-    <option name="PARAMETERS" value="deploy --verbose --minikube --registry-secret-name=&quot;&quot; --override-mlrun-api-image=&quot;mlrun/mlrun-api:FILL ME&quot; --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER=&quot;mlrun[complete] @ git+https://github.com/mlrun/mlrun@FILL ME&quot;' --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL=&quot;0 seconds&quot;' --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS=&quot;100&quot;" />
+    <option name="PARAMETERS" value="deploy --verbose --minikube --registry-secret-name=&quot;&quot; --mlrun-version=&quot;FILL ME&quot; --override-mlrun-api-image=&quot;mlrun/mlrun-api:FILL ME&quot; --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER=&quot;mlrun[complete] @ git+https://github.com/mlrun/mlrun@FILL ME&quot;' --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL=&quot;0 seconds&quot;' --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS=&quot;100&quot;" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

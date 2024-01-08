@@ -651,7 +651,7 @@ def http_put(url, data, headers=None, auth=None):
             url, data=data, headers=headers, auth=auth, verify=verify_ssl
         )
     except OSError as exc:
-        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}")
+        raise OSError(f"error: cannot connect to {url}: {err_to_str(exc)}") from exc
 
     mlrun.errors.raise_for_status(response)
 

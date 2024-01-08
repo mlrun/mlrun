@@ -543,6 +543,8 @@ def get_sample_set_statistics(
     sample_set: DatasetType = None,
     model_artifact_feature_stats: dict = None,
     sample_set_columns: typing.Union[typing.List, None] = None,
+    sample_set_drop_columns: typing.Union[typing.List, None] = None,
+    sample_set_label_columns: typing.Union[typing.List, None] = None,
 ) -> dict:
     """
     Get the sample set statistics either from the given sample set or the statistics logged with the model while
@@ -552,7 +554,10 @@ def get_sample_set_statistics(
     :param model_artifact_feature_stats: The `feature_stats` attribute in the spec of the model artifact, where the
                                          original sample set statistics of the model was used.
     :param sample_set_columns: The column names of sample_set.
-
+    :param sample_set_drop_columns: ``str`` / ``int`` or a list of ``str`` / ``int`` that
+                                    represent the column names / indices to drop.
+    :param sample_set_label_columns: The target label(s) of the column(s) in the dataset. for Regression or
+                                     Classification tasks.
     :returns: The sample set statistics.
 
     raises MLRunInvalidArgumentError: If no sample set or statistics were given.
@@ -571,7 +576,10 @@ def get_sample_set_statistics(
     # Turn other object types to DataFrame:
     if isinstance(sample_set, (mlrun.DataItem, list, tuple, dict, np.ndarray)):
         sample_set, _ = read_dataset_as_dataframe(
-            dataset=sample_set, feature_columns=sample_set_columns
+            dataset=sample_set,
+            feature_columns=sample_set_columns,
+            drop_columns=sample_set_drop_columns,
+            label_columns=sample_set_label_columns,
         )
 
     # Return the sample set statistics:

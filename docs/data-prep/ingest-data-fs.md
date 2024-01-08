@@ -146,10 +146,12 @@ and the subsequent jobs ingest only the deltas since the previous run (from the 
 Example:
 
 ```
-cron_trigger = "* */1 * * *" #runs every hour
-source = ParquetSource("myparquet", path=path, schedule=cron_trigger)
-feature_set = fstore.FeatureSet(name=name, entities=[fstore.Entity("first_name")], timestamp_key="time",)
-fstore.ingest(feature_set, source, run_config=fstore.RunConfig())
+cron_trigger = "* */1 * * *" # will run every hour
+fs = fstore.FeatureSet("stocks", entities=[fstore.Entity("ticker")])
+fs.ingest(
+    source=ParquetSource("mypq", path="stocks.parquet", time_field="time", schedule=cron_trigger),
+    run_config=fstore.RunConfig(image='mlrun/mlrun')
+)
 ```
 
 The default value for the `overwrite` parameter in the ingest function for scheduled ingest is `False`, meaning that the 

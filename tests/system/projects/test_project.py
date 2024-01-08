@@ -188,7 +188,7 @@ class TestProject(TestMLRunSystem):
         assert len(artifacts) == 9
         assert artifacts[0].producer["workflow"] == run.run_id
 
-        models = project2.list_models(tag=run.run_id)
+        models = project2.list_models(tree=run.run_id)
         assert len(models) == 1
         assert models[0].producer["workflow"] == run.run_id
 

@@ -11,7 +11,6 @@ kfp~=1.8
 nest-asyncio~=1.0
 ipython~=8.10
 nuclio-jupyter~=0.9.14
-# >=1.16.5 from pandas 1.2.1 and <1.27.0 from storey
 numpy>=1.16.5, <1.27.0
 pandas>=1.2, <3
 # used as a the engine for parquet files by pandas

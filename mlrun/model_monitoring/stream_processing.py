@@ -741,8 +741,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             return None
 
-        # Adjust timestamp format
-        timestamp = datetime.datetime.strptime(timestamp[:-6], "%Y-%m-%d %H:%M:%S.%f")
+        # Convert timestamp to a datetime object
+        timestamp = datetime.datetime.fromisoformat(timestamp)
 
         # Separate each model invocation into sub events that will be stored as dictionary
         # in list of events. This list will be used as the body for the storey event.

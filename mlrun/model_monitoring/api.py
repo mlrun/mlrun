@@ -387,7 +387,9 @@ def write_monitoring_df(
     # Modify the DataFrame to the required structure that will be used later by the monitoring batch job
     if EventFieldType.TIMESTAMP not in infer_results_df.columns:
         # Initialize timestamp column with the current time
-        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now()
+        infer_results_df[EventFieldType.TIMESTAMP] = datetime.datetime.now(
+            tz=datetime.timezone.utc
+        )
 
     # `endpoint_id` is the monitoring feature set entity and therefore it should be defined as the df index before
     # the ingest process
@@ -462,7 +464,7 @@ def _generate_model_endpoint(
     model_endpoint.spec.monitoring_mode = monitoring_mode
     model_endpoint.status.first_request = (
         model_endpoint.status.last_request
-    ) = datetime.datetime.now().isoformat()
+    ) = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
     if sample_set_statistics:
         model_endpoint.status.feature_stats = sample_set_statistics
 

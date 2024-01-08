@@ -14,7 +14,7 @@
 import datetime
 import typing
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from deprecated import deprecated
 
@@ -88,18 +88,18 @@ class DBInterface(ABC):
     def list_runs(
         self,
         session,
-        name="",
-        uid: Optional[Union[str, List[str]]] = None,
-        project="",
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        name: str = "",
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        states: typing.Optional[typing.List[str]] = "",
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime.datetime = None,
+        start_time_to: datetime.datetime = None,
+        last_update_time_from: datetime.datetime = None,
+        last_update_time_to: datetime.datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,

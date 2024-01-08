@@ -102,6 +102,13 @@ class V3ioStore(DataStore):
             return
         append_header = deepcopy(self.headers)
         append_header["Range"] = "-1"
+
+        # chunk must be a multiple of the ALLOCATIONGRANULARITY
+        # https://docs.python.org/3/library/mmap.html
+        if residue := max_chunk_size % mmap.ALLOCATIONGRANULARITY:
+            # round down to the nearest multiple of ALLOCATIONGRANULARITY
+            max_chunk_size -= residue
+
         with open(src_path, "rb") as file_obj:
             file_offset = 0
             while file_offset < file_size:

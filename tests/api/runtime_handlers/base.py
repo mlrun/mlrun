@@ -399,7 +399,7 @@ class TestRuntimeHandlerBase:
             unittest.mock.call(
                 expected_pod_name,
                 expected_pod_namespace,
-                grace_period_seconds=0,
+                grace_period_seconds=None,
                 propagation_policy="Background",
             )
             for expected_pod_name in expected_pod_names

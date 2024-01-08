@@ -1117,7 +1117,7 @@ def retry_until_successful(
             f"Operation did not complete on time. last exception: {last_exception}"
         )
 
-    raise Exception(
+    raise mlrun.errors.MLRunRetryExhaustedError(
         f"Failed to execute command by the given deadline."
         f" last_exception: {last_exception},"
         f" function_name: {_function.__name__},"
@@ -1345,7 +1345,20 @@ def calculate_dataframe_hash(dataframe: pandas.DataFrame):
     return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
 
 
-def fill_project_path_template(artifact_path, project):
+def template_artifact_path(artifact_path, project, run_uid="project"):
+    """
+    Replace {{run.uid}} with the run uid and {{project}} with the project name in the artifact path.
+    If no run uid is provided, the word `project` will be used instead as it is assumed to be a project
+    level artifact.
+    """
+    if not artifact_path:
+        return artifact_path
+    artifact_path = artifact_path.replace("{{run.uid}}", run_uid)
+    artifact_path = _fill_project_path_template(artifact_path, project)
+    return artifact_path
+
+
+def _fill_project_path_template(artifact_path, project):
     # Supporting {{project}} is new, in certain setup configuration the default artifact path has the old
     # {{run.project}} so we're supporting it too for backwards compatibility
     if artifact_path and (

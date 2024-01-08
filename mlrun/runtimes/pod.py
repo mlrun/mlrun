@@ -186,6 +186,9 @@ class KubeResourceSpec(FunctionSpec):
             state_thresholds
             or mlrun.mlconf.function.spec.state_thresholds.default.to_dict()
         )
+        # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
+        # _dict_fields and doesn't have a setter.
+        self._termination_grace_period_seconds = None
         self.__fields_pending_discard = {}
 
     @property
@@ -256,6 +259,10 @@ class KubeResourceSpec(FunctionSpec):
         self._security_context = transform_attribute_to_k8s_class_instance(
             "security_context", security_context
         )
+
+    @property
+    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+        return self._termination_grace_period_seconds
 
     def to_dict(self, fields=None, exclude=None):
         exclude = exclude or []
@@ -901,6 +908,10 @@ class AutoMountType(str, Enum):
 
 
 class KubeResource(BaseRuntime):
+    """
+    A parent class for runtimes that generate k8s resources when executing.
+    """
+
     kind = "job"
     _is_nested = True
 
@@ -1066,11 +1077,13 @@ class KubeResource(BaseRuntime):
         If the threshold is not set for a state, the default threshold will be used.
 
         :param state_thresholds: A dictionary of state to threshold. The supported states are:
+
             * pending_scheduled - The pod/crd is scheduled on a node but not yet running
             * pending_not_scheduled - The pod/crd is not yet scheduled on a node
             * executing - The pod/crd started and is running
             * image_pull_backoff - The pod/crd is in image pull backoff
             See mlrun.mlconf.function.spec.state_thresholds for the default thresholds.
+
         :param patch: Whether to merge the given thresholds with the existing thresholds (True, default)
                       or override them (False)
         """
@@ -1186,7 +1199,7 @@ class KubeResource(BaseRuntime):
         For Iguazio we handle security context internally -
         see mlrun.common.schemas.function.SecurityContextEnrichmentModes
 
-        Example:
+        Example::
 
             from kubernetes import client as k8s_client
 

@@ -492,15 +492,18 @@ class HTTPRunDB(RunDBInterface):
         :param uid: Log unique ID
         :param project: Project name for which the log belongs
         :param offset: Retrieve partial log, get up to ``size`` bytes starting at offset ``offset``
-            from beginning of log
+            from beginning of log (must be >= 0)
         :param size: If set to ``-1`` will retrieve and print all data to end of the log by chunks of 1MB each.
         :returns: The following objects:
 
             - state - The state of the runtime object which generates this log, if it exists. In case no known state
               exists, this will be ``unknown``.
             - content - The actual log content.
+
             * in case size = -1, return the state and the final offset
         """
+        if offset < 0:
+            raise MLRunInvalidArgumentError("Offset cannot be negative")
         if size is None:
             size = int(mlrun.mlconf.httpdb.logs.pull_logs_default_size_limit)
         elif size == -1:
@@ -519,6 +522,19 @@ class HTTPRunDB(RunDBInterface):
             return state.lower(), resp.content
 
         return "unknown", resp.content
+
+    def get_log_size(self, uid, project=""):
+        """Retrieve log size in bytes.
+
+        :param uid: Run UID
+        :param project: Project name for which the log belongs
+        :returns: The log file size in bytes for the given run UID.
+        """
+        path = self._path_of("logs", project, uid)
+        path += "/size"
+        error = f"get log size {project}/{uid}"
+        resp = self.api_call("GET", path, error)
+        return resp.json()["size"]
 
     def watch_log(self, uid, project="", watch=True, offset=0):
         """Retrieve logs of a running process by chunks of 1MB, and watch the progress of the execution until it
@@ -559,7 +575,12 @@ class HTTPRunDB(RunDBInterface):
             else:
                 nil_resp += 1
 
-            if watch and state in ["pending", "running"]:
+            if watch and state in [
+                mlrun.runtimes.constants.RunStates.pending,
+                mlrun.runtimes.constants.RunStates.running,
+                mlrun.runtimes.constants.RunStates.created,
+                mlrun.runtimes.constants.RunStates.aborting,
+            ]:
                 continue
             else:
                 # the whole log was retrieved
@@ -2976,7 +2997,7 @@ class HTTPRunDB(RunDBInterface):
         :param with_schedule:       If true, submit the model monitoring scheduled job as well.
 
 
-        :return: model monitoring batch job as a dictionary. You can easily convert the resulted function into a
+        :returns: model monitoring batch job as a dictionary. You can easily convert the returned function into a
                  runtime object by calling ~mlrun.new_function.
         """
 
@@ -3000,14 +3021,15 @@ class HTTPRunDB(RunDBInterface):
         While the main goal of the controller job is to handle the monitoring processing and triggering applications,
         the goal of the model monitoring writer function is to write all the monitoring application results to the
         databases. Note that the default scheduling policy of the controller job is to run every 10 min.
+
         :param project:                  Project name.
         :param default_controller_image: The default image of the model monitoring controller job. Note that the writer
                                          function, which is a real time nuclio functino, will be deployed with the same
                                          image. By default, the image is mlrun/mlrun.
         :param base_period:              Minutes to determine the frequency in which the model monitoring controller job
                                          is running. By default, the base period is 5 minutes.
-        :return: model monitoring controller job as a dictionary. You can easily convert the resulted function into a
-                 runtime object by calling ~mlrun.new_function.
+        :returns: model monitoring controller job as a dictionary. You can easily convert the returned function into a
+                  runtime object by calling ~mlrun.new_function.
         """
 
         params = {

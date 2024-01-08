@@ -16,7 +16,7 @@ import typing
 from os.path import isdir
 
 import mlrun.config
-from mlrun.utils.helpers import fill_project_path_template
+from mlrun.utils.helpers import template_artifact_path
 
 from ..utils import (
     is_legacy_artifact,
@@ -249,9 +249,7 @@ class ArtifactManager:
 
         if target_path and item.is_dir and not target_path.endswith("/"):
             target_path += "/"
-        target_path = fill_project_path_template(
-            artifact_path=target_path, project=project
-        )
+        target_path = template_artifact_path(artifact_path=target_path, project=project)
         item.target_path = target_path
 
         item.before_log()

@@ -299,6 +299,7 @@ def _resolve_and_set_nuclio_runtime(
     ) and nuclio_runtime in [
         "python:3.7",
         "python:3.8",
+        "python:3.9",
     ]:
         nuclio_runtime_set_from_spec = nuclio_runtime == function.spec.nuclio_runtime
         if nuclio_runtime_set_from_spec:

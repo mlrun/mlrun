@@ -32,10 +32,10 @@ import mlrun.common.schemas.notification
 from .utils import (
     dict_to_json,
     dict_to_yaml,
-    fill_project_path_template,
     get_artifact_target,
     is_legacy_artifact,
     logger,
+    template_artifact_path,
 )
 
 # Changing {run_id} will break and will not be backward compatible.
@@ -1637,7 +1637,7 @@ class TargetPathObject:
         return self.full_path_template
 
     def get_absolute_path(self, project_name=None):
-        path = fill_project_path_template(
+        path = template_artifact_path(
             artifact_path=self.full_path_template,
             project=project_name,
         )

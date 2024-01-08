@@ -575,7 +575,7 @@ class BaseRuntime(ModelObj):
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError(f"handler must be provided for {self.kind} runtime")
+            raise RunError(f"Handler must be provided for {self.kind} runtime")
 
     def _has_pipeline_param(self) -> bool:
         # check if the runtime has pipeline parameters
@@ -612,7 +612,7 @@ class BaseRuntime(ModelObj):
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:
             return f"docker-registry.{namespace_domain}:80/{image[1:]}"
-        raise RunError("local container registry is not defined")
+        raise RunError("Local container registry is not defined")
 
     def as_step(
         self,

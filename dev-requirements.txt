@@ -1,5 +1,6 @@
 # uploading to PyPI
 twine~=3.1
+build~=1.0
 
 # formatting & linting
 ruff~=0.1.8
@@ -10,6 +11,7 @@ pytest~=7.4
 pytest-asyncio~=0.15.0
 pytest-alembic~=0.9.1
 pytest-httpserver~=1.0
+pytest-timeout~=2.0
 aioresponses~=0.7
 requests-mock~=1.8
 httpx~=0.23.0

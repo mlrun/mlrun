@@ -28,8 +28,18 @@ class Constants:
     helm_chart_name = f"{helm_repo_name}/{helm_release_name}"
     helm_repo_url = "https://mlrun.github.io/ce"
     default_registry_secret_name = "registry-credentials"
-    mlrun_image_values = ["mlrun.api", "mlrun.ui", "jupyterNotebook"]
-    disableable_deployments = ["pipelines", "kube-prometheus-stack", "spark-operator"]
+    mlrun_image_values = [
+        "mlrun.api",
+        "mlrun.ui",
+        "jupyterNotebook",
+        "mlrun.api.sidecars.logCollector",
+    ]
+    disableable_components = [
+        "pipelines",
+        "kube-prometheus-stack",
+        "spark-operator",
+        "mlrun.api.sidecars.logCollector",
+    ]
     minikube_registry_port = 5000
     log_format = "> %(asctime)s [%(levelname)s] %(message)s"
 
@@ -93,11 +103,13 @@ class CommunityEditionDeployer:
         chart_version: str = None,
         mlrun_version: str = None,
         override_mlrun_api_image: str = None,
+        override_mlrun_log_collector_image: str = None,
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        disable_log_collector: bool = False,
         skip_registry_validation: bool = False,
         devel: bool = False,
         minikube: bool = False,
@@ -114,11 +126,13 @@ class CommunityEditionDeployer:
         :param chart_version: Version of the helm chart to deploy (defaults to the latest stable version)
         :param mlrun_version: Version of MLRun to deploy (defaults to the latest stable version)
         :param override_mlrun_api_image: Override the default MLRun API image
+        :param override_mlrun_log_collector_image: Override the default MLRun Log Collector image
         :param override_mlrun_ui_image: Override the default MLRun UI image
         :param override_jupyter_image: Override the default Jupyter image
         :param disable_pipelines: Disable the deployment of the pipelines component
         :param disable_prometheus_stack: Disable the deployment of the Prometheus stack component
         :param disable_spark_operator: Disable the deployment of the Spark operator component
+        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
         :param skip_registry_validation: Skip the validation of the registry URL
         :param devel: Deploy the development version of the helm chart
         :param minikube: Deploy the helm chart with minikube configuration
@@ -140,11 +154,13 @@ class CommunityEditionDeployer:
             chart_version,
             mlrun_version,
             override_mlrun_api_image,
+            override_mlrun_log_collector_image,
             override_mlrun_ui_image,
             override_jupyter_image,
             disable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
+            disable_log_collector,
             devel,
             minikube,
             sqlite,
@@ -329,11 +345,13 @@ class CommunityEditionDeployer:
         chart_version: str = None,
         mlrun_version: str = None,
         override_mlrun_api_image: str = None,
+        override_mlrun_log_collector_image: str = None,
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        disable_log_collector: bool = False,
         devel: bool = False,
         minikube: bool = False,
         sqlite: str = None,
@@ -347,11 +365,13 @@ class CommunityEditionDeployer:
         :param chart_version: Version of the chart to use
         :param mlrun_version: Version of MLRun to use
         :param override_mlrun_api_image: Override MLRun API image to use
+        :param override_mlrun_log_collector_image: Override MLRun Log Collector image to use
         :param override_mlrun_ui_image: Override MLRun UI image to use
         :param override_jupyter_image: Override Jupyter image to use
         :param disable_pipelines: Disable pipelines
         :param disable_prometheus_stack: Disable Prometheus stack
         :param disable_spark_operator: Disable Spark operator
+        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
         :param devel: Use development chart
         :param minikube: Use minikube
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
@@ -382,11 +402,13 @@ class CommunityEditionDeployer:
             registry_secret_name,
             mlrun_version,
             override_mlrun_api_image,
+            override_mlrun_log_collector_image,
             override_mlrun_ui_image,
             override_jupyter_image,
             disable_pipelines,
             disable_prometheus_stack,
             disable_spark_operator,
+            disable_log_collector,
             sqlite,
             minikube,
         ).items():
@@ -430,11 +452,13 @@ class CommunityEditionDeployer:
         registry_secret_name: str = None,
         mlrun_version: str = None,
         override_mlrun_api_image: str = None,
+        override_mlrun_log_collector_image: str = None,
         override_mlrun_ui_image: str = None,
         override_jupyter_image: str = None,
         disable_pipelines: bool = False,
         disable_prometheus_stack: bool = False,
         disable_spark_operator: bool = False,
+        disable_log_collector: bool = False,
         sqlite: str = None,
         minikube: bool = False,
     ) -> typing.Dict[str, str]:
@@ -444,11 +468,13 @@ class CommunityEditionDeployer:
         :param registry_secret_name: Name of the registry secret to use
         :param mlrun_version: Version of MLRun to use
         :param override_mlrun_api_image: Override MLRun API image to use
+        :param override_mlrun_log_collector_image: Override MLRun Log Collector image to use
         :param override_mlrun_ui_image: Override MLRun UI image to use
         :param override_jupyter_image: Override Jupyter image to use
         :param disable_pipelines: Disable pipelines
         :param disable_prometheus_stack: Disable Prometheus stack
         :param disable_spark_operator: Disable Spark operator
+        :param disable_log_collector: Disable the mlrun API log collector sidecar and use legacy mode instead
         :param sqlite: Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
         :param minikube: Use minikube
         :return: Dictionary of helm values
@@ -475,21 +501,22 @@ class CommunityEditionDeployer:
                 override_mlrun_api_image,
                 override_mlrun_ui_image,
                 override_jupyter_image,
+                override_mlrun_log_collector_image,
             ],
         ):
             if overriden_image:
                 self._override_image_in_helm_values(helm_values, value, overriden_image)
 
-        for deployment, disabled in zip(
-            Constants.disableable_deployments,
+        for component, disabled in zip(
+            Constants.disableable_components,
             [
                 disable_pipelines,
                 disable_prometheus_stack,
                 disable_spark_operator,
+                disable_log_collector,
             ],
         ):
-            if disabled:
-                self._disable_deployment_in_helm_values(helm_values, deployment)
+            self._toggle_component_in_helm_values(helm_values, component, disabled)
 
         if sqlite:
             dir_path = os.path.dirname(sqlite)
@@ -508,7 +535,7 @@ class CommunityEditionDeployer:
                 "warning",
                 "Kubeflow Pipelines is not supported on ARM architecture. Disabling KFP installation.",
             )
-            self._disable_deployment_in_helm_values(helm_values, "pipelines")
+            self._toggle_component_in_helm_values(helm_values, "pipelines", True)
 
         self._log(
             "debug",
@@ -668,16 +695,18 @@ class CommunityEditionDeployer:
         helm_values[f"{image_helm_value}.image.repository"] = overriden_image_repo
         helm_values[f"{image_helm_value}.image.tag"] = overriden_image_tag
 
-    def _disable_deployment_in_helm_values(
-        self, helm_values: typing.Dict[str, str], deployment: str
+    def _toggle_component_in_helm_values(
+        self, helm_values: typing.Dict[str, str], component: str, disable: bool
     ) -> None:
         """
         Disable a deployment in the helm values.
         :param helm_values: Helm values to update
-        :param deployment: Deployment to disable
+        :param component: Component to toggle
+        :param disable: Whether to disable the deployment
         """
-        self._log("warning", "Disabling deployment", deployment=deployment)
-        helm_values[f"{deployment}.enabled"] = "false"
+        self._log("debug", "Toggling component", component=component, disable=disable)
+        value = "false" if disable else "true"
+        helm_values[f"{component}.enabled"] = value
 
     def _run_command(
         self,

@@ -35,6 +35,10 @@ GET_API_ARTIFACT_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 LIST_API_ARTIFACTS_PATH_WITH_TAG = API_ARTIFACTS_PATH + "?tag={tag}"
 DELETE_API_ARTIFACTS_PATH = API_ARTIFACTS_PATH + "/{key}?tag={tag}"
 
+# V2 endpoints
+V2_PREFIX = "v2/"
+STORE_API_ARTIFACTS_V2_PATH = V2_PREFIX + API_ARTIFACTS_PATH + "/{key}"
+
 
 def test_list_artifact_tags(db: Session, client: TestClient) -> None:
     resp = client.get(f"projects/{PROJECT}/artifact-tags")
@@ -454,3 +458,29 @@ def test_legacy_get_artifact_with_tree_as_tag_fallback(
     assert not is_legacy_artifact(artifact["data"])
     assert artifact["data"]["metadata"]["key"] == KEY
     assert artifact["data"]["metadata"]["tree"] == tree
+
+
+def test_legacy_list_artifact_with_tree_as_tag_fallback(
+    db: Session, client: TestClient
+) -> None:
+    _create_project(client)
+    artifact = mlrun.artifacts.Artifact(key=KEY, body="123")
+
+    # store artifact with tree as tag, which was referred to as uid in the legacy API
+    tree = "my-tree"
+    resp = client.post(
+        STORE_API_ARTIFACTS_PATH.format(project=PROJECT, uid=tree, key=KEY, tag=TAG),
+        data=artifact.to_json(),
+    )
+    assert resp.status_code == HTTPStatus.OK.value
+
+    # list the artifacts with the tree as tag, and expect it to be returned properly,
+    # due to the fallback in the legacy API
+    artifact_path = LIST_API_ARTIFACTS_PATH_WITH_TAG.format(project=PROJECT, tag=tree)
+    resp = client.get(artifact_path)
+    assert resp.status_code == HTTPStatus.OK.value
+
+    artifact = resp.json()["artifacts"][0]
+    assert not is_legacy_artifact(artifact)
+    assert artifact["metadata"]["key"] == KEY
+    assert artifact["metadata"]["tree"] == tree

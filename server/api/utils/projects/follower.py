@@ -32,7 +32,6 @@ import server.api.crud
 import server.api.db.session
 import server.api.utils.auth.verifier
 import server.api.utils.clients.iguazio
-import server.api.utils.helpers
 import server.api.utils.periodic
 import server.api.utils.projects.member as project_member
 import server.api.utils.projects.remotes.leader
@@ -102,9 +101,7 @@ class Member(
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+        if self._is_request_from_leader(projects_role):
             server.api.crud.Projects().create_project(db_session, project)
             return project, False
         else:
@@ -144,9 +141,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+        if self._is_request_from_leader(projects_role):
             server.api.crud.Projects().store_project(db_session, name, project)
             return project, False
         else:
@@ -175,9 +170,7 @@ class Member(
         leader_session: typing.Optional[str] = None,
         wait_for_completion: bool = True,
     ) -> typing.Tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+        if self._is_request_from_leader(projects_role):
             # No real scenario for this to be useful currently - in iguazio patch is transformed to store request
             raise NotImplementedError("Patch operation not supported from leader")
         else:
@@ -204,9 +197,7 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
     ) -> bool:
-        if server.api.utils.helpers.is_request_from_leader(
-            projects_role, leader_name=self._leader_name
-        ):
+        if self._is_request_from_leader(projects_role):
             server.api.crud.Projects().delete_project(
                 db_session, name, deletion_strategy
             )
@@ -248,9 +239,7 @@ class Member(
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.schemas.ProjectsFormat.leader
-            and not server.api.utils.helpers.is_request_from_leader(
-                projects_role, leader_name=self._leader_name
-            )
+            and not self._is_request_from_leader(projects_role)
         ):
             raise mlrun.errors.MLRunAccessDeniedError(
                 "Leader format is allowed only to the leader"
@@ -403,6 +392,13 @@ class Member(
             if latest_updated_at < epoch:
                 latest_updated_at = epoch
             self._synced_until_datetime = latest_updated_at
+
+    def _is_request_from_leader(
+        self, projects_role: typing.Optional[mlrun.common.schemas.ProjectsRole]
+    ) -> bool:
+        if projects_role and projects_role.value == self._leader_name:
+            return True
+        return False
 
     @staticmethod
     def _is_project_matching_labels(

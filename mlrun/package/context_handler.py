@@ -17,7 +17,6 @@ import os
 from collections import OrderedDict
 from typing import Dict, List, Union
 
-from mlrun import mlconf
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
@@ -194,7 +193,7 @@ class ContextHandler:
         :param log_hints: List of log hints (logging configurations) to use.
         """
         # Pack and log only from the logging worker (in case of multi-workers job like OpenMPI):
-        if self._is_logging_worker():
+        if self._context.is_logging_worker():
             # Verify the outputs and log hints are the same length:
             self._validate_objects_to_log_hints_length(
                 outputs=outputs, log_hints=log_hints
@@ -307,23 +306,6 @@ class ContextHandler:
                 is_mandatory=False,
                 is_custom_packagers=False,
             )
-
-    def _is_logging_worker(self):
-        """
-        Check if the current worker is the logging worker.
-
-        :return: True if the context belongs to the logging worker and False otherwise.
-        """
-        # If it's a OpenMPI job, get the global rank and compare to the logging rank (worker) set in MLRun's
-        # configuration:
-        if self._context.labels.get("kind", "job") == "mpijob":
-            # The host (pod name) of each worker is created by k8s, and by default it uses the rank number as the id in
-            # the following template: ...-worker-<rank>
-            rank = int(self._context.labels["host"].rsplit("-", 1)[1])
-            return rank == mlconf.packagers.logging_worker
-
-        # Single worker is always the logging worker:
-        return True
 
     def _validate_objects_to_log_hints_length(
         self,

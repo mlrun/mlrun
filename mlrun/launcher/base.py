@@ -322,7 +322,7 @@ class BaseLauncher(abc.ABC):
                             run.spec.output_path = project.spec.artifact_path
                     except mlrun.errors.MLRunNotFoundError:
                         logger.warning(
-                            f"project {project_name} is not saved in DB yet, "
+                            f"Project {project_name} is not saved in DB yet, "
                             f"enriching output path with default artifact path: {mlrun.mlconf.artifact_path}"
                         )
 

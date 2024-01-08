@@ -108,7 +108,10 @@ class Projects(
                 session, name
             ):
                 return
-            self.verify_project_is_empty(session, name)
+            server.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
+                session, name
+            )
+            self._verify_project_has_no_external_resources(name)
             if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
                 return
         elif deletion_strategy.is_cascading():
@@ -120,12 +123,6 @@ class Projects(
         server.api.utils.singletons.db.get_db().delete_project(
             session, name, deletion_strategy
         )
-
-    def verify_project_is_empty(self, session: sqlalchemy.orm.Session, name: str):
-        server.api.utils.singletons.db.get_db().verify_project_has_no_related_resources(
-            session, name
-        )
-        self._verify_project_has_no_external_resources(name)
 
     def _verify_project_has_no_external_resources(self, project: str):
         # Resources which are not tracked in the MLRun DB need to be verified here. Currently these are project

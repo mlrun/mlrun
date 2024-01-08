@@ -35,4 +35,9 @@ def health():
     ]:
         raise mlrun.errors.MLRunServiceUnavailableError()
 
-    return {"status": "ok"}
+    return {
+        # for old `align_mlrun.sh` scripts expecting `version` in the response
+        # TODO: remove on mlrun >= 1.6.0
+        "version": mlconfig.version,
+        "status": "ok",
+    }

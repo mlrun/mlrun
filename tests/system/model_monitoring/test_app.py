@@ -54,6 +54,7 @@ class _AppData:
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
+    metrics: typing.Optional[set[str]] = None  # only for testing
 
     def __post_init__(self) -> None:
         path = Path(__file__).parent / self.rel_path
@@ -83,7 +84,13 @@ class _V3IORecordsChecker:
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
             )
-            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
+            assert (
+                data := resp.output.item
+            ), f"V3IO KV app data is empty for app {app_name}"
+            if app_data.metrics:
+                assert (
+                    data.keys() == app_data.metrics
+                ), "The KV saved metrics are different than expected"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
@@ -97,9 +104,19 @@ class _V3IORecordsChecker:
         assert (
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
+
         assert set(df.application_name) == {
             app_data.class_.name for app_data in cls.apps_data
         }, "The application names are different than expected"
+
+        tsdb_metrics = df.groupby("application_name").result_name.unique()
+        for app_data in cls.apps_data:
+            if app_metrics := app_data.metrics:
+                app_name = app_data.class_.name
+                cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
+                assert (
+                    set(tsdb_metrics[app_name]) == app_metrics
+                ), "The TSDB saved metrics are different than expected"
 
     @classmethod
     def _test_v3io_records(cls, ep_id: str) -> None:
@@ -133,7 +150,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.evidently_project_id = str(uuid.uuid4())
 
         cls.apps_data: list[_AppData] = [
-            _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
+            _AppData(
+                class_=DemoMonitoringApp,
+                rel_path="assets/application.py",
+                metrics={"data_drift_test", "model_perf"},
+            ),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
@@ -142,6 +163,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
                 },
+                metrics={"data_drift_test"},
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"

@@ -1654,3 +1654,20 @@ def test_list_api_gateways(patched_list_api_gateways, context):
 
     assert gateways[1].generate_invoke_url() == "test-basic-default.domain.com/"
     assert gateways[1]._generate_auth("test", "test") == "Basic dGVzdDp0ZXN0"
+
+    
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]

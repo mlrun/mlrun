@@ -3115,6 +3115,13 @@ class MlrunProject(ModelObj):
 
             function = mlrun.new_function("mlrun--project--image--builder", kind="job")
 
+            if self.spec.source and not self.spec.load_source_on_run:
+                function.with_source_archive(
+                    source=self.spec.source,
+                    workdir=self.spec.workdir,
+                    pull_at_runtime=False,
+                )
+
             build = self.spec.build
             result = self.build_function(
                 function=function,

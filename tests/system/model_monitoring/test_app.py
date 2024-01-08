@@ -267,15 +267,15 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-record-results"
+    project_name = "test-monitoring-record-results-2"
     name_prefix = "infer-monitoring"
 
     # TODO - remove this when TSDB future time issue is resolved
     # https://jira.iguazeng.com/browse/ML-5407
-    tsdb_query_end = "now+3h"
+    tsdb_query_end = "now"
 
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5407"
 
     @classmethod
     def custom_setup_class(cls) -> None:

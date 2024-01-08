@@ -126,9 +126,9 @@ class _V3IORecordsChecker:
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-5407-1"
+    project_name = "test-monitoring-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5407-1"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -266,10 +266,10 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
-    project_name = "test-monitoring-rec-5407-1"
+    project_name = "test-monitoring-record-results"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "jonathandaniel503/mlrun:ml-5407-1"
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:

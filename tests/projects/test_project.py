@@ -1655,7 +1655,7 @@ def test_list_api_gateways(patched_list_api_gateways, context):
     assert gateways[1].generate_invoke_url() == "test-basic-default.domain.com/"
     assert gateways[1]._generate_auth("test", "test") == "Basic dGVzdDp0ZXN0"
 
-    
+
 def test_project_create_remote():
     # test calling create_remote without git_init=True on project creation
 

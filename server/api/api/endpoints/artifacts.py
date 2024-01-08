@@ -232,10 +232,10 @@ async def list_artifacts(
         format_=format_,
     )
 
-    # in earlier versions, producer_id and tag got confused with each other,
-    # so we combine the results with the given tag as the producer_id
-    if tag:
-        artifacts_with_producer_tag = await run_in_threadpool(
+    if not artifacts and tag:
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we search for results with the given tag as the producer_id
+        artifacts = await run_in_threadpool(
             server.api.crud.Artifacts().list_artifacts,
             db_session,
             project,
@@ -249,7 +249,6 @@ async def list_artifacts(
             format_=format_,
             producer_id=tag,
         )
-        artifacts.extend(artifacts_with_producer_tag)
 
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,

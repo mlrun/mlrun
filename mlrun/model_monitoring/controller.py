@@ -25,6 +25,7 @@ import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.data_types.infer
 import mlrun.feature_store as fstore
+from mlrun.common.model_monitoring.helpers import FeatureStats, pad_features_hist
 from mlrun.datastore import get_stream_pusher
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.model_monitoring.batch import calculate_inputs_statistics
@@ -452,6 +453,10 @@ class MonitoringApplicationController:
                         endpoint[mm_constants.EventFieldType.FEATURE_STATS]
                     )
 
+                    # Pad the original feature stats to accommodate current
+                    # data out of the original range (unless already padded)
+                    pad_features_hist(FeatureStats(feature_stats))
+
                     # Get the current stats:
                     current_stats = calculate_inputs_statistics(
                         sample_set_statistics=feature_stats,
@@ -484,10 +489,11 @@ class MonitoringApplicationController:
         :param endpoints: A list of dictionaries of model endpoints records.
         """
         if self.parquet_directory.startswith("v3io:///"):
-            target = mlrun.datastore.targets.BaseStoreTarget(
-                path=self.parquet_directory
+            # create fs with access to the user side (under projects)
+            store, _ = mlrun.store_manager.get_or_create_store(
+                self.parquet_directory,
+                {"V3IO_ACCESS_KEY": self.model_monitoring_access_key},
             )
-            store, _ = target._get_store_and_path()
             fs = store.get_filesystem()
 
             # calculate time threshold (keep only files from the last 24 hours)
@@ -615,9 +621,6 @@ class MonitoringApplicationController:
             target=ParquetTarget(
                 path=parquet_directory
                 + f"/key={endpoint_id}/{start_infer_time.strftime('%s')}/{application_name}.parquet",
-                partition_cols=[
-                    mm_constants.EventFieldType.ENDPOINT_ID,
-                ],
                 storage_options=storage_options,
             ),
         )

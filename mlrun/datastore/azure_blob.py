@@ -14,7 +14,9 @@
 
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
+from azure.storage.blob._shared.base_client import parse_connection_str
 from fsspec.registry import get_filesystem_class
 
 import mlrun.errors
@@ -75,8 +77,12 @@ class AzureBlobStore(DataStore):
 
     def _convert_key_to_remote_path(self, key):
         key = key.strip("/")
-        path = Path(self.endpoint, key).as_posix()
-        return path
+        schema = urlparse(key).scheme
+        #  if called without passing dataitem - like in fset.purge_targets,
+        #  key will include schema.
+        if not schema:
+            key = Path(self.endpoint, key).as_posix()
+        return key
 
     def upload(self, key, src_path):
         remote_path = self._convert_key_to_remote_path(key)
@@ -130,3 +136,70 @@ class AzureBlobStore(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         path = self._convert_key_to_remote_path(key=path)
         super().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+    def get_spark_options(self):
+        res = {}
+        st = self.get_storage_options()
+        service = "blob"
+        primary_url = None
+        if st.get("connection_string"):
+            primary_url, _, parsed_credential = parse_connection_str(
+                st.get("connection_string"), credential=None, service=service
+            )
+            for key in ["account_name", "account_key"]:
+                parsed_value = parsed_credential.get(key)
+                if parsed_value:
+                    if st[key] and st[key] != parsed_value:
+                        if key == "account_name":
+                            raise mlrun.errors.MLRunInvalidArgumentError(
+                                f"Storage option for '{key}' is '{st[key]}',\
+                                    which does not match corresponding connection string '{parsed_value}'"
+                            )
+                        else:
+                            raise mlrun.errors.MLRunInvalidArgumentError(
+                                f"'{key}' from storage options does not match corresponding connection string"
+                            )
+                    st[key] = parsed_value
+
+        account_name = st.get("account_name")
+        if not account_name:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Property 'account_name' is absent both in storage settings and connection string"
+            )
+        if primary_url:
+            if primary_url.startswith("http://"):
+                primary_url = primary_url[len("http://") :]
+            if primary_url.startswith("https://"):
+                primary_url = primary_url[len("https://") :]
+            host = primary_url
+        else:
+            host = f"{account_name}.{service}.core.windows.net"
+        if "account_key" in st:
+            res[f"spark.hadoop.fs.azure.account.key.{host}"] = st["account_key"]
+
+        if "client_secret" in st or "client_id" in st or "tenant_id" in st:
+            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "OAuth"
+            res[
+                f"spark.hadoop.fs.azure.account.oauth.provider.type.{host}"
+            ] = "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+            if "client_id" in st:
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.id.{host}"] = st[
+                    "client_id"
+                ]
+            if "client_secret" in st:
+                res[f"spark.hadoop.fs.azure.account.oauth2.client.secret.{host}"] = st[
+                    "client_secret"
+                ]
+            if "tenant_id" in st:
+                tenant_id = st["tenant_id"]
+                res[
+                    f"spark.hadoop.fs.azure.account.oauth2.client.endpoint.{host}"
+                ] = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+
+        if "sas_token" in st:
+            res[f"spark.hadoop.fs.azure.account.auth.type.{host}"] = "SAS"
+            res[
+                f"spark.hadoop.fs.azure.sas.token.provider.type.{host}"
+            ] = "org.apache.hadoop.fs.azurebfs.sas.FixedSASTokenProvider"
+            res[f"spark.hadoop.fs.azure.sas.fixed.token.{host}"] = st["sas_token"]
+        return res

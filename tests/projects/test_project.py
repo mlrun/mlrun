@@ -86,6 +86,20 @@ def test_sync_functions_with_names_different_than_default(rundb_mock):
     assert project.spec._function_definitions == project_function_definition
 
 
+def test_sync_functions_unavailable_file():
+    project_name = "project-name"
+    project = mlrun.new_project(project_name, save=False)
+    project.spec._function_definitions["non-existing-function"] = {
+        "handler": "func",
+        "image": "mlrun/mlrun",
+        "kind": "job",
+        "name": "func",
+        "url": "func.py",
+    }
+    with pytest.raises(mlrun.errors.MLRunMissingDependencyError):
+        project.sync_functions()
+
+
 def test_export_project_dir_doesnt_exist():
     project_name = "project-name"
     project_file_path = (
@@ -1471,3 +1485,20 @@ def test_load_project_from_yaml_with_function(context):
             )
             == {}
         )
+
+
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]

@@ -35,13 +35,6 @@ from server.api.api.utils import (
 router = APIRouter()
 
 
-# TODO: remove /artifact/{project}/{uid}/{key:path} in 1.6.0
-@router.post(
-    "/artifact/{project}/{uid}/{key:path}",
-    deprecated=True,
-    description="/artifact/{project}/{uid}/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{uid}/{key:path} instead",
-)
 @router.post("/projects/{project}/artifacts/{uid}/{key:path}")
 async def store_artifact(
     request: Request,
@@ -130,13 +123,6 @@ async def list_artifact_tags(
     }
 
 
-# TODO: remove /projects/{project}/artifact/{key:path} in 1.6.0
-@router.get(
-    "/projects/{project}/artifact/{key:path}",
-    deprecated=True,
-    description="/projects/{project}/artifact/{key:path} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{key:path} instead",
-)
 @router.get("/projects/{project}/artifacts/{key:path}")
 async def get_artifact(
     project: str,
@@ -188,13 +174,6 @@ async def get_artifact(
     }
 
 
-# TODO: remove /artifact/{project}/{uid} in 1.6.0
-@router.delete(
-    "/artifact/{project}/{uid}",
-    deprecated=True,
-    description="/artifact/{project}/{uid} is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts/{uid} instead",
-)
 @router.delete("/projects/{project}/artifacts/{uid}")
 async def delete_artifact(
     project: str,
@@ -217,13 +196,6 @@ async def delete_artifact(
     return {}
 
 
-# TODO: remove /artifacts in 1.6.0
-@router.get(
-    "/artifacts",
-    deprecated=True,
-    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts instead",
-)
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
     project: str = None,
@@ -260,6 +232,24 @@ async def list_artifacts(
         format_=format_,
     )
 
+    if not artifacts and tag:
+        # in earlier versions, producer_id and tag got confused with each other,
+        # so we search for results with the given tag as the producer_id
+        artifacts = await run_in_threadpool(
+            server.api.crud.Artifacts().list_artifacts,
+            db_session,
+            project,
+            name,
+            "",
+            labels,
+            kind=kind,
+            category=category,
+            iter=iter,
+            best_iteration=best_iteration,
+            format_=format_,
+            producer_id=tag,
+        )
+
     artifacts = await server.api.utils.auth.verifier.AuthVerifier().filter_project_resources_by_permissions(
         mlrun.common.schemas.AuthorizationResourceTypes.artifact,
         artifacts,
@@ -269,31 +259,6 @@ async def list_artifacts(
     return {
         "artifacts": artifacts,
     }
-
-
-# TODO: remove /artifacts in 1.6.0
-@router.delete(
-    "/artifacts",
-    deprecated=True,
-    description="/artifacts is deprecated in 1.4.0 and will be removed in 1.6.0, "
-    "use /projects/{project}/artifacts instead",
-)
-async def delete_artifacts_legacy(
-    project: str = mlrun.mlconf.default_project,
-    name: str = "",
-    tag: str = "",
-    labels: List[str] = Query([], alias="label"),
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
-    db_session: Session = Depends(deps.get_db_session),
-):
-    return await _delete_artifacts(
-        project=project,
-        name=name,
-        tag=tag,
-        labels=labels,
-        auth_info=auth_info,
-        db_session=db_session,
-    )
 
 
 @router.delete("/projects/{project}/artifacts")

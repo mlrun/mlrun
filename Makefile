@@ -342,7 +342,7 @@ pull-log-collector:
 
 
 .PHONY: compile-schemas
-compile-schemas: ## Compile schemas
+compile-schemas: ## Compile schemas over docker
 ifdef MLRUN_SKIP_COMPILE_SCHEMAS
 	@echo "Skipping compile schemas"
 else
@@ -416,7 +416,7 @@ build-test-system: compile-schemas update-version-file ## Build system tests doc
 
 .PHONY: package-wheel
 package-wheel: clean update-version-file ## Build python package wheel
-	python setup.py bdist_wheel
+	python -m build --wheel
 
 .PHONY: publish-package
 publish-package: package-wheel ## Publish python package wheel
@@ -428,10 +428,8 @@ test-publish: package-wheel ## Test python package publishing
 
 .PHONY: clean
 clean: ## Clean python package build artifacts
-	rm -rf build
-	rm -rf dist
-	rm -rf mlrun.egg-info
-	find . -name '*.pyc' -exec rm {} \;
+	rm -rf build dist mlrun.egg-info
+	find . -name '*.pyc' -not -path "./venv" -exec rm {} \;
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container

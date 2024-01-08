@@ -358,7 +358,7 @@ class BaseRuntime(ModelObj):
                         * A dictionary of configurations to use when logging. Further info per object type and artifact
                           type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
         :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the
-                pod's status. The threshold should be a time string that conforms to timelength python package
+                k8s resource's status. The threshold should be a time string that conforms to timelength python package
                 standards and is at least 1 minute (-1 for infinite).
                 If the phase is active for longer than the threshold, the run will be aborted.
                 See mlconf.function.spec.state_thresholds for the state options and default values.
@@ -575,7 +575,7 @@ class BaseRuntime(ModelObj):
 
     def _force_handler(self, handler):
         if not handler:
-            raise RunError(f"handler must be provided for {self.kind} runtime")
+            raise RunError(f"Handler must be provided for {self.kind} runtime")
 
     def _has_pipeline_param(self) -> bool:
         # check if the runtime has pipeline parameters
@@ -612,7 +612,7 @@ class BaseRuntime(ModelObj):
         namespace_domain = environ.get("IGZ_NAMESPACE_DOMAIN", None)
         if namespace_domain is not None:
             return f"docker-registry.{namespace_domain}:80/{image[1:]}"
-        raise RunError("local container registry is not defined")
+        raise RunError("Local container registry is not defined")
 
     def as_step(
         self,

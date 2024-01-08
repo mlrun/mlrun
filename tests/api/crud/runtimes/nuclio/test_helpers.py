@@ -84,9 +84,9 @@ def test_resolve_work_dir_and_handler(handler, expected):
     [
         ("1.3.0", "3.9.16", "python:3.9"),
         ("1.3.0", "3.7.16", "python:3.7"),
-        (None, None, "python:3.7"),
-        (None, "3.9.16", "python:3.7"),
-        ("1.3.0", None, "python:3.7"),
+        (None, None, mlrun.mlconf.default_nuclio_runtime),
+        (None, "3.9.16", mlrun.mlconf.default_nuclio_runtime),
+        ("1.3.0", None, mlrun.mlconf.default_nuclio_runtime),
         ("0.0.0-unstable", "3.9.16", "python:3.9"),
         ("0.0.0-unstable", "3.7.16", "python:3.7"),
         ("1.2.0", "3.9.16", "python:3.7"),

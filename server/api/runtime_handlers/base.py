@@ -49,7 +49,6 @@ class BaseRuntimeHandler(ABC):
     kind = "base"
     class_modes: Dict[RuntimeClassMode, str] = {}
     wait_for_deletion_interval = 10
-    pod_grace_period_seconds = 0
 
     @abstractmethod
     def run(
@@ -827,13 +826,26 @@ class BaseRuntimeHandler(ABC):
                 timeout=timeout,
                 interval=self.wait_for_deletion_interval,
             )
-            mlrun.utils.retry_until_successful(
-                self.wait_for_deletion_interval,
-                timeout,
-                logger,
-                True,
-                _verify_pods_removed,
-            )
+            try:
+                mlrun.utils.retry_until_successful(
+                    self.wait_for_deletion_interval,
+                    timeout,
+                    logger,
+                    True,
+                    _verify_pods_removed,
+                )
+            except mlrun.errors.MLRunRetryExhaustedError as exc:
+                logger.warning(
+                    "Failed waiting for pods deletion, force deleting pods",
+                    exc=err_to_str(exc),
+                )
+                for deleted_pod_name in deleted_pod_names:
+                    # Deleting pods in specific states with non 0 grace period can cause the pods to be stuck in
+                    # terminating state, so we're forcing deletion after the grace period passed in this case.
+                    server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
+                        deleted_pod_name, namespace, grace_period_seconds=0
+                    )
+
             logger.debug(
                 "Successfully waited for pods deletion",
                 timeout=timeout,
@@ -961,7 +973,7 @@ class BaseRuntimeHandler(ABC):
                         )
 
                 server.api.utils.singletons.k8s.get_k8s_helper().delete_pod(
-                    pod.metadata.name, namespace, self.pod_grace_period_seconds
+                    pod.metadata.name, namespace
                 )
                 deleted_pods.append(pod_dict)
             except Exception as exc:
@@ -1006,6 +1018,14 @@ class BaseRuntimeHandler(ABC):
                         last_update,
                         desired_run_state,
                     ) = self._resolve_crd_object_status_info(crd_object)
+
+                    if not desired_run_state and not force:
+                        logger.warning(
+                            "Could not resolve run state from CRD object. Skipping deletion",
+                            crd_object_name=crd_object["metadata"]["name"],
+                        )
+                        continue
+
                     if not force:
                         if not in_terminal_state:
                             continue
@@ -1213,7 +1233,7 @@ class BaseRuntimeHandler(ABC):
         )
 
         # If threshold exceeded, an abort run job will be triggered.
-        if threshold_exceeded:
+        if threshold_exceeded or not run_state:
             return
 
         _, updated_run_state, run = self._ensure_run_state(
@@ -1250,7 +1270,7 @@ class BaseRuntimeHandler(ABC):
                 _,
                 run_state,
             ) = self._resolve_crd_object_status_info(runtime_resource)
-            if in_terminal_state:
+            if in_terminal_state or not run_state:
                 return run_state, False
 
             run_state_thresholds = run.get("spec", {}).get("state_thresholds", {})
@@ -1319,7 +1339,7 @@ class BaseRuntimeHandler(ABC):
 
         # Threshold exceeded, add run to stale runs list
         logger.warning(
-            "Runtime resource exceeded state threshold. Run will be aborted.",
+            "Runtime resource exceeded state threshold. Run will be aborted",
             runtime_resource_name=pod["metadata"]["name"],
             run_state=run_state,
             pod_phase=pod_phase,
@@ -1530,8 +1550,8 @@ class BaseRuntimeHandler(ABC):
         )
         db_run_state = run.get("status", {}).get("state")
         if db_run_state:
-            if db_run_state == run_state:
-                return False, run_state, run
+            if not run_state or db_run_state == run_state:
+                return False, db_run_state, run
 
             if db_run_state == RunStates.aborting:
                 logger.debug(

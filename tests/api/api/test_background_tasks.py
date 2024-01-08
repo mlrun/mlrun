@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import asyncio
 import datetime
 import http
 import typing
 import unittest.mock
+from concurrent.futures import ThreadPoolExecutor
 
 import fastapi
 import fastapi.testclient
+import httpx
 import pytest
 import requests
 import sqlalchemy.orm
@@ -28,6 +31,7 @@ import server.api.api.deps
 import server.api.utils.auth.verifier
 import server.api.utils.background_tasks
 import server.api.utils.clients.chief
+from mlrun.utils import logger
 from server.api import main
 
 test_router = fastapi.APIRouter()
@@ -68,7 +72,27 @@ def create_internal_background_task(
         function = failing_function
     return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
         background_tasks,
+        "bump_counter",
         function,
+    )
+
+
+@test_router.post(
+    "/long-internal-background-tasks/{timeout}",
+    response_model=mlrun.common.schemas.BackgroundTask,
+)
+def create_long_internal_background_task(
+    background_tasks: fastapi.BackgroundTasks,
+    timeout: int = 5,
+):
+    async def _long_function():
+        await asyncio.sleep(timeout)
+        await bump_counter()
+
+    return server.api.utils.background_tasks.InternalBackgroundTasksHandler().create_background_task(
+        background_tasks,
+        "long_bump_counter",
+        _long_function,
     )
 
 
@@ -89,6 +113,34 @@ def failing_function():
 def client() -> typing.Generator:
     main.app.include_router(test_router, prefix="/test")
     with fastapi.testclient.TestClient(main.app) as client:
+        yield client
+
+
+class ThreadedAsyncClient(httpx.AsyncClient):
+    async def post(self, *args, **kwargs):
+        thread_pool_executor = ThreadPoolExecutor(1)
+        async_event_loop = asyncio.new_event_loop()
+        thread_pool_executor.submit(asyncio.set_event_loop, async_event_loop).result()
+        future = thread_pool_executor.submit(
+            async_event_loop.run_until_complete, super().post(*args, **kwargs)
+        )
+        # release the current event loop to let the other thread kick in
+        await asyncio.sleep(1)
+        return future
+
+
+@pytest.fixture
+async def async_client() -> typing.Generator:
+    """
+    Async client that runs in a separate thread.
+    When posting with the client, the request is sent on a different thread, and the the method returns a future.
+    To get the response, call result() on the future.
+    Example:
+        result = await async_client.post(...)
+        response = result.result()
+    """
+    main.app.include_router(test_router, prefix="/test")
+    async with ThreadedAsyncClient(app=main.app, base_url="https://mlrun") as client:
         yield client
 
 
@@ -292,6 +344,42 @@ def test_get_internal_background_task_in_chief_exists(
         f"{ORIGINAL_VERSIONED_API_PREFIX}/background-tasks/{background_task.metadata.name}"
     )
     assert response.status_code == http.HTTPStatus.OK.value
+
+
+@pytest.mark.asyncio
+async def test_internal_background_task_already_running(
+    db: sqlalchemy.orm.Session, async_client: httpx.AsyncClient
+):
+    timeout = 1
+    curr_call_counter = call_counter
+
+    # if we await the first future before sending the second request, the second request will be sent after the whole
+    # background task is finished because of how httpx.AsyncClient works. To avoid this, we send both requests and
+    # await them together. This way, the second request will be sent before the first background task is finished and
+    # will be rejected.
+    first_future = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
+    second_future = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
+    first_response = first_future.result()
+    second_response = second_future.result()
+    assert first_response.status_code == http.HTTPStatus.OK.value
+    assert second_response.status_code == http.HTTPStatus.CONFLICT.value
+
+    while curr_call_counter == call_counter:
+        logger.info("Waiting for background task to finish")
+        await asyncio.sleep(1)
+
+    third_future = await async_client.post(
+        f"/test/long-internal-background-tasks/{timeout}"
+    )
+    third_response = third_future.result()
+    assert third_response.status_code == http.HTTPStatus.OK.value
+    while curr_call_counter == call_counter + 1:
+        logger.info("Waiting for background task to finish")
+        await asyncio.sleep(1)
 
 
 def test_trigger_migrations_from_worker_returns_same_response_as_chief(

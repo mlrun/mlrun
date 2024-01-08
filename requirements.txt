@@ -10,9 +10,8 @@ click~=8.1
 kfp~=1.8
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.9.13
-# >=1.16.5 from pandas 1.2.1 and <1.23.0 from storey
-numpy>=1.16.5, <1.23.0
+nuclio-jupyter~=0.9.14
+numpy>=1.16.5, <1.27.0
 pandas>=1.2, <3
 # used as a the engine for parquet files by pandas
 # >=10 to resolve https://issues.apache.org/jira/browse/ARROW-16838 bug that is triggered by ingest (ML-3299)
@@ -33,7 +32,7 @@ dependency-injector~=4.41
 # should be identical to gcs and s3fs.
 fsspec==2023.9.2
 v3iofs~=0.1.17
-storey~=1.6.12
+storey~=1.6.15
 inflection~=0.5.0
 python-dotenv~=0.17.0
 # older version of setuptools contains vulnerabilities, see `GHSA-r9hx-vwmv-q579`, so we limit to 65.5 and above

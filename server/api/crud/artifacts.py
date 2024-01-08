@@ -13,10 +13,8 @@
 # limitations under the License.
 #
 import typing
-from http import HTTPStatus
 
 import sqlalchemy.orm
-from fastapi import HTTPException
 
 import mlrun.common.schemas
 import mlrun.common.schemas.artifact
@@ -24,6 +22,7 @@ import mlrun.config
 import mlrun.errors
 import mlrun.utils.singleton
 import server.api.utils.singletons.db
+from mlrun.errors import err_to_str
 from mlrun.utils import logger
 
 
@@ -77,12 +76,12 @@ class Artifacts(
                         auth_info, path=path
                     )
                     artifact["spec"]["size"] = file_stat["size"]
-                except HTTPException as exc:
-                    if (
-                        exc.status_code == HTTPStatus.NOT_FOUND.value
-                    ):  # if the path was not found the size will be N/A
-                        logger.debug("Path was not found", path=path)
-                        pass
+                except Exception as err:
+                    logger.debug(
+                        "Failed calculating artifact size",
+                        path=path,
+                        err=err_to_str(err),
+                    )
 
     def create_artifact(
         self,

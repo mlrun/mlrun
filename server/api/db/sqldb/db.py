@@ -313,18 +313,18 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
-        name=None,
-        uid: typing.Optional[typing.Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        name: typing.Optional[str] = None,
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        states: typing.Optional[typing.List[str]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -490,17 +490,13 @@ class SQLDB(DBInterface):
 
         original_uid = uid
 
-        # record with the given tag/uid
-        existing_artifact = self._get_existing_artifact(
-            session, project, key, uid, producer_id=producer_id, iteration=iter
-        )
-
         if isinstance(artifact, dict):
             artifact_dict = artifact
         else:
             artifact_dict = artifact.to_dict()
 
-        if not artifact_dict.get("metadata", {}).get("key"):
+        metadata_key = artifact_dict.get("metadata", {}).get("key")
+        if not metadata_key or metadata_key != key:
             artifact_dict.setdefault("metadata", {})["key"] = key
         if not artifact_dict.get("metadata", {}).get("project"):
             artifact_dict.setdefault("metadata", {})["project"] = project
@@ -517,6 +513,11 @@ class SQLDB(DBInterface):
         # for easier querying, we mark artifacts without iteration as best iteration
         if not best_iteration and (iter is None or iter == 0):
             best_iteration = True
+
+        # try to get an existing artifact with the same calculated uid
+        existing_artifact = self._get_existing_artifact(
+            session, project, key, uid, producer_id=producer_id, iteration=iter
+        )
 
         # if the object is not new, we need to check if we need to update it or create a new one
         if existing_artifact:
@@ -537,13 +538,7 @@ class SQLDB(DBInterface):
                 )
                 self._upsert(session, [db_artifact])
                 if tag:
-                    self.tag_objects_v2(
-                        session,
-                        [db_artifact],
-                        project,
-                        tag,
-                        obj_name_attribute="key",
-                    )
+                    self.tag_artifacts(session, tag, [db_artifact], project)
                 return uid
             logger.debug(
                 "A similar artifact exists, but some values have changed - creating a new artifact",
@@ -552,13 +547,6 @@ class SQLDB(DBInterface):
                 iteration=iter,
                 producer_id=producer_id,
             )
-
-        # Object with the given tag/uid doesn't exist
-        # Check if this is a re-tag of existing object - search by the resolved uid only
-        if self._re_tag_existing_object(
-            session, ArtifactV2, project, key, tag, uid, obj_name_attribute="key"
-        ):
-            return uid
 
         return self.create_artifact(
             session,
@@ -613,15 +601,16 @@ class SQLDB(DBInterface):
         self._upsert(session, [db_artifact])
         if tag:
             validate_tag_name(tag, "artifact.metadata.tag")
-            self.tag_objects_v2(
-                session, [db_artifact], project, tag, obj_name_attribute="key"
+            self.tag_artifacts(
+                session,
+                tag,
+                [db_artifact],
+                project,
             )
 
         # we want to tag the artifact also as "latest" if it's the first time we store it
         if tag != "latest":
-            self.tag_objects_v2(
-                session, [db_artifact], project, "latest", obj_name_attribute="key"
-            )
+            self.tag_artifacts(session, "latest", [db_artifact], project)
 
         return uid
 
@@ -646,7 +635,7 @@ class SQLDB(DBInterface):
 
         if best_iteration and iter is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "best-iteration cannot be used when iter is specified"
+                "Best iteration cannot be used when iter is specified"
             )
 
         artifact_records = self._find_artifacts(
@@ -858,9 +847,7 @@ class SQLDB(DBInterface):
         self._delete_artifacts_tags(session, project, artifacts, commit=False)
 
         # tag artifacts with tag
-        self.tag_objects_v2(
-            session, artifacts, project, name=tag, obj_name_attribute="key"
-        )
+        self.tag_artifacts(session, tag, artifacts, project)
 
     @retry_on_conflict
     def append_tag_to_artifacts(
@@ -878,7 +865,7 @@ class SQLDB(DBInterface):
                 project_name=project,
                 identifier=identifier,
             )
-        self.tag_objects_v2(session, artifacts, project, tag, obj_name_attribute="key")
+        self.tag_artifacts(session, tag, artifacts, project)
 
     def delete_tag_from_artifacts(
         self,
@@ -896,6 +883,71 @@ class SQLDB(DBInterface):
                 identifier=identifier,
             )
         self._delete_artifacts_tags(session, project, artifacts, tags=[tag])
+
+    def tag_artifacts(
+        self,
+        session,
+        tag_name: str,
+        artifacts,
+        project: str,
+    ):
+        objects = []
+        for artifact in artifacts:
+            # remove the tags that point to artifacts with the same key
+            # and a different producer id
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id != artifact.producer_id,
+                )
+            )
+
+            # delete the tags
+            for old_tag in query.all():
+                objects.append(old_tag)
+                session.delete(old_tag)
+
+            # search for an existing tag with the same name, producer id, and iteration
+            query = (
+                self._query(
+                    session,
+                    artifact.Tag,
+                    name=tag_name,
+                    project=project,
+                    obj_name=artifact.key,
+                )
+                .join(
+                    ArtifactV2,
+                )
+                .filter(
+                    ArtifactV2.producer_id == artifact.producer_id,
+                    ArtifactV2.iteration == artifact.iteration,
+                )
+            )
+
+            tag = query.one_or_none()
+            if not tag:
+                # create the new tag
+                tag = artifact.Tag(
+                    project=project,
+                    name=tag_name,
+                    obj_name=artifact.key,
+                )
+            tag.obj_id = artifact.id
+
+            objects.append(tag)
+            session.add(tag)
+
+        self._commit(session, objects)
 
     def _mark_best_iteration_artifact(
         self,
@@ -951,6 +1003,8 @@ class SQLDB(DBInterface):
 
         self._upsert(session, artifacts_to_commit)
 
+        return artifact_record.uid
+
     def _update_artifact_record_from_dict(
         self,
         artifact_record,
@@ -970,13 +1024,16 @@ class SQLDB(DBInterface):
         )
         updated_datetime = datetime.now(timezone.utc)
         artifact_record.updated = updated_datetime
-        if not artifact_record.created:
-            created = artifact_dict["metadata"].pop("created", None)
-            artifact_record.created = (
-                datetime.strptime(created, "%Y-%m-%d %H:%M:%S.%f%z")
-                if created
-                else datetime.now(timezone.utc)
-            )
+        created = (
+            str(artifact_record.created)
+            if artifact_record.created
+            else artifact_dict["metadata"].pop("created", None)
+        )
+        # make sure we have a datetime object with timezone both in the artifact record and in the artifact dict
+        created_datetime = mlrun.utils.enrich_datetime_with_tz_info(
+            created
+        ) or datetime.now(timezone.utc)
+        artifact_record.created = created_datetime
 
         # if iteration is not given, we assume it is a single iteration artifact, and thus we set the iteration to 0
         artifact_record.iteration = iter or 0
@@ -986,7 +1043,7 @@ class SQLDB(DBInterface):
         artifact_record.uid = uid
 
         artifact_dict["metadata"]["updated"] = str(updated_datetime)
-        artifact_dict["metadata"]["created"] = str(artifact_record.created)
+        artifact_dict["metadata"]["created"] = str(created_datetime)
         artifact_dict["kind"] = kind
 
         db_key = artifact_dict.get("spec", {}).get("db_key")

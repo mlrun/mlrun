@@ -70,10 +70,10 @@ class TestDB(TestMLRunSystem):
         db_artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
         expected_artifact_keys = sorted(
             [
-                f"{task.metadata.name}_plotly",
-                f"{task.metadata.name}_html_result",
-                f"{task.metadata.name}_model",
-                f"{task.metadata.name}_mydf",
+                "plotly",
+                "html_result",
+                "model",
+                "mydf",
             ]
         )
         assert sorted(db_artifact_keys) == expected_artifact_keys

@@ -280,7 +280,7 @@ feature_set = fstore.FeatureSet("fs-new",
                                 )
 # Adding multiply step, with specific parameters
 feature_set.graph.to(MultiplyFeature(feature="number1", value=4))
-df_pandas = fstore.ingest(feature_set, data)
+df_pandas = feature_set.ingest(data)
 ```
 
 

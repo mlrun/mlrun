@@ -59,11 +59,11 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_runs(
         self,
-        name: str = "",
+        name: Optional[str] = None,
         uid: Optional[Union[str, List[str]]] = None,
-        project: str = "",
+        project: Optional[str] = None,
         labels: Optional[Union[str, List[str]]] = None,
-        state: str = "",
+        state: Optional[str] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

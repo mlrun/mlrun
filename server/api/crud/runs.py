@@ -121,7 +121,7 @@ class Runs(
     def list_runs(
         self,
         db_session: sqlalchemy.orm.Session,
-        name: str = "",
+        name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,

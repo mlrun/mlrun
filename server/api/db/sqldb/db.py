@@ -313,11 +313,11 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
-        name: str = "",
+        name: typing.Optional[str] = None,
         uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
         project: str = "",
         labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
-        states: typing.Optional[typing.List[str]] = "",
+        states: typing.Optional[typing.List[str]] = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,

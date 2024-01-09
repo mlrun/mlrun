@@ -72,7 +72,12 @@ def test_add_code_metadata_stale_remote(repo):
     "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
     [
         ({}, None, {"owner": "v3io_user", "v3io_user": "v3io_user"}, None),
-        ({}, {}, {"owner": "test_user"}, {"LOGNAME": "test_user"}),
+        (
+            {},
+            {},
+            {"owner": os.environ.get("LOGNAME")},
+            {"LOGNAME": os.environ.get("LOGNAME")},
+        ),
         (
             {"owner": "Mahatma"},
             {},
@@ -104,10 +109,6 @@ def test_enrich_run_labels(labels, labels_to_enrich, expected_labels, env_vars_t
         enriched_labels = mlrun.runtimes.utils.enrich_run_labels(
             labels, labels_to_enrich
         )
-        print()
-        print("Enriched labels:", enriched_labels)
-        print("Expected labels:", expected_labels)
-        print("OS env vars:", os.environ.get("USER"), os.environ.get("V3IO_USERNAME"))
         assert (
             deepdiff.DeepDiff(
                 enriched_labels,

@@ -1262,6 +1262,35 @@ class TestArtifacts:
             assert artifacts[0]["metadata"]["project"] == project
             assert artifacts[0]["metadata"]["uid"] != artifact_uid
 
+    def test_update_model_spec(self, db: DBInterface, db_session: Session):
+        artifact_key = "model1"
+
+        # create a model
+        model_body = self._generate_artifact(artifact_key, kind="model")
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update the model with spec that should be ignored in UID calc
+        model_body["spec"]["parameters"] = {"p1": 5}
+        model_body["spec"]["outputs"] = {"o1": 6}
+        model_body["spec"]["metrics"] = {"l1": "a"}
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_key
+
+        # update spec that should not be ignored
+        model_body["spec"]["model_file"] = "some/path"
+        db.store_artifact(db_session, artifact_key, model_body)
+        artifacts = db.list_artifacts(db_session)
+        assert len(artifacts) == 2
+        for model in artifacts:
+            assert model["metadata"]["key"] == artifact_key
+
+        assert artifacts[1]["spec"]["model_file"] == "some/path"
+
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""
     ):

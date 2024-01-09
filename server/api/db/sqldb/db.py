@@ -360,6 +360,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
             query = query.filter(Run.requested_logs == requested_logs)
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
+            query = query.join(Run.Notification)
         if partition_by:
             self._assert_partition_by_parameters(
                 mlrun.common.schemas.RunPartitionByField,
@@ -378,10 +381,6 @@ class SQLDB(DBInterface):
             )
         if not return_as_run_structs:
             return query.all()
-
-        # Purposefully not using outer join to avoid returning runs without notifications
-        if with_notifications:
-            query = query.join(Run.Notification)
 
         runs = RunList()
         for run in query:

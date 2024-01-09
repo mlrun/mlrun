@@ -1547,8 +1547,8 @@ def test_project_create_remote():
 @pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [
-        #        (None, None, "aaa/bbb", "ccc/ddd", None),
-        #        ("git://some/repo", False, None, ".some-image", None),
+        (None, None, "aaa/bbb", "ccc/ddd", ""),
+        ("git://some/repo", False, None, ".some-image", ""),
         (
             "git://some/other/repo",
             False,

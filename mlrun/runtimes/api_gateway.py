@@ -210,7 +210,7 @@ class APIGateway:
         if not 1 <= len(functions) <= 2:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Gateway can be created from one or two functions, "
-                f"but the number of functions is passed {len(functions)}"
+                f"the number of functions passed is {len(functions)}"
             )
 
         function_names = []

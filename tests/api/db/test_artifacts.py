@@ -307,7 +307,7 @@ class TestArtifacts:
 
         # ids are auto generated using this util function
         expected_uids = [
-            mlrun.utils.fill_artifact_object_hash(artifact_body)
+            mlrun.artifacts.base.fill_artifact_object_hash(artifact_body)
             for artifact_body in [artifact_1_body, artifact_2_body]
         ]
         uids = [artifact["metadata"]["uid"] for artifact in artifacts]

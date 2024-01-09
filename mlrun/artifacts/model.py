@@ -44,6 +44,12 @@ class ModelArtifactSpec(ArtifactSpec):
         "feature_stats",
         "model_target_file",
     ]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "metrics",
+        "feature_vector",
+        "feature_weights",
+        "feature_stats",
+    ]
 
     def __init__(
         self,

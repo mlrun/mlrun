@@ -34,12 +34,12 @@ import mlrun.errors
 import mlrun.model
 import server.api.db.session
 import server.api.utils.helpers
+from mlrun.artifacts.base import fill_artifact_object_hash
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, FunctionList, RunList
 from mlrun.model import RunObject
 from mlrun.utils import (
-    fill_artifact_object_hash,
     fill_function_hash,
     fill_object_hash,
     generate_artifact_uri,
@@ -525,6 +525,12 @@ class SQLDB(DBInterface):
                 self._should_update_artifact(existing_artifact, uid, iter)
                 or always_overwrite
             ):
+                logger.debug(
+                    "Updating an existing artifact",
+                    project=project,
+                    key=key,
+                    iteration=iter,
+                )
                 db_artifact = existing_artifact
                 self._update_artifact_record_from_dict(
                     db_artifact,

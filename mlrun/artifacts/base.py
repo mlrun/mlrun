@@ -1104,7 +1104,7 @@ def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
     if object_updated_timestamp:
         object_dict["metadata"]["updated"] = object_updated_timestamp
     for key, value in zip(spec_fields_to_exclude, spec_fields_to_exclude_values):
-        if value:
+        if value is not None:
             object_dict["spec"][key] = value
 
     return uid

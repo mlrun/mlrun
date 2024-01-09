@@ -46,6 +46,9 @@ class ModelArtifactSpec(ArtifactSpec):
     ]
     _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
         "metrics",
+        "parameters",
+        "inputs",
+        "outputs",
         "feature_vector",
         "feature_weights",
         "feature_stats",

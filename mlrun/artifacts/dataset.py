@@ -38,6 +38,10 @@ max_ddf_size = 1
 
 class TableArtifactSpec(ArtifactSpec):
     _dict_fields = ArtifactSpec._dict_fields + ["schema", "header"]
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+    ]
 
     def __init__(self):
         super().__init__()
@@ -114,6 +118,17 @@ class DatasetArtifactSpec(ArtifactSpec):
         "label_column",
     ]
 
+    _exclude_fields_from_uid_hash = ArtifactSpec._exclude_fields_from_uid_hash + [
+        "schema",
+        "header",
+        "length",
+        "column_metadata",
+        "features",
+        "partition_keys",
+        "timestamp_key",
+        "label_column",
+    ]
+
     def __init__(self):
         super().__init__()
         self.schema = None
@@ -150,7 +165,7 @@ class DatasetArtifact(Artifact):
         super().__init__(key, None, format=format, target_path=target_path)
         if format and format not in self.SUPPORTED_FORMATS:
             raise ValueError(
-                f"unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
+                f"Unsupported format {format} use one of {'|'.join(self.SUPPORTED_FORMATS)}"
             )
 
         if format == "pq":

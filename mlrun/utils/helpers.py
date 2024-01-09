@@ -965,35 +965,6 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     return uid
 
 
-def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
-    # remove artifact related fields before calculating hash
-    object_dict.setdefault("metadata", {})
-    labels = object_dict["metadata"].pop("labels", None)
-    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
-
-    # if the artifact is first created, it will not have a db_key, so we need to pop it from the spec
-    # so further updates of the artifacts will have the same hash
-    db_key = object_dict.get("spec", {}).pop("db_key", None)
-
-    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
-    if not object_dict["metadata"].get("key"):
-        raise ValueError("artifact key is not set")
-    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
-    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
-
-    # calc hash and fill
-    uid = fill_object_hash(object_dict, "uid")
-
-    # restore original values
-    if labels:
-        object_dict["metadata"]["labels"] = labels
-    if object_updated_timestamp:
-        object_dict["metadata"]["updated"] = object_updated_timestamp
-    if db_key:
-        object_dict.setdefault("spec", {})["db_key"] = db_key
-    return uid
-
-
 def fill_function_hash(function_dict, tag=""):
     return fill_object_hash(function_dict, "hash", tag)
 

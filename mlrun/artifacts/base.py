@@ -88,6 +88,12 @@ class ArtifactSpec(ModelObj):
     ]
 
     _extra_fields = ["annotations", "producer", "sources", "license", "encoding"]
+    _exclude_fields_from_uid_hash = [
+        # if the artifact is first created, it will not have a db_key,
+        # exclude it so further updates of the artifacts will have the same hash
+        "db_key",
+        "extra_data",
+    ]
 
     def __init__(
         self,
@@ -1066,3 +1072,39 @@ def convert_legacy_artifact_to_new_format(
     artifact.status = artifact.status.from_dict(legacy_artifact_dict)
 
     return artifact
+
+
+def fill_artifact_object_hash(object_dict, iteration=None, producer_id=None):
+    # remove artifact related fields before calculating hash
+    object_dict.setdefault("metadata", {})
+    labels = object_dict["metadata"].pop("labels", None)
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
+
+    artifact_cls = mlrun.artifacts.artifact_types.get(
+        object_dict.get("kind", "artifact"), Artifact
+    )()
+    spec_fields_to_exclude = artifact_cls.spec._exclude_fields_from_uid_hash
+    spec_fields_to_exclude_values = []
+    object_dict.setdefault("spec", {})
+    for field in spec_fields_to_exclude:
+        spec_fields_to_exclude_values.append(object_dict["spec"].pop(field, None))
+
+    # make sure we have a key, producer_id and iteration, as they determine the artifact uniqueness
+    if not object_dict["metadata"].get("key"):
+        raise ValueError("Artifact key is not set")
+    object_dict["metadata"]["iter"] = iteration or object_dict["metadata"].get("iter")
+    object_dict["metadata"]["tree"] = object_dict["metadata"].get("tree") or producer_id
+
+    # calc hash and fill
+    uid = mlrun.utils.helpers.fill_object_hash(object_dict, "uid")
+
+    # restore original values
+    if labels:
+        object_dict["metadata"]["labels"] = labels
+    if object_updated_timestamp:
+        object_dict["metadata"]["updated"] = object_updated_timestamp
+    for key, value in zip(spec_fields_to_exclude, spec_fields_to_exclude_values):
+        if value is not None:
+            object_dict["spec"][key] = value
+
+    return uid

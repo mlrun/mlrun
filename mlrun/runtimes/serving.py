@@ -482,6 +482,7 @@ class ServingRuntime(RemoteRuntime):
                     trigger_args["explicit_ack_mode"] = trigger_args.get(
                         "explicit_ack_mode", "explicitOnly"
                     )
+                    trigger_args["max_workers"] = trigger_args.get("max_workers", 4)
                     extra_attributes = trigger_args.get("extra_attributes", {})
                     trigger_args["extra_attributes"] = extra_attributes
                     extra_attributes["workerAllocationMode"] = extra_attributes.get(

@@ -1477,3 +1477,20 @@ def test_load_project_from_yaml_with_function(context):
             )
             == {}
         )
+
+
+def test_project_create_remote():
+    # test calling create_remote without git_init=True on project creation
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # create a project
+        project_name = "project-name"
+        project = mlrun.get_or_create_project(project_name, context=tmp_dir)
+
+        project.create_remote(
+            url="https://github.com/mlrun/some-git-repo.git",
+            name="mlrun-remote",
+        )
+
+        assert project.spec.repo is not None
+        assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]

@@ -2292,8 +2292,7 @@ class MlrunProject(ModelObj):
         :param name:   name for the remote (default is 'origin')
         :param branch: Git branch to use as source
         """
-        if not self.spec.repo:
-            raise ValueError("git repo is not set/defined")
+        self._ensure_git_repo()
         self.spec.repo.create_remote(name, url=url)
         url = url.replace("https://", "git://")
         if not branch:
@@ -2305,6 +2304,19 @@ class MlrunProject(ModelObj):
             url = f"{url}#{branch}"
         self.spec._source = self.spec.source or url
         self.spec.origin_url = self.spec.origin_url or url
+
+    def _ensure_git_repo(self):
+        if self.spec.repo:
+            return
+        context = self.context
+        git_dir_path = path.join(context, ".git")
+
+        if not path.exists(git_dir_path):
+            logger.warning("Git repository not initialized. initializing now")
+            self.spec.repo = git.Repo.init(context)
+        else:
+            # git already initialized
+            self.spec.repo = git.Repo(context)
 
     def push(
         self,
@@ -3192,6 +3204,7 @@ class MlrunProject(ModelObj):
         best_iteration: bool = False,
         kind: str = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        tree: str = None,
     ) -> mlrun.lists.ArtifactList:
         """List artifacts filtered by various parameters.
 
@@ -3220,6 +3233,7 @@ class MlrunProject(ModelObj):
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
         :param kind: Return artifacts of the requested kind.
         :param category: Return artifacts of the requested category.
+        :param tree: Return artifacts of the requested tree.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3233,6 +3247,7 @@ class MlrunProject(ModelObj):
             best_iteration=best_iteration,
             kind=kind,
             category=category,
+            tree=tree,
         )
 
     def list_models(
@@ -3244,6 +3259,7 @@ class MlrunProject(ModelObj):
         until=None,
         iter: int = None,
         best_iteration: bool = False,
+        tree: str = None,
     ):
         """List models in project, filtered by various parameters.
 
@@ -3266,6 +3282,7 @@ class MlrunProject(ModelObj):
         :param best_iteration: Returns the artifact which belongs to the best iteration of a given run, in the case of
             artifacts generated from a hyper-param run. If only a single iteration exists, will return the artifact
             from that iteration. If using ``best_iter``, the ``iter`` parameter must not be used.
+        :param tree: Return artifacts of the requested tree.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.list_artifacts(
@@ -3278,6 +3295,7 @@ class MlrunProject(ModelObj):
             iter=iter,
             best_iteration=best_iteration,
             kind="model",
+            tree=tree,
         ).to_objects()
 
     def list_functions(self, name=None, tag=None, labels=None):
@@ -3365,9 +3383,9 @@ class MlrunProject(ModelObj):
 
         :param name: Name of the run to retrieve.
         :param uid: Unique ID of the run.
-        :param project: Project that the runs belongs to.
-        :param labels: List runs that have specific labels assigned. a single or multi label filter can be
-            applied.
+        :param labels:  A list of labels to filter by. Label filters work by either filtering a specific value
+                of a label (i.e. list("key=value")) or by looking for the existence of a given
+                key (i.e. "key").
         :param state: List only runs whose state is specified.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).

@@ -169,6 +169,28 @@ class TestBatchInterval:
             )
 
     @staticmethod
+    @pytest.fixture
+    def expected_intervals() -> list[tuple[datetime.datetime, datetime.datetime]]:
+        def dt(hour, minute):
+            return datetime.datetime(
+                2021, 1, 1, hour, minute, tzinfo=datetime.timezone.utc
+            )
+
+        return [
+            (dt(12, 0), dt(12, 6)),
+            (dt(12, 6), dt(12, 12)),
+            (dt(12, 12), dt(12, 18)),
+            (dt(12, 18), dt(12, 24)),
+            (dt(12, 24), dt(12, 30)),
+            (dt(12, 30), dt(12, 36)),
+            (dt(12, 36), dt(12, 42)),
+            (dt(12, 42), dt(12, 48)),
+            (dt(12, 48), dt(12, 54)),
+            (dt(12, 54), dt(13, 0)),
+            # (dt(13, 0), dt(13, 6)),  # This window shouldn't be there
+        ]
+
+    @staticmethod
     def test_touching_intervals(
         intervals: list[tuple[datetime.datetime, datetime.datetime]],
     ) -> None:
@@ -177,6 +199,26 @@ class TestBatchInterval:
             assert prev[1] == curr[0], "The intervals should be touching"
 
     @staticmethod
+    @pytest.mark.xfail(reason="ML-5486")
+    def test_intervals(
+        intervals: list[tuple[datetime.datetime, datetime.datetime]],
+        expected_intervals: list[tuple[datetime.datetime, datetime.datetime]],
+    ) -> None:
+        assert len(intervals) == len(
+            expected_intervals
+        ), "The number of intervals is not as expected"
+        assert intervals == expected_intervals, "The intervals are not as expected"
+
+    @staticmethod
+    @pytest.mark.xfail(reason="ML-5486")
+    def test_last_interval_does_not_overflow(
+        intervals: list[tuple[datetime.datetime, datetime.datetime]],
+        last_updated: int,
+    ) -> None:
+        assert (
+            intervals[-1][1].timestamp() <= last_updated
+        ), "The last interval should be after last_updated"
+
     @pytest.mark.parametrize(
         "intervals",
         [

@@ -393,7 +393,7 @@ def handler(**kwargs):
             csv_artifact_name: csv_artifact_dbfs_path,
             "mlrun_return_value_4": generated_path_artifact_dbfs_path,
         }
-        #  CSV has been tested as a Spark path, and an illegal path was
+        #  CSV has been tested as another type of Spark path, and an illegal path was
         #  used for testing to avoid triggering an error in log_artifact.
         code = f"""\n
 def main():

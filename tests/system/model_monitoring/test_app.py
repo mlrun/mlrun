@@ -33,7 +33,7 @@ import mlrun
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
-from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
@@ -49,7 +49,7 @@ from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 @dataclass
 class _AppData:
-    class_: typing.Type[ModelMonitoringApplication]
+    class_: typing.Type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)

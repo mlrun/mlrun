@@ -14,6 +14,7 @@
 
 import dataclasses
 import json
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Tuple, Union
 
 import numpy as np
@@ -64,15 +65,15 @@ class ModelMonitoringApplicationResult:
         }
 
 
-class ModelMonitoringApplication(StepToDict):
+class ModelMonitoringApplicationBase(StepToDict, ABC):
     """
-    Class representing a model monitoring application. Subclass this to create custom monitoring logic.
+    A base class for a model monitoring application.
+    Inherit from this class to create a custom model monitoring application.
 
-    example for very simple costume application::
+    example for very simple custom application::
         # mlrun: start-code
-        class MyApp(ModelMonitoringApplication):
-
-            def run_application(
+        class MyApp(ApplicationBase):
+            def do_tracking(
                 self,
                 sample_df_stats: pd.DataFrame,
                 feature_stats: pd.DataFrame,
@@ -82,15 +83,14 @@ class ModelMonitoringApplication(StepToDict):
                 latest_request: pd.Timestamp,
                 endpoint_id: str,
                 output_stream_uri: str,
-            ) -> Union[ModelMonitoringApplicationResult, list[ModelMonitoringApplicationResult]
-            ]:
+            ) -> ModelMonitoringApplicationResult:
                 self.context.log_artifact(TableArtifact("sample_df_stats", df=sample_df_stats))
                 return ModelMonitoringApplicationResult(
                     name="data_drift_test",
                     value=0.5,
                     kind=mm_constant.ResultKindApp.data_drift,
-                    status = mm_constant.ResultStatusApp.detected,
-                    extra_data={})
+                    status=mm_constant.ResultStatusApp.detected,
+                )
 
         # mlrun: end-code
     """
@@ -104,21 +104,23 @@ class ModelMonitoringApplication(StepToDict):
         Process the monitoring event and return application results.
 
         :param event:   (dict) The monitoring event to process.
-        :returns:       (list[ModelMonitoringApplicationResult]) The application results.
+        :returns:       (list[ModelMonitoringApplicationResult], dict) The application results
+                        and the original event for the application.
         """
         resolved_event = self._resolve_event(event)
         if not (
             hasattr(self, "context") and isinstance(self.context, mlrun.MLClientCtx)
         ):
             self._lazy_init(app_name=resolved_event[0])
-        results = self.run_application(*resolved_event)
+        results = self.do_tracking(*resolved_event)
         results = results if isinstance(results, list) else [results]
         return results, event
 
     def _lazy_init(self, app_name: str):
         self.context = self._create_context_for_logging(app_name=app_name)
 
-    def run_application(
+    @abstractmethod
+    def do_tracking(
         self,
         application_name: str,
         sample_df_stats: pd.DataFrame,
@@ -150,8 +152,9 @@ class ModelMonitoringApplication(StepToDict):
         """
         raise NotImplementedError
 
-    @staticmethod
+    @classmethod
     def _resolve_event(
+        cls,
         event: dict[str, Any],
     ) -> Tuple[
         str,
@@ -185,10 +188,10 @@ class ModelMonitoringApplication(StepToDict):
         end_time = pd.Timestamp(event[mm_constant.ApplicationEvent.END_INFER_TIME])
         return (
             event[mm_constant.ApplicationEvent.APPLICATION_NAME],
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.CURRENT_STATS])
             ),
-            ModelMonitoringApplication._dict_to_histogram(
+            cls._dict_to_histogram(
                 json.loads(event[mm_constant.ApplicationEvent.FEATURE_STATS])
             ),
             ParquetTarget(

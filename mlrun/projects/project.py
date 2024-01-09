@@ -54,7 +54,7 @@ from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
 from ..model_monitoring.application import (
-    ModelMonitoringApplication,
+    ModelMonitoringApplicationBase,
     PushToMonitoringWriter,
 )
 from ..run import code_to_function, get_object, import_function, new_function
@@ -1747,7 +1747,7 @@ class MlrunProject(ModelObj):
     def set_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler=None,
@@ -1817,7 +1817,7 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         func: str = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,
@@ -1868,7 +1868,7 @@ class MlrunProject(ModelObj):
     def _instantiate_model_monitoring_function(
         self,
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
-        application_class: typing.Union[str, ModelMonitoringApplication] = None,
+        application_class: typing.Union[str, ModelMonitoringApplicationBase] = None,
         name: str = None,
         image: str = None,
         handler: str = None,

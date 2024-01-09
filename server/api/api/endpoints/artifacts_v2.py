@@ -66,6 +66,7 @@ async def create_artifact(
         iteration,
         producer_id=tree,
         project=project,
+        auth_info=auth_info,
     )
     return await run_in_threadpool(
         server.api.crud.Artifacts().get_artifact,

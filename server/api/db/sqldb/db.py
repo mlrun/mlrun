@@ -313,18 +313,18 @@ class SQLDB(DBInterface):
     def list_runs(
         self,
         session,
-        name=None,
-        uid: typing.Optional[typing.Union[str, List[str]]] = None,
-        project=None,
-        labels=None,
-        states=None,
-        sort=True,
-        last=0,
-        iter=False,
-        start_time_from=None,
-        start_time_to=None,
-        last_update_time_from=None,
-        last_update_time_to=None,
+        name: typing.Optional[str] = None,
+        uid: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        project: str = "",
+        labels: typing.Optional[typing.Union[str, typing.List[str]]] = None,
+        states: typing.Optional[typing.List[str]] = None,
+        sort: bool = True,
+        last: int = 0,
+        iter: bool = False,
+        start_time_from: datetime = None,
+        start_time_to: datetime = None,
+        last_update_time_from: datetime = None,
+        last_update_time_to: datetime = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -360,6 +360,9 @@ class SQLDB(DBInterface):
             query = query.filter(Run.iteration == 0)
         if requested_logs is not None:
             query = query.filter(Run.requested_logs == requested_logs)
+        # Purposefully not using outer join to avoid returning runs without notifications
+        if with_notifications:
+            query = query.join(Run.Notification)
         if partition_by:
             self._assert_partition_by_parameters(
                 mlrun.common.schemas.RunPartitionByField,
@@ -378,10 +381,6 @@ class SQLDB(DBInterface):
             )
         if not return_as_run_structs:
             return query.all()
-
-        # Purposefully not using outer join to avoid returning runs without notifications
-        if with_notifications:
-            query = query.join(Run.Notification)
 
         runs = RunList()
         for run in query:
@@ -635,7 +634,7 @@ class SQLDB(DBInterface):
 
         if best_iteration and iter is not None:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "best-iteration cannot be used when iter is specified"
+                "Best iteration cannot be used when iter is specified"
             )
 
         artifact_records = self._find_artifacts(

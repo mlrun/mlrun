@@ -33,7 +33,7 @@ import mlrun
 import mlrun.feature_store
 import mlrun.model_monitoring.api
 from mlrun.model_monitoring import TrackingPolicy
-from mlrun.model_monitoring.application import ModelMonitoringApplication
+from mlrun.model_monitoring.application import ModelMonitoringApplicationBase
 from mlrun.model_monitoring.evidently_application import SUPPORTED_EVIDENTLY_VERSION
 from mlrun.model_monitoring.writer import _TSDB_BE, _TSDB_TABLE, ModelMonitoringWriter
 from mlrun.utils.logger import Logger
@@ -49,11 +49,12 @@ from .assets.custom_evidently_app import CustomEvidentlyMonitoringApp
 
 @dataclass
 class _AppData:
-    class_: typing.Type[ModelMonitoringApplication]
+    class_: typing.Type[ModelMonitoringApplicationBase]
     rel_path: str
     requirements: list[str] = field(default_factory=list)
     kwargs: dict[str, typing.Any] = field(default_factory=dict)
     abs_path: str = field(init=False)
+    metrics: typing.Optional[set[str]] = None  # only for testing
 
     def __post_init__(self) -> None:
         path = Path(__file__).parent / self.rel_path
@@ -65,7 +66,6 @@ class _V3IORecordsChecker:
     _logger: Logger
     apps_data: list[_AppData]
     app_interval: int
-    tsdb_query_end: str = "now"
 
     @classmethod
     def custom_setup_class(cls, project_name: str) -> None:
@@ -83,7 +83,13 @@ class _V3IORecordsChecker:
             resp = ModelMonitoringWriter._get_v3io_client().kv.get(
                 container=cls._v3io_container, table_path=ep_id, key=app_name
             )
-            assert resp.output.item, f"V3IO KV app data is empty for app {app_name}"
+            assert (
+                data := resp.output.item
+            ), f"V3IO KV app data is empty for app {app_name}"
+            if app_data.metrics:
+                assert (
+                    data.keys() == app_data.metrics
+                ), "The KV saved metrics are different than expected"
 
     @classmethod
     def _test_tsdb_record(cls, ep_id: str) -> None:
@@ -91,15 +97,25 @@ class _V3IORecordsChecker:
             backend=_TSDB_BE,
             table=_TSDB_TABLE,
             start=f"now-{5 * cls.app_interval}m",
-            end=cls.tsdb_query_end,
+            end="now",
         )
         assert not df.empty, "No TSDB data"
         assert (
             df.endpoint_id == ep_id
         ).all(), "The endpoint IDs are different than expected"
+
         assert set(df.application_name) == {
             app_data.class_.name for app_data in cls.apps_data
         }, "The application names are different than expected"
+
+        tsdb_metrics = df.groupby("application_name").result_name.unique()
+        for app_data in cls.apps_data:
+            if app_metrics := app_data.metrics:
+                app_name = app_data.class_.name
+                cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
+                assert (
+                    set(tsdb_metrics[app_name]) == app_metrics
+                ), "The TSDB saved metrics are different than expected"
 
     @classmethod
     def _test_v3io_records(cls, ep_id: str) -> None:
@@ -133,7 +149,11 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
         cls.evidently_project_id = str(uuid.uuid4())
 
         cls.apps_data: list[_AppData] = [
-            _AppData(class_=DemoMonitoringApp, rel_path="assets/application.py"),
+            _AppData(
+                class_=DemoMonitoringApp,
+                rel_path="assets/application.py",
+                metrics={"data_drift_test", "model_perf"},
+            ),
             _AppData(
                 class_=CustomEvidentlyMonitoringApp,
                 rel_path="assets/custom_evidently_app.py",
@@ -142,6 +162,7 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
                     "evidently_workspace_path": cls.evidently_workspace_path,
                     "evidently_project_id": cls.evidently_project_id,
                 },
+                metrics={"data_drift_test"},
             ),
         ]
         cls.infer_path = f"v2/models/{cls.model_name}/infer"
@@ -247,9 +268,8 @@ class TestMonitoringAppFlow(TestMLRunSystem, _V3IORecordsChecker):
 class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
     project_name = "test-monitoring-record-results"
     name_prefix = "infer-monitoring"
-
-    # TODO - remove this when TSDB future time issue is resolved
-    tsdb_query_end = "now+3h"
+    # Set image to "<repo>/mlrun:<tag>" for local testing
+    image: typing.Optional[str] = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -313,6 +333,7 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             application_class=self.app_data.class_.__name__,
             name=self.app_data.class_.name,
             requirements=self.app_data.requirements,
+            image="mlrun/mlrun" if self.image is None else self.image,
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
@@ -328,13 +349,12 @@ class TestRecordResults(TestMLRunSystem, _V3IORecordsChecker):
             endpoint_id=self.endpoint_id,
             context=mlrun.get_or_create_ctx(name=f"{self.name_prefix}-context"),  # pyright: ignore[reportGeneralTypeIssues]
             infer_results_df=self.infer_results_df,
-            trigger_monitoring_job=True,
-            last_in_batch_set=True,
         )
 
     def _deploy_monitoring_infra(self) -> None:
         self.project.enable_model_monitoring(  # pyright: ignore[reportOptionalMemberAccess]
             base_period=self.app_interval,
+            **({} if self.image is None else {"default_controller_image": self.image}),
         )
 
     def test_inference_feature_set(self) -> None:

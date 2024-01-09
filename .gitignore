@@ -36,7 +36,6 @@ tests/system/env.yml
 docs/contributing.md
 server/api/proto/*pb2*.py
 automation/patch_igz/patch_env.yml
-mlrun/api/
 kubeconfig
 
 # used for local development.

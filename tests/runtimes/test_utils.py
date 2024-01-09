@@ -72,12 +72,7 @@ def test_add_code_metadata_stale_remote(repo):
     "labels, labels_to_enrich, expected_labels, env_vars_to_mock",
     [
         ({}, None, {"owner": "v3io_user", "v3io_user": "v3io_user"}, None),
-        (
-            {},
-            {},
-            {"owner": os.environ.get("LOGNAME")},
-            {"LOGNAME": os.environ.get("LOGNAME")},
-        ),
+        ({}, {}, {"owner": "test_user"}, {"LOGNAME": "test_user", "V3IO_USERNAME": ""}),
         (
             {"owner": "Mahatma"},
             {},

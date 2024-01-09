@@ -129,3 +129,34 @@ class GoogleCloudStorageStore(DataStore):
     def rm(self, path, recursive=False, maxdepth=None):
         path = self._make_path(path)
         self.get_filesystem().rm(path=path, recursive=recursive, maxdepth=maxdepth)
+
+    def get_spark_options(self):
+        res = None
+        st = self.get_storage_options()
+        if "token" in st:
+            res = {"spark.hadoop.google.cloud.auth.service.account.enable": "true"}
+            if isinstance(st["token"], str):
+                # Token is a filename, read json from it
+                with open(st["token"], "r") as file:
+                    credentials = json.load(file)
+            else:
+                # Token is a dictionary, use it directly
+                credentials = st["token"]
+
+            if "project_id" in credentials:
+                res["spark.hadoop.fs.gs.project.id"] = credentials["project_id"]
+            if "private_key_id" in credentials:
+                res[
+                    "spark.hadoop.fs.gs.auth.service.account.private.key.id"
+                ] = credentials["private_key_id"]
+            if "private_key" in credentials:
+                res[
+                    "spark.hadoop.fs.gs.auth.service.account.private.key"
+                ] = credentials["private_key"]
+            if "client_email" in credentials:
+                res["spark.hadoop.fs.gs.auth.service.account.email"] = credentials[
+                    "client_email"
+                ]
+            if "client_id" in credentials:
+                res["spark.hadoop.fs.gs.client.id"] = credentials["client_id"]
+        return res

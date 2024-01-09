@@ -29,6 +29,7 @@ import pytest
 import mlrun
 import mlrun.errors
 import mlrun.projects.project
+import mlrun.runtimes.base
 import mlrun.utils.helpers
 import tests.conftest
 
@@ -45,6 +46,37 @@ def context():
 
 def assets_path():
     return pathlib.Path(__file__).absolute().parent / "assets"
+
+
+@pytest.fixture
+def remote_builder_mock(monkeypatch):
+    class _MockDb:
+        kind = "http"
+        remote_builder = unittest.mock.Mock(
+            return_value={
+                "ready": True,
+                "data": {
+                    "status": mlrun.runtimes.base.FunctionStatus("ready", "build-pod")
+                },
+            }
+        )
+
+        def get_build_config(self):
+            self.remote_builder.assert_called_once()
+            call_args = self.remote_builder.call_args
+
+            build_runtime = call_args.args[0]
+            return build_runtime.spec.build
+
+    db_mock = _MockDb()
+
+    monkeypatch.setattr(
+        mlrun.db, "get_or_set_dburl", unittest.mock.Mock(return_value="http://dummy")
+    )
+    monkeypatch.setattr(
+        mlrun.db, "get_run_db", unittest.mock.Mock(return_value=db_mock)
+    )
+    return db_mock
 
 
 def test_sync_functions(rundb_mock):
@@ -1494,3 +1526,46 @@ def test_project_create_remote():
 
         assert project.spec.repo is not None
         assert "mlrun-remote" in [remote.name for remote in project.spec.repo.remotes]
+
+
+@pytest.mark.parametrize(
+    "source_url, pull_at_runtime, base_image, image_name",
+    [
+        (None, None, "aaa/bbb", "ccc/ddd"),
+        ("git://some/repo", False, None, ".some-image"),
+        (
+            "git://some/other/repo",
+            False,
+            ".some-base-image",
+            "some-repo/some-target-image",
+        ),
+        ("git://some/repo", True, None, ".some-image"),
+    ],
+)
+def test_project_build_image(
+    source_url, pull_at_runtime, base_image, image_name, remote_builder_mock
+):
+    project_name = "project1"
+
+    project = mlrun.new_project(project_name, save=False)
+
+    if source_url:
+        project.set_source(source_url, pull_at_runtime=pull_at_runtime)
+
+    project.build_image(image=image_name, base_image=base_image)
+
+    build_config = remote_builder_mock.get_build_config()
+
+    # If build-at-runtime, then source will not be provided to the build process since no configuration is needed
+    # at build time.
+    if pull_at_runtime:
+        assert build_config.load_source_on_run is None
+        assert build_config.source is None
+    else:
+        assert not build_config.load_source_on_run
+        assert build_config.source == source_url
+
+    assert build_config.image == image_name
+    # If no base image was used, then mlrun/mlrun is expected
+    assert build_config.base_image == base_image or "mlrun/mlrun"
+    assert project.default_image == image_name

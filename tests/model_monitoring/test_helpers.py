@@ -117,12 +117,35 @@ def test_pad_features_hist(
 class TestBatchInterval:
     @staticmethod
     @pytest.fixture
+    def timedelta_seconds() -> int:
+        return int(datetime.timedelta(minutes=6).total_seconds())
+
+    @staticmethod
+    @pytest.fixture
+    def first_request() -> int:
+        return int(
+            datetime.datetime(
+                2021, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        )
+
+    @staticmethod
+    @pytest.fixture
+    def last_updated() -> int:
+        return int(
+            datetime.datetime(
+                2021, 1, 1, 13, 1, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        )
+
+    @staticmethod
+    @pytest.fixture
     def intervals(
-        request: pytest.FixtureRequest,
-        timedelta_seconds: int = int(datetime.timedelta(minutes=6).total_seconds()),
-        first_request: int = int(datetime.datetime(2021, 1, 1, 12, 0, 0).timestamp()),
-        last_updated: int = int(datetime.datetime(2021, 1, 1, 13, 1, 0).timestamp()),
-    ) -> list[Tuple[datetime.datetime, datetime.datetime]]:
+		request: pytest.FixtureRequest,
+        timedelta_seconds: int,
+        first_request: int,
+        last_updated: int,
+    ) -> list[tuple[datetime.datetime, datetime.datetime]]:
         mock = Mock(spec=["kv"])
         mock.kv.get = Mock(side_effect=HttpResponseError)
         with patch(
@@ -147,7 +170,7 @@ class TestBatchInterval:
 
     @staticmethod
     def test_touching_intervals(
-        intervals: list[Tuple[datetime.datetime, datetime.datetime]],
+        intervals: list[tuple[datetime.datetime, datetime.datetime]],
     ) -> None:
         assert len(intervals) > 1, "There should be more than one interval"
         for prev, curr in zip(intervals[:-1], intervals[1:]):

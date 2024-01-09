@@ -187,7 +187,6 @@ class TestBatchInterval:
             (dt(12, 42), dt(12, 48)),
             (dt(12, 48), dt(12, 54)),
             (dt(12, 54), dt(13, 0)),
-            # (dt(13, 0), dt(13, 6)),  # This window shouldn't be there
         ]
 
     @staticmethod
@@ -199,7 +198,6 @@ class TestBatchInterval:
             assert prev[1] == curr[0], "The intervals should be touching"
 
     @staticmethod
-    @pytest.mark.xfail(reason="ML-5486")
     def test_intervals(
         intervals: list[tuple[datetime.datetime, datetime.datetime]],
         expected_intervals: list[tuple[datetime.datetime, datetime.datetime]],
@@ -210,7 +208,6 @@ class TestBatchInterval:
         assert intervals == expected_intervals, "The intervals are not as expected"
 
     @staticmethod
-    @pytest.mark.xfail(reason="ML-5486")
     def test_last_interval_does_not_overflow(
         intervals: list[tuple[datetime.datetime, datetime.datetime]],
         last_updated: int,

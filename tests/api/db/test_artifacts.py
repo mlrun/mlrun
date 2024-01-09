@@ -1286,11 +1286,18 @@ class TestArtifacts:
         db.store_artifact(db_session, artifact_key, model_body)
         artifacts = db.list_artifacts(db_session)
         assert len(artifacts) == 2
+
+        tags = [artifact["metadata"].get("tag", None) for artifact in artifacts]
+        assert len(tags) == 2
+        assert "latest" in tags
+        assert None in tags
+
         for model in artifacts:
             assert model["metadata"]["key"] == artifact_key
-
-        latest_art = db.read_artifact(db_session, artifact_key, tag="latest")
-        assert latest_art["spec"]["model_file"] == "some/path"
+            if model["metadata"].get("tag") == "latest":
+                assert model["spec"]["model_file"] == "some/path"
+            else:
+                assert model["spec"].get("model_file") is None
 
     def _generate_artifact_with_iterations(
         self, db, db_session, key, tree, num_iters, best_iter, kind, project=""
